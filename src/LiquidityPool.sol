@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.19;
+pragma solidity =0.8.19;
 
 import "@solmate/mixins/ERC4626.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -40,7 +40,10 @@ contract LiquidityPool is ERC4626, Ownable {
         if (_amountToBorrow > borrowCapacity)
             revert LiquidityPool__NOT_ENOUGH_LIQUIDITY(borrowCapacity);
         borrowedFunds += _amountToBorrow;
-        asset.safeTransfer(msg.sender, _amountToBorrow);
+        require(
+            asset.safeTransfer(msg.sender, _amountToBorrow),
+            "LiquidityPool: transfer failed"
+        );
     }
 
     /**
@@ -57,7 +60,14 @@ contract LiquidityPool is ERC4626, Ownable {
     ) external onlyOwner {
         // Losses are taken by the pool
         borrowedFunds = uint256(int256(borrowedFunds) - int256(_amountBorrowed));
-        asset.safeTransferFrom(msg.sender, address(this), _amountBorrowed + _interests - _losses);
+        require(
+            asset.safeTransferFrom(
+                msg.sender,
+                address(this),
+                _amountBorrowed + _interests - _losses
+            ),
+            "LiquidityPool: transfer failed"
+        );
     }
 
     // --------------- View Zone ---------------

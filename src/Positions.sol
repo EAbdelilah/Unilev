@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.19;
+pragma solidity =0.8.19;
 
 import "@solmate/tokens/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -163,6 +163,7 @@ contract Positions is ERC721, Ownable, ReentrancyGuard {
         uint160 _limitPrice,
         uint256 _stopLossPrice
     ) external onlyOwner returns (uint256) {
+        require(_leverage > 0 && _leverage <= MAX_LEVERAGE, "Positions: leverage not in range");
         // Check params
         (
             uint256 price,
@@ -508,7 +509,8 @@ contract Positions is ERC721, Ownable, ReentrancyGuard {
             : address(posParms.quoteToken);
 
         uint256 amountTokenReceived = amount0 != 0 ? amount0 : amount1;
-        uint256 interest = posParms.hourlyFees * ((block.timestamp - posParms.timestamp) / 3600);
+        uint256 interest = posParms.hourlyFees *
+            ((priceFeed.getBlockTimestamp() - posParms.timestamp) / 3600);
 
         address tokenToTrader = addTokenReceived == address(posParms.baseToken)
             ? address(posParms.quoteToken)
@@ -524,7 +526,6 @@ contract Positions is ERC721, Ownable, ReentrancyGuard {
                     1
                 );
             }
-            ERC20(addTokenBorrowed).safeTransfer(trader, amountTokenReceived);
         }
         // state 1+margin, 2, 3, 4 and 5
         else {
@@ -560,27 +561,64 @@ contract Positions is ERC721, Ownable, ReentrancyGuard {
                     posParms.totalBorrow + interest - loss
                 );
                 liquidityPoolToUse.refund(posParms.totalBorrow, interest, loss);
-                if (loss == 0) {
-                    ERC20(addTokenReceived).safeTransfer(trader, amountTokenReceived - inAmount);
-                }
             } else if (state == 2) {
-                ERC20(addTokenReceived).safeTransfer(trader, amountTokenReceived);
+                // ERC20(addTokenReceived).safeTransfer(trader, amountTokenReceived);
             } else {
                 // when not margin, we need to swap to the other token
                 ERC20(addTokenReceived).safeApprove(address(uniswapV3Helper), amountTokenReceived);
-                uint256 outAmount = uniswapV3Helper.swapExactInputSingle(
+                uniswapV3Helper.swapExactInputSingle(
                     addTokenReceived,
                     tokenToTrader,
                     UniswapV3Pool(posParms.v3Pool).fee(),
                     amountTokenReceived
                 );
-                ERC20(tokenToTrader).safeTransfer(trader, outAmount);
             }
         }
 
         --totalNbPos;
         delete openPositions[_posId];
         safeBurn(_posId);
+
+        if (state == 1 && !isMargin) {
+            ERC20(addTokenReceived).safeTransfer(trader, amountTokenReceived);
+        } else if (isMargin) {
+            if (
+                int256(
+                    int(swapMaxTokenPossible(
+                            addTokenReceived,
+                            tokenToTrader,
+                            UniswapV3Pool(posParms.v3Pool).fee(),
+                            posParms.totalBorrow + interest,
+                            amountTokenReceived
+                        )) - int(posParms.totalBorrow) - int(interest)
+                ) >= 0
+            ) {
+                ERC20(addTokenReceived).safeTransfer(
+                    trader,
+                    amountTokenReceived -
+                        swapMaxTokenPossible(
+                            addTokenReceived,
+                            tokenToTrader,
+                            UniswapV3Pool(posParms.v3Pool).fee(),
+                            posParms.totalBorrow + interest,
+                            amountTokenReceived
+                        )
+                );
+            }
+        } else if (state == 2) {
+            ERC20(addTokenReceived).safeTransfer(trader, amountTokenReceived);
+        } else {
+            ERC20(tokenToTrader).safeTransfer(
+                trader,
+                uniswapV3Helper.swapExactInputSingle(
+                    addTokenReceived,
+                    tokenToTrader,
+                    UniswapV3Pool(posParms.v3Pool).fee(),
+                    amountTokenReceived
+                )
+            );
+        }
+
         ERC20(addTokenInitiallySupplied).safeTransfer(_liquidator, posParms.liquidationReward);
     }
 
@@ -695,7 +733,7 @@ contract Positions is ERC721, Ownable, ReentrancyGuard {
             int128(openPositions[_posId].liquidationReward) -
             int128(
                 int256(openPositions[_posId].hourlyFees) *
-                    ((int256(block.timestamp) - int64(timestamp_)) / 3600)
+                    ((int256(priceFeed.getBlockTimestamp()) - int64(timestamp_)) / 3600)
             );
 
         collateralLeft_ = int128(openPositions[_posId].collateralSize) + currentPnL_;

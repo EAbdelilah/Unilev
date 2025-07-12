@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.19;
+pragma solidity =0.8.19;
 
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -87,5 +87,9 @@ contract PriceFeedL1 is Ownable {
             return false;
         }
         return true;
+    }
+
+    function getBlockTimestamp() public view returns (uint256) {
+        return block.timestamp;
     }
 }
