@@ -3,16 +3,26 @@ pragma solidity =0.8.19;
 
 import "@solmate/mixins/ERC4626.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+
+// Events
+event Borrowed(address indexed from, uint256 amount);
+event Refunded(
+    address indexed to,
+    uint256 amountBorrowed,
+    uint256 interests,
+    uint256 losses
+);
 
 // Errors
 error LiquidityPool__NOT_ENOUGH_LIQUIDITY(uint256 maxBorrowCapatity);
 
-contract LiquidityPool is ERC4626, Ownable {
+contract LiquidityPool is ERC4626, Ownable, ReentrancyGuard {
     using SafeTransferLib for ERC20;
 
     uint256 private borrowedFunds; // Funds currently used by positions
 
-    uint256 private MAX_BORROW_RATIO = 8000; // in basis points => 80%
+    uint256 private immutable MAX_BORROW_RATIO = 8000; // in basis points => 80%
 
     constructor(
         ERC20 _asset,
@@ -35,15 +45,14 @@ contract LiquidityPool is ERC4626, Ownable {
      * @dev Only the owner (the Positions contract) can borrow funds
      * @param _amountToBorrow amount to borrow
      */
-    function borrow(uint256 _amountToBorrow) external onlyOwner {
+    function borrow(uint256 _amountToBorrow) external onlyOwner nonReentrant {
         uint256 borrowCapacity = borrowCapacityLeft();
         if (_amountToBorrow > borrowCapacity)
             revert LiquidityPool__NOT_ENOUGH_LIQUIDITY(borrowCapacity);
+
+        asset.safeTransfer(msg.sender, _amountToBorrow);
         borrowedFunds += _amountToBorrow;
-        require(
-            asset.safeTransfer(msg.sender, _amountToBorrow),
-            "LiquidityPool: transfer failed"
-        );
+        emit Borrowed(msg.sender, _amountToBorrow);
     }
 
     /**
@@ -57,17 +66,13 @@ contract LiquidityPool is ERC4626, Ownable {
         uint256 _amountBorrowed,
         uint256 _interests,
         uint256 _losses
-    ) external onlyOwner {
+    ) external onlyOwner nonReentrant {
+        require(_amountBorrowed <= borrowedFunds, "Cannot refund more than borrowed");
+        require(_losses <= _amountBorrowed + _interests, "Losses too high");
+        asset.safeTransferFrom(msg.sender, address(this), _amountBorrowed + _interests - _losses);
         // Losses are taken by the pool
         borrowedFunds = uint256(int256(borrowedFunds) - int256(_amountBorrowed));
-        require(
-            asset.safeTransferFrom(
-                msg.sender,
-                address(this),
-                _amountBorrowed + _interests - _losses
-            ),
-            "LiquidityPool: transfer failed"
-        );
+        emit Refunded(address(this), _amountBorrowed, _interests, _losses);
     }
 
     // --------------- View Zone ---------------

@@ -40,7 +40,8 @@ contract UniswapV3Helper is IERC721Receiver {
         address _token0,
         address _token1,
         uint24 _fee,
-        uint256 _amountIn
+        uint256 _amountIn,
+        uint256 _amountOutMin
     ) public returns (uint256 amountOut) {
         TransferHelper.safeTransferFrom(_token0, msg.sender, address(this), _amountIn);
         TransferHelper.safeApprove(_token0, address(swapRouter), _amountIn);
@@ -52,7 +53,7 @@ contract UniswapV3Helper is IERC721Receiver {
             recipient: msg.sender,
             deadline: block.timestamp,
             amountIn: _amountIn,
-            amountOutMinimum: 0,
+            amountOutMinimum: _amountOutMin,
             // NOTE: In production, this value can be used to set the limit
             // for the price the swap will push the pool to,
             // which can help protect against price impact

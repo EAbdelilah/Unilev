@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
-pragma solidity =0.8.19;
+pragma solidity 0.8.19;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 import "./interfaces/IMarket.sol";
 import "./Positions.sol";
@@ -10,7 +11,7 @@ import "./LiquidityPool.sol";
 import "./LiquidityPoolFactory.sol";
 import "./PriceFeedL1.sol";
 
-contract Market is IMarket, Ownable, Pausable {
+contract Market is IMarket, Ownable, Pausable, ReentrancyGuard {
     using SafeTransferLib for ERC20;
 
     Positions private immutable positions;
@@ -23,6 +24,12 @@ contract Market is IMarket, Ownable, Pausable {
         address _priceFeed,
         address _owner
     ) {
+        require(
+            _positions != address(0) &&
+                _liquidityPoolFactory != address(0) &&
+                _priceFeed != address(0),
+            "Invalid address"
+        );
         positions = Positions(_positions);
         liquidityPoolFactory = LiquidityPoolFactory(_liquidityPoolFactory);
         priceFeed = PriceFeedL1(_priceFeed);
@@ -39,7 +46,10 @@ contract Market is IMarket, Ownable, Pausable {
         uint128 _amount,
         uint160 _limitPrice,
         uint256 _stopLossPrice
-    ) external whenNotPaused {
+    ) external whenNotPaused nonReentrant {
+        require(_token0 != address(0) && _token1 != address(0), "Invalid token");
+        require(_leverage > 0 && _leverage <= 25, "Invalid leverage");
+        require(_amount > 0, "Amount must be positive");
         uint256 posId = positions.openPosition(
             msg.sender,
             _token0,
@@ -64,14 +74,14 @@ contract Market is IMarket, Ownable, Pausable {
         );
     }
 
-    function closePosition(uint256 _posId) external whenNotPaused {
+    function closePosition(uint256 _posId) external whenNotPaused nonReentrant {
         positions.closePosition(msg.sender, _posId);
         emit PositionClosed(_posId, msg.sender);
     }
 
-    function editPosition(uint256 _posId, uint256 _newLstopLossPrice) external whenNotPaused {
-        positions.editPosition(msg.sender, _posId, _newLstopLossPrice);
-        emit PositionEdited(_posId, msg.sender, _newLstopLossPrice);
+    function editPosition(uint256 _posId, uint256 _newStopLossPrice) external whenNotPaused nonReentrant {
+        positions.editPosition(msg.sender, _posId, _newStopLossPrice);
+        emit PositionEdited(_posId, msg.sender, _newStopLossPrice);
     }
 
     function getTraderPositions(address _traderAdd) external view returns (uint256[] memory) {
@@ -101,24 +111,31 @@ contract Market is IMarket, Ownable, Pausable {
     }
 
     // --------------- Liquidator/Keeper Zone ----------------
-    function liquidatePositions(uint256[] memory _posIds) external whenNotPaused {
+    uint256 public constant MAX_BATCH_SIZE = 50;
+    event LiquidationFailed(uint256 indexed posId, bytes reason);
+
+    function liquidatePositions(uint256[] memory _posIds) external whenNotPaused nonReentrant {
+        require(_posIds.length <= MAX_BATCH_SIZE, "Max batch size exceeded");
         uint256 len = _posIds.length;
 
         for (uint256 i; i < len; ++i) {
             // Is that safe ?
             try positions.liquidatePosition(msg.sender, _posIds[i]) {
                 emit PositionLiquidated(_posIds[i], msg.sender);
-            } catch {}
+            } catch (bytes memory reason) {
+                emit LiquidationFailed(_posIds[i], reason);
+                revert("Liquidation failed");
+            }
         }
     }
 
-    function liquidatePosition(uint256 _posId) external whenNotPaused {
+    function liquidatePosition(uint256 _posId) external whenNotPaused nonReentrant {
         positions.liquidatePosition(msg.sender, _posId);
         emit PositionLiquidated(_posId, msg.sender);
     }
 
-    function getLiquidablePositions() external view returns (uint256[] memory) {
-        return positions.getLiquidablePositions();
+    function getLiquidatablePositions() external view returns (uint256[] memory) {
+        return positions.getLiquidatablePositions();
     }
 
     // --------------- Admin Zone ---------------
@@ -126,7 +143,7 @@ contract Market is IMarket, Ownable, Pausable {
         address _token
     ) external onlyOwner whenNotPaused returns (address) {
         address lpAdd = liquidityPoolFactory.createLiquidityPool(_token);
-        emit LiquidityPoolCreated(_token, msg.sender);
+        emit LiquidityPoolCreated(_token, lpAdd);
         return lpAdd;
     }
 
@@ -135,6 +152,7 @@ contract Market is IMarket, Ownable, Pausable {
     }
 
     function addPriceFeed(address _token, address _priceFeed) external onlyOwner whenNotPaused {
+        require(_priceFeed.code.length > 0, "Not a contract");
         priceFeed.addPriceFeed(_token, _priceFeed);
         emit PriceFeedAdded(_token, _priceFeed);
     }

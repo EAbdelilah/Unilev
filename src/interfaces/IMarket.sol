@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity =0.8.19;
+pragma solidity 0.8.19;
 
 import "@solmate/tokens/ERC20.sol";
 import "@uniswapCore/contracts/UniswapV3Pool.sol";
@@ -25,7 +25,7 @@ interface IMarket {
 
     function closePosition(uint256 _posId) external;
 
-    function editPosition(uint256 _posId, uint256 _newLstopLossPrice) external;
+    function editPosition(uint256 _posId, uint256 _newStopLossPrice) external;
 
     function getTraderPositions(address _traderAdd) external view returns (uint256[] memory);
 
@@ -54,7 +54,7 @@ interface IMarket {
 
     function liquidatePosition(uint256 _posId) external;
 
-    function getLiquidablePositions() external view returns (uint256[] memory);
+    function getLiquidatablePositions() external view returns (uint256[] memory);
 
     // --------------- Admin Zone ---------------
     function createLiquidityPool(address _token) external returns (address);

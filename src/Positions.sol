@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: MIT
-pragma solidity =0.8.19;
+pragma solidity 0.8.19;
 
 import "@solmate/tokens/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import "@openzeppelin/contracts/utils/Base64.sol";
-import "@openzeppelin/contracts/utils/Strings.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@uniswapCore/contracts/libraries/TickMath.sol";
 import "@uniswapCore/contracts/UniswapV3Pool.sol";
 import "@uniswapCore/contracts/UniswapV3Factory.sol";
@@ -25,11 +24,11 @@ error Positions__TOKEN_NOT_SUPPORTED_ON_MARGIN(address _token);
 error Positions__NO_PRICE_FEED(address _token0, address _token1);
 error Positions__LEVERAGE_NOT_IN_RANGE(uint8 _leverage);
 error Positions__AMOUNT_TO_SMALL(uint256 _amount);
-error Positions__LIMIT_ORDER_PRICE_NOT_CONCISTENT(uint256 _limitPrice);
-error Positions__STOP_LOSS_ORDER_PRICE_NOT_CONCISTENT(uint256 _stopLossPrice);
+error Positions__LIMIT_ORDER_PRICE_NOT_CONSISTENT(uint256 _limitPrice);
+error Positions__STOP_LOSS_ORDER_PRICE_NOT_CONSISTENT(uint256 _stopLossPrice);
 error Positions__NOT_LIQUIDABLE(uint256 _posId);
-error Positions__WAIT_FOR_LIMIT_ORDER_TO_COMPLET(uint256 _posId);
-error Positions__TOKEN_RECEIVED_NOT_CONCISTENT(
+error Positions__WAIT_FOR_LIMIT_ORDER_TO_COMPLETE(uint256 _posId);
+error Positions__TOKEN_RECEIVED_NOT_CONSISTENT(
     address tokenBorrowed,
     address tokenReceived,
     uint256 state
@@ -37,6 +36,7 @@ error Positions__TOKEN_RECEIVED_NOT_CONCISTENT(
 
 contract Positions is ERC721, Ownable, ReentrancyGuard {
     using SafeTransferLib for ERC20;
+    using SafeMath for uint256;
 
     // Structs
     // prettier-ignore
@@ -61,6 +61,7 @@ contract Positions is ERC721, Ownable, ReentrancyGuard {
     }
 
     // Variables
+    uint256 public constant BPS_DIVIDER = 10000;
     uint256 public constant LIQUIDATION_THRESHOLD = 1000; // 10% of margin
     uint256 public constant MIN_POSITION_AMOUNT_IN_USD = 100; // To avoid DOS attack
     uint256 public constant MAX_LEVERAGE = 3;
@@ -163,7 +164,6 @@ contract Positions is ERC721, Ownable, ReentrancyGuard {
         uint160 _limitPrice,
         uint256 _stopLossPrice
     ) external onlyOwner returns (uint256) {
-        require(_leverage > 0 && _leverage <= MAX_LEVERAGE, "Positions: leverage not in range");
         // Check params
         (
             uint256 price,
@@ -199,23 +199,23 @@ contract Positions is ERC721, Ownable, ReentrancyGuard {
 
         // take opening fees
         uint128 liquidationReward = uint128(
-            (LIQUIDATION_REWARD * (10 ** uint256(ERC20(_token0).decimals()))) /
-                (PriceFeedL1(priceFeed).getTokenLatestPriceInUSD(_token0))
+            (LIQUIDATION_REWARD * 10 ** ERC20(_token0).decimals()) /
+                priceFeed.getTokenLatestPriceInUSD(_token0)
         );
         _amount = _amount - liquidationReward;
 
         if (isMargin) {
             if (_isShort) {
-                breakEvenLimit = price + (price * (10000 / _leverage)) / 10000;
+                breakEvenLimit = price + (price * (BPS_DIVIDER / _leverage)) / BPS_DIVIDER;
                 totalBorrow = ((_amount * (10 ** ERC20(baseToken).decimals())) / price) * _leverage; // Borrow baseToken
             } else {
-                breakEvenLimit = price - (price * (10000 / _leverage)) / 10000;
+                breakEvenLimit = price - (price * (BPS_DIVIDER / _leverage)) / BPS_DIVIDER;
                 totalBorrow =
                     (_amount * (_leverage - 1) * price) /
                     (10 ** ERC20(baseToken).decimals()); // Borrow quoteToken
             }
 
-            uint128 openingFeesToken1 = (uint128(totalBorrow * BORROW_FEE)) / 10000;
+            uint128 openingFeesToken1 = (uint128(totalBorrow * BORROW_FEE)) / BPS_DIVIDER;
             address cacheLiquidityPoolToUse = LiquidityPoolFactory(liquidityPoolFactory)
                 .getTokenToLiquidityPools(_isShort ? baseToken : quoteToken);
 
@@ -243,7 +243,7 @@ contract Positions is ERC721, Ownable, ReentrancyGuard {
                 (((totalBorrow * (10 ** decTokenBorrowed)) /
                     LiquidityPool(cacheLiquidityPoolToUse).rawTotalAsset()) *
                     BORROW_FEE_EVERY_HOURS) /
-                10000;
+                BPS_DIVIDER;
 
             // Borrow funds from the pool
             LiquidityPool(cacheLiquidityPoolToUse).borrow(totalBorrow);
@@ -330,6 +330,7 @@ contract Positions is ERC721, Ownable, ReentrancyGuard {
         uint256 _limitPrice,
         uint256 _stopLossPrice
     ) private view returns (uint256, address, address, bool, address) {
+        require(_token0 != _token1, "Tokens must be different");
         address baseToken;
         address quoteToken;
 
@@ -407,17 +408,17 @@ contract Positions is ERC721, Ownable, ReentrancyGuard {
 
         if (_isShort) {
             if (_limitPrice > price && _limitPrice != 0) {
-                revert Positions__LIMIT_ORDER_PRICE_NOT_CONCISTENT(_limitPrice);
+                revert Positions__LIMIT_ORDER_PRICE_NOT_CONSISTENT(_limitPrice);
             }
             if (_stopLossPrice < price && _stopLossPrice != 0) {
-                revert Positions__STOP_LOSS_ORDER_PRICE_NOT_CONCISTENT(_stopLossPrice);
+                revert Positions__STOP_LOSS_ORDER_PRICE_NOT_CONSISTENT(_stopLossPrice);
             }
         } else {
             if (_limitPrice < price && _limitPrice != 0) {
-                revert Positions__LIMIT_ORDER_PRICE_NOT_CONCISTENT(_limitPrice);
+                revert Positions__LIMIT_ORDER_PRICE_NOT_CONSISTENT(_limitPrice);
             }
             if (_stopLossPrice > price && _stopLossPrice != 0) {
-                revert Positions__STOP_LOSS_ORDER_PRICE_NOT_CONCISTENT(_stopLossPrice);
+                revert Positions__STOP_LOSS_ORDER_PRICE_NOT_CONSISTENT(_stopLossPrice);
             }
         }
         return (price, baseToken, quoteToken, isBaseToken0, v3Pool);
@@ -481,7 +482,7 @@ contract Positions is ERC721, Ownable, ReentrancyGuard {
             /* Since the liquidity position is only 1 tick wide, we can assume
              * that this will rarely revert here. */
             if (amount0 != 0 && amount1 != 0) {
-                revert Positions__WAIT_FOR_LIMIT_ORDER_TO_COMPLET(_posId);
+                revert Positions__WAIT_FOR_LIMIT_ORDER_TO_COMPLETE(_posId);
             }
         } else if (posParms.isShort) {
             posParms.isBaseToken0 ? amount1 = posParms.positionSize : amount0 = posParms
@@ -509,28 +510,28 @@ contract Positions is ERC721, Ownable, ReentrancyGuard {
             : address(posParms.quoteToken);
 
         uint256 amountTokenReceived = amount0 != 0 ? amount0 : amount1;
-        uint256 interest = posParms.hourlyFees *
-            ((priceFeed.getBlockTimestamp() - posParms.timestamp) / 3600);
+        uint256 interest = posParms.hourlyFees * ((block.timestamp - posParms.timestamp) / 1 hours);
 
         address tokenToTrader = addTokenReceived == address(posParms.baseToken)
             ? address(posParms.quoteToken)
             : address(posParms.baseToken);
 
-        // These state assume that the oracle price and the uniswap price are CONCISTENT
+        // These state assume that the oracle price and the uniswap price are CONSISTENT
         // state 1+classic
         if (state == 1 && !isMargin) {
             if (addTokenBorrowed != addTokenReceived) {
-                revert Positions__TOKEN_RECEIVED_NOT_CONCISTENT(
+                revert Positions__TOKEN_RECEIVED_NOT_CONSISTENT(
                     addTokenBorrowed,
                     addTokenReceived,
                     1
                 );
             }
+            ERC20(addTokenBorrowed).safeTransfer(trader, amountTokenReceived);
         }
         // state 1+margin, 2, 3, 4 and 5
         else {
             if (addTokenBorrowed == addTokenReceived) {
-                revert Positions__TOKEN_RECEIVED_NOT_CONCISTENT(
+                revert Positions__TOKEN_RECEIVED_NOT_CONSISTENT(
                     addTokenBorrowed,
                     addTokenReceived,
                     2345
@@ -552,74 +553,40 @@ contract Positions is ERC721, Ownable, ReentrancyGuard {
                     amountTokenReceived
                 );
                 // loss should not occur here but in case of, we refund the pool
-                int256 remaining = int256(
-                    int(outAmount) - int(posParms.totalBorrow) - int(interest)
-                );
-                uint256 loss = remaining < 0 ? uint256(-remaining) : uint256(0);
+                uint256 totalDebt = posParms.totalBorrow.add(interest);
+                int256 remaining = int256(outAmount) - int256(totalDebt);
+                uint256 loss = remaining < 0 ? uint256(-remaining) : 0;
                 ERC20(addTokenBorrowed).safeApprove(
                     address(liquidityPoolToUse),
-                    posParms.totalBorrow + interest - loss
+                    totalDebt.sub(loss)
                 );
                 liquidityPoolToUse.refund(posParms.totalBorrow, interest, loss);
+                if (loss == 0) {
+                    ERC20(addTokenReceived).safeTransfer(trader, amountTokenReceived - inAmount);
+                }
             } else if (state == 2) {
-                // ERC20(addTokenReceived).safeTransfer(trader, amountTokenReceived);
+                ERC20(addTokenReceived).safeTransfer(trader, amountTokenReceived);
             } else {
                 // when not margin, we need to swap to the other token
                 ERC20(addTokenReceived).safeApprove(address(uniswapV3Helper), amountTokenReceived);
-                uniswapV3Helper.swapExactInputSingle(
+                uint256 outAmount = uniswapV3Helper.swapExactInputSingle(
                     addTokenReceived,
                     tokenToTrader,
                     UniswapV3Pool(posParms.v3Pool).fee(),
                     amountTokenReceived
                 );
+                ERC20(tokenToTrader).safeTransfer(trader, outAmount);
             }
         }
 
         --totalNbPos;
         delete openPositions[_posId];
         safeBurn(_posId);
-
-        if (state == 1 && !isMargin) {
-            ERC20(addTokenReceived).safeTransfer(trader, amountTokenReceived);
-        } else if (isMargin) {
-            if (
-                int256(
-                    int(swapMaxTokenPossible(
-                            addTokenReceived,
-                            tokenToTrader,
-                            UniswapV3Pool(posParms.v3Pool).fee(),
-                            posParms.totalBorrow + interest,
-                            amountTokenReceived
-                        )) - int(posParms.totalBorrow) - int(interest)
-                ) >= 0
-            ) {
-                ERC20(addTokenReceived).safeTransfer(
-                    trader,
-                    amountTokenReceived -
-                        swapMaxTokenPossible(
-                            addTokenReceived,
-                            tokenToTrader,
-                            UniswapV3Pool(posParms.v3Pool).fee(),
-                            posParms.totalBorrow + interest,
-                            amountTokenReceived
-                        )
-                );
-            }
-        } else if (state == 2) {
-            ERC20(addTokenReceived).safeTransfer(trader, amountTokenReceived);
-        } else {
-            ERC20(tokenToTrader).safeTransfer(
-                trader,
-                uniswapV3Helper.swapExactInputSingle(
-                    addTokenReceived,
-                    tokenToTrader,
-                    UniswapV3Pool(posParms.v3Pool).fee(),
-                    amountTokenReceived
-                )
-            );
-        }
-
-        ERC20(addTokenInitiallySupplied).safeTransfer(_liquidator, posParms.liquidationReward);
+        uint128 liquidationReward = uint128(
+            (LIQUIDATION_REWARD * 10 ** ERC20(addTokenInitiallySupplied).decimals()) /
+                priceFeed.getTokenLatestPriceInUSD(addTokenInitiallySupplied)
+        );
+        ERC20(addTokenInitiallySupplied).safeTransfer(_liquidator, liquidationReward);
     }
 
     /**
@@ -640,11 +607,11 @@ contract Positions is ERC721, Ownable, ReentrancyGuard {
         );
         if (openPositions[_posId].isShort) {
             if (_newStopLossPrice < price) {
-                revert Positions__STOP_LOSS_ORDER_PRICE_NOT_CONCISTENT(_newStopLossPrice);
+                revert Positions__STOP_LOSS_ORDER_PRICE_NOT_CONSISTENT(_newStopLossPrice);
             }
         } else {
             if (_newStopLossPrice > price) {
-                revert Positions__STOP_LOSS_ORDER_PRICE_NOT_CONCISTENT(_newStopLossPrice);
+                revert Positions__STOP_LOSS_ORDER_PRICE_NOT_CONSISTENT(_newStopLossPrice);
             }
         }
         openPositions[_posId].stopLossPrice = _newStopLossPrice;
@@ -672,8 +639,8 @@ contract Positions is ERC721, Ownable, ReentrancyGuard {
             address(openPositions[_posId].quoteToken)
         );
         uint256 lidTresh = isShort
-            ? (breakEvenLimit * (10000 - LIQUIDATION_THRESHOLD)) / 10000
-            : (breakEvenLimit * (LIQUIDATION_THRESHOLD + 10000)) / 10000;
+            ? (breakEvenLimit * (BPS_DIVIDER - LIQUIDATION_THRESHOLD)) / BPS_DIVIDER
+            : (breakEvenLimit * (LIQUIDATION_THRESHOLD + BPS_DIVIDER)) / BPS_DIVIDER;
 
         // closable because of take profit
         if (isShort) {
@@ -722,9 +689,11 @@ contract Positions is ERC721, Ownable, ReentrancyGuard {
         uint256 initialPrice = openPositions[_posId].initialPrice;
         uint256 currentPrice = PriceFeedL1(priceFeed).getPairLatestPrice(baseToken_, quoteToken_);
 
-        int256 share = 10000 - int(currentPrice * 10000) / int(initialPrice);
+        int256 share = int256(BPS_DIVIDER) -
+            (int256(currentPrice) * int256(BPS_DIVIDER)) /
+            int256(initialPrice);
 
-        currentPnL_ = int128((int128(positionSize_) * share) / 10000);
+        currentPnL_ = int128((int128(positionSize_) * share) / int128(BPS_DIVIDER));
 
         currentPnL_ = isShort_ ? currentPnL_ : -currentPnL_;
 
@@ -733,7 +702,7 @@ contract Positions is ERC721, Ownable, ReentrancyGuard {
             int128(openPositions[_posId].liquidationReward) -
             int128(
                 int256(openPositions[_posId].hourlyFees) *
-                    ((int256(priceFeed.getBlockTimestamp()) - int64(timestamp_)) / 3600)
+                    ((int256(block.timestamp) - int64(timestamp_)) / 1 hours)
             );
 
         collateralLeft_ = int128(openPositions[_posId].collateralSize) + currentPnL_;
