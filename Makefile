@@ -35,3 +35,18 @@ anvil :; anvil -m 'test test test test test test test test test test test junk' 
 
 # This is the private key of account from the mnemonic from the "make anvil" command
 deploy-anvil :; @forge script src/scripts/Deployments.s.sol:Deployments --via-ir --fork-url http://localhost:8545  --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 --broadcast 
+
+deploy-polygon:
+	@if [ -z "$${POLYGON_RPC_URL}" ]; then \
+		echo "Error: POLYGON_RPC_URL is not set. Please set it in your environment or .env file."; \
+		exit 1; \
+	fi
+	@if [ -z "$${POLYGON_PRIVATE_KEY}" ]; then \
+		echo "Error: POLYGON_PRIVATE_KEY is not set. Please set it in your environment or .env file."; \
+		exit 1; \
+	fi
+	@if [ -z "$${POLYGONSCAN_API_KEY}" ]; then \
+		echo "Error: POLYGONSCAN_API_KEY is not set. Please set it in your environment or .env file. Verification will be skipped if not provided, but the command might fail if the flag is present without a value."; \
+	fi
+	@echo "Using POLYGON_RPC_URL: $${POLYGON_RPC_URL}"
+	@forge script src/scripts/Deployments.s.sol:Deployments --via-ir --rpc-url $${POLYGON_RPC_URL} --private-key $${POLYGON_PRIVATE_KEY} --broadcast --verify --etherscan-api-key $${POLYGONSCAN_API_KEY} --legacy
