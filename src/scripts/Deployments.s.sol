@@ -12,20 +12,16 @@ import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "@uniswapCore/contracts/UniswapV3Pool.sol";
 import {SwapRouter} from "@uniswapPeriphery/contracts/SwapRouter.sol";
 
-import "forge-std/Test.sol";
+import "forge-std/Script.sol";
+import "forge-std/console.sol"; // Added for logging
 import "../test/utils/HelperConfig.sol";
-import "../test/mocks/MockV3Aggregator.sol";
-import {Utils} from "../test/utils/Utils.sol";
 
-contract Deployments is Test, HelperConfig, Utils {
+contract Deployments is Script, HelperConfig {
     UniswapV3Helper public uniswapV3Helper;
     LiquidityPoolFactory public liquidityPoolFactory;
     PriceFeedL1 public priceFeedL1;
     Market public market;
     Positions public positions;
-    MockV3Aggregator public mockV3AggregatorWBTCETH;
-    MockV3Aggregator public mockV3AggregatorUSDCETH;
-    MockV3Aggregator public mockV3AggregatorETHUSD;
     LiquidityPool public lbPoolWBTC;
     LiquidityPool public lbPoolWETH;
     LiquidityPool public lbPoolUSDC;
@@ -37,25 +33,27 @@ contract Deployments is Test, HelperConfig, Utils {
 
     HelperConfig.NetworkConfig public conf;
 
-    function setUp() public {}
-
     function run() public {
+        conf = getActiveNetworkConfig(); // Assign conf first
+
+        // Logging statements to debug configuration
+        console.log("--- Debug Logs ---");
+        
+        console.log("Using priceFeedETHUSD (MATIC/USD on Polygon):", conf.priceFeedETHUSD);
+        console.log("Using addWBTC:", conf.addWBTC);
+        console.log("Using addWETH:", conf.addWETH);
+        console.log("Using addUSDC:", conf.addUSDC);
+        console.log("--- End Debug Logs ---");
+
         vm.startBroadcast();
 
-        conf = getActiveNetworkConfig();
-
-        // mainnet context
+        // mainnet context (swapRouter should be fine for Polygon too)
         swapRouter = SwapRouter(payable(conf.swapRouter));
 
         /// deployments
-        // mocks
-        mockV3AggregatorWBTCETH = new MockV3Aggregator(18, 14 ether); // 1 WBTC = 14 ETH
-        mockV3AggregatorUSDCETH = new MockV3Aggregator(18, 1e15); // 1 USDC = 0,0001 ETH
-        mockV3AggregatorETHUSD = new MockV3Aggregator(8, 1000e8); // 1 ETH = 1000 USD
-
         // contracts
         uniswapV3Helper = new UniswapV3Helper(conf.nonfungiblePositionManager, conf.swapRouter);
-        priceFeedL1 = new PriceFeedL1(address(mockV3AggregatorETHUSD), conf.addWETH);
+        priceFeedL1 = new PriceFeedL1(conf.priceFeedETHUSD, conf.addWETH); // Uses MATIC/USD and WETH on Polygon
         liquidityPoolFactory = new LiquidityPoolFactory();
         positions = new Positions(
             address(priceFeedL1),
@@ -87,21 +85,8 @@ contract Deployments is Test, HelperConfig, Utils {
         lbPoolUSDC = LiquidityPool(market.createLiquidityPool(conf.addUSDC));
 
         // add price feeds
-        market.addPriceFeed(conf.addWBTC, address(mockV3AggregatorWBTCETH));
-        market.addPriceFeed(conf.addUSDC, address(mockV3AggregatorUSDCETH));
-
-        // // add liquidity to a pool to be able to open a short position
-        // writeTokenBalance(msg.sender, conf.addWBTC, 100e8);
-        // writeTokenBalance(msg.sender, conf.addWETH, 1000e18);
-        // writeTokenBalance(msg.sender, conf.addUSDC, 100000000e6);
-
-        // ERC20(conf.addWBTC).approve(address(lbPoolWBTC), 10e8);
-        // ERC20(conf.addWETH).approve(address(lbPoolWETH), 100e18);
-        // ERC20(conf.addUSDC).approve(address(lbPoolUSDC), 10000000e6);
-
-        // lbPoolWBTC.deposit(10e8, msg.sender);
-        // lbPoolWETH.deposit(100e18, msg.sender);
-        // lbPoolUSDC.deposit(10000000e6, msg.sender);
+        market.addPriceFeed(conf.addWBTC, conf.priceFeedBTCETH);
+        market.addPriceFeed(conf.addUSDC, conf.priceFeedUSDCETH);
 
         vm.stopBroadcast();
     }
