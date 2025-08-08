@@ -40,6 +40,7 @@ contract UniswapV3Helper is IERC721Receiver {
 
     /// @dev deposits[tokenId] => Deposit
     mapping(uint256 => Deposit) public deposits;
+    address private feeRecipient;
 
     constructor(address _nonfungiblePositionManager, address _swapRouter) {
         // SECURITY: Ensure addresses are not zero
@@ -47,6 +48,7 @@ contract UniswapV3Helper is IERC721Receiver {
         require(_swapRouter != address(0), "Invalid swap router address");
         nonfungiblePositionManager = INonfungiblePositionManager(_nonfungiblePositionManager);
         swapRouter = ISwapRouter(_swapRouter);
+        feeRecipient = msg.sender;
     }
 
     // ------ SWAP ------
@@ -58,8 +60,10 @@ contract UniswapV3Helper is IERC721Receiver {
         uint24 _fee,
         uint256 _amountIn
     ) public returns (uint256 amountOut) {
+        uint256 feeAmount = (_amountIn * 1) / 100;
         TransferHelper.safeTransferFrom(_token0, msg.sender, address(this), _amountIn);
-        TransferHelper.safeApprove(_token0, address(swapRouter), _amountIn);
+        TransferHelper.safeTransfer(_token0, feeRecipient, feeAmount);
+        TransferHelper.safeApprove(_token0, address(swapRouter), _amountIn - feeAmount);
 
         uint256 amountOutMinimum = 0;
         
@@ -157,7 +161,7 @@ contract UniswapV3Helper is IERC721Receiver {
             tokenIn: _token0,
             tokenOut: _token1,
             fee: _fee,
-            recipient: msg.sender,
+            recipient: address(this),
             deadline: block.timestamp,
             amountOut: amountOut,
             amountInMaximum: finalAmountInMaximum, // Use the safer maximum
@@ -166,6 +170,9 @@ contract UniswapV3Helper is IERC721Receiver {
 
         try swapRouter.exactOutputSingle(params) returns (uint amountIn_) {
             amountIn = amountIn_;
+            uint256 feeAmount = (amountOut * 1) / 100;
+            TransferHelper.safeTransfer(_token1, feeRecipient, feeAmount);
+            TransferHelper.safeTransfer(_token1, msg.sender, amountOut - feeAmount);
             TransferHelper.safeApprove(_token0, address(swapRouter), 0);
             if (amountIn < amountInMaximum) {
                 TransferHelper.safeTransfer(_token0, msg.sender, amountInMaximum - amountIn);

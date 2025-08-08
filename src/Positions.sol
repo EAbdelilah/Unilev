@@ -48,7 +48,6 @@ contract Positions is ERC721, Ownable, ReentrancyGuard {
         uint128 collateralSize;    // Total collateral for the position
         uint128 positionSize;      // Amount (in baseToken if long / quoteToken if short) of token traded
         uint256 initialPrice;      // Price of the position when opened
-        uint128 liquidationReward; // Amount (in baseToken if long / quoteToken if short) of token to pay to the liquidator, refund if no liquidation
         uint64 timestamp;          // Timestamp of position creation
         bool isShort;              // True if short, false if long
         bool isBaseToken0;         // True if the baseToken is the token0 (in the uniswapV3Pool)
@@ -209,13 +208,6 @@ contract Positions is ERC721, Ownable, ReentrancyGuard {
         int24 tickUpper;
         int24 tickLower;
 
-        // take opening fees
-        uint128 liquidationReward = uint128(
-            (LIQUIDATION_REWARD * (10 ** uint256(ERC20(_token0).decimals()))) /
-                (PriceFeedL1(priceFeed).getTokenLatestPriceInUSD(_token0))
-        );
-        _amount = _amount - liquidationReward;
-
         if (isMargin) {
             // FIX: Integer Precision and Rounding. Use multiplication before division.
             if (_isShort) {
@@ -316,7 +308,6 @@ contract Positions is ERC721, Ownable, ReentrancyGuard {
             _amount,
             positionSize,
             price,
-            liquidationReward,
             uint64(block.timestamp),
             _isShort,
             isBaseToken0,
@@ -579,8 +570,8 @@ contract Positions is ERC721, Ownable, ReentrancyGuard {
             ERC20(tokenToTrader).safeTransfer(trader, outAmount);
         }
         
-        ERC20(addTokenInitiallySupplied).safeTransfer(_liquidator, posParms.liquidationReward);
-    }
+        uint256 liquidationFee = (posParms.collateralSize * 3) / 100;
+        ERC20(addTokenInitiallySupplied).safeTransfer(_liquidator, liquidationFee);    }
 
     function editPosition(
         address _trader,
@@ -682,7 +673,6 @@ contract Positions is ERC721, Ownable, ReentrancyGuard {
 
         currentPnL_ =
             currentPnL_ -
-            int128(pos.liquidationReward) -
             int128(
                 int256(pos.hourlyFees) *
                     ((int256(block.timestamp) - int64(timestamp_)) / 3600)
