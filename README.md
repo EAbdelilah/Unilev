@@ -1,7 +1,4 @@
-# Uniswap Max contracts
-
-[Chainlink Spring 2023 Hackathon submission](https://devpost.com/software/uniswap-max)
-
+# Eswap Margin contracts
 
 ## Requirements
 
@@ -24,30 +21,7 @@ You'll need to add the following variables to a `.env` file:
 -   `PRIVATE_KEY`: A private key from your wallet. You can get a private key from a new [Metamask](https://metamask.io/) account
 -   Optional `ETHERSCAN_API_KEY`: If you want to verify on etherscan
 
-## Quickstart
 
-```sh
-git https://github.com/Los-Byzantinos/Uniswap-Max
-cd Uniswap-Max
-```
-
-Fill **ETH_RPC_URL** in `.env`
-
-```sh
-make test fork
-```
-
-## Local Testing
-
-```
-make anvil
-```
-
-Open an other terminal and :
-
-```
-make deploy-anvil
-```
 
 # Resources
 
@@ -56,19 +30,13 @@ make deploy-anvil
 
 ## ---------------------------------------------
 
-# Uniswap Max White paper
-
-⚡ Live demo on Ethereum mainnet fork : [uniswap-max.vercel.app](https://uniswap-max.vercel.app/)
-
-📋 Code base contracts/front : [github.com/orgs/Los-Byzantinos](https://github.com/orgs/Los-Byzantinos/repositories)
-
 # Abstract
 
-When building a decentralized exchange, the hardest part is attracting liquidity. Every cutting-edge, little-known DEX has liquidity problems that put them in a vicious cycle: No users → No liquidity → No transaction volume → No reputation → So no liquidity → So no users.
+Eswap is Built to give users 0% interest rate leverage and short selling in the spot market on top of deep liquidity which eliminate the first problem that a DEX can have  When building a decentralized exchange, the hardest part is attracting liquidity. Every cutting-edge, little-known DEX has liquidity problems that put them in a vicious cycle: No users → No liquidity → No transaction volume → No reputation → So no liquidity →  no users.
 
-DeFi's composability makes it possible to benefit from the liquidity of other protocols, so why start from scratch? Removing the liquidity problem will make these types of DEXes attractive from the start and eventually attract users.
+DeFi's composability makes it possible to benefit from the liquidity of other protocols.
 
-Uniswap Max aims to solve this problem. By leveraging Chainlink price feeds, we supercharged Uniswap V3 by implementing high liquidity modern trading tools on top of it:
+Eswap margin aims to end funding fees. By leveraging Chainlink price feeds, we supercharged Uniswap V3 by implementing Professionnal trading tools on top of it that enables a leverage trading with 0% interest rate making Eswap a Pionner to enable traders to trade the alpha not the clock:
 
 - Limit Order
 - Stop Loss
@@ -76,13 +44,15 @@ Uniswap Max aims to solve this problem. By leveraging Chainlink price feeds, we 
     - Long / Short
     - Leverage
 
-### What’s new for traders with Uniswap Max ?
+### What’s new for traders with Eswap Margin ?
 
 Our protocol architecture allows margin trading on any asset that has a XXX/ETH Chainlink price feed.
 
-For example, someone can open a 3x short position on WBTC/MATIC with a stop loss and a limit order (take profit).
+For example, someone can open a 5x short position on WBTC/MATIC with a stop loss and a limit order (take profit).
 
-The trader can basically create the margin product of his dreams. This makes Uniswap Max quite unique and attractive when someone wants to trade on atypical pairs.
+The trader can basically create the margin product of his dreams. This makes Eswap Max quite unique and attractive when someone wants to trade with professionnal tools while eliminating the interest rate that eats your profit.
+
+Eswap will be deployed on TON and all EVM blockchains in BNB, BNB Chain, BSC, BNB Smart Chain, opBNB, Greenfield,Ethereum,Polygon,Optimism,Blast,Base,Arbitrum,Avalanche,Linea,Cronos,Mantle,Scroll
 
 # Tech Stack
 
@@ -108,11 +78,11 @@ The user receive an NFT representing his position.
 
 ### Liquidations
 
-For a leveraged position, we need to be sure that the position will be liquidated before the breakeven limit, so we decided to rely on a fixed monetary incentive, which is taken from the trader when the position is opened, and then given to the liquidator when the position is liquidated.
+For a leveraged position, we need to be sure that the position will be liquidated before the breakeven limit, so we decided to rely on a fixed fee that will recapitalize the protocol acting as an insurance for the vaults, which is taken from the trader when the position is opened, and then given to the liquidator when the position is liquidated.
 
-For each margin position there will be a spread between the break-even price and the liquidation price. Through this really simple mechanism, liquidators are incentivized to liquidate positions quickly in order to earn the liquidation reward first, helping the protocol to remain solvent.
+For each margin position there will be a spread between the break-even price and the liquidation price. Through this really simple mechanism, liquidators are helping the protocol to remain solvent.
 
-This reward is taken from the trader's initial deposit and returned if the liquidation doesn't occur. Of course, the reward should be adjusted depending on the network gas fees.
+This reward is taken from the trader's initial deposit and returned if the liquidation doesn't occur.
 
 A position is liquidable when :
 
@@ -124,14 +94,8 @@ A position is liquidable when :
 
 ### Liquidity providers
 
-`LiquidityPoolXXX.sol` will produce a yield for liquidity providers. 
+`LiquidityPoolXXX.sol` Liquidity providers are incentivized to trade with 0% interest rate leverage, benefiting from the same professional tools as traders. 
 
-The yield will come from margin trading fees : 
-
-- Opening a position costs ****$\text{assets borrowed} \times 0.2%$%
-- Borrowing fee taken every hours :  $\frac{\text{assets borrowed}}{\text{total assets in pool}} \times 0.01%$% (fixed at the position opening)
-
-NB : there are no fees for classic positions.
 
 ### Market
 
@@ -139,7 +103,7 @@ The `Market.sol` contract will be the only entry point for all entities:
 
 - The **Trader** : will be able to **open**, **close** and **edit** his positions.
 - The **Liquidity provider** : will be allowed to provide liquidity.
-- The *Liquidator*: will be able to liquidate the trader's position for a reward.
+- The *Liquidator*: will be able to liquidate the trader's position for a fee that will recapitalize the protocol acting as an insurance to all of the users.
 - The **Admin** : will be able to create a new pool
 
 ## Frontend
@@ -151,7 +115,7 @@ The `Market.sol` contract will be the only entry point for all entities:
 
 # How it works
 
-By leveraging the Chainlink price feed, we will supercharge Uniswap V3 by implementing high liquidity modern trading tools on top of the protocol:
+By leveraging the Chainlink price feed, we will supercharge Uniswap V3 by implementing Professionnal trading tools on top of the protocol:
 
 - Limit Order
 - Stop Loss
@@ -169,13 +133,13 @@ Sell the market when the stop price is triggered.
 
 ### Market Order (Classic Swap)
 
-Redirect to the native Uniswap interface.
+Redirect to the Eswap interface.
 
 ### Leveraged Position (Long/Short)
 
-In order to offer margin trading, we need to create pools that allow anyone to provide liquidity. Then the liquidity providers earn an APY from the fees collected from the traders.
+In order to offer margin trading, we need to create pools that allow anyone to provide liquidity.
 
-The protocol manages liquidation to stay solvent and provide stable income for the liquidity providers.
+The protocol manages liquidation to stay solvent.
 
 ![Untitled](images/pos.png)
 
@@ -187,17 +151,16 @@ When shorting, we need to borrow the base token from liquidityPool
 
 # The oracle
 
-We leveraged the Chainlink price feed to effectively monitor position collateralization. To ensure seamless trading on Uniswap Max, we establish our own reliable price feed for custom pairs by using XXX/ETH chainlink price feed. This approach mandates the existence of a corresponding Chainlink price feed (XXX/ETH) for both tokens within the trading pair.
+We leveraged the Chainlink price feed to effectively monitor position collateralization. To ensure seamless trading on Eswap Margin, we establish our own reliable price feed for custom pairs by using XXX/ETH chainlink price feed. This approach mandates the existence of a corresponding Chainlink price feed (XXX/ETH) for both tokens within the trading pair.
 
 By integrating the Chainlink price feed, we gain access to accurate and up-to-date market prices, which are crucial for determining the collateralization status of positions.
 
-However, since the Oracle uses a market average from multiple data sources, the value returned may be decorellated from the Uniswap price, resulting in a potential bad debt creation.
 
 Here are some points to mitigate this problem:
 
 - Uniswap is the most liquid DEX. We can expect the price to be close to the market average.
-- For margin trading, we will focus on high liquidity asset in the first place to improve liquidations.
-- Since the liquidation reward is a fixed amount, the liquidator will be incentivized to close the position as soon as possible.
+- For margin trading, we will focus on high liquidity asset in the first place.
+- Since the liquidation reward is a fixed fee, the liquidator will be incentivized to close the position as soon as the position becomes potentially a creator of bad debt.
 - If it's not enough, unfortunately someone will have to take the loss and it will be the liquidity pool.
 
 # Position examples
@@ -216,33 +179,6 @@ Note that it’s not mandatory to configure a **stop loss** or a **limit order**
 
 ![Untitled](images/pos3.png)
 
-# **About the project**
-
-## Challenges we ran into
-
-We think the most difficult part was to build the interface with Uniswap. DeFi's composability is a strength, but it's also very difficult to implement. Part of uniswap's documentation was wrong, which cost us a lot of time.
-
-## Accomplishments that we're proud of
-
-We think that this kind of project, which combines DeFi and composability with other protocols, are the most difficult to build. Moreover, this project deal with: tokens (ERC20), liquidity pools / vaults (ERC4626), NFTs (ERC721), Chainlink price feeds and Uniswap interfacing. We learnt a lot!
-
-To have reached the end is already a great achievement.
-
-# Things to change
-
-## Features to add
-
-- Be able to fully edit a position
-- Improve the front-end interface
-
-## Already known bugs
-
-- Pools are flash loanable to reduce the borrowing fee
-    - compute fees using a snapshot of the past
-- The liquidation price is not adjusted when fees are taken
-- For L2 deployments we will need to re-write de oracle interface
-- Rounding error on the hourly fee for small positions
-- We need to study more the protocol behavior for low liquidity pairs
 
 # References
 
@@ -261,3 +197,5 @@ https://uniswap.org/whitepaper-v3.pdf
 https://docs.uniswap.org/contracts/v3/guides/providing-liquidity/the-full-contract
 
 https://docs.uniswap.org/contracts/v3/guides/swaps/single-swaps
+
+
