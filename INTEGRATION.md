@@ -137,6 +137,44 @@ function executeOperation(...) external {
 
 ---
 
+## Strategic Integration Points for Volume
+
+To maximize volume and attract traders, Eswap should be integrated with the following types of platforms:
+
+### 1. DEX Aggregators
+Aggregators route trades through multiple DEXes to find the best price for users. Integrating with them is the fastest way to get "passive" volume.
+- **1inch Network**: Submit a pull request to their [Liquidity Protocol](https://github.com/1inch/1inch-network) or use their [Aggregation Protocol](https://docs.1inch.io/).
+- **0x / Matcha**: Integrate via the [0x API](https://0x.org/docs/api).
+- **ParaSwap**: Follow their [integration guide](https://doc.paraswap.network/).
+- **KyberSwap**: List Eswap as a liquidity source on [KyberSwap](https://kyberswap.com/).
+- **OpenOcean**: Apply for listing on [OpenOcean](https://openocean.finance/).
+
+### 2. Analytics & Discovery Platforms
+Traders use these platforms to find new tokens and trending DEXes.
+- **DefiLlama**: Submit Eswap's adapter to [DefiLlama's GitHub](https://github.com/DefiLlama/DefiLlama-Adapters) to track TVL and Volume.
+- **DexScreener**: Ensure Eswap's pools are indexed by DexScreener for visibility.
+- **DEXTools**: Register as a verified DEX on [DEXTools](https://www.dextools.io/).
+- **CoinGecko / CoinMarketCap**: Apply for DEX tracking once a minimum volume threshold is reached.
+
+### 3. Yield Aggregators
+Platforms like **Beefy Finance** or **Yearn** can create vaults that use Eswap's liquidity pools, providing consistent TVL.
+
+### 4. Wallet Integrations
+Many wallets have built-in swap features (e.g., MetaMask Swaps, Trust Wallet). These usually use the aggregators mentioned above, so being listed on 1inch/0x often covers this.
+
+---
+
+## Attracting Algorithmic Traders
+
+Algorithmic traders (arbitrageurs, market makers, and bot operators) are the backbone of DEX volume.
+
+1. **Incentive Programs**: Launch a "Liquidation Reward Booster" or "Trading Mining" program where bots earn extra rewards for successful liquidations or high-volume trades.
+2. **Easy SDKs**: Provide a JavaScript/TypeScript SDK or a Python library that wraps the `Market.sol` functions.
+3. **Subgraphs**: Deploy a [The Graph](https://thegraph.com/) subgraph to provide fast, indexed historical data for positions, prices, and volumes.
+4. **Discord/Telegram Alerts**: Create a bot that broadcasts liquidatable positions to a public channel to invite competition among keepers.
+
+---
+
 ## Useful View Functions
 
 - `getPriceFeed()`: Get the address of the `PriceFeedL1` contract.
