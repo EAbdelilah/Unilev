@@ -103,6 +103,10 @@ contract Market is IMarket, Ownable, Pausable {
         return POSITIONS.getPositionParams(_posId);
     }
 
+    function getPositionState(uint256 _posId) external view returns (uint8) {
+        return uint8(POSITIONS.getPositionState(_posId));
+    }
+
     // --------------- Liquidator/Keeper Zone ----------------
     function liquidatePositions(uint256[] memory _posIds) external whenNotPaused {
         uint256 len = _posIds.length;
@@ -135,6 +139,10 @@ contract Market is IMarket, Ownable, Pausable {
 
     function getTokenToLiquidityPools(address _token) external view returns (address) {
         return LIQUIDITY_POOL_FACTORY.getTokenToLiquidityPools(_token);
+    }
+
+    function getPriceFeed() external view returns (address) {
+        return address(PRICE_FEED);
     }
 
     function addPriceFeed(address _token, address _priceFeed) external onlyOwner whenNotPaused {

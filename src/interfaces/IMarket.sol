@@ -45,6 +45,8 @@ interface IMarket {
             int128 collateralLeft_
         );
 
+    function getPositionState(uint256 _posId) external view returns (uint8);
+
     // --------------- Liquidator/Keeper Zone ---------------
 
     function liquidatePositions(uint256[] memory _posIds) external;
@@ -57,6 +59,8 @@ interface IMarket {
     function createLiquidityPool(address _token) external returns (address);
 
     function getTokenToLiquidityPools(address _token) external view returns (address);
+
+    function getPriceFeed() external view returns (address);
 
     function addPriceFeed(address _token, address _priceFeed) external;
 
