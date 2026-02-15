@@ -137,6 +137,38 @@ function executeOperation(...) external {
 
 ---
 
+## Technical Aggregator Integration
+
+Aggregators can integrate Eswap in two ways:
+
+### 1. Offering Margin Trading (Advanced)
+Aggregators like 1inch or 0x can add Eswap as a specialized "Margin" source.
+- **Contract Call**: The aggregator's router would call `Market.openPosition()`.
+- **Workflow**:
+    1. Aggregator receives collateral from the user.
+    2. Aggregator calls `market.openPosition()` with the desired leverage and token pair.
+    3. The resulting NFT (Position) is sent to the user's wallet.
+- **Benefits**: This allows users to access 5x leverage directly from their favorite aggregator interface.
+
+### 2. Spot Swap Routing (Standard)
+Since Eswap utilizes Uniswap V3 for its underlying trades, any aggregator that supports Uniswap V3 is already indirectly "linked" to Eswap's liquidity flow.
+- **Liquidity Source**: When a trader opens a leveraged position on Eswap, the trade is executed on Uniswap V3.
+- **Volume**: This volume appears on Uniswap V3 but is originated by the Eswap protocol.
+
+### 3. Implementing a Custom Adapter
+If you are building a custom aggregator, you can create an adapter that implements your standard swap interface (e.g., `swap()`) and maps it to `openPosition()` when the user selects a "leverage" flag.
+
+```solidity
+// Example Adapter Snippet
+function swapWithLeverage(address tokenIn, address tokenOut, uint256 amount, uint8 leverage) external {
+    IERC20(tokenIn).transferFrom(msg.sender, address(this), amount);
+    IERC20(tokenIn).approve(address(market), amount);
+    market.openPosition(tokenIn, tokenOut, 3000, false, leverage, uint128(amount), 0, 0);
+}
+```
+
+---
+
 ## Strategic Integration Points for Volume
 
 To maximize volume and attract traders, Eswap should be integrated with the following types of platforms:
