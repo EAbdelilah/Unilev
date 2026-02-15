@@ -164,6 +164,30 @@ Many wallets have built-in swap features (e.g., MetaMask Swaps, Trust Wallet). T
 
 ---
 
+## Compatible Bot Platforms & Infrastructure
+
+Algorithmic traders can use the following platforms and frameworks to link their bots to Eswap:
+
+### 1. Hummingbot
+[Hummingbot](https://hummingbot.org/) is a leading open-source framework for building high-frequency trading bots.
+- **Integration**: Developers can create a "Connector" for Eswap. Since Eswap is built on top of Uniswap V3, the existing Uniswap V3 connector can be used as a template.
+- **Strategies**: Supports market making, arbitrage, and liquidity mirroring.
+
+### 2. Flashbots (for Liquidation & MEV)
+For liquidation bots, using [Flashbots](https://www.flashbots.net/) is highly recommended to avoid failing transactions and front-running.
+- **Benefit**: Bots can send bundles of transactions directly to miners, ensuring that liquidations are executed only if they are profitable and without revealing the strategy to the public mempool.
+
+### 3. Automation Keepers (Gelato & OpenZeppelin Autotask)
+To automate "Stop Loss" or "Limit Order" executions:
+- **[Gelato Network](https://www.gelato.network/)**: Use Gelato to trigger `market.liquidatePosition()` when certain price conditions (queried via `getPositionState`) are met.
+- **[OpenZeppelin Autotask](https://www.openzeppelin.com/defender)**: Write a serverless script that monitors the `Market` contract for liquidatable positions and executes them automatically.
+
+### 4. TradingView Webhooks
+Retail traders can link their TradingView strategies to Eswap:
+- **Setup**: Use a webhook bridge (like **Autoview** or a custom-built Node.js server) that listens for TradingView alerts and calls `market.openPosition()` or `market.closePosition()` via an Ethers.js script.
+
+---
+
 ## Attracting Algorithmic Traders
 
 Algorithmic traders (arbitrageurs, market makers, and bot operators) are the backbone of DEX volume.
