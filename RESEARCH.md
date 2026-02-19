@@ -1,55 +1,52 @@
-# Eswap Strategy Research Report: 2026 DeFi Landscape Integration
+# Eswap Strategy Research Report: Revenue & Volume Optimization
 
 ## Executive Summary
-Eswap is uniquely positioned to capitalize on the shift toward **0% fee infrastructure**. By offering 0% interest leverage, Eswap already aligns with the market trend. To further mature the protocol and attract institutional "Smart Money," we recommend implementing key features that enable professional trading strategies.
+To maximize **Revenue** (Treasury Fees) and **Volume** (Uniswap Swaps), Eswap must focus on strategies that increase the velocity of position openings, the size of collateral deposits, and the efficiency of liquidations. By aligning with the **0% fee infrastructure** trend, Eswap can attract institutional volume that traditional high-fee protocols miss.
 
 ---
 
-## 1. Analysis of the 12 Trading Strategies for Eswap
+## 1. Top Revenue & Volume Drivers
 
-| Strategy | Feasibility | Technical Requirement | Eswap Benefit |
+Based on Eswap's architecture (`Positions.sol` and `FeeManager.sol`), revenue is primarily driven by the `treasureFee` on collateral and remaining equity.
+
+### A. Loop Farming (Strategy 8) - *The #1 Revenue Driver*
+*   **Mechanism:** Users use borrowed funds to deposit more collateral, creating a recursive leverage loop.
+*   **Revenue Impact:** Directly multiplies the collateral base. A 5x loop results in 5x more opening fees for the same initial capital.
+*   **Volume Impact:** Massive increase in Uniswap V3 swap volume as each loop requires a swap.
+*   **Recommendation:** Build an automated "1-Click Looping" vault.
+
+### B. 0% Fee Flash Loans - *The "Smart Money" Magnet*
+*   **Mechanism:** Allow anybody to borrow Eswap's LP liquidity for 1 block with 0% fees.
+*   **Revenue Impact:** While the flash loan itself is free, it ensures that Eswap is the *primary* venue for liquidators and arbitrageurs. This leads to faster processing of liquidations, which triggers the protocol's closing fees.
+*   **Volume Impact:** Attracts massive arbitrage volume through Eswap's pools, keeping prices aligned with the market and boosting overall protocol activity.
+*   **Recommendation:** Implement `flashLoan()` in `LiquidityPool.sol`.
+
+### C. Collateral Swap (Strategy 4) - *Retention & Continuous Volume*
+*   **Mechanism:** Allow users to change their collateral (e.g., from ETH to USDC) without closing their leveraged position.
+*   **Revenue Impact:** Prevents users from "churning" (closing and moving to another protocol).
+*   **Volume Impact:** Generates internal swap volume that stays within the Eswap/Uniswap ecosystem.
+
+---
+
+## 2. Implementation Roadmap: Growth-First
+
+| Priority | Feature | Target | Outcome |
 | --- | --- | --- | --- |
-| **Flash Loan 기반 (1, 2, 9)** | High | Implement `flashLoan()` in `LiquidityPool.sol` | Increased utilization, protocol volume, and price stability. |
-| **Liquidation (3)** | Existing | Optimize for 0% flash loan liquidators | Ensures protocol solvency with minimal capital requirements for keepers. |
-| **Collateral Swap (4)** | High | New function in `Market.sol` using `UniswapV3Helper` | User retention; allows rebalancing without closing leverage. |
-| **Debt Refinancing (5)** | Medium | Helper contract for cross-protocol migration | Attracts TVL from high-interest protocols (Aave, etc). |
-| **Loop Farming (8)** | High | Already possible; can be streamlined | Higher TVL and leverage volume due to 0% interest. |
-| **Self-Liquidation (10)** | High | Logic update in `closePosition` | Reduces user friction and "bad blood" during market downturns. |
+| **1** | **0% Flash Loans** | LiquidityPool.sol | Attracts Arbitrageurs & Liquidators |
+| **2** | **Looper Bot/Helper** | New Contract | Multiplies TVL & Opening Fees |
+| **3** | **Collateral Swap** | Market.sol | Increases User LTV (Lifetime Value) |
+| **4** | **Self-Liquidation** | Positions.sol | Reduces Bad Debt; Ensures Fee Collection |
 
 ---
 
-## 2. Integration with 0% Fee Providers
+## 3. Integration with 0% Providers for Profit
 
-To maximize profit for Eswap users and the protocol, we suggest the following "Pro" combinations:
+For Eswap to increase its own revenue, it should also act as a **user** of other 0% providers:
 
-### A. The "Liquidator's Edge"
-*   **Source:** Balancer or Sky (0% Flash Loan)
-*   **Action:** Repay Eswap Debt
-*   **Reward:** Capture Eswap Liquidation Reward + Collateral Discount
-*   **Benefit:** Zero upfront capital required for Eswap liquidators.
-
-### B. The "Leverage Maximizer"
-*   **Source:** Eswap (0% Interest Leverage)
-*   **Hedge:** Gearbox or Morpho Blue
-*   **Goal:** Create risk-neutral yield-bearing positions with massive leverage.
-
----
-
-## 3. Technical Recommendations
-
-### Step 1: 0% Fee Flash Loans
-Modify `LiquidityPool.sol` to allow public 0% fee flash loans. This turns Eswap into a liquidity provider for the entire DeFi ecosystem, similar to Balancer or Morpho Blue.
-
-### Step 2: Collateral Swap
-Implement a `swapCollateral` function that:
-1.  Uses Uniswap V3 to swap the user's collateral.
-2.  Recalculates `breakEvenLimit` and `positionSize`.
-3.  Maintains the NFT-based position structure.
-
-### Step 3: Self-Liquidation Helper
-Add a check in the liquidation logic to allow the position owner to trigger a "Self-Liquidation." If triggered by the owner, a portion of the `liquidationReward` can be returned to them, encouraging proactive risk management.
+1.  **Refinancing (Strategy 5):** Use **Morpho Blue** or **Euler V2** (0% fee) to source cheap liquidity to "bail out" or refinance large Eswap positions during volatility, keeping the fees within Eswap instead of losing them to external liquidators.
+2.  **JIT Liquidity (Strategy 6):** Leverage **Balancer V3** 0% flash loans to provide temporary liquidity on Eswap right before a large liquidation, ensuring the liquidation happens with minimal slippage (protecting LPs) while Eswap collects the closing fee.
 
 ---
 
 ## 4. Conclusion
-By adopting these strategies, Eswap transitions from a "margin trading app" to a "core DeFi liquidity layer." The most immediate and high-impact change is the implementation of **0% Fee Flash Loans**, followed by **Collateral Swaps**.
+The path to maximum revenue for Eswap lies in **Automated Leverage (Looping)** and **Becoming a 0% Flash Loan Provider**. These two moves turn Eswap from a passive trading platform into an active liquidity hub that captures both retail leverage fees and institutional arbitrage volume.
