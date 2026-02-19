@@ -15,16 +15,17 @@ Based on Eswap's architecture (`Positions.sol` and `FeeManager.sol`), revenue is
 *   **Volume Impact:** Massive increase in Uniswap V3 swap volume as each loop requires a swap.
 *   **Recommendation:** Build an automated "1-Click Looping" vault.
 
-### B. 0% Fee Flash Loans - *The "Smart Money" Magnet*
+### B. Mirroring/Remarketing (Strategy 7) - *Institutional Volume Play*
+*   **Mechanism:** Market Makers (MMs) provide liquidity on other venues (being a Maker) and use Eswap to instantly hedge their risk (being a Taker).
+*   **The Eswap Edge:** On CEXs or Aave, hedging with leverage costs 5-20% APR in interest. Eswap offers **0% interest leverage**, making it the world's most efficient "Hedge Layer" for Remarketing bots.
+*   **Revenue/Volume Impact:** Attracts consistent, high-frequency "Smart Money" flow. Even with low VIP fees, the sheer volume of hedging operations generates significant treasury revenue.
+*   **Action:** Use `FeeManager.setCustomFees` to onboard professional MMs with discounted "Hedge Rates."
+
+### C. 0% Fee Flash Loans - *The "Smart Money" Magnet*
 *   **Mechanism:** Allow anybody to borrow Eswap's LP liquidity for 1 block with 0% fees.
 *   **Revenue Impact:** While the flash loan itself is free, it ensures that Eswap is the *primary* venue for liquidators and arbitrageurs. This leads to faster processing of liquidations, which triggers the protocol's closing fees.
 *   **Volume Impact:** Attracts massive arbitrage volume through Eswap's pools, keeping prices aligned with the market and boosting overall protocol activity.
 *   **Recommendation:** Implement `flashLoan()` in `LiquidityPool.sol`.
-
-### C. Collateral Swap (Strategy 4) - *Retention & Continuous Volume*
-*   **Mechanism:** Allow users to change their collateral (e.g., from ETH to USDC) without closing their leveraged position.
-*   **Revenue Impact:** Prevents users from "churning" (closing and moving to another protocol).
-*   **Volume Impact:** Generates internal swap volume that stays within the Eswap/Uniswap ecosystem.
 
 ---
 
@@ -34,8 +35,8 @@ Based on Eswap's architecture (`Positions.sol` and `FeeManager.sol`), revenue is
 | --- | --- | --- | --- |
 | **1** | **0% Flash Loans** | LiquidityPool.sol | Attracts Arbitrageurs & Liquidators |
 | **2** | **Looper Bot/Helper** | New Contract | Multiplies TVL & Opening Fees |
-| **3** | **Collateral Swap** | Market.sol | Increases User LTV (Lifetime Value) |
-| **4** | **Self-Liquidation** | Positions.sol | Reduces Bad Debt; Ensures Fee Collection |
+| **3** | **MM/Hedge VIP Program**| FeeManager.sol | Onboards High-Volume Remarketing Bots |
+| **4** | **Collateral Swap** | Market.sol | Increases User LTV (Lifetime Value) |
 
 ---
 
@@ -43,10 +44,10 @@ Based on Eswap's architecture (`Positions.sol` and `FeeManager.sol`), revenue is
 
 For Eswap to increase its own revenue, it should also act as a **user** of other 0% providers:
 
-1.  **Refinancing (Strategy 5):** Use **Morpho Blue** or **Euler V2** (0% fee) to source cheap liquidity to "bail out" or refinance large Eswap positions during volatility, keeping the fees within Eswap instead of losing them to external liquidators.
-2.  **JIT Liquidity (Strategy 6):** Leverage **Balancer V3** 0% flash loans to provide temporary liquidity on Eswap right before a large liquidation, ensuring the liquidation happens with minimal slippage (protecting LPs) while Eswap collects the closing fee.
+1.  **Refinancing (Strategy 5):** Use **Morpho Blue** (0% fee) to source cheap liquidity to "bail out" or refinance large Eswap positions during volatility, keeping the fees within Eswap.
+2.  **JIT Liquidity (Strategy 6):** Leverage **Balancer V3** 0% flash loans to provide temporary liquidity on Eswap right before a large liquidation, ensuring the liquidation happens with minimal slippage while Eswap collects the closing fee.
 
 ---
 
 ## 4. Conclusion
-The path to maximum revenue for Eswap lies in **Automated Leverage (Looping)** and **Becoming a 0% Flash Loan Provider**. These two moves turn Eswap from a passive trading platform into an active liquidity hub that captures both retail leverage fees and institutional arbitrage volume.
+The path to maximum revenue for Eswap lies in **Automated Leverage (Looping)** and **Becoming the Global Hedge Layer (Remarketing)**. These moves turn Eswap from a passive trading platform into an active liquidity hub that captures both retail leverage fees and institutional market-maker volume.
