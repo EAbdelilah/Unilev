@@ -24,10 +24,21 @@ class LiquidationBot extends BotBase {
                     }
                 }
 
-                this.log(`Executing liquidation for: ${posIds.join(", ")}`);
-                const tx = await this.market.liquidatePositions(posIds);
-                await tx.wait();
-                this.log(`Liquidation successful! Hash: ${tx.hash}`);
+                this.log(`Checking profitability for liquidating ${posIds.length} positions...`);
+
+                // Production: Only liquidate if the fixed reward covers gas
+                // LiquidationReward is fixed, so we can estimate profit
+                const totalRewardUsd = posIds.length * 10.0; // Assume $10 fixed reward per pos for simplicity
+                const isProfitable = await this.checkProfitability(totalRewardUsd, 200000 * posIds.length);
+
+                if (isProfitable) {
+                    this.log(`Executing liquidation for: ${posIds.join(", ")}`);
+                    const tx = await this.market.liquidatePositions(posIds, { nonce: await this.getNextNonce() });
+                    await tx.wait();
+                    this.log(`Liquidation successful! Hash: ${tx.hash}`);
+                } else {
+                    this.log("Liquidation not profitable at current gas prices. Waiting...");
+                }
             } else {
                 this.log("No liquidable positions found.");
             }

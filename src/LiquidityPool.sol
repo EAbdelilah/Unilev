@@ -79,4 +79,30 @@ contract LiquidityPool is ERC4626, Ownable {
     function borrowCapacityLeft() public view returns (uint256) {
         return ((totalAssets() * maxBorrowRatio) / 10000) - borrowedFunds;
     }
+
+    /**
+     * @notice 0% Fee Flash Loan
+     * @param _receiver Address of the flash loan receiver
+     * @param _amount Amount to borrow
+     * @param _data Arbitrary data for the callback
+     */
+    function flashLoan(
+        address _receiver,
+        uint256 _amount,
+        bytes calldata _data
+    ) external {
+        uint256 balanceBefore = IERC20(asset()).balanceOf(address(this));
+        if (balanceBefore < _amount) revert LiquidityPool__NOT_ENOUGH_LIQUIDITY(balanceBefore);
+
+        IERC20(asset()).safeTransfer(_receiver, _amount);
+
+        // Callback
+        (bool success, ) = _receiver.call(
+            abi.encodeWithSignature("onFlashLoan(address,uint256,bytes)", msg.sender, _amount, _data)
+        );
+        require(success, "Flash loan callback failed");
+
+        uint256 balanceAfter = IERC20(asset()).balanceOf(address(this));
+        require(balanceAfter >= balanceBefore, "Flash loan not repaid");
+    }
 }

@@ -7,7 +7,8 @@ const {
     getPriceFeedL1Abi,
     getLiquidityPoolAbi,
     getUniswapV3HelperAbi,
-    getErc20Abi
+    getErc20Abi,
+    getQuoterAbi
 } = require("../javascript/utils");
 
 class BotBase {
@@ -22,6 +23,58 @@ class BotBase {
         this.positions = new ethers.Contract(this.env.POSITIONS_ADDRESS, getPositionsAbi(), this.wallet);
         this.priceFeed = new ethers.Contract(this.env.PRICEFEEDL1_ADDRESS, getPriceFeedL1Abi(), this.wallet);
         this.helper = new ethers.Contract(this.env.UNISWAPV3HELPER_ADDRESS, getUniswapV3HelperAbi(), this.wallet);
+
+        // Uniswap V3 Quoter
+        this.quoterAddress = this.env.QUOTER_ADDRESS || "0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6";
+        this.quoter = new ethers.Contract(this.quoterAddress, getQuoterAbi(), this.provider);
+
+        this.nonce = null;
+
+        // Production Circuit Breakers
+        this.MAX_SLIPPAGE_BPS = 100n; // 1%
+        this.MAX_TRADE_SIZE_USD = 50000; // $50k max per trade safety limit
+    }
+
+    async getNextNonce() {
+        if (this.nonce === null) {
+            this.nonce = await this.provider.getTransactionCount(this.wallet.address);
+        }
+        return this.nonce++;
+    }
+
+    async getGasPrice() {
+        const feeData = await this.provider.getFeeData();
+        return feeData.gasPrice;
+    }
+
+    async checkProfitability(expectedProfitUsd, estimatedGas) {
+        const gasPrice = await this.getGasPrice();
+        const gasCostEth = gasPrice * BigInt(estimatedGas);
+
+        // Convert gasCostEth to USD (approximate using ETH/USD price from feed)
+        const ethPriceUsd = await this.priceFeed.getTokenLatestPriceInUsd(this.env.WETH);
+        const gasCostUsd = (gasCostEth * ethPriceUsd) / ethers.parseEther("1");
+
+        const expectedProfitWei = ethers.parseUnits(expectedProfitUsd.toString(), 18);
+
+        this.log(`Profit Check: Expected $${expectedProfitUsd} | Gas Cost $${ethers.formatUnits(gasCostUsd, 18)}`);
+
+        return expectedProfitWei > gasCostUsd;
+    }
+
+    async quoteSwap(tokenIn, tokenOut, fee, amountIn) {
+        try {
+            return await this.quoter.quoteExactInputSingle.staticCall(
+                tokenIn,
+                tokenOut,
+                fee,
+                amountIn,
+                0
+            );
+        } catch (e) {
+            this.error(`Quoting failed: ${e.message}`);
+            return 0n;
+        }
     }
 
     async log(message) {

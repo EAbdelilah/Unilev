@@ -148,6 +148,15 @@ function getUniswapV3HelperAbi() {
     return getAbi("UniswapV3Helper");
 }
 
+/**
+ * Returns a basic Uniswap V3 Quoter ABI.
+ */
+function getQuoterAbi() {
+    return [
+        "function quoteExactInputSingle(address tokenIn, address tokenOut, uint24 fee, uint256 amountIn, uint160 sqrtPriceLimitX96) external returns (uint256 amountOut)"
+    ];
+}
+
 
 
 /**

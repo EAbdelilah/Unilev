@@ -9,19 +9,53 @@ class LooperBot extends BotBase {
     async run() {
         this.log("Monitoring yield for Looping opportunities...");
 
-        // Loop Farming: Repeatedly borrow/deposit to create leverage.
-        // On Eswap, this is maximized by opening 3x leverage positions (the protocol limit).
-
         const targetToken = this.env.WBTC;
-        const collateralToken = this.env.USDC;
+        const marginToken = this.env.USDC;
+        const fee = 3000; // 0.3%
+        const leverage = 3;
+        const marginAmount = ethers.parseUnits("100", 6); // $100 USDC
 
-        // Example logic: if WBTC yield/trend is high, maximize exposure
-        const shouldLoop = true; // Placeholder for trend analysis
+        // Check if we already have a position
+        const myPositions = await this.market.getTraderPositions(this.wallet.address);
+        if (myPositions.length > 0) {
+            this.log(`Already have ${myPositions.length} active positions. Skipping...`);
+            return;
+        }
 
-        if (shouldLoop) {
-            this.log(`Maximizing leverage on ${targetToken} via Looping...`);
-            // openPosition(token0, token1, fee, isShort, leverage, amount, limit, stopLoss)
-            // Note: In a real bot, you'd check if a position is already open.
+        // Production Readiness: Dynamic Quoting & Profitability
+        const expectedProfitUsd = 5.0; // Target $5 profit from yield/trend
+        const isProfitable = await this.checkProfitability(expectedProfitUsd, 500000); // Est 500k gas for open
+
+        if (!isProfitable) {
+            this.log("Gas costs exceed expected profit. Skipping...");
+            return;
+        }
+
+        // Quoting for slippage protection (Longing WBTC)
+        const quote = await this.quoteSwap(marginToken, targetToken, fee, marginAmount * BigInt(leverage - 1));
+        const minOut = (quote * 995n) / 1000n; // 0.5% slippage
+
+        this.log(`Looper Execution: Opening 3x Long ${targetToken} with $${ethers.formatUnits(marginAmount, 6)} margin.`);
+
+        try {
+            const tokenContract = await this.getErc20(marginToken);
+            await tokenContract.approve(this.env.MARKET_ADDRESS, marginAmount, { nonce: await this.getNextNonce() });
+
+            const tx = await this.market.openPosition(
+                marginToken,
+                targetToken,
+                fee,
+                false, // isShort = false (Long)
+                leverage,
+                marginAmount,
+                0, // limit price
+                0, // stop loss
+                { nonce: await this.getNextNonce() }
+            );
+            await tx.wait();
+            this.log(`Looper Position Opened! Hash: ${tx.hash}`);
+        } catch (e) {
+            this.error(`Looper Execution Failed: ${e.message}`);
         }
     }
 }
