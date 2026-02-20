@@ -97,10 +97,14 @@ contract LiquidityPool is ERC4626, Ownable {
         IERC20(asset()).safeTransfer(_receiver, _amount);
 
         // Callback
-        (bool success, ) = _receiver.call(
+        (bool success, bytes memory returnData) = _receiver.call(
             abi.encodeWithSignature("onFlashLoan(address,uint256,bytes)", msg.sender, _amount, _data)
         );
         require(success, "Flash loan callback failed");
+
+        // Check magic value
+        bytes4 magicValue = abi.decode(returnData, (bytes4));
+        require(magicValue == keccak256("onFlashLoan(address,uint256,bytes)"), "Invalid flash loan magic value");
 
         uint256 balanceAfter = IERC20(asset()).balanceOf(address(this));
         require(balanceAfter >= balanceBefore, "Flash loan not repaid");

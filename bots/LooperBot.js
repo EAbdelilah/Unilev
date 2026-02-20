@@ -38,6 +38,22 @@ class LooperBot extends BotBase {
         this.log(`Looper Execution: Opening 3x Long ${targetToken} with $${ethers.formatUnits(marginAmount, 6)} margin.`);
 
         try {
+            if (this.executor) {
+                this.log("Executing ATOMIC Looping via StrategyExecutor...");
+                const strategyData = ethers.AbiCoder.defaultAbiCoder().encode(
+                    ["uint8", "address", "address", "uint24", "uint256", "uint256", "bytes"],
+                    [1, marginToken, targetToken, fee, marginAmount, minOut, "0x"]
+                );
+
+                const lpAddress = await this.market.getTokenToLiquidityPools(marginToken);
+                const lp = new ethers.Contract(lpAddress, ["function flashLoan(address,uint256,bytes)"], this.wallet);
+
+                const tx = await lp.flashLoan(this.executorAddress, marginAmount, strategyData, { nonce: await this.getNextNonce() });
+                await tx.wait();
+                this.log(`Atomic Looping Success! Hash: ${tx.hash}`);
+                return;
+            }
+
             const tokenContract = await this.getErc20(marginToken);
             await tokenContract.approve(this.env.MARKET_ADDRESS, marginAmount, { nonce: await this.getNextNonce() });
 

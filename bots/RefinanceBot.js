@@ -22,11 +22,28 @@ class RefinanceBot extends BotBase {
             this.log("Action: Refinancing to Eswap 0% interest position.");
 
             try {
+                if (this.executor) {
+                    this.log("Step 1: Executing ATOMIC Refinancing via StrategyExecutor...");
+
+                    const strategyData = ethers.AbiCoder.defaultAbiCoder().encode(
+                        ["uint8", "address", "address", "uint24", "uint256", "uint256", "bytes"],
+                        [2, this.env.USDC, this.env.WETH, 3000, ethers.parseUnits(highInterestLoan.debt, 6), 0n, "0x"]
+                    );
+
+                    const lpAddress = await this.market.getTokenToLiquidityPools(this.env.USDC);
+                    const lp = new ethers.Contract(lpAddress, ["function flashLoan(address,uint256,bytes)"], this.wallet);
+
+                    const tx = await lp.flashLoan(this.executorAddress, ethers.parseUnits(highInterestLoan.debt, 6), strategyData, { nonce: await this.getNextNonce() });
+                    await tx.wait();
+                    this.log("Refinancing Success! Debt moved to 0% interest on Eswap.");
+                    return;
+                }
+
+                this.log("Step 1: Executing Manual Refinancing...");
                 // 1. Flash borrow from Eswap (0% fee) to repay the high-interest loan
                 const liquidityPool = new ethers.Contract(this.env.USDC_LP, getLiquidityPoolAbi(), this.wallet);
 
-                this.log(`Step 1: Flash borrowing ${highInterestLoan.debt} USDC from Eswap...`);
-                // Note: Production would use an executor contract for atomic refinancing
+                this.log(`Step 1.1: Flash borrowing ${highInterestLoan.debt} USDC from Eswap...`);
 
                 // 2. Open Eswap position to replace the debt
                 this.log("Step 2: Opening 0% interest position on Eswap...");

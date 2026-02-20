@@ -44,30 +44,43 @@ class ArbitrageBot extends BotBase {
 
     async executeArb(tokenIn, tokenOut, amountIn) {
         try {
-            this.log(`Executing Arb: Flash-borrowing ${amountIn} from Eswap...`);
+            if (this.executor) {
+                this.log(`Executing ATOMIC Arb: Flash-borrowing ${amountIn} from Eswap...`);
 
-            // In Production, you'd use a custom Arbitrage contract that implements the flashLoan callback
-            // 1. Call Eswap LiquidityPool.flashLoan()
-            // 2. In callback: Swap on Uniswap V3 (or other DEX)
-            // 3. In callback: Repay flash loan
+                // Encode Strategy Data for Executor (Action.ARBITRAGE = 0)
+                // extraData: Second leg fee (e.g. 500 for 0.05% pool)
+                const extraData = ethers.AbiCoder.defaultAbiCoder().encode(["uint24"], [500]);
 
-            const tx = await this.market.openPosition(
-                tokenOut,
-                tokenIn,
-                3000,
-                true, // isShort = true (Shorting on Eswap to capture high oracle price)
-                1,    // 1x leverage for arbitrage
-                amountIn,
-                0,
-                0,
-                { nonce: await this.getNextNonce() }
-            );
+                const strategyData = ethers.AbiCoder.defaultAbiCoder().encode(
+                    ["uint8", "address", "address", "uint24", "uint256", "uint256", "bytes"],
+                    [0, tokenIn, tokenOut, 3000, amountIn, 0n, extraData]
+                );
 
-            await tx.wait();
-            this.log(`Arb Leg 1 (Eswap) Success! Hash: ${tx.hash}`);
+                const lpAddress = await this.market.getTokenToLiquidityPools(tokenIn);
+                const lp = new ethers.Contract(lpAddress, ["function flashLoan(address,uint256,bytes)"], this.wallet);
 
-            // Leg 2: Realize profit on external market
-            this.log("Executing Arb Leg 2 on external DEX...");
+                const tx = await lp.flashLoan(this.executorAddress, amountIn, strategyData, { nonce: await this.getNextNonce() });
+                await tx.wait();
+                this.log(`Atomic Arb Success! Hash: ${tx.hash}`);
+            } else {
+                this.log(`Executing Semi-Atomic Arb: Using Market openPosition...`);
+
+                const tx = await this.market.openPosition(
+                    tokenOut,
+                    tokenIn,
+                    3000,
+                    true, // isShort = true
+                    1,
+                    amountIn,
+                    0,
+                    0,
+                    { nonce: await this.getNextNonce() }
+                );
+
+                await tx.wait();
+                this.log(`Arb Leg 1 (Eswap) Success! Hash: ${tx.hash}`);
+                this.log("Warning: Leg 2 must be executed manually or by another bot.");
+            }
         } catch (e) {
             this.error(`Arb Execution Failed: ${e.message}`);
         }

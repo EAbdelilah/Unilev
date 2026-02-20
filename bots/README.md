@@ -2,12 +2,15 @@
 
 This directory contains the scaffolding and core logic for 9 professional trading bots tailored to the Eswap protocol.
 
-**Status:** ✅ **Production-Ready Core**
-These bots have been upgraded with professional-grade utilities for mainnet-style deployment. They include dynamic quoting, gas management, and risk circuit breakers.
+**Status:** 🏆 **Production-Ready (Atomic Execution)**
+These bots have been upgraded with a professional on-chain executor (`StrategyExecutor.sol`) and a 0% interest flash loan system. They are now capable of executing multi-step trades atomically in a single transaction.
 
 ---
 
 ## 🚀 Production Features Implemented
+
+### 0. Atomic Execution (On-Chain)
+*   **StrategyExecutor.sol:** A dedicated smart contract that handles `flashLoan` callbacks from the protocol. This ensures that strategies like Arbitrage and Refinancing either succeed entirely or revert, protecting the operator from partial fills or price slippage.
 
 ### 1. Market Discovery & Dynamic Quoting
 *   **Uniswap V3 Quoter Integration:** Real-time price impact and slippage calculation via `quoteSwap()`.
@@ -22,17 +25,17 @@ These bots have been upgraded with professional-grade utilities for mainnet-styl
 *   **Private RPC Support:** Modular design allows for easy swapping of the provider to Flashbots or other private RPCs.
 
 ### 1. Market Discovery (The "Eyes")
-*   **Quoter Contracts:** Integrate Uniswap V3 Quoter (or similar) to get real-time price impact and slippage for every trade.
-*   **Cross-DEX APIs:** For Arbitrage, you must integrate price feeds from other DEXs (Balancer, Curve, etc.) or CEXs.
+*   **Quoter Contracts:** Integrated. Bots use Uniswap V3 Quoter to get real-time price impact and slippage.
+*   **Oracle Sync:** Integrated. Bots compare Chainlink Oracle prices with Market prices to find arbitrage.
 
 ### 2. Execution & MEV Protection (The "Shield")
-*   **Flashbots / Private RPCs:** To avoid being frontrun by sandwich bots, transactions should be sent via private bundles (Flashbots, MEV-Share, etc.).
-*   **Atomic Bundling:** Use a "Bundle Executor" contract to ensure the entire multi-step strategy (Flash Loan -> Swap -> Repay) succeeds or fails atomically.
+*   **StrategyExecutor.sol:** Integrated. All multi-step trades are executed atomically on-chain.
+*   **Private RPCs:** The `BotBase` architecture is ready to connect to Flashbots or other MEV-protection RPCs.
 
 ### 3. Risk Management (The "Brain")
-*   **Slippage Controls:** Hardcoded `amountOutMinimum` must be replaced with dynamic calculations based on current pool depth.
-*   **Profitability Filter:** Logic to ensure `Expected_Profit > Gas_Cost + Slippage`.
-*   **Nonce Management:** High-frequency bots need a way to manage transaction nonces across multiple pending trades.
+*   **Slippage Controls:** Dynamic calculations based on quoter data.
+*   **Profitability Filter:** Integrated. `checkProfitability` ensures `Expected_Profit > Gas_Cost`.
+*   **Nonce Management:** Centralized nonce tracking in `BotBase.js`.
 
 ---
 

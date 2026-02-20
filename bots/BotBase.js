@@ -8,7 +8,8 @@ const {
     getLiquidityPoolAbi,
     getUniswapV3HelperAbi,
     getErc20Abi,
-    getQuoterAbi
+    getQuoterAbi,
+    getStrategyExecutorAbi
 } = require("../javascript/utils");
 
 class BotBase {
@@ -27,6 +28,11 @@ class BotBase {
         // Uniswap V3 Quoter
         this.quoterAddress = this.env.QUOTER_ADDRESS || "0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6";
         this.quoter = new ethers.Contract(this.quoterAddress, getQuoterAbi(), this.provider);
+
+        this.executorAddress = this.env.STRATEGY_EXECUTOR_ADDRESS;
+        if (this.executorAddress) {
+            this.executor = new ethers.Contract(this.executorAddress, getStrategyExecutorAbi(), this.wallet);
+        }
 
         this.nonce = null;
 

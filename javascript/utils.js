@@ -157,6 +157,13 @@ function getQuoterAbi() {
     ];
 }
 
+/**
+ * Returns the StrategyExecutor ABI.
+ */
+function getStrategyExecutorAbi() {
+    return getAbi("StrategyExecutor");
+}
+
 
 
 /**

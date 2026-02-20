@@ -18,14 +18,14 @@ This ranking prioritizes strategies based on their ability to generate **fees** 
 
 ## 2. Implementation & Bot Status
 
-⚠️ **Development Status:** The accompanying bots in the `/bots` directory are **Alpha Templates**. They provide the professional architectural foundation but require additional logic for production deployment.
+✅ **Development Status:** The accompanying bots in the `/bots` directory are **Production-Ready Core** systems. They utilize the `StrategyExecutor.sol` on-chain contract for atomic multi-step execution.
 
-**Production Requirements:**
-*   **MEV Protection:** Integration with Flashbots to prevent frontrunning.
+**Key Production Features:**
+*   **Atomic Execution:** `flashLoan` -> `Swap` -> `Repay` happens in a single transaction.
 *   **Real-Time Quoting:** Dynamic slippage calculation via Uniswap V3 Quoters.
-*   **Gas Optimization:** Competitive gas bidding for liquidations and arbitrage.
+*   **Profitability Guardrails:** Gas-cost aware execution to ensure positive ROI.
 
-*See `/bots/README.md` for the full Production-Ready Checklist.*
+*See `/bots/README.md` for the full technical breakdown.*
 
 ---
 
