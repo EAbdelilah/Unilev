@@ -19,20 +19,27 @@ This ranking prioritizes strategies based on their ability to generate **fees** 
 5.  **Liquidation (Strategy 3):** Vital for protocol solvency. Every liquidation triggers a closing fee and a significant swap event, contributing to both revenue and volume.
 6.  **Self-Liquidation (Strategy 10):** A pro-active version of Strategy 3. It encourages users to close positions early when underwater, ensuring the protocol collects its fees before bad debt can form.
 
-### B-Tier: TVL & Acquisition (Priority 3)
-7.  **Debt Refinancing (Strategy 5):** The best strategy for "vampire attacking" competitors. Onboarding users from Aave/Compound by offering 0% interest increases Eswap's TVL and future fee potential.
-8.  **Yield Hopping (Strategy 12):** Automating the migration of LP positions keeps liquidity "sticky" and ensures Eswap always has the depth needed for large trades.
+---
 
-### C-Tier: Niche & Low Impact
-9.  **JIT Liquidity (Strategy 6):** Technically complex to implement. While it helps LPs, the direct revenue/volume impact on the protocol treasury is secondary.
-10. **Governance Flash (Strategy 9):** Provides almost zero volume or revenue. Useful only for political influence.
+## 2. The Role of Interest Rates in the 12 Strategies
 
-### F-Tier: The Avoid List
-11. **Oracle Manipulation (Strategy 11):** **Do Not Implement.** High risk of protocol collapse and total loss of user trust.
+Understanding which strategies are sensitive to interest rates allows Eswap to market its **0% Interest** model effectively.
+
+| # | Strategy | Interest Implication | Eswap Advantage |
+| --- | --- | --- | --- |
+| **5** | **Debt Refinancing** | **Critical.** Strategy is built on interest rate arbitrage. | Users move loans TO Eswap to pay 0%. |
+| **8** | **Loop Farming** | **Critical.** Profit = `Yield - Borrow Interest`. | Eswap makes looping profitable even for low-yield assets. |
+| **7** | **Mirroring** | **High.** Interest is a "Carry Cost" that eats hedge profits. | Eswap allows market makers to hedge with 0% carry cost. |
+| **12** | **Yield Hopping** | **High.** The "Yield" being chased is often lending interest. | Users can leverage their "Hopping" with 0% Eswap debt. |
+| **3** | **Liquidation** | **Moderate.** Accrued interest is what often triggers the liquidation. | Eswap positions don't "decay" due to interest, staying safer longer. |
+| **10** | **Self-Liquidation** | **Moderate.** Users repay debt + accrued interest. | Repaying Eswap debt is cheaper as no interest has accrued. |
+| **4** | **Collateral Swap** | **Low.** Modifies a loan that usually has interest costs. | Swapping collateral on Eswap maintains the 0% interest benefit. |
+| **1, 2, 9**| **Flash Strategies**| **None.** These use Flash Loans (0% or fixed fee, not interest). | Eswap's 0% Flash Loans will be best-in-class. |
+| **6** | **JIT Liquidity** | **None.** Driven by swap fees, not interest. | N/A |
 
 ---
 
-## 2. Top Revenue & Volume Drivers (Detailed)
+## 3. Top Revenue & Volume Drivers (Detailed)
 
 ### A. Loop Farming - *The #1 Revenue Multiplier*
 *   **Mechanism:** Users use borrowed funds to deposit more collateral, creating a recursive leverage loop.
@@ -43,13 +50,9 @@ This ranking prioritizes strategies based on their ability to generate **fees** 
 *   **Mechanism:** Market Makers hedge their risk on Eswap at **0% carry cost**.
 *   **The Eswap Edge:** Saving MMs 10-20% APR in interest costs makes Eswap the most attractive venue for professional hedging.
 
-### C. 0% Fee Flash Loans - *Arbitrage Magnet*
-*   **Mechanism:** Public 0% flash loans in `LiquidityPool.sol`.
-*   **Impact:** Ensures Eswap is the "lowest cost of capital" venue in DeFi, forcing all arbitrage routes to pass through its pools.
-
 ---
 
-## 3. Implementation Roadmap: Growth-First
+## 4. Implementation Roadmap: Growth-First
 
 | Priority | Feature | Target | Outcome |
 | --- | --- | --- | --- |
@@ -60,5 +63,5 @@ This ranking prioritizes strategies based on their ability to generate **fees** 
 
 ---
 
-## 4. Conclusion
+## 5. Conclusion
 The path to maximum revenue for Eswap is clear: **Automate Looping** to maximize retail fees, and **Onboard Remarketing Bots** to capture institutional volume. Both are only possible because of Eswap's unique **0% interest** architecture.
