@@ -15,6 +15,7 @@ contract StrategyExecutor is Ownable {
     using SafeERC20 for IERC20;
 
     UniswapV3Helper public immutable helper;
+    address public immutable market;
 
     enum Action { ARBITRAGE, LIQUIDATION }
 
@@ -30,8 +31,9 @@ contract StrategyExecutor is Ownable {
 
     mapping(address => bool) public isTrustedPool;
 
-    constructor(address _helper, address _owner) Ownable(_owner) {
+    constructor(address _helper, address _market, address _owner) Ownable(_owner) {
         helper = UniswapV3Helper(_helper);
+        market = _market;
     }
 
     function setPoolTrust(address _pool, bool _trust) external onlyOwner {
@@ -52,12 +54,14 @@ contract StrategyExecutor is Ownable {
 
         if (strategy.action == Action.ARBITRAGE) {
             _executeArbitrage(strategy);
+        } else if (strategy.action == Action.LIQUIDATION) {
+            _executeLiquidation(strategy);
         }
 
         // Repay the flash loan
         IERC20(strategy.tokenIn).safeTransfer(msg.sender, amount);
 
-        return keccak256("onFlashLoan(address,uint256,bytes)");
+        return bytes4(keccak256("onFlashLoan(address,uint256,bytes)"));
     }
 
     function _executeArbitrage(StrategyData memory strategy) internal {
@@ -86,6 +90,20 @@ contract StrategyExecutor is Ownable {
         );
     }
 
+
+    function _executeLiquidation(StrategyData memory strategy) internal {
+        // 1. We have the flash-borrowed asset to repay the debt
+        // 2. Perform the liquidation on Eswap (Assume extraData contains the posId)
+        uint256 posId = abi.decode(strategy.extraData, (uint256));
+
+        IERC20(strategy.tokenIn).forceApprove(market, strategy.amountIn);
+
+        // Call Market.liquidatePosition
+        (bool success, ) = market.call(
+            abi.encodeWithSignature("liquidatePosition(uint256)", posId)
+        );
+        require(success, "Liquidation call failed");
+    }
 
     // Allow owner to withdraw any stuck tokens
     function withdraw(address token, uint256 amount) external onlyOwner {
