@@ -6,7 +6,6 @@ const { ethers } = require("ethers");
 const YieldHopperBot = require("../../../bots/YieldHopperBot");
 const CollateralSwapBot = require("../../../bots/CollateralSwapBot");
 const JITBot = require("../../../bots/JITBot");
-const GovernanceBot = require("../../../bots/GovernanceBot");
 
 test("Skeleton Bots run without crashing", async (t) => {
     await new YieldHopperBot().run();
@@ -16,7 +15,6 @@ test("Skeleton Bots run without crashing", async (t) => {
     await csBot.run();
 
     await new JITBot().run();
-    await new GovernanceBot().run();
 
     assert.ok(true);
 });

@@ -9,7 +9,6 @@ const MirroringBot = require("../../bots/MirroringBot");
 const YieldHopperBot = require("../../bots/YieldHopperBot");
 const CollateralSwapBot = require("../../bots/CollateralSwapBot");
 const JITBot = require("../../bots/JITBot");
-const GovernanceBot = require("../../bots/GovernanceBot");
 
 test("ArbitrageBot", async (t) => {
     const bot = new ArbitrageBot();
@@ -61,12 +60,6 @@ test("CollateralSwapBot", async (t) => {
 
 test("JITBot", async (t) => {
     const bot = new JITBot();
-    await bot.run();
-    assert.ok(true);
-});
-
-test("GovernanceBot", async (t) => {
-    const bot = new GovernanceBot();
     await bot.run();
     assert.ok(true);
 });

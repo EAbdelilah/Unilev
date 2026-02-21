@@ -53,6 +53,7 @@ Eswap's **0% Interest** model is the core of its competitive advantage, allowing
 The following strategies have been removed from the protocol scope to ensure compliance with ethical (Shariah) standards:
 - **Debt Refinancing (Strategy 5):** Prohibited as it involves engaging with conventional interest-bearing debt.
 - **Loop Farming (Strategy 8):** Prohibited as it builds leveraged positions on interest-based debt cycles.
+- **Governance Flash (Strategy 9):** Prohibited as a form of governance manipulation and unfair influence.
 - **Oracle Manipulation (Strategy 11):** Prohibited as it is based on deception and harm (Dharrar).
 
 ---
