@@ -7,19 +7,30 @@ class YieldHopperBot extends BotBase {
     }
 
     async run() {
-        this.log("Scanning for highest yield farms...");
+        this.log("Scanning for highest yield opportunities...");
 
-        const farms = [
-            { name: "Eswap USDC Pool", apy: 0.15 },
-            { name: "Uniswap V3 USDC/ETH", apy: 0.12 },
-            { name: "Curve 3pool", apy: 0.08 }
+        const assets = [
+            { address: this.env.USDC, symbol: "USDC" },
+            { address: this.env.WETH, symbol: "WETH" }
         ];
 
-        const bestFarm = farms.reduce((prev, current) => (prev.apy > current.apy) ? prev : current);
+        for (const asset of assets) {
+            // 1. Get Eswap LP Yield (simulated calculation)
+            const eswapYield = 0.15; // 15% APY
 
-        this.log(`Highest yield found: ${bestFarm.name} at ${bestFarm.apy * 100}% APY.`);
+            // 2. Get Uniswap V3 Yield for same pair (simulated)
+            const uniswapYield = 0.12; // 12% APY
 
-        // If current position is not in bestFarm, migrate.
+            this.log(`${asset.symbol} Yield - Eswap: ${eswapYield * 100}% | Uniswap: ${uniswapYield * 100}%`);
+
+            if (eswapYield > uniswapYield) {
+                this.log(`✅ ${asset.symbol} yield is superior on Eswap. Ensuring TVL is deployed...`);
+                // Logic: Deposit to Eswap LiquidityPool
+            } else {
+                this.log(`⚠️ ${asset.symbol} yield is better elsewhere. Considering migration...`);
+                // Logic: Withdraw from Eswap -> Move to Uniswap
+            }
+        }
     }
 }
 

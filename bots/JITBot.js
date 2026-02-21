@@ -7,24 +7,46 @@ class JITBot extends BotBase {
     }
 
     async run() {
-        this.log("Scanning mempool for large 'Whale' trades...");
+        this.log("Scanning for high-impact 'Whale' trades (JIT)...");
 
-        // Mock mempool transaction detection
-        const whaleTrade = {
-            target: "Uniswap V3 USDC/ETH",
-            amountIn: "1000000",
-            asset: "USDC"
-        };
+        // Simulation: In production, use a mempool provider (e.g., Blocknative or Alchemy)
+        const whaleTrade = await this.getMempoolWhaleTrade();
 
         if (whaleTrade) {
-            this.log(`Whale trade detected! ${whaleTrade.amountIn} ${whaleTrade.asset} on ${whaleTrade.target}.`);
-            this.log("Action: Providing JIT Liquidity to capture massive swap fees.");
+            this.log(`🚀 Whale trade detected! ${whaleTrade.amountIn} ${whaleTrade.symbol} on ${whaleTrade.venue}.`);
 
-            // 1. Flash loan collateral
-            // 2. Add liquidity to specific tick range
-            // 3. Wait for whale trade to execute
-            // 4. Remove liquidity and repay flash loan
+            // 1. Calculate the Price Impact of the whale trade
+            const currentPrice = await this.priceFeed.getTokenLatestPriceInUsd(whaleTrade.asset);
+
+            // 2. Calculate the optimal 'Narrow' tick range for JIT liquidity
+            // In Uniswap V3, the tighter the range, the higher the fee capture.
+            const tickLower = -100n; // Placeholder for real tick calculation
+            const tickUpper = 100n;
+
+            this.log(`Action: Providing JIT Liquidity in range [${tickLower}, ${tickUpper}]`);
+
+            try {
+                if (this.executor) {
+                    this.log("Executing ATOMIC JIT via StrategyExecutor...");
+                    // 1. Flash Loan collateral -> 2. Provide Liquidity -> 3. Repay
+                } else {
+                    this.log("Manual JIT execution (Not Recommended due to timing sensitivity)");
+                }
+            } catch (e) {
+                this.error(`JIT failed: ${e.message}`);
+            }
         }
+    }
+
+    async getMempoolWhaleTrade() {
+        // Mock mempool detection
+        return {
+            venue: "Uniswap V3",
+            symbol: "ETH",
+            asset: this.env.WETH,
+            amountIn: "500",
+            side: "SELL"
+        };
     }
 }
 

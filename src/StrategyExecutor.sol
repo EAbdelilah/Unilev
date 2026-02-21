@@ -17,7 +17,7 @@ contract StrategyExecutor is Ownable {
     UniswapV3Helper public immutable helper;
     address public immutable market;
 
-    enum Action { ARBITRAGE, LIQUIDATION }
+    enum Action { ARBITRAGE, LIQUIDATION, JIT, COLLATERAL_SWAP }
 
     struct StrategyData {
         Action action;
@@ -56,6 +56,10 @@ contract StrategyExecutor is Ownable {
             _executeArbitrage(strategy);
         } else if (strategy.action == Action.LIQUIDATION) {
             _executeLiquidation(strategy);
+        } else if (strategy.action == Action.JIT) {
+            _executeJIT(strategy);
+        } else if (strategy.action == Action.COLLATERAL_SWAP) {
+            _executeCollateralSwap(strategy);
         }
 
         // Repay the flash loan
@@ -103,6 +107,18 @@ contract StrategyExecutor is Ownable {
             abi.encodeWithSignature("liquidatePosition(uint256)", posId)
         );
         require(success, "Liquidation call failed");
+    }
+
+    function _executeJIT(StrategyData memory strategy) internal {
+        // 1. We have the flash-borrowed liquidity
+        // 2. Add liquidity to Uniswap V3 in narrow range (extraData contains ticks)
+        // 3. Profit from the swap fee of the detected whale trade
+    }
+
+    function _executeCollateralSwap(StrategyData memory strategy) internal {
+        // 1. Receive collateral from flash loan (to prevent liquidations during swap)
+        // 2. Swap old collateral for new collateral
+        // 3. Update the Position NFT metadata if needed
     }
 
     // Allow owner to withdraw any stuck tokens
