@@ -44,10 +44,8 @@ These bots have been upgraded with a professional on-chain executor (`StrategyEx
 | Bot | Strategy | Focus |
 | --- | --- | --- |
 | `ArbitrageBot.js` | Spatial/Triangular | Captures price gaps between venues. |
-| `LooperBot.js` | Loop Farming | Maximizes TVL and exposure via recursive leverage. |
 | `MirroringBot.js` | Remarketing | Hedges external Maker positions on Eswap at 0% interest. |
 | `LiquidationBot.js`| Liquidations | Keeps the protocol solvent by closing underwater positions. |
-| `RefinanceBot.js` | Refinancing | Migrates high-interest debt to Eswap's 0% interest pools. |
 
 ---
 

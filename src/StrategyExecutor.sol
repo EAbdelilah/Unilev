@@ -16,7 +16,7 @@ contract StrategyExecutor is Ownable {
 
     UniswapV3Helper public immutable helper;
 
-    enum Action { ARBITRAGE, LOOPING, REFINANCE, LIQUIDATION }
+    enum Action { ARBITRAGE, LIQUIDATION }
 
     struct StrategyData {
         Action action;
@@ -52,10 +52,6 @@ contract StrategyExecutor is Ownable {
 
         if (strategy.action == Action.ARBITRAGE) {
             _executeArbitrage(strategy);
-        } else if (strategy.action == Action.LOOPING) {
-            _executeLooping(strategy);
-        } else if (strategy.action == Action.REFINANCE) {
-            _executeRefinance(strategy);
         }
 
         // Repay the flash loan
@@ -90,37 +86,6 @@ contract StrategyExecutor is Ownable {
         );
     }
 
-    function _executeLooping(StrategyData memory strategy) internal {
-        // 1. Initial collateral is already in contract (from flash loan)
-        // 2. Open Leveraged position on Eswap
-        // This effectively 'loops' the leverage in one go.
-        IERC20(strategy.tokenIn).forceApprove(address(helper), strategy.amountIn);
-
-        helper.swapExactInputSingle(
-            strategy.tokenIn,
-            strategy.tokenOut,
-            strategy.fee,
-            strategy.amountIn,
-            strategy.minAmountOut
-        );
-
-        // The remaining tokens (profit/surplus) stay in the executor.
-    }
-
-    function _executeRefinance(StrategyData memory strategy) internal {
-        // 1. We have the flash-borrowed amount
-        // 2. Perform the logic to repay external debt (if integration exists)
-        // 3. Open the replacement position on Eswap
-        IERC20(strategy.tokenIn).forceApprove(address(helper), strategy.amountIn);
-
-        helper.swapExactInputSingle(
-            strategy.tokenIn,
-            strategy.tokenOut,
-            strategy.fee,
-            strategy.amountIn,
-            strategy.minAmountOut
-        );
-    }
 
     // Allow owner to withdraw any stuck tokens
     function withdraw(address token, uint256 amount) external onlyOwner {

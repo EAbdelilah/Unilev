@@ -1,18 +1,26 @@
 # Eswap Strategy Research Report: Revenue & Volume Optimization
 
 ## Executive Summary
-To maximize **Revenue** (Treasury Fees) and **Volume** (Uniswap Swaps), Eswap must focus on strategies that increase the velocity of position openings, the size of collateral deposits, and the efficiency of liquidations. By aligning with the **0% fee infrastructure** trend, Eswap can attract institutional volume that traditional high-fee protocols miss.
+To maximize **Revenue** (Treasury Fees) and **Volume** (Uniswap Swaps), Eswap must focus on ethical strategies that increase the velocity of position openings and the efficiency of liquidations. By aligning with the **0% fee infrastructure** trend, Eswap can attract institutional volume while maintaining strict adherence to ethical standards.
 
 ---
 
-## 1. The Ultimate Strategy Ranking for Eswap
+## 1. The Ultimate Strategy Ranking for Eswap (Ethical)
 
-This ranking prioritizes strategies based on their ability to generate **fees** and **swap volume** while leveraging Eswap's **0% interest leverage**.
+This ranking prioritizes strategies based on their ability to generate **fees** and **swap volume** while leveraging Eswap's **0% interest leverage** without engaging in prohibited interest-based debt or manipulation.
 
 ### S-Tier: The Growth Engines (Priority 1)
-1.  **Loop Farming (Strategy 8):** The single best strategy for revenue. It allows users to recursively leverage their position, multiplying the collateral base. Since Eswap takes a fee on the collateral (`treasureFee`), a 5x loop generates **5x the revenue** for the protocol.
-2.  **Mirroring/Remarketing (Strategy 7):** The best for institutional volume. By being the only venue with **0% interest leverage**, Eswap becomes the default "Hedge Layer" for market makers. This creates consistent, high-frequency volume.
-3.  **Spatial/Triangular Arbitrage (Strategies 1 & 2):** Requires implementing 0% Flash Loans. This attracts "Smart Money" bots that will generate massive swap volume through Eswap's pools to keep them balanced.
+1.  **Mirroring/Remarketing (Strategy 7):** The best for institutional volume. By being the only venue with **0% interest leverage**, Eswap becomes the default "Hedge Layer" for market makers. This creates consistent, high-frequency volume. Market makers can hedge their risk without the "carry cost" of traditional interest-bearing loans.
+2.  **Spatial/Triangular Arbitrage (Strategies 1 & 2):** Requires implementing 0% Flash Loans. This attracts "Smart Money" bots that generate massive swap volume through Eswap's pools to keep them balanced, earning the protocol treasury fees on every trade.
+
+### A-Tier: Essential Infrastructure (Priority 2)
+3.  **Collateral Swap (Strategy 4):** Essential for user retention. Instead of closing a position, users stay and generate swap volume by switching assets.
+4.  **Liquidation (Strategy 3):** Vital for protocol solvency. Every liquidation triggers a closing fee and a significant swap event.
+5.  **Self-Liquidation (Strategy 10):** Encourages users to close positions early when underwater, ensuring the protocol collects its fees before bad debt can form.
+
+### B-Tier: TVL & Acquisition (Priority 3)
+6.  **Yield Hopping (Strategy 12):** Automating the migration of LP positions keeps liquidity "sticky" and ensures depth.
+7.  **JIT Liquidity (Strategy 6):** Provides temporary liquidity to LPs, improving execution quality for large trades.
 
 ---
 
@@ -29,17 +37,25 @@ This ranking prioritizes strategies based on their ability to generate **fees** 
 
 ---
 
-## 3. The Role of Interest Rates in the 12 Strategies
+## 3. The Role of 0% Interest in Ethical DeFi
 
-Understanding which strategies are sensitive to interest rates allows Eswap to market its **0% Interest** model effectively.
+Eswap's **0% Interest** model is the core of its competitive advantage, allowing for advanced trading without the ethical complications of interest-bearing debt.
 
-| # | Strategy | Interest Implication | Eswap Advantage |
-| --- | --- | --- | --- |
-| **5** | **Debt Refinancing** | **Critical.** Strategy is built on interest rate arbitrage. | Users move loans TO Eswap to pay 0%. |
-| **8** | **Loop Farming** | **Critical.** Profit = `Yield - Borrow Interest`. | Eswap makes looping profitable even for low-yield assets. |
-| **7** | **Mirroring** | **High.** Interest is a "Carry Cost" that eats hedge profits. | Eswap allows market makers to hedge with 0% carry cost. |
+| # | Strategy | Eswap Advantage |
+| --- | --- | --- |
+| **7** | **Mirroring** | MMs save 10-20% APR in carry costs, making Eswap the cheapest hedge venue. |
+| **1, 2**| **Arbitrage** | 0% Flash Loans ensure Eswap is the primary route for all DeFi arbitrage. |
+| **3** | **Liquidation** | Positions don't "decay" due to interest, staying safer longer. |
 
 ---
 
-## 4. Conclusion
-The path to maximum revenue for Eswap is clear: **Automate Looping** to maximize retail fees, and **Onboard Remarketing Bots** to capture institutional volume. Both are only possible because of Eswap's unique **0% interest** architecture.
+## 4. Prohibited Strategies
+The following strategies have been removed from the protocol scope to ensure compliance with ethical (Shariah) standards:
+- **Debt Refinancing (Strategy 5):** Prohibited as it involves engaging with conventional interest-bearing debt.
+- **Loop Farming (Strategy 8):** Prohibited as it builds leveraged positions on interest-based debt cycles.
+- **Oracle Manipulation (Strategy 11):** Prohibited as it is based on deception and harm (Dharrar).
+
+---
+
+## 5. Conclusion
+By focusing on **Mirroring/Remarketing** and **0% Flash Loan Arbitrage**, Eswap captures the highest quality institutional volume in DeFi while remaining a leader in ethical finance.

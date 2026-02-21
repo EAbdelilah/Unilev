@@ -5,9 +5,7 @@ const { ethers } = require("ethers");
 
 const ArbitrageBot = require("../../bots/ArbitrageBot");
 const LiquidationBot = require("../../bots/LiquidationBot");
-const LooperBot = require("../../bots/LooperBot");
 const MirroringBot = require("../../bots/MirroringBot");
-const RefinanceBot = require("../../bots/RefinanceBot");
 const YieldHopperBot = require("../../bots/YieldHopperBot");
 const CollateralSwapBot = require("../../bots/CollateralSwapBot");
 const JITBot = require("../../bots/JITBot");
@@ -35,22 +33,6 @@ test("LiquidationBot", async (t) => {
     assert.strictEqual(liquidated, true);
 });
 
-test("LooperBot", async (t) => {
-    const bot = new LooperBot();
-    bot.market.getTraderPositions = () => Promise.resolve([]);
-    bot.checkProfitability = () => Promise.resolve(true);
-    bot.quoteSwap = () => Promise.resolve(ethers.parseUnits("0.03", 8));
-
-    let positionOpened = false;
-    bot.market.openPosition = async () => {
-        positionOpened = true;
-        return { wait: () => Promise.resolve({ status: 1 }), hash: "0x456" };
-    };
-
-    await bot.run();
-    assert.strictEqual(positionOpened, true);
-});
-
 test("MirroringBot", async (t) => {
     const bot = new MirroringBot();
     bot.getExternalFills = () => Promise.resolve([{ id: "1", venue: "Binance", symbol: "ETH", amount: "1", side: "BUY", hedged: false }]);
@@ -61,15 +43,6 @@ test("MirroringBot", async (t) => {
     await bot.run();
 
     assert.strictEqual(hedgeOpened, true);
-});
-
-test("RefinanceBot", async (t) => {
-    const bot = new RefinanceBot();
-    // Test case where interest is high
-    let refinanceStarted = false;
-    bot.market.openPosition = async () => { refinanceStarted = true; return { wait: () => {}, hash: "0xabc" }; };
-    await bot.run();
-    assert.strictEqual(refinanceStarted, true);
 });
 
 test("YieldHopperBot", async (t) => {
