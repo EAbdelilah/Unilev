@@ -39,6 +39,20 @@ class BotBase {
         // Production Circuit Breakers
         this.MAX_SLIPPAGE_BPS = 100n; // 1%
         this.MAX_TRADE_SIZE_USD = 50000; // $50k max per trade safety limit
+
+        // Live Data Feed Initializers
+        this.wsProvider = null; // High-performance WebSocket provider
+    }
+
+    /**
+     * Connects to a high-performance WebSocket provider for real-time mempool/event data.
+     */
+    async connectLiveFeed() {
+        const wsUrl = this.env.WS_RPC_URL;
+        if (wsUrl) {
+            this.log(`Connecting to high-performance feed: ${wsUrl}`);
+            this.wsProvider = new ethers.WebSocketProvider(wsUrl);
+        }
     }
 
     async getNextNonce() {

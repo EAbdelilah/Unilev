@@ -39,6 +39,26 @@ These bots have been upgraded with a professional on-chain executor (`StrategyEx
 
 ---
 
+## 🔌 Live Data Integration Guide
+
+To connect these bots to real mainnet data, follow these integration steps:
+
+### 1. Mirroring (CEX Integration)
+*   **Library:** Use `ccxt` for standardized CEX WebSocket support.
+*   **Implementation:** Replace `getExternalFills()` with a WebSocket listener for the `orders` or `myTrades` topic on Binance/Coinbase.
+*   **Security:** Use restricted API keys with **Spot Read-Only** permissions.
+
+### 2. Arbitrage & JIT (Mempool Integration)
+*   **Provider:** Use a high-performance node provider like **Blocknative**, **Alchemy**, or **Infura**.
+*   **Logic:** For JIT, use the `pendingTransactions` WebSocket to detect whale trades before they are included in a block.
+*   **Execution:** Wrap your transactions in **Flashbots Bundles** to ensure you are the first to execute and avoid revert costs.
+
+### 3. Yield Hopping (Off-Chain Analytics)
+*   **API:** Use the **DeFi Llama APY API**.
+*   **Logic:** Fetch the current `apyBase` for Uniswap V3 pools on Polygon and compare them against Eswap's internal utilization rates.
+
+---
+
 ## 🤖 Available Bots
 
 | Bot | Strategy | Focus |

@@ -45,7 +45,31 @@ Eswap's unique selling point is the ability to offer professional trading tools 
 
 ---
 
-## 4. Compliance Log
+## 4. The Live Data Engine: How Strategies Work in Production
+
+Each strategy requires a specific "Live Data Loop" to function effectively on mainnet.
+
+| Strategy | Live Data Source | Decision Logic | On-Chain Execution |
+| --- | --- | --- | --- |
+| **Mirroring** | CEX WebSockets (Binance/Coinbase) | Hedge Taker Order vs Maker Fill | `Market.openPosition` |
+| **Arbitrage** | Chainlink + Uniswap V3 Quoter | Price Gap > (Gas + Slippage + Fee) | `StrategyExecutor.flashLoan` |
+| **Liquidation**| Protocol `getLiquidablePositions()` | Fixed Reward > Gas Cost | `Market.liquidatePositions` |
+| **JIT Liquidity**| Mempool (Blocknative / Alchemy) | Whale Trade Volume & Tick Range | `StrategyExecutor.flashLoan` |
+| **Collateral Swap**| Chainlink Price Feeds (Volatilty) | Volatility > Threshold | `StrategyExecutor.flashLoan` |
+| **Yield Hopping**| Yield Aggregators (DeFi Llama API) | Eswap APY vs Competitor APY | `LiquidityPool.deposit/withdraw` |
+
+### 1. Mirroring (Real-Time Hedging)
+Bots use **WebSocket connections** to your Centralized Exchange (CEX) accounts. The moment your "Maker" order is filled on Binance, the bot receives a `FILL` event. It immediately calculates the equivalent size and sends a "Taker" order to Eswap to hedge the risk at 0% interest.
+
+### 2. Arbitrage (The Oracle vs. Market Gap)
+The bot continuously polls the **Chainlink Aggregator** (The "Truth") and the **Uniswap V3 Quoter** (The "Market"). If the Quoter price deviates from the Oracle by more than 1.5%, the bot triggers an atomic transaction. It uses Eswap's **0% Flash Loan** to buy low and sell high in a single block.
+
+### 3. JIT (Scanning the Mempool)
+Using a **Mempool Listener**, the bot scans pending transactions for large swaps (Whales). If a Whale is about to move the price in a Uniswap pool, the bot frontruns them by adding narrow-range liquidity (JIT), captures the massive swap fee, and removes the liquidity in the same or next block.
+
+---
+
+## 5. Compliance Log
 The following strategies are permanently excluded from the protocol scope to maintain Shariah compliance:
 - **Debt Refinancing** (Interest avoidance)
 - **Loop Farming** (Interest-based leverage)
@@ -54,7 +78,7 @@ The following strategies are permanently excluded from the protocol scope to mai
 
 ---
 
-## 5. Polygon Deployment Guide
+## 6. Polygon Deployment Guide
 
 To launch Eswap on **Polygon Mainnet**, follow these steps to ensure all production infrastructure is correctly configured.
 
