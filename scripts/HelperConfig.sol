@@ -17,6 +17,7 @@ contract HelperConfig {
         address usdc;
         address dai;
         address treasure;
+        address quoter;
     }
 
     mapping(uint256 => NetworkConfig) public chainIdToNetworkConfig;
@@ -52,7 +53,8 @@ contract HelperConfig {
             weth: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,
             usdc: 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48,
             dai: 0x6B175474E89094C44Da98b954EedeAC495271d0F,
-            treasure: 0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199
+            treasure: 0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199,
+            quoter: 0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6
         });
     }
 
@@ -77,7 +79,8 @@ contract HelperConfig {
             weth: 0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619,
             usdc: 0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359,
             dai: 0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063,
-            treasure: 0xBB6B5fD8AC1Fa2f4b20Dbd0d4b278b0E64ecA5DA
+            treasure: 0xBB6B5fD8AC1Fa2f4b20Dbd0d4b278b0E64ecA5DA,
+            quoter: 0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6
         });
     }
 }

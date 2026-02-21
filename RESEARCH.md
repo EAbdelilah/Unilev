@@ -51,3 +51,37 @@ The following strategies are permanently excluded from the protocol scope to mai
 - **Loop Farming** (Interest-based leverage)
 - **Governance Flash** (Governance manipulation)
 - **Oracle Manipulation** (Deception/Harm)
+
+---
+
+## 5. Polygon Deployment Guide
+
+To launch Eswap on **Polygon Mainnet**, follow these steps to ensure all production infrastructure is correctly configured.
+
+### 1. Contract Deployment
+Run the automated deployment script using the Makefile:
+```bash
+make deploy-polygon POLYGON_RPC_URL=<your_rpc> PRIVATE_KEY=<your_key>
+```
+This script will deploy:
+*   `Positions.sol`, `Market.sol`, `LiquidityPoolFactory.sol`
+*   `StrategyExecutor.sol` (with pre-configured trusted pools)
+*   Standard Liquidity Pools for WBTC, WETH, USDC, and DAI.
+
+### 2. Polygon Infrastructure Addresses
+Eswap utilizes the following core infrastructure on Polygon:
+*   **Uniswap V3 Factory:** `0x1F98431c8aD98523631AE4a59f267346ea31F984`
+*   **Uniswap V3 Quoter:** `0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6`
+*   **Chainlink ETH/USD:** `0xF9680D99D6C9589e2a93a78A04A279e509205945`
+
+### 3. Bot Configuration (.env)
+Update your production `.env` with the Polygon addresses returned by the deployment script:
+```env
+QUOTER_ADDRESS=0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6
+STRATEGY_EXECUTOR_ADDRESS=<deployed_executor_address>
+MARKET_ADDRESS=<deployed_market_address>
+# ... other token/pool addresses
+```
+
+### 4. Gas Management
+Polygon gas prices can spike rapidly. Ensure the `BotBase.js` utilities are connected to a high-reliability RPC (e.g., Alchemy or Infura) to ensure high-frequency bots (Mirroring, Arbitrage) don't miss blocks.

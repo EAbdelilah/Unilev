@@ -8,6 +8,7 @@ import "../src/LiquidityPool.sol";
 import "../src/PriceFeedL1.sol";
 import {UniswapV3Helper} from "../src/UniswapV3Helper.sol";
 import {FeeManager} from "../src/FeeManager.sol";
+import {StrategyExecutor} from "../src/StrategyExecutor.sol";
 
 import "forge-std/Script.sol";
 import "./HelperConfig.sol";
@@ -19,6 +20,7 @@ contract Deployments is Script, HelperConfig {
     Market public market;
     Positions public positions;
     FeeManager public feeManager;
+    StrategyExecutor public strategyExecutor;
     LiquidityPool public lbPoolWBTC;
     LiquidityPool public lbPoolWETH;
     LiquidityPool public lbPoolUSDC;
@@ -56,6 +58,7 @@ contract Deployments is Script, HelperConfig {
             address(priceFeedL1),
             msg.sender
         );
+        strategyExecutor = new StrategyExecutor(address(uniswapV3Helper), address(market), msg.sender);
 
         /// configurations
         // add position address to the factory
@@ -77,6 +80,12 @@ contract Deployments is Script, HelperConfig {
         lbPoolWETH = LiquidityPool(pools[1]);
         lbPoolUSDC = LiquidityPool(pools[2]);
         lbPoolDAI = LiquidityPool(pools[3]);
+
+        // trust pools in executor
+        strategyExecutor.setPoolTrust(address(lbPoolWBTC), true);
+        strategyExecutor.setPoolTrust(address(lbPoolWETH), true);
+        strategyExecutor.setPoolTrust(address(lbPoolUSDC), true);
+        strategyExecutor.setPoolTrust(address(lbPoolDAI), true);
 
         // add price feeds
         address[] memory priceFeeds = new address[](4);
