@@ -1,5 +1,6 @@
 const BotBase = require("./BotBase");
 const { ethers } = require("ethers");
+const { getLiquidityPoolAbi } = require("../javascript/utils");
 
 class RefinanceBot extends BotBase {
     constructor() {
