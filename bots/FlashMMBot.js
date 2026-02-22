@@ -13,23 +13,40 @@ class FlashMMBot extends BotBase {
         const rfqOrder = await this.getLatestRFQ();
 
         if (rfqOrder) {
-            this.log(`New RFQ Order: User wants to SELL ${rfqOrder.amountIn} ${rfqOrder.symbolIn} for ${rfqOrder.symbolOut}`);
+            this.log(`New RFQ Order: User wants to SELL ${rfqOrder.amountIn} ${rfqOrder.symbolIn} for ${rfqOrder.targetAmountOut} ${rfqOrder.symbolOut}`);
 
             try {
                 if (this.executor) {
                     this.log("Step 1: Calculating profitability with Eswap 0% Flash Loans...");
 
-                    // Logic:
-                    // 1. Flash borrow output token from Eswap
-                    // 2. Fill User's order (Atomic)
-                    // 3. Swap User's input token on Eswap/Uniswap for output token
-                    // 4. Repay Eswap Flash Loan
+                    // Production Logic:
+                    // 1. We borrow 'targetAmountOut' of 'assetOut' from Eswap
+                    // 2. StrategyExecutor sends it to 'user'
+                    // 3. Executor receives 'amountIn' of 'assetIn'
+                    // 4. Executor swaps 'assetIn' for 'assetOut' on Uniswap
+                    // 5. Executor repays flash loan
 
-                    const isProfitable = await this.checkProfitability(5.0, 600000); // Expect $5 profit
+                    const isProfitable = await this.checkProfitability(10.0, 700000); // Expect $10 profit, 700k gas
 
                     if (isProfitable) {
-                        this.log(`🚀 Executing ATOMIC RFQ FILL via StrategyExecutor...`);
-                        // StrategyData action would be JIT or a new RFQ action
+                        this.log(`🚀 Executing ATOMIC RFQ FILL for ${rfqOrder.id}...`);
+
+                        const extraData = ethers.AbiCoder.defaultAbiCoder().encode(
+                            ["address", "uint256", "uint24"],
+                            [rfqOrder.user, ethers.parseUnits(rfqOrder.targetAmountOut, 6), 3000] // user, fillAmount, swapBackFee
+                        );
+
+                        const strategyData = ethers.AbiCoder.defaultAbiCoder().encode(
+                            ["uint8", "address", "address", "uint24", "uint256", "uint256", "bytes"],
+                            [4, rfqOrder.assetOut, rfqOrder.assetIn, 3000, ethers.parseUnits(rfqOrder.targetAmountOut, 6), 0n, extraData] // Action.RFQ_FILL = 4
+                        );
+
+                        const lpAddress = await this.market.getTokenToLiquidityPools(rfqOrder.assetOut);
+                        const lp = new ethers.Contract(lpAddress, ["function flashLoan(address,uint256,bytes)"], this.wallet);
+
+                        const tx = await lp.flashLoan(this.executorAddress, ethers.parseUnits(rfqOrder.targetAmountOut, 6), strategyData, { nonce: await this.getNextNonce() });
+                        await tx.wait();
+                        this.log(`Atomic RFQ Fill Success! Hash: ${tx.hash}`);
                     }
                 } else {
                     this.log("Manual RFQ execution not possible for Flash MM.");
@@ -44,6 +61,7 @@ class FlashMMBot extends BotBase {
         // Mock order from a solver network
         return {
             id: "order-999",
+            user: "0x" + "2".repeat(40),
             symbolIn: "ETH",
             assetIn: this.env.WETH,
             amountIn: "10.5",

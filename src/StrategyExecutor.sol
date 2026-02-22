@@ -17,7 +17,7 @@ contract StrategyExecutor is Ownable {
     UniswapV3Helper public immutable helper;
     address public immutable market;
 
-    enum Action { ARBITRAGE, LIQUIDATION, JIT, COLLATERAL_SWAP }
+    enum Action { ARBITRAGE, LIQUIDATION, JIT, COLLATERAL_SWAP, RFQ_FILL }
 
     struct StrategyData {
         Action action;
@@ -60,6 +60,8 @@ contract StrategyExecutor is Ownable {
             _executeJIT(strategy);
         } else if (strategy.action == Action.COLLATERAL_SWAP) {
             _executeCollateralSwap(strategy);
+        } else if (strategy.action == Action.RFQ_FILL) {
+            _executeRFQFill(strategy);
         }
 
         // Repay the flash loan
@@ -119,6 +121,30 @@ contract StrategyExecutor is Ownable {
         // 1. Receive collateral from flash loan (to prevent liquidations during swap)
         // 2. Swap old collateral for new collateral
         // 3. Update the Position NFT metadata if needed
+    }
+
+    function _executeRFQFill(StrategyData memory strategy) internal {
+        // 1. tokenIn is already in the contract (borrowed from Eswap 0% fee)
+        // 2. Decode extraData: [userAddress, fillAmount, swapBackFee]
+        (address user, uint256 fillAmount, uint24 swapBackFee) = abi.decode(strategy.extraData, (address, uint256, uint24));
+
+        // 3. Send tokenIn to the user to fill their order
+        IERC20(strategy.tokenIn).safeTransfer(user, fillAmount);
+
+        // 4. In a real RFQ, we would now pull the user's tokenOut or it would be sent to us atomically
+        // For production logic, we check the balance of tokenOut
+        uint256 tokenOutReceived = IERC20(strategy.tokenOut).balanceOf(address(this));
+        require(tokenOutReceived > 0, "No tokenOut received from user");
+
+        // 5. Swap back to tokenIn to repay the flash loan
+        IERC20(strategy.tokenOut).forceApprove(address(helper), tokenOutReceived);
+        helper.swapExactInputSingle(
+            strategy.tokenOut,
+            strategy.tokenIn,
+            swapBackFee,
+            tokenOutReceived,
+            strategy.amountIn // Must cover the flash loan
+        );
     }
 
     // Allow owner to withdraw any stuck tokens

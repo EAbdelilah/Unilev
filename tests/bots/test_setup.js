@@ -16,7 +16,8 @@ const mockEnv = {
     MARKET_ADDRESS: ethers.ZeroAddress,
     FEEMANAGER_ADDRESS: ethers.ZeroAddress,
     LIQUIDITYPOOLFACTORY_ADDRESS: ethers.ZeroAddress,
-    USDC_LP: ethers.ZeroAddress
+    USDC_LP: ethers.ZeroAddress,
+    STRATEGY_EXECUTOR_ADDRESS: ethers.ZeroAddress
 };
 
 utils.getEnvVars = () => mockEnv;
@@ -71,9 +72,13 @@ try {
         value: function(address, abi, runner) {
             const mock = createMockContract(address, abi, runner);
             // Add default behavior for FeeManager if requested
-            if (typeof abi === "object" && abi.some && abi.some(s => s.includes("getFees"))) {
-                mock.getFees = () => Promise.resolve([100n, 500n]);
-            }
+    // Enhanced default behavior for view methods
+    mock.getFees = () => Promise.resolve([100n, 500n]);
+    mock.getTokenLatestPriceInUsd = () => Promise.resolve(ethers.parseUnits("1", 18));
+    mock.getPairLatestPrice = () => Promise.resolve(ethers.parseUnits("1", 18));
+    mock.getPositionParams = () => Promise.resolve([ethers.ZeroAddress, ethers.ZeroAddress, 0n, 0n, false]);
+    mock.getTraderPositions = () => Promise.resolve([]);
+    mock.getTokenToLiquidityPools = () => Promise.resolve(ethers.ZeroAddress);
             return mock;
         },
         configurable: true,

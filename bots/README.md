@@ -53,7 +53,11 @@ To connect these bots to real mainnet data, follow these integration steps:
 *   **Logic:** For JIT, use the `pendingTransactions` WebSocket to detect whale trades before they are included in a block.
 *   **Execution:** Wrap your transactions in **Flashbots Bundles** to ensure you are the first to execute and avoid revert costs.
 
-### 3. Yield Hopping (Off-Chain Analytics)
+### 3. RFQ Filling (UniswapX Integration)
+*   **API:** Connect to the **UniswapX Filler API** or a private RFQ network (e.g. 0x RFQ).
+*   **Profitability:** Factor in the auction "decay" - UniswapX orders often start with a high price that decays over time. Your bot should strike when `Decayed_Price - gas > Eswap_Oracle_Price`.
+
+### 4. Yield Hopping (Off-Chain Analytics)
 *   **API:** Use the **DeFi Llama APY API**.
 *   **Logic:** Fetch the current `apyBase` for Uniswap V3 pools on Polygon and compare them against Eswap's internal utilization rates.
 

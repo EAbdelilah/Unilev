@@ -55,6 +55,7 @@ test("YieldHopperBot", async (t) => {
 test("CollateralSwapBot", async (t) => {
     const bot = new CollateralSwapBot();
     bot.market.getTraderPositions = () => Promise.resolve([1n]);
+    bot.market.getPositionParams = () => Promise.resolve([ethers.ZeroAddress, ethers.ZeroAddress, 0n, 0n, false]);
     await bot.run();
     assert.ok(true);
 });

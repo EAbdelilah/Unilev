@@ -12,9 +12,14 @@ function createMockContract(address, abi, provider) {
             if (prop in target) return target[prop];
 
             const method = (...args) => {
-                // console.log(`Method call: ${prop}`);
-                const res = target[prop] ? target[prop](...args) : ethers.ZeroAddress;
-                return Promise.resolve(res);
+                if (target[prop]) {
+                    return Promise.resolve(target[prop](...args));
+                }
+                // Default mock response for contract write methods
+                return Promise.resolve({
+                    wait: () => Promise.resolve({ status: 1 }),
+                    hash: "0x" + "0".repeat(64)
+                });
             };
 
             // Handle .staticCall
