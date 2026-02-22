@@ -9,6 +9,7 @@ const MirroringBot = require("../../bots/MirroringBot");
 const YieldHopperBot = require("../../bots/YieldHopperBot");
 const CollateralSwapBot = require("../../bots/CollateralSwapBot");
 const JITBot = require("../../bots/JITBot");
+const FlashMMBot = require("../../bots/FlashMMBot");
 
 test("ArbitrageBot", async (t) => {
     const bot = new ArbitrageBot();
@@ -54,6 +55,13 @@ test("YieldHopperBot", async (t) => {
 test("CollateralSwapBot", async (t) => {
     const bot = new CollateralSwapBot();
     bot.market.getTraderPositions = () => Promise.resolve([1n]);
+    await bot.run();
+    assert.ok(true);
+});
+
+test("FlashMMBot", async (t) => {
+    const bot = new FlashMMBot();
+    bot.checkProfitability = () => Promise.resolve(true);
     await bot.run();
     assert.ok(true);
 });

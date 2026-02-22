@@ -69,7 +69,25 @@ Using a **Mempool Listener**, the bot scans pending transactions for large swaps
 
 ---
 
-## 5. Compliance Log
+## 5. Flash Market Making: The "Zero-Capital" Strategy
+
+Can you do market making on Eswap **exclusively with flash loans?**
+
+The answer is **Yes**, but only for "Active" strategies. Traditional passive market making (depositing and waiting) is impossible with flash loans because they must be repaid in the same transaction.
+
+### 1. JIT Market Making (Strategy 6)
+This is the ultimate "Zero-Capital" MM strategy.
+*   **The Loop:** Detect Whale Trade -> Flash Loan Collateral -> Provide narrow-range Liquidity on Eswap -> Whale Trade fills you -> Remove Liquidity -> Repay Flash Loan.
+*   **The Benefit:** You capture massive swap fees without ever "owning" the underlying assets across blocks.
+
+### 2. RFQ / UniswapX Filling
+Eswap is a perfect liquidity source for **UniswapX Fillers**.
+*   **The Loop:** User wants to sell ETH for USDC -> Filler Flash Borrows USDC from Eswap (0% fee) -> Filler gives USDC to User -> Filler takes User's ETH -> Filler swaps ETH for USDC on Eswap/Uniswap -> Filler repays Flash Loan.
+*   **The Edge:** Using Eswap's 0% Flash Loans as the source of capital allows fillers to offer better prices than competitors who pay 0.05% - 0.09% fees on Aave or Uniswap flash loans.
+
+---
+
+## 6. Compliance Log
 The following strategies are permanently excluded from the protocol scope to maintain Shariah compliance:
 - **Debt Refinancing** (Interest avoidance)
 - **Loop Farming** (Interest-based leverage)
@@ -78,7 +96,7 @@ The following strategies are permanently excluded from the protocol scope to mai
 
 ---
 
-## 6. Polygon Deployment Guide
+## 7. Polygon Deployment Guide
 
 To launch Eswap on **Polygon Mainnet**, follow these steps to ensure all production infrastructure is correctly configured.
 
