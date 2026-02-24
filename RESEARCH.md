@@ -87,7 +87,23 @@ Eswap is a perfect liquidity source for **UniswapX Fillers**.
 
 ---
 
-## 6. Compliance Log
+## 6. The "Pure Flashloan" Market Maker: Acting as Maker & Taker
+
+With the integration of **0% Fee Flash Loans** and **Atomic Strategy Execution**, Eswap enables a unique role: the **Pure Flashloan Market Maker**. This bot operates with zero capital by acting as both a Maker and a Taker in a single transaction loop.
+
+### The Maker-Taker Atomic Loop
+1.  **Act as Maker (Capture Spread):** The bot provides a quote to a user (e.g., via UniswapX RFQ). The user accepts, and the bot becomes the "Maker" of that trade.
+2.  **Act as Taker (Source Liquidity):** Simultaneously, the bot flash-borrows the required assets from Eswap (0% fee).
+3.  **Hedge the Risk:** The bot then acts as a "Taker" on Eswap or Uniswap V3 to rebalance the position, locking in the spread.
+4.  **Repay & Profit:** The flash loan is repaid, and the bot keeps the difference as pure profit—all without ever holding the assets between blocks.
+
+### Why Eswap is the Only Venue for This
+*   **0% Flash Loan Fee:** Traditional venues (Uniswap/Aave) charge 0.05% - 0.09%. On a $1M trade, that's $900 in fees. On Eswap, it's **$0**, allowing you to win more RFQ auctions.
+*   **0% Interest Leverage:** If the hedge requires holding the position for more than one block, Eswap's 0% interest ensures your profit isn't eaten by carry costs.
+
+---
+
+## 7. Compliance Log
 The following strategies are permanently excluded from the protocol scope to maintain Shariah compliance:
 - **Debt Refinancing** (Interest avoidance)
 - **Loop Farming** (Interest-based leverage)
@@ -96,7 +112,7 @@ The following strategies are permanently excluded from the protocol scope to mai
 
 ---
 
-## 7. Polygon Deployment Guide
+## 8. Polygon Deployment Guide
 
 To launch Eswap on **Polygon Mainnet**, follow these steps to ensure all production infrastructure is correctly configured.
 

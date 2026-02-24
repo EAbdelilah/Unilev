@@ -17,19 +17,18 @@ class FlashMMBot extends BotBase {
 
             try {
                 if (this.executor) {
-                    this.log("Step 1: Calculating profitability with Eswap 0% Flash Loans...");
+                    this.log("🔄 Initializing Pure Flashloan MM Loop (Maker + Taker)...");
 
-                    // Production Logic:
-                    // 1. We borrow 'targetAmountOut' of 'assetOut' from Eswap
-                    // 2. StrategyExecutor sends it to 'user'
-                    // 3. Executor receives 'amountIn' of 'assetIn'
-                    // 4. Executor swaps 'assetIn' for 'assetOut' on Uniswap
-                    // 5. Executor repays flash loan
+                    // Production Logic (Maker-Taker Loop):
+                    // Role 1 (Maker): Send quote to User. User accepts.
+                    // Role 2 (Taker): Flash-borrow assetOut from Eswap to fill order.
+                    // Role 3 (Hedge): Swap user's assetIn back to assetOut on Eswap/Uniswap.
 
-                    const isProfitable = await this.checkProfitability(10.0, 700000); // Expect $10 profit, 700k gas
+                    const isProfitable = await this.checkProfitability(10.0, 750000); // Expect $10 profit, 750k gas
 
                     if (isProfitable) {
-                        this.log(`🚀 Executing ATOMIC RFQ FILL for ${rfqOrder.id}...`);
+                        this.log(`🚀 ROLE 1 (Maker): Filling order ${rfqOrder.id} for user ${rfqOrder.user}`);
+                        this.log(`🚀 ROLE 2 (Taker): Sourcing ${rfqOrder.targetAmountOut} ${rfqOrder.symbolOut} from Eswap @ 0% cost`);
 
                         const extraData = ethers.AbiCoder.defaultAbiCoder().encode(
                             ["address", "uint256", "uint24"],
@@ -46,7 +45,9 @@ class FlashMMBot extends BotBase {
 
                         const tx = await lp.flashLoan(this.executorAddress, ethers.parseUnits(rfqOrder.targetAmountOut, 6), strategyData, { nonce: await this.getNextNonce() });
                         await tx.wait();
-                        this.log(`Atomic RFQ Fill Success! Hash: ${tx.hash}`);
+
+                        this.log(`🚀 ROLE 3 (Hedge): Successfully hedged user's ${rfqOrder.symbolIn} into ${rfqOrder.symbolOut} on-chain.`);
+                        this.log(`✅ Pure Flashloan MM Loop Complete! Hash: ${tx.hash}`);
                     }
                 } else {
                     this.log("Manual RFQ execution not possible for Flash MM.");
