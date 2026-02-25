@@ -31,7 +31,9 @@ class ArbitrageBot extends BotBase {
             this.log(`${asset.symbol} Oracle: ${ethers.formatUnits(oraclePrice, 18)} | Market: ${ethers.formatUnits(quote, 18)}`);
 
             if (quote > targetPrice) {
-                this.log(`🚀 Arbitrage Found for ${asset.symbol}! Market > Oracle. Buying on Eswap (Oracle), Selling on Market.`);
+                this.log(`🚀 Layer-Base Arbitrage Opportunity for ${asset.symbol}!`);
+                this.log(`   ROLE 1 (Maker on Eswap): Providing liquidation/limit-fill liquidity.`);
+                this.log(`   ROLE 2 (Taker on Uniswap): Sourcing hedge at lower Market price.`);
 
                 // Production: Check profitability against gas
                 const isProfitable = await this.checkProfitability(10.0, 300000); // Expect $10 profit, 300k gas
@@ -45,7 +47,7 @@ class ArbitrageBot extends BotBase {
     async executeArb(tokenIn, tokenOut, amountIn) {
         try {
             if (this.executor) {
-                this.log(`Executing ATOMIC Arb: Flash-borrowing ${amountIn} from Eswap...`);
+                this.log(`Executing ATOMIC Dual-Leg Arb: Acting as Maker on Eswap & Taker on Uniswap...`);
 
                 // Encode Strategy Data for Executor (Action.ARBITRAGE = 0)
                 // extraData: Second leg fee (e.g. 500 for 0.05% pool)

@@ -27,8 +27,8 @@ class FlashMMBot extends BotBase {
                     const isProfitable = await this.checkProfitability(10.0, 750000); // Expect $10 profit, 750k gas
 
                     if (isProfitable) {
-                        this.log(`🚀 ROLE 1 (Maker): Filling order ${rfqOrder.id} for user ${rfqOrder.user}`);
-                        this.log(`🚀 ROLE 2 (Taker): Sourcing ${rfqOrder.targetAmountOut} ${rfqOrder.symbolOut} from Eswap @ 0% cost`);
+                        this.log(`🚀 ROLE 1 (Maker on Eswap Layer): Filling order ${rfqOrder.id} for user ${rfqOrder.user}`);
+                        this.log(`🚀 ROLE 2 (Taker on Uniswap Base): Hedging user's ${rfqOrder.symbolIn} via Eswap 0% Flash Loan`);
 
                         const extraData = ethers.AbiCoder.defaultAbiCoder().encode(
                             ["address", "uint256", "uint24"],

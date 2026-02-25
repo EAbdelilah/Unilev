@@ -103,7 +103,24 @@ With the integration of **0% Fee Flash Loans** and **Atomic Strategy Execution**
 
 ---
 
-## 7. Compliance Log
+## 7. The Layer-Base Spread Capture: Actively Growing Eswap via Uniswap V3
+
+Since Eswap is built as a **Layer on top of Uniswap V3**, it has a unique ability to capture spreads by acting as both **Maker and Taker** simultaneously across both layers. This "Pure Flashloan MM" strategy is the engine for Eswap's exponential growth in volume and revenue.
+
+### The Duality Loop
+1.  **Maker on Eswap (Protocol Revenue):** The bot identifies a Limit Order or RFQ on the Eswap layer. By filling this order, the bot acts as a **Maker**. This generates a `treasureFee` for the Eswap treasury and adds to the protocol's reported volume.
+2.  **Taker on Uniswap V3 (Market Discovery):** To fill the Eswap order, the bot instantly sources liquidity as a **Taker** on the underlying Uniswap V3 pools.
+3.  **Flashloan Funding (Zero Capital):** The entire operation is funded by an Eswap **0% Flash Loan**. The bot borrows the output token, fills the Eswap user, takes the user's input token, and swaps it on Uniswap V3 to repay the loan.
+4.  **Spread Capture (Bot Profit):** The difference between the Eswap price and the Uniswap price (the spread) is the profit.
+
+### Strategic Impact
+*   **Layer Growth:** Every execution increases Eswap's volume and revenue metrics, attracting more LPs and traders.
+*   **Efficiency:** Because Eswap flash loans are 0%, the bot can capture even the smallest spreads that would be unprofitable on other DEXs.
+*   **Price Parity:** This mechanism ensures Eswap prices are always perfectly aligned with Uniswap V3, providing a seamless experience for traders.
+
+---
+
+## 8. Compliance Log
 The following strategies are permanently excluded from the protocol scope to maintain Shariah compliance:
 - **Debt Refinancing** (Interest avoidance)
 - **Loop Farming** (Interest-based leverage)
@@ -112,7 +129,7 @@ The following strategies are permanently excluded from the protocol scope to mai
 
 ---
 
-## 8. Polygon Deployment Guide
+## 9. Polygon Deployment Guide
 
 To launch Eswap on **Polygon Mainnet**, follow these steps to ensure all production infrastructure is correctly configured.
 
