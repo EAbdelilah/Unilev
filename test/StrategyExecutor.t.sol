@@ -13,12 +13,13 @@ contract StrategyExecutorTest is Test {
     StrategyExecutor public executor;
     MockERC20 public asset;
     address public helper = address(0x123); // Mock helper address
+    address public market = address(0x789); // Mock market address
     address public owner = address(this);
 
     function setUp() public {
         asset = new MockERC20("Test", "TST", 18);
         lp = new LiquidityPool(IERC20(address(asset)), address(this), "LP", "LP");
-        executor = new StrategyExecutor(helper, owner);
+        executor = new StrategyExecutor(helper, market, owner);
 
         executor.setPoolTrust(address(lp), true);
 

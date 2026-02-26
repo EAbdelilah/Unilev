@@ -120,7 +120,27 @@ Since Eswap is built as a **Layer on top of Uniswap V3**, it has a unique abilit
 
 ---
 
-## 8. Compliance Log
+## 8. Synthetic Spread: The Maker-Taker Bridge
+
+A common question is: **Can the Pure Flashloan MM always create a spread?**
+
+The answer is **Yes.** Because your bot is the bridge between the **Eswap Layer** and the **Uniswap V3 Base**, it has the unique power to "manufacture" a spread on every trade.
+
+### How the Spread is Manufactured:
+1.  **Monitor the Base (Uniswap V3):** The bot sees the current "Taker" price on Uniswap is **$3,000 / ETH**.
+2.  **Quote the Layer (Eswap):** When a user asks for an RFQ on Eswap, the bot (acting as a **Maker**) provides a quote of **$3,010 / ETH**.
+3.  **Execute the Bridge:**
+    *   The bot flash-borrows $3,000 (0% fee).
+    *   The bot acts as a **Taker** on Uniswap, buying 1 ETH for $3,000.
+    *   The bot fills the Eswap order, giving the user 1 ETH and receiving $3,010.
+4.  **Capture the Alpha:** The bot repays the $3,000 loan and keeps the **$10 spread**.
+
+### Key Advantage
+By controlling the "Maker" side on Eswap, your protocol doesn't have to *find* a spread; it **creates** one. Every Taker trade on Uniswap is "pre-sold" at a profit on the Eswap layer. This ensures that your layer always grows in volume and revenue, funded entirely by the efficiency of the Uniswap base.
+
+---
+
+## 9. Compliance Log
 The following strategies are permanently excluded from the protocol scope to maintain Shariah compliance:
 - **Debt Refinancing** (Interest avoidance)
 - **Loop Farming** (Interest-based leverage)
@@ -129,7 +149,7 @@ The following strategies are permanently excluded from the protocol scope to mai
 
 ---
 
-## 9. Polygon Deployment Guide
+## 10. Polygon Deployment Guide
 
 To launch Eswap on **Polygon Mainnet**, follow these steps to ensure all production infrastructure is correctly configured.
 

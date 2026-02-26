@@ -103,6 +103,7 @@ contract LiquidityPool is ERC4626, Ownable {
         require(success, "Flash loan callback failed");
 
         // Check magic value
+        require(returnData.length == 32, "Invalid flash loan return length");
         bytes4 magicValue = abi.decode(returnData, (bytes4));
         require(magicValue == bytes4(keccak256("onFlashLoan(address,uint256,bytes)")), "Invalid flash loan magic value");
 

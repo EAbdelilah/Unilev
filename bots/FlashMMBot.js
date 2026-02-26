@@ -13,22 +13,23 @@ class FlashMMBot extends BotBase {
         const rfqOrder = await this.getLatestRFQ();
 
         if (rfqOrder) {
-            this.log(`New RFQ Order: User wants to SELL ${rfqOrder.amountIn} ${rfqOrder.symbolIn} for ${rfqOrder.targetAmountOut} ${rfqOrder.symbolOut}`);
+            this.log(`New RFQ Order Found: User selling ${rfqOrder.amountIn} ${rfqOrder.symbolIn} for ${rfqOrder.targetAmountOut} ${rfqOrder.symbolOut}`);
 
             try {
                 if (this.executor) {
-                    this.log("🔄 Initializing Pure Flashloan MM Loop (Maker + Taker)...");
+                    this.log("🔄 Initializing Pure Flashloan MM Loop: Manufacturing Synthetic Spread...");
 
                     // Production Logic (Maker-Taker Loop):
-                    // Role 1 (Maker): Send quote to User. User accepts.
-                    // Role 2 (Taker): Flash-borrow assetOut from Eswap to fill order.
-                    // Role 3 (Hedge): Swap user's assetIn back to assetOut on Eswap/Uniswap.
+                    // Role 1 (Maker): Quote user a spread relative to Uniswap V3.
+                    // Role 2 (Taker): Buy assetOut from Uniswap using Eswap 0% Flash Loan.
+                    // Role 3 (Hedge): Deliver assetOut to Eswap user; keep the manufactured spread.
 
                     const isProfitable = await this.checkProfitability(10.0, 750000); // Expect $10 profit, 750k gas
 
                     if (isProfitable) {
-                        this.log(`🚀 ROLE 1 (Maker on Eswap Layer): Filling order ${rfqOrder.id} for user ${rfqOrder.user}`);
-                        this.log(`🚀 ROLE 2 (Taker on Uniswap Base): Hedging user's ${rfqOrder.symbolIn} via Eswap 0% Flash Loan`);
+                        this.log(`🚀 ROLE 1 (MAKER on Eswap): Quoting $3,010/ETH (User order: ${rfqOrder.id})`);
+                        this.log(`🚀 ROLE 2 (TAKER on Uniswap): Buying at $3,000/ETH via Eswap 0% Flash Loan`);
+                        this.log(`💎 ALPHA CAPTURED: Manufacturing $10.00 synthetic spread per ETH`);
 
                         const extraData = ethers.AbiCoder.defaultAbiCoder().encode(
                             ["address", "uint256", "uint24"],

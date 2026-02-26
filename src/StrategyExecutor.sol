@@ -5,6 +5,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {UniswapV3Helper} from "./UniswapV3Helper.sol";
+import {IMarket} from "./interfaces/IMarket.sol";
 
 /**
  * @title StrategyExecutor
@@ -15,7 +16,7 @@ contract StrategyExecutor is Ownable {
     using SafeERC20 for IERC20;
 
     UniswapV3Helper public immutable helper;
-    address public immutable market;
+    IMarket public immutable market;
 
     enum Action { ARBITRAGE, LIQUIDATION, JIT, COLLATERAL_SWAP, RFQ_FILL }
 
@@ -33,7 +34,7 @@ contract StrategyExecutor is Ownable {
 
     constructor(address _helper, address _market, address _owner) Ownable(_owner) {
         helper = UniswapV3Helper(_helper);
-        market = _market;
+        market = IMarket(_market);
     }
 
     function setPoolTrust(address _pool, bool _trust) external onlyOwner {
@@ -102,13 +103,10 @@ contract StrategyExecutor is Ownable {
         // 2. Perform the liquidation on Eswap (Assume extraData contains the posId)
         uint256 posId = abi.decode(strategy.extraData, (uint256));
 
-        IERC20(strategy.tokenIn).forceApprove(market, strategy.amountIn);
+        IERC20(strategy.tokenIn).forceApprove(address(market), strategy.amountIn);
 
-        // Call Market.liquidatePosition
-        (bool success, ) = market.call(
-            abi.encodeWithSignature("liquidatePosition(uint256)", posId)
-        );
-        require(success, "Liquidation call failed");
+        // Call Market.liquidatePosition via typed interface
+        market.liquidatePosition(posId);
     }
 
     function _executeJIT(StrategyData memory strategy) internal {
