@@ -21,4 +21,12 @@ library TransientStorage {
     function tloadUint(bytes32 slot) internal view returns (uint256) {
         return uint256(tload(slot));
     }
+
+    function tstore(bytes32 slot, address value) internal {
+        tstore(slot, bytes32(uint256(uint160(value))));
+    }
+
+    function tloadAddress(bytes32 slot) internal view returns (address) {
+        return address(uint160(uint256(tload(slot))));
+    }
 }

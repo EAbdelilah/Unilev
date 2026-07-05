@@ -13,7 +13,13 @@ struct PoolKey {
 
 library PoolIdLibrary {
     function toId(PoolKey memory key) internal pure returns (bytes32 id) {
-        id = keccak256(abi.encode(key));
+        id = keccak256(abi.encode(
+            key.currency0,
+            key.currency1,
+            key.fee,
+            key.tickSpacing,
+            key.hooks
+        ));
     }
 }
 
