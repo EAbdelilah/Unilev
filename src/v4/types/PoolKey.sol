@@ -13,9 +13,7 @@ struct PoolKey {
 
 library PoolIdLibrary {
     function toId(PoolKey memory key) internal pure returns (bytes32 id) {
-        assembly {
-            id := keccak256(key, 160)
-        }
+        id = keccak256(abi.encode(key));
     }
 }
 
