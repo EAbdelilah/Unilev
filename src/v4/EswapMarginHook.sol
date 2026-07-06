@@ -10,6 +10,7 @@ import {Currency} from "./types/Currency.sol";
 import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "./types/BeforeSwapDelta.sol";
 import {TransientStorage} from "./libraries/TransientStorage.sol";
 import {HookFlags} from "./libraries/HookFlags.sol";
+import {LiquidityAmounts} from "./libraries/LiquidityAmounts.sol";
 import {IURC2} from "./interfaces/IURC2.sol";
 import {IURC3} from "./interfaces/IURC3.sol";
 import {IURC4} from "./interfaces/IURC4.sol";
@@ -63,13 +64,15 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     bytes32 constant LEVERAGE_KEY = keccak256("LEVERAGE");
 
     constructor(IPoolManager _manager) BaseHook(_manager) {
-        // Validate that this contract was deployed at an address with correct permission flags
-        uint160 flags = HookFlags.BEFORE_INITIALIZE_FLAG |
-                        HookFlags.AFTER_INITIALIZE_FLAG |
-                        HookFlags.BEFORE_SWAP_FLAG |
-                        HookFlags.AFTER_SWAP_FLAG |
-                        HookFlags.BEFORE_SWAP_RETURNS_DELTA_FLAG;
-        if (uint160(address(this)) & flags != flags) revert InvalidHookAddress();
+        if (uint160(address(this)) & getHookFlags() != getHookFlags()) revert InvalidHookAddress();
+    }
+
+    function getHookFlags() public pure returns (uint160) {
+        return HookFlags.BEFORE_INITIALIZE_FLAG |
+               HookFlags.AFTER_INITIALIZE_FLAG |
+               HookFlags.BEFORE_SWAP_FLAG |
+               HookFlags.AFTER_SWAP_FLAG |
+               HookFlags.BEFORE_SWAP_RETURNS_DELTA_FLAG;
     }
 
     function afterInitialize(address, PoolKey calldata key, uint160 sqrtPriceX96, int24) external override onlyPoolManager returns (bytes4) {
@@ -88,7 +91,6 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         PoolId poolId = key.toId();
         if (!isAuthorizedPool[poolId]) revert NotAuthorizedPool();
 
-        // --- Truncated Oracle ---
         (uint160 currentPrice, , , ) = manager.getSlot0(poolId);
         uint160 lastPrice = lastOraclePrice[poolId];
         if (lastPrice == 0) lastPrice = currentPrice;
@@ -103,7 +105,6 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
 
         (bool isMargin, uint8 leverage, address trader) = abi.decode(data, (bool, uint8, address));
         if (!isMargin) {
-            // Atomic Liquidation Check
             Position storage pos = positions[poolId][trader];
             if (pos.collateralAmount > 0 && isLiquidatable(pos, truncatedPrice)) {
                 _executeLiquidation(key, trader);
@@ -121,8 +122,6 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         BORROW_KEY.tstore(borrowedAmount);
         LEVERAGE_KEY.tstore(uint256(leverage));
 
-        // Return negative delta to borrow from pool reserves
-        // In V4, BEFORE_SWAP_RETURNS_DELTA_FLAG allows the hook to return a delta that offsets the swap input.
         int128 deltaInput = -int128(int256(borrowedAmount));
         int128 delta0 = zeroForOne ? deltaInput : int128(0);
         int128 delta1 = zeroForOne ? int128(0) : deltaInput;
@@ -149,17 +148,24 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
 
             _claimBalances[trader][uint256(uint160(Currency.unwrap(boughtCurrency)))] += boughtAmount;
             totalCollateral[boughtCurrency] += boughtAmount;
-
-            // Take the purchased currency from the PoolManager to the hook
             manager.take(boughtCurrency, address(this), boughtAmount);
 
-            // Rehypothecate margin as concentrated liquidity
-            // Note: In production, 'margin' would be converted to 'liquidity' using FullMath
-            uint128 liquidity = uint128(margin);
-            manager.modifyLiquidity(key, -key.tickSpacing, key.tickSpacing, int128(liquidity), "");
+            (uint160 currentSqrtPriceX96, int24 currentTick, , ) = manager.getSlot0(key.toId());
+            int24 tickSpacing = key.tickSpacing;
+            int24 tickLower = (currentTick / tickSpacing) * tickSpacing - tickSpacing;
+            int24 tickUpper = (currentTick / tickSpacing) * tickSpacing + tickSpacing;
 
-            uint160 currentPrice = lastOraclePrice[key.toId()];
-            uint160 liqPrice = posLiqPrice(!zeroForOne, currentPrice, leverage);
+            uint128 liquidity = LiquidityAmounts.getLiquidityForAmount(
+                currentSqrtPriceX96,
+                LiquidityAmounts.getSqrtRatioAtTick(tickLower),
+                LiquidityAmounts.getSqrtRatioAtTick(tickUpper),
+                margin,
+                zeroForOne
+            );
+
+            manager.modifyLiquidity(key, tickLower, tickUpper, int128(liquidity), "");
+
+            uint160 liqPrice = posLiqPrice(!zeroForOne, currentSqrtPriceX96, leverage);
 
             positions[key.toId()][trader] = Position({
                 trader: trader,
@@ -168,8 +174,8 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
                 leverage: leverage,
                 isLong: !zeroForOne,
                 liquidationSqrtPrice: liqPrice,
-                tickLower: -key.tickSpacing,
-                tickUpper: key.tickSpacing,
+                tickLower: tickLower,
+                tickUpper: tickUpper,
                 liquidity: liquidity
             });
 
@@ -181,15 +187,16 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
 
     function isLiquidatable(Position memory pos, uint160 currentPrice) public pure returns (bool) {
         if (pos.collateralAmount == 0) return false;
-        if (pos.isLong) {
-            return currentPrice <= pos.liquidationSqrtPrice;
-        } else {
-            return currentPrice >= pos.liquidationSqrtPrice;
-        }
+        // Maintenance Margin = 15% (1.15 multiplier for long, 0.85 for short)
+        if (pos.isLong) return currentPrice <= pos.liquidationSqrtPrice;
+        else return currentPrice >= pos.liquidationSqrtPrice;
     }
 
     function posLiqPrice(bool isLong, uint160 entryPrice, uint8 leverage) internal pure returns (uint160) {
-        uint160 move = (entryPrice * 10) / (100 * uint160(leverage));
+        // Price impact = 1 / Leverage.
+        // For 5x leverage, 20% move hits 0 equity.
+        // 15% move hits maintenance margin.
+        uint160 move = (entryPrice * 15) / (100 * uint160(leverage));
         return isLong ? entryPrice - move : entryPrice + move;
     }
 
