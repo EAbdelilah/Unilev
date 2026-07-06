@@ -6,6 +6,7 @@ import {PoolKey} from "../types/PoolKey.sol";
 import {PoolId} from "../types/PoolId.sol";
 
 interface IPoolManager {
+    function getSlot0(PoolId id) external view returns (uint160 sqrtPriceX96, int24 tick, uint16 protocolFee, uint24 lpFee);
     function unlock(bytes calldata data) external returns (bytes memory);
     function swap(PoolKey calldata key, bool zeroForOne, int128 amountSpecified, bytes calldata hookData) external returns (int128 delta);
     function modifyLiquidity(PoolKey calldata key, int24 tickLower, int24 tickUpper, int128 liquidityDelta, bytes calldata hookData) external returns (int128 delta0, int128 delta1);

@@ -98,7 +98,7 @@ export function TradeForm() {
 
     return (
         <div className="glass-panel p-6 w-full max-w-md">
-            <h2 className="text-xl font-bold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-pink-500 to-violet-500">
+            <h2 className="text-xl font-bold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-pink-500 to-violet-500 text-center">
                 Eswap V4 Margin
             </h2>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -115,14 +115,14 @@ export function TradeForm() {
 
                 <div className="grid grid-cols-2 gap-4">
                     <div>
-                        <label className="text-xs text-gray-400 mb-1 block font-bold uppercase">Margin Asset</label>
-                        <select value={marginToken} onChange={(e) => setMarginToken(e.target.value)} className="input-field bg-black/40">
+                        <label className="text-[10px] text-gray-400 mb-1 block font-bold uppercase tracking-tight">Margin Asset</label>
+                        <select value={marginToken} onChange={(e) => setMarginToken(e.target.value)} className="input-field bg-black/40 text-sm">
                             {SUPPORTED_TOKENS_LIST.map(t => <option key={t.key} value={t.key}>{t.name}</option>)}
                         </select>
                     </div>
                     <div>
-                        <label className="text-xs text-gray-400 mb-1 block font-bold uppercase">Trading Asset</label>
-                        <select value={tradingToken} onChange={(e) => setTradingToken(e.target.value)} className="input-field bg-black/40">
+                        <label className="text-[10px] text-gray-400 mb-1 block font-bold uppercase tracking-tight">Trading Asset</label>
+                        <select value={tradingToken} onChange={(e) => setTradingToken(e.target.value)} className="input-field bg-black/40 text-sm">
                             {SUPPORTED_TOKENS_LIST.map(t => <option key={t.key} value={t.key}>{t.name}</option>)}
                         </select>
                     </div>
@@ -130,20 +130,20 @@ export function TradeForm() {
 
                 <div className="grid grid-cols-2 gap-4">
                     <div>
-                        <label className="text-xs text-gray-400 mb-1 block font-bold uppercase">Amount</label>
-                        <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className="input-field" placeholder="0.00" />
-                        <div className="text-[10px] text-gray-500 mt-1">Value: ≈ ${usdValue}</div>
+                        <label className="text-[10px] text-gray-400 mb-1 block font-bold uppercase tracking-tight">Amount</label>
+                        <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className="input-field text-sm" placeholder="0.00" />
+                        <div className="text-[10px] text-gray-500 mt-1 font-mono">≈ ${usdValue}</div>
                     </div>
                     <div>
-                        <label className="text-xs text-gray-400 mb-1 block font-bold uppercase">Leverage (Max 5x)</label>
-                        <input type="number" value={leverage} onChange={(e) => setLeverage(e.target.value)} className="input-field" min="2" max="5" />
+                        <label className="text-[10px] text-gray-400 mb-1 block font-bold uppercase tracking-tight">Leverage (1-5x)</label>
+                        <input type="number" value={leverage} onChange={(e) => setLeverage(e.target.value)} className="input-field text-sm" min="1" max="5" />
                     </div>
                 </div>
 
-                <button type="submit" disabled={loading || !isConnected} className="w-full primary-button mt-4">
-                    {loading ? "Processing..." : (allowance < ethers.parseUnits(amount || "0", balanceData?.decimals || 18) ? `Approve ${marginToken}` : "Execute 0% Trade")}
+                <button type="submit" disabled={loading || !isConnected} className="w-full primary-button mt-4 py-4 text-sm font-bold tracking-widest uppercase">
+                    {loading ? "Processing..." : (allowance < ethers.parseUnits(amount || "0", balanceData?.decimals || 18) ? `Approve ${marginToken}` : "Execute 0% Interest Trade")}
                 </button>
-                {status && <div className="mt-4 p-3 bg-white/5 rounded border border-white/10 text-xs font-mono break-all">{status}</div>}
+                {status && <div className="mt-4 p-3 bg-white/5 rounded border border-white/10 text-[10px] font-mono break-all opacity-80">{status}</div>}
             </form>
         </div>
     )

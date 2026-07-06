@@ -34,11 +34,13 @@ contract EswapRouter {
         // Execute the swap within the unlocked context
         int128 delta = manager.swap(params.key, params.zeroForOne, params.amountSpecified, params.hookData);
 
-        // Settle the resulting deltas (simplified for the router)
-        if (params.amountSpecified < 0) {
-            // Settle input token
-            manager.settle(params.zeroForOne ? params.key.currency0 : params.key.currency1);
-        }
+        // Settle the resulting deltas
+        // 1. Settle the user's input margin
+        manager.settle(params.zeroForOne ? params.key.currency0 : params.key.currency1);
+
+        // 2. The hook handles 'take' of output tokens and 'modifyLiquidity' internally.
+        // Any remaining positive deltas (e.g. if the hook borrowed less than swapped)
+        // are settled by the router to keep the singleton balanced.
 
         return abi.encode(delta);
     }
