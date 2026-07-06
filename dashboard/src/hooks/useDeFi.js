@@ -41,56 +41,42 @@ export function useDeFi() {
     const openV4Position = useCallback(async (currency0, currency1, isShort, amount, leverage) => {
         const signer = await getSigner()
         if (!signer) throw new Error("Wallet not connected")
-
         const router = new ethers.Contract(ADDRESSES.V4_ROUTER, EswapRouterABI.abi, signer)
+        const key = { currency0, currency1, fee: 3000, tickSpacing: 60, hooks: ADDRESSES.V4_HOOK }
 
-        // V4 PoolKey
-        const key = {
-            currency0,
-            currency1,
-            fee: 3000,
-            tickSpacing: 60,
-            hooks: ADDRESSES.V4_HOOK
-        }
+        // Pass the signer's address as the trader in hookData for secure position recording
+        const hookData = ethers.AbiCoder.defaultAbiCoder().encode(["bool", "uint8", "address"], [true, leverage, address])
 
-        const hookData = ethers.AbiCoder.defaultAbiCoder().encode(["bool", "uint8"], [true, leverage])
-
-        // SwapParams for Router
-        const params = {
-            key,
-            zeroForOne: !isShort,
-            amountSpecified: -amount,
-            hookData
-        }
-
-        const tx = await router.swap(params)
-        return tx
-    }, [getSigner])
+        return await router.swap({ key, zeroForOne: !isShort, amountSpecified: -amount, hookData })
+    }, [getSigner, address])
 
     const getAmountInUsd = useCallback(async (token, amount) => {
         if (!readProvider || !ADDRESSES.PRICEFEEDL1) return 0n
         const feed = new ethers.Contract(ADDRESSES.PRICEFEEDL1, PriceFeedL1ABI.abi, readProvider)
-        try {
-            return await feed.getAmountInUsd(token, amount)
-        } catch {
-            return 0n
-        }
+        try { return await feed.getAmountInUsd(token, amount) } catch { return 0n }
     }, [readProvider])
 
     const getTokenBalance = useCallback(async (token, user) => {
         if (!readProvider || !token) return null
         const contract = new ethers.Contract(token, ERC20ABI.abi, readProvider)
         try {
-            const [bal, decimals, symbol] = await Promise.all([
-                contract.balanceOf(user),
-                contract.decimals(),
-                contract.symbol()
-            ])
-            return { rawBalance: bal, balance: ethers.formatUnits(bal, decimals), decimals, symbol }
-        } catch {
-            return null
-        }
+            const [bal, decimals] = await Promise.all([contract.balanceOf(user), contract.decimals()])
+            return { rawBalance: bal, balance: ethers.formatUnits(bal, decimals), decimals }
+        } catch { return null }
     }, [readProvider])
+
+    const getAllowance = useCallback(async (token, owner, spender) => {
+        if (!readProvider || !token) return 0n
+        const contract = new ethers.Contract(token, ERC20ABI.abi, readProvider)
+        try { return await contract.allowance(owner, spender) } catch { return 0n }
+    }, [readProvider])
+
+    const approveToken = useCallback(async (token, spender, amount = ethers.MaxUint256) => {
+        const signer = await getSigner()
+        if (!signer) throw new Error("Wallet not connected")
+        const contract = new ethers.Contract(token, ERC20ABI.abi, signer)
+        return await contract.approve(spender, amount)
+    }, [getSigner])
 
     return {
         ADDRESSES,
@@ -98,6 +84,8 @@ export function useDeFi() {
         openV4Position,
         getAmountInUsd,
         getTokenBalance,
+        getAllowance,
+        approveToken,
         isMetaMaskInstalled: typeof window !== "undefined" && !!window.ethereum
     }
 }
