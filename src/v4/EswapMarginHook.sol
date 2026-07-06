@@ -9,6 +9,7 @@ import {PoolId, PoolIdLibrary} from "./types/PoolId.sol";
 import {Currency} from "./types/Currency.sol";
 import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "./types/BeforeSwapDelta.sol";
 import {TransientStorage} from "./libraries/TransientStorage.sol";
+import {HookFlags} from "./libraries/HookFlags.sol";
 import {IURC2} from "./interfaces/IURC2.sol";
 import {IURC3} from "./interfaces/IURC3.sol";
 import {IURC4} from "./interfaces/IURC4.sol";
@@ -25,6 +26,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     error NotPoolManager();
     error LeverageTooHigh();
     error NotAuthorizedPool();
+    error InvalidHookAddress();
 
     modifier onlyPoolManager() {
         if (msg.sender != address(manager)) revert NotPoolManager();
@@ -60,7 +62,15 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     bytes32 constant BORROW_KEY = keccak256("BORROW");
     bytes32 constant LEVERAGE_KEY = keccak256("LEVERAGE");
 
-    constructor(IPoolManager _manager) BaseHook(_manager) {}
+    constructor(IPoolManager _manager) BaseHook(_manager) {
+        // Validate that this contract was deployed at an address with correct permission flags
+        uint160 flags = HookFlags.BEFORE_INITIALIZE_FLAG |
+                        HookFlags.AFTER_INITIALIZE_FLAG |
+                        HookFlags.BEFORE_SWAP_FLAG |
+                        HookFlags.AFTER_SWAP_FLAG |
+                        HookFlags.BEFORE_SWAP_RETURNS_DELTA_FLAG;
+        if (uint160(address(this)) & flags != flags) revert InvalidHookAddress();
+    }
 
     function afterInitialize(address, PoolKey calldata key, uint160 sqrtPriceX96, int24) external override onlyPoolManager returns (bytes4) {
         isAuthorizedPool[key.toId()] = true;
@@ -68,9 +78,6 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         return IHooks.afterInitialize.selector;
     }
 
-    /**
-     * @notice Implements functional Flash Borrowing via BeforeSwapDelta.
-     */
     function beforeSwap(
         address,
         PoolKey calldata key,
@@ -98,7 +105,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         if (!isMargin) {
             // Atomic Liquidation Check
             Position storage pos = positions[poolId][trader];
-            if (pos.collateralAmount > 0 && isLiquidatable(pos, currentPrice)) {
+            if (pos.collateralAmount > 0 && isLiquidatable(pos, truncatedPrice)) {
                 _executeLiquidation(key, trader);
             }
             return (IHooks.beforeSwap.selector, BeforeSwapDeltaLibrary.toBeforeSwapDelta(0, 0), 0);
@@ -115,6 +122,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         LEVERAGE_KEY.tstore(uint256(leverage));
 
         // Return negative delta to borrow from pool reserves
+        // In V4, BEFORE_SWAP_RETURNS_DELTA_FLAG allows the hook to return a delta that offsets the swap input.
         int128 deltaInput = -int128(int256(borrowedAmount));
         int128 delta0 = zeroForOne ? deltaInput : int128(0);
         int128 delta1 = zeroForOne ? int128(0) : deltaInput;
@@ -146,7 +154,12 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
             manager.take(boughtCurrency, address(this), boughtAmount);
 
             // Rehypothecate margin as concentrated liquidity
-            manager.modifyLiquidity(key, -key.tickSpacing, key.tickSpacing, int128(uint128(margin)), "");
+            // Note: In production, 'margin' would be converted to 'liquidity' using FullMath
+            uint128 liquidity = uint128(margin);
+            manager.modifyLiquidity(key, -key.tickSpacing, key.tickSpacing, int128(liquidity), "");
+
+            uint160 currentPrice = lastOraclePrice[key.toId()];
+            uint160 liqPrice = posLiqPrice(!zeroForOne, currentPrice, leverage);
 
             positions[key.toId()][trader] = Position({
                 trader: trader,
@@ -154,10 +167,10 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
                 borrowedAmount: borrow,
                 leverage: leverage,
                 isLong: !zeroForOne,
-                liquidationSqrtPrice: 0,
+                liquidationSqrtPrice: liqPrice,
                 tickLower: -key.tickSpacing,
                 tickUpper: key.tickSpacing,
-                liquidity: uint128(margin)
+                liquidity: liquidity
             });
 
             TRADER_KEY.tstore(address(0));
@@ -166,32 +179,24 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         return (IHooks.afterSwap.selector, 0);
     }
 
-    function getCurrentPrice(PoolKey calldata key) public view returns (uint160) {
-        (uint160 sqrtPriceX96, , , ) = manager.getSlot0(key.toId());
-        return sqrtPriceX96;
-    }
-
     function isLiquidatable(Position memory pos, uint160 currentPrice) public pure returns (bool) {
         if (pos.collateralAmount == 0) return false;
+        if (pos.isLong) {
+            return currentPrice <= pos.liquidationSqrtPrice;
+        } else {
+            return currentPrice >= pos.liquidationSqrtPrice;
+        }
+    }
 
-        // Simplified 15% maintenance margin check
-        // In a real scenario, this would use fixed-point math and oracle-derived values
-        uint256 liquidationThreshold = pos.isLong ? (uint256(pos.borrowedAmount) * 115) / 100 : (uint256(pos.borrowedAmount) * 85) / 100;
-
-        // This is a placeholder for actual price-based valuation logic
-        return false;
+    function posLiqPrice(bool isLong, uint160 entryPrice, uint8 leverage) internal pure returns (uint160) {
+        uint160 move = (entryPrice * 10) / (100 * uint160(leverage));
+        return isLong ? entryPrice - move : entryPrice + move;
     }
 
     function _executeLiquidation(PoolKey calldata key, address trader) internal {
         Position storage pos = positions[key.toId()][trader];
-
-        // 1. Remove rehypothecated liquidity
         manager.modifyLiquidity(key, pos.tickLower, pos.tickUpper, -int128(pos.liquidity), "");
-
-        // 2. Perform internal swap to recover borrowed funds
-        // (Simplified for this logic-complete implementation)
         manager.swap(key, !pos.isLong, int128(uint128(pos.collateralAmount)), "");
-
         delete positions[key.toId()][trader];
     }
 

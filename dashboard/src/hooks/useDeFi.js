@@ -7,6 +7,8 @@ import ERC20ABI from "../abis/ERC20.json"
 import EswapRouterABI from "../abis/EswapRouter.json"
 import EswapMarginHookABI from "../abis/EswapMarginHook.json"
 import PriceFeedL1ABI from "../abis/PriceFeedL1.json"
+import MarketABI from "../abis/Market.json"
+import LiquidityPoolABI from "../abis/LiquidityPool.json"
 import supportedTokens from "../config/supported_tokens.json"
 
 export const SUPPORTED_TOKENS_LIST = Object.entries(supportedTokens)
@@ -17,6 +19,7 @@ const ADDRESSES = {
     ...supportedTokens,
     V4_ROUTER: process.env.NEXT_PUBLIC_V4_ROUTER_ADDRESS,
     V4_HOOK: process.env.NEXT_PUBLIC_V4_HOOK_ADDRESS,
+    MARKET: process.env.NEXT_PUBLIC_MARKET_ADDRESS,
     PRICEFEEDL1: process.env.NEXT_PUBLIC_PRICEFEEDL1_ADDRESS,
 }
 
@@ -78,10 +81,54 @@ export function useDeFi() {
         return await contract.approve(spender, amount)
     }, [getSigner])
 
+    // V3 Backward Compatibility for Tests
+    const openPosition = useCallback(async (token0, token1, isShort, amount, leverage) => {
+        const signer = await getSigner()
+        if (!signer) throw new Error("Wallet not connected")
+        const market = new ethers.Contract(ADDRESSES.MARKET, MarketABI.abi, signer)
+        const method = isShort ? "openShortPosition" : "openLongPosition"
+        return await market[method](token0, token1, 3000, leverage, amount, 0, 0, { gasLimit: 5000000 })
+    }, [getSigner])
+
+    const depositToPool = useCallback(async (tokenKey, amount) => {
+        const signer = await getSigner()
+        if (!signer) throw new Error("Wallet not connected")
+        const market = new ethers.Contract(ADDRESSES.MARKET, MarketABI.abi, signer)
+        const poolAddr = await market.getTokenToLiquidityPools(ADDRESSES[tokenKey])
+        const pool = new ethers.Contract(poolAddr, LiquidityPoolABI.abi, signer)
+        return await pool.deposit(amount, address)
+    }, [getSigner, address])
+
+    const redeemFromPool = useCallback(async (tokenKey, shares) => {
+        const signer = await getSigner()
+        if (!signer) throw new Error("Wallet not connected")
+        const market = new ethers.Contract(ADDRESSES.MARKET, MarketABI.abi, signer)
+        const poolAddr = await market.getTokenToLiquidityPools(ADDRESSES[tokenKey])
+        const pool = new ethers.Contract(poolAddr, LiquidityPoolABI.abi, signer)
+        return await pool.redeem(shares, address, address)
+    }, [getSigner, address])
+
+    const simulateOpenPosition = useCallback(async (token0, token1, isShort, amount, leverage) => {
+        const signer = await getSigner()
+        if (!signer) throw new Error("Wallet not connected")
+        const market = new ethers.Contract(ADDRESSES.MARKET, MarketABI.abi, signer)
+        const method = isShort ? "openShortPosition" : "openLongPosition"
+        try {
+            await market[method].staticCall(token0, token1, 3000, leverage, amount, 0, 0, { gasLimit: 5000000 })
+            return { success: true }
+        } catch (e) {
+            return { success: false, error: e.message }
+        }
+    }, [getSigner])
+
     return {
         ADDRESSES,
         SUPPORTED_TOKENS_LIST,
         openV4Position,
+        openPosition,
+        depositToPool,
+        redeemFromPool,
+        simulateOpenPosition,
         getAmountInUsd,
         getTokenBalance,
         getAllowance,
