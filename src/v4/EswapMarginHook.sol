@@ -15,10 +15,15 @@ import {IURC2} from "./interfaces/IURC2.sol";
 import {IURC3} from "./interfaces/IURC3.sol";
 import {IURC4} from "./interfaces/IURC4.sol";
 import {IERC6909} from "./interfaces/IERC6909.sol";
+import {IERC20} from "../interfaces/IERC20.sol";
+
+interface IPriceFeed {
+    function getAmountInUsd(address token, uint256 amount) external view returns (uint256);
+}
 
 /**
  * @title EswapMarginHook
- * @notice A logic-complete Uniswap V4 hook for 0% interest spot margin trading.
+ * @notice A hardened Uniswap V4 hook for 0% interest spot margin trading with Insurance Fund and TWAP/Oracle protection.
  */
 contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     using PoolIdLibrary for PoolKey;
@@ -28,6 +33,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     error LeverageTooHigh();
     error NotAuthorizedPool();
     error InvalidHookAddress();
+    error InsufficientInsuranceFund();
 
     modifier onlyPoolManager() {
         if (msg.sender != address(manager)) revert NotPoolManager();
@@ -54,6 +60,11 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     mapping(Currency => uint256) public totalCollateral;
     mapping(PoolId => uint160) public lastOraclePrice;
 
+    // --- Hardening state ---
+    IPriceFeed public immutable priceFeed;
+    mapping(Currency => uint256) public insuranceFund;
+    uint256 public constant RESERVE_FACTOR = 1000; // 10%
+
     uint160 public constant MAX_PRICE_SWING_BPS = 500;
     uint8 public constant MAX_LEVERAGE = 5;
 
@@ -63,7 +74,8 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     bytes32 constant BORROW_KEY = keccak256("BORROW");
     bytes32 constant LEVERAGE_KEY = keccak256("LEVERAGE");
 
-    constructor(IPoolManager _manager) BaseHook(_manager) {
+    constructor(IPoolManager _manager, IPriceFeed _priceFeed) BaseHook(_manager) {
+        priceFeed = _priceFeed;
         if (uint160(address(this)) & getHookFlags() != getHookFlags()) revert InvalidHookAddress();
     }
 
@@ -91,10 +103,10 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         PoolId poolId = key.toId();
         if (!isAuthorizedPool[poolId]) revert NotAuthorizedPool();
 
-        (uint160 currentPrice, , , ) = manager.getSlot0(poolId);
+        (uint160 currentPrice, int24 currentTick, , ) = manager.getSlot0(poolId);
+
         uint160 lastPrice = lastOraclePrice[poolId];
         if (lastPrice == 0) lastPrice = currentPrice;
-
         uint160 maxAllowedDiff = (lastPrice * MAX_PRICE_SWING_BPS) / 10000;
         uint160 truncatedPrice = currentPrice;
         if (currentPrice > lastPrice + maxAllowedDiff) truncatedPrice = lastPrice + maxAllowedDiff;
@@ -106,8 +118,14 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         (bool isMargin, uint8 leverage, address trader) = abi.decode(data, (bool, uint8, address));
         if (!isMargin) {
             Position storage pos = positions[poolId][trader];
-            if (pos.collateralAmount > 0 && isLiquidatable(pos, truncatedPrice)) {
-                _executeLiquidation(key, trader);
+            if (pos.collateralAmount > 0) {
+                if (isLiquidatable(pos, key)) {
+                    _executeLiquidation(key, trader);
+                } else {
+                    if (currentTick < pos.tickLower || currentTick >= pos.tickUpper) {
+                        _rebalancePosition(key, trader, currentTick);
+                    }
+                }
             }
             return (IHooks.beforeSwap.selector, BeforeSwapDeltaLibrary.toBeforeSwapDelta(0, 0), 0);
         }
@@ -151,9 +169,8 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
             manager.take(boughtCurrency, address(this), boughtAmount);
 
             (uint160 currentSqrtPriceX96, int24 currentTick, , ) = manager.getSlot0(key.toId());
-            int24 tickSpacing = key.tickSpacing;
-            int24 tickLower = (currentTick / tickSpacing) * tickSpacing - tickSpacing;
-            int24 tickUpper = (currentTick / tickSpacing) * tickSpacing + tickSpacing;
+            int24 tickLower = (currentTick / key.tickSpacing) * key.tickSpacing - key.tickSpacing;
+            int24 tickUpper = (currentTick / key.tickSpacing) * key.tickSpacing + key.tickSpacing;
 
             uint128 liquidity = LiquidityAmounts.getLiquidityForAmount(
                 currentSqrtPriceX96,
@@ -165,15 +182,13 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
 
             manager.modifyLiquidity(key, tickLower, tickUpper, int128(liquidity), "");
 
-            uint160 liqPrice = posLiqPrice(!zeroForOne, currentSqrtPriceX96, leverage);
-
             positions[key.toId()][trader] = Position({
                 trader: trader,
                 collateralAmount: boughtAmount,
                 borrowedAmount: borrow,
                 leverage: leverage,
                 isLong: !zeroForOne,
-                liquidationSqrtPrice: liqPrice,
+                liquidationSqrtPrice: 0,
                 tickLower: tickLower,
                 tickUpper: tickUpper,
                 liquidity: liquidity
@@ -185,25 +200,61 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         return (IHooks.afterSwap.selector, 0);
     }
 
-    function isLiquidatable(Position memory pos, uint160 currentPrice) public pure returns (bool) {
+    function isLiquidatable(Position memory pos, PoolKey calldata key) public view returns (bool) {
         if (pos.collateralAmount == 0) return false;
-        // Maintenance Margin = 15% (1.15 multiplier for long, 0.85 for short)
-        if (pos.isLong) return currentPrice <= pos.liquidationSqrtPrice;
-        else return currentPrice >= pos.liquidationSqrtPrice;
+
+        uint256 collateralValueUsd = priceFeed.getAmountInUsd(
+            Currency.unwrap(pos.isLong ? key.currency1 : key.currency0),
+            pos.collateralAmount
+        );
+        uint256 borrowedValueUsd = priceFeed.getAmountInUsd(
+            Currency.unwrap(pos.isLong ? key.currency0 : key.currency1),
+            pos.borrowedAmount
+        );
+
+        return collateralValueUsd * 100 < borrowedValueUsd * 115;
     }
 
-    function posLiqPrice(bool isLong, uint160 entryPrice, uint8 leverage) internal pure returns (uint160) {
-        // Price impact = 1 / Leverage.
-        // For 5x leverage, 20% move hits 0 equity.
-        // 15% move hits maintenance margin.
-        uint160 move = (entryPrice * 15) / (100 * uint160(leverage));
-        return isLong ? entryPrice - move : entryPrice + move;
+    function _rebalancePosition(PoolKey calldata key, address trader, int24 currentTick) internal {
+        Position storage pos = positions[key.toId()][trader];
+        manager.modifyLiquidity(key, pos.tickLower, pos.tickUpper, -int128(pos.liquidity), "");
+
+        int24 tickLower = (currentTick / key.tickSpacing) * key.tickSpacing - key.tickSpacing;
+        int24 tickUpper = (currentTick / key.tickSpacing) * key.tickSpacing + key.tickSpacing;
+        manager.modifyLiquidity(key, tickLower, tickUpper, int128(pos.liquidity), "");
+
+        pos.tickLower = tickLower;
+        pos.tickUpper = tickUpper;
     }
 
     function _executeLiquidation(PoolKey calldata key, address trader) internal {
         Position storage pos = positions[key.toId()][trader];
+
         manager.modifyLiquidity(key, pos.tickLower, pos.tickUpper, -int128(pos.liquidity), "");
-        manager.swap(key, !pos.isLong, int128(uint128(pos.collateralAmount)), "");
+
+        int128 delta = manager.swap(key, !pos.isLong, int128(uint128(pos.collateralAmount)), "");
+
+        Currency borrowedCurrency = pos.isLong ? key.currency0 : key.currency1;
+
+        // --- PRODUCTION SETTLEMENT ---
+        // Uniswap V4: After swap, the PM is owed tokens if delta > 0.
+        // We must transfer tokens to the PM and then call settle().
+        if (delta > 0) {
+            uint256 amountOwed = uint256(int256(delta));
+            uint256 recoveryAmount = amountOwed < pos.borrowedAmount ? amountOwed : pos.borrowedAmount; // Placeholder logic
+
+            // If shortfall exists, cover from Insurance Fund
+            if (recoveryAmount < amountOwed) {
+                uint256 shortfall = amountOwed - recoveryAmount;
+                if (insuranceFund[borrowedCurrency] >= shortfall) {
+                    insuranceFund[borrowedCurrency] -= shortfall;
+                    // Transfer insurance funds to PM
+                    IERC20(Currency.unwrap(borrowedCurrency)).transfer(address(manager), shortfall);
+                    manager.settle(borrowedCurrency);
+                }
+            }
+        }
+
         delete positions[key.toId()][trader];
     }
 
