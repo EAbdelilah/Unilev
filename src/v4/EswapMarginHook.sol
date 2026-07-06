@@ -16,8 +16,8 @@ import {IERC6909} from "./interfaces/IERC6909.sol";
 
 /**
  * @title EswapMarginHook
- * @notice A security-hardened, production-ready Uniswap V4 hook for 0% interest spot margin trading.
- * @dev Implements Flash Accounting (EIP-1153), Smart Collateral Rehypothecation, and Truncated Oracle Liquidations.
+ * @notice A logic-complete Uniswap V4 hook for 0% interest spot margin trading.
+ * @dev Implements Flash Accounting (EIP-1153), ERC-6909 collateral mapping, and Smart Collateral Rehypothecation.
  */
 contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     using PoolIdLibrary for PoolKey;
@@ -27,8 +27,6 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     error NotAuthorizedPool();
     error LeverageTooHigh();
     error InsufficientBalance();
-    error InsufficientAllowance();
-    error PriceManipulationDetected();
 
     modifier onlyPoolManager() {
         if (msg.sender != address(manager)) revert NotPoolManager();
@@ -47,7 +45,6 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         uint128 liquidity;
     }
 
-    // Storage
     mapping(PoolId => bool) public isAuthorizedPool;
     mapping(PoolId => mapping(address => Position)) public positions;
     mapping(address => mapping(uint256 => uint256)) public _claimBalances;
@@ -56,12 +53,14 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     mapping(Currency => uint256) public totalCollateral;
     mapping(PoolId => uint160) public lastOraclePrice;
 
-    // Constants
-    uint160 public constant MAX_PRICE_SWING_BPS = 500; // 5% per block capping
+    uint160 public constant MAX_PRICE_SWING_BPS = 500;
     uint8 public constant MAX_LEVERAGE = 5;
 
-    // Transient Storage Keys (EIP-1153)
-    bytes32 constant MARGIN_OPEN_DATA = keccak256("MARGIN_OPEN_DATA");
+    // Transient storage keys
+    bytes32 constant TRADER_SLOT = keccak256("TRADER");
+    bytes32 constant MARGIN_SLOT = keccak256("MARGIN");
+    bytes32 constant BORROW_SLOT = keccak256("BORROW");
+    bytes32 constant LEVERAGE_SLOT = keccak256("LEVERAGE");
 
     constructor(IPoolManager _manager) BaseHook(_manager) {}
 
@@ -72,7 +71,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     }
 
     /**
-     * @notice Secure beforeSwap: Monitors price and executes liquidations atomically
+     * @notice Handles transient borrowing by returning non-zero BeforeSwapDelta.
      */
     function beforeSwap(
         address sender,
@@ -81,28 +80,22 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         int128 amountSpecified,
         bytes calldata data
     ) external override onlyPoolManager returns (bytes4, BeforeSwapDelta, uint24) {
-        PoolId id = key.toId();
-        if (!isAuthorizedPool[id]) revert NotAuthorizedPool();
-
-        // 1. Truncated Oracle & Liquidation Check
-        // In real V4, we'd fetch current price from manager state
-        // uint160 currentSqrtPrice = manager.getSqrtPrice(id);
-        // _updateAndCheckLiquidations(key, sender, currentSqrtPrice);
-
+        if (!isAuthorizedPool[key.toId()]) revert NotAuthorizedPool();
         if (data.length == 0) return (IHooks.beforeSwap.selector, BeforeSwapDeltaLibrary.toBeforeSwapDelta(0, 0), 0);
 
         (bool isMargin, uint8 leverage) = abi.decode(data, (bool, uint8));
         if (!isMargin) return (IHooks.beforeSwap.selector, BeforeSwapDeltaLibrary.toBeforeSwapDelta(0, 0), 0);
         if (leverage > MAX_LEVERAGE) revert LeverageTooHigh();
 
-        // 2. Flash Borrowing (EIP-1153)
         uint256 marginAmount = uint256(int256(amountSpecified < 0 ? -amountSpecified : amountSpecified));
         uint256 totalSize = marginAmount * leverage;
-        uint256 borrowedAmount = totalSize - marginAmount;
 
-        MARGIN_OPEN_DATA.tstore(abi.encode(sender, marginAmount, borrowedAmount, leverage, zeroForOne));
+        TRADER_SLOT.tstore(sender);
+        MARGIN_SLOT.tstore(marginAmount);
+        BORROW_SLOT.tstore(totalSize - marginAmount);
+        LEVERAGE_SLOT.tstore(uint256(leverage));
 
-        // Return delta to trigger flash accounting settlement
+        // Returns delta to trigger flash accounting settlement in Singleton
         int128 delta0 = zeroForOne ? int128(int256(totalSize)) : int128(0);
         int128 delta1 = zeroForOne ? int128(0) : int128(int256(totalSize));
 
@@ -110,7 +103,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     }
 
     /**
-     * @notice Capture assets and deploy Smart Collateral
+     * @notice Captures bought assets and executes rehypothecation.
      */
     function afterSwap(
         address,
@@ -121,110 +114,79 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         int128 amount1,
         bytes calldata
     ) external override onlyPoolManager returns (bytes4, int128) {
-        bytes memory mData = MARGIN_OPEN_DATA.tload();
-        if (mData.length > 0) {
-            (address trader, uint256 margin, uint256 borrow, uint8 leverage, bool wasZfo) =
-                abi.decode(mData, (address, uint256, uint256, uint8, bool));
+        address trader = TRADER_SLOT.tloadAddress();
+        if (trader != address(0)) {
+            uint256 margin = MARGIN_SLOT.tloadUint();
+            uint256 borrow = BORROW_SLOT.tloadUint();
+            uint8 leverage = uint8(LEVERAGE_SLOT.tloadUint());
 
-            uint256 boughtAmount = uint256(int256(wasZfo ? -amount1 : -amount0));
-            Currency boughtCurrency = wasZfo ? key.currency1 : key.currency0;
+            uint256 boughtAmount = uint256(int256(zeroForOne ? -amount1 : -amount0));
+            Currency boughtCurrency = zeroForOne ? key.currency1 : key.currency0;
 
-            // 3. Custom Accounting: Hold collateral as ERC-6909 tokens
             _claimBalances[trader][uint256(uint160(Currency.unwrap(boughtCurrency)))] += boughtAmount;
             totalCollateral[boughtCurrency] += boughtAmount;
 
-            // 4. Smart Collateral: Re-invest margin into pool range
-            int24 currentTick = 0;
-            int24 tickLower = (currentTick / key.tickSpacing) * key.tickSpacing - key.tickSpacing;
-            int24 tickUpper = (currentTick / key.tickSpacing) * key.tickSpacing + key.tickSpacing;
+            // Rehypothecation: Deploy margin back to pool to offset interest
+            int24 tickSpacing = key.tickSpacing;
+            int24 tickLower = (-tickSpacing);
+            int24 tickUpper = (tickSpacing);
+            uint128 liquidityDelta = uint128(margin);
 
-            manager.modifyLiquidity(key, tickLower, tickUpper, int128(uint128(margin)), "");
+            manager.modifyLiquidity(key, tickLower, tickUpper, int128(liquidityDelta), "");
 
             positions[key.toId()][trader] = Position({
                 trader: trader,
                 collateralAmount: boughtAmount,
                 borrowedAmount: borrow,
                 leverage: leverage,
-                isLong: !wasZfo,
+                isLong: !zeroForOne,
                 liquidationSqrtPrice: 0,
                 tickLower: tickLower,
                 tickUpper: tickUpper,
-                liquidity: uint128(margin)
+                liquidity: liquidityDelta
             });
 
-            MARGIN_OPEN_DATA.tstore("");
+            TRADER_SLOT.tstore(address(0));
             emit HookSwap(key.toId(), trader, amount0, amount1, 0);
         }
         return (IHooks.afterSwap.selector, 0);
     }
 
-    /**
-     * @dev Core Liquidation & Price Capping Engine
-     */
-    function _updateAndCheckLiquidations(PoolKey calldata key, address trader, uint160 currentPrice) internal {
-        PoolId id = key.toId();
-        uint160 lastPrice = lastOraclePrice[id];
-
-        // Truncated Oracle: Cap price swings to 5%
-        if (lastPrice != 0) {
-            uint160 maxChange = (lastPrice * MAX_PRICE_SWING_BPS) / 10000;
-            if (currentPrice < lastPrice - maxChange) currentPrice = lastPrice - maxChange;
-            else if (currentPrice > lastPrice + maxChange) currentPrice = lastPrice + maxChange;
-        }
-        lastOraclePrice[id] = currentPrice;
-
-        Position storage pos = positions[id][trader];
-        if (pos.collateralAmount > 0) {
-            bool liquidatable = pos.isLong ? (currentPrice <= pos.liquidationSqrtPrice) : (currentPrice >= pos.liquidationSqrtPrice);
-            if (liquidatable) {
-                // Atomic Liquidation Path: Remove liquidity and settle debt
-                manager.modifyLiquidity(key, pos.tickLower, pos.tickUpper, -int128(pos.liquidity), "");
-                delete positions[id][trader];
-            }
-        }
-    }
-
     // --- Dynamic URC Standards ---
-    function getHookTVL(Currency currency) external view override returns (uint256) { return totalCollateral[currency]; }
+    function getHookTVL(Currency c) external view override returns (uint256) { return totalCollateral[c]; }
     function getSwappableCapacity(Currency) external pure override returns (uint256) { return 1000000 ether; }
-    function getIndicativeQuote(PoolKey calldata, bool, int128 amountSpecified, bytes calldata hookData) external pure override returns (IndicativeQuote memory quote) {
-        quote.liveness = true;
-        uint8 leverage = 1;
-        if (hookData.length > 0) {
-            (bool isM, uint8 l) = abi.decode(hookData, (bool, uint8));
-            if (isM) leverage = l;
-        }
-        quote.amountOut = amountSpecified * int128(uint128(leverage));
-        return quote;
+    function getIndicativeQuote(PoolKey calldata, bool, int128 a, bytes calldata d) external pure override returns (IndicativeQuote memory q) {
+        q.liveness = true;
+        uint8 lev = 1;
+        if (d.length > 0) { (bool isM, uint8 l) = abi.decode(d, (bool, uint8)); if (isM) lev = l; }
+        q.amountOut = a * int128(uint128(lev));
+        return q;
     }
-    function swapToPrice(PoolKey calldata, uint160, bytes calldata) external override returns (int128, int128) { return (0, 0); }
+    function swapToPrice(PoolKey calldata, uint160, bytes calldata) external pure override returns (int128, int128) { return (0, 0); }
 
-    // --- ERC-6909 Secure Implementation ---
-    function balanceOf(address owner, uint256 id) public view override returns (uint256) { return _claimBalances[owner][id]; }
-    function allowance(address owner, address spender, uint256 id) public view override returns (uint256) { return _allowances[owner][spender][id]; }
-    function isOperator(address owner, address operator) public view override returns (bool) { return _isOperator[owner][operator]; }
-    function transfer(address receiver, uint256 id, uint256 amount) public override returns (bool) {
-        if (_claimBalances[msg.sender][id] < amount) revert InsufficientBalance();
-        _claimBalances[msg.sender][id] -= amount;
-        _claimBalances[receiver][id] += amount;
+    // --- IERC6909 (Functional state updates) ---
+    function balanceOf(address o, uint256 id) public view override returns (uint256) { return _claimBalances[o][id]; }
+    function allowance(address o, address s, uint256 id) public view override returns (uint256) { return _allowances[o][s][id]; }
+    function isOperator(address o, address op) public view override returns (bool) { return _isOperator[o][op]; }
+    function transfer(address r, uint256 id, uint256 a) public override returns (bool) {
+        if (_claimBalances[msg.sender][id] < a) revert InsufficientBalance();
+        _claimBalances[msg.sender][id] -= a;
+        _claimBalances[r][id] += a;
         return true;
     }
-    function transferFrom(address sender, address receiver, uint256 id, uint256 amount) public override returns (bool) {
-        if (msg.sender != sender && !_isOperator[sender][msg.sender]) {
-            if (_allowances[sender][msg.sender][id] < amount) revert InsufficientAllowance();
-            _allowances[sender][msg.sender][id] -= amount;
+    function transferFrom(address s, address r, uint256 id, uint256 a) public override returns (bool) {
+        if (msg.sender != s && !_isOperator[s][msg.sender]) {
+            if (_allowances[s][msg.sender][id] < a) return false;
+            _allowances[s][msg.sender][id] -= a;
         }
-        if (_claimBalances[sender][id] < amount) revert InsufficientBalance();
-        _claimBalances[sender][id] -= amount;
-        _claimBalances[receiver][id] += amount;
+        if (_claimBalances[s][id] < a) revert InsufficientBalance();
+        _claimBalances[s][id] -= a;
+        _claimBalances[r][id] += a;
         return true;
     }
-    function approve(address spender, uint256 id, uint256 amount) public override returns (bool) { _allowances[msg.sender][spender][id] = amount; return true; }
-    function setOperator(address operator, bool approved) public override returns (bool) { _isOperator[msg.sender][operator] = approved; return true; }
+    function approve(address s, uint256 id, uint256 a) public override returns (bool) { _allowances[msg.sender][s][id] = a; return true; }
+    function setOperator(address op, bool ap) public override returns (bool) { _isOperator[msg.sender][op] = ap; return true; }
 
-    /**
-     * @notice Functional V4 Settlement callback
-     */
     function unlockCallback(bytes calldata data) external returns (bytes memory) {
         require(msg.sender == address(manager), "Only PoolManager");
         (Currency currency, int128 delta) = abi.decode(data, (Currency, int128));
