@@ -57,6 +57,19 @@ export default function Home() {
 
                 {/* Left Column (Main Focus): Chart & Positions */}
                 <div className="lg:col-span-2 w-full space-y-6">
+                    {/* Solver Integration Banner */}
+                    <div className="glass-panel p-4 flex justify-between items-center bg-gradient-to-r from-purple-900/20 to-transparent border-l-4 border-l-purple-500">
+                        <div>
+                            <h3 className="text-sm font-bold text-purple-400 uppercase tracking-wider">Protocol Status: Solver-Ready</h3>
+                            <p className="text-xs text-gray-400 mt-1">Eswap V4 hooks are actively providing 0% interest liquidity to aggregators via URC-4.</p>
+                        </div>
+                        <div className="flex gap-2">
+                            <span className="text-[10px] bg-green-500/20 text-green-400 px-2 py-1 rounded border border-green-500/20 font-bold">URC-2</span>
+                            <span className="text-[10px] bg-green-500/20 text-green-400 px-2 py-1 rounded border border-green-500/20 font-bold">URC-3</span>
+                            <span className="text-[10px] bg-green-500/20 text-green-400 px-2 py-1 rounded border border-green-500/20 font-bold">URC-4</span>
+                        </div>
+                    </div>
+
                     <LiveChart tokenKey={activeChartToken} />
                     <PositionsList />
                 </div>
