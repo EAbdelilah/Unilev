@@ -18,17 +18,26 @@ export function LiveChart({ tokenKey }) {
     const pairAddress = tokenKey && pairMap[tokenKey] ? pairMap[tokenKey] : pairMap["WBTC"];
         
     return (
-        <div className="glass-panel w-full overflow-hidden flex flex-col mt-6">
-            <div className="p-4 border-b border-white/5 flex items-center justify-between bg-black/20">
+        <div className="glass-panel w-full overflow-hidden flex flex-col mt-6 relative">
+            <div className="p-4 border-b border-white/5 flex items-center justify-between bg-black/20 z-10">
                 <h3 className="text-sm font-bold text-gray-300 uppercase tracking-wider">
                     {tokenKey || "WBTC"} Price Chart (Uniswap Polygon)
                 </h3>
+                <div className="text-[10px] text-green-400 font-mono flex items-center gap-1">
+                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
+                    LIVE FEED
+                </div>
             </div>
-            <div className="w-full" style={{ height: "400px" }}>
+            <div className="w-full relative" style={{ height: "400px" }}>
+                {/* Fallback Background while iframe loads */}
+                <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center pointer-events-none">
+                    <div className="text-gray-600 text-xs animate-pulse">Syncing Liquidity Data...</div>
+                </div>
                 <iframe 
                     src={`https://dexscreener.com/polygon/${pairAddress}?embed=1&theme=dark&trades=0&info=0`}
-                    style={{ width: "100%", height: "100%", border: "none" }}
+                    className="w-full h-full border-none relative z-10"
                     title="DexScreener Live Chart"
+                    loading="lazy"
                 ></iframe>
             </div>
         </div>

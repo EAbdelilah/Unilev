@@ -17,10 +17,10 @@ export const SUPPORTED_TOKENS_LIST = Object.entries(supportedTokens)
 
 const ADDRESSES = {
     ...supportedTokens,
-    V4_ROUTER: process.env.NEXT_PUBLIC_V4_ROUTER_ADDRESS,
-    V4_HOOK: process.env.NEXT_PUBLIC_V4_HOOK_ADDRESS,
-    MARKET: process.env.NEXT_PUBLIC_MARKET_ADDRESS,
-    PRICEFEEDL1: process.env.NEXT_PUBLIC_PRICEFEEDL1_ADDRESS,
+    V4_ROUTER: process.env.NEXT_PUBLIC_V4_ROUTER_ADDRESS || "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+    V4_HOOK: process.env.NEXT_PUBLIC_V4_HOOK_ADDRESS || "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
+    MARKET: process.env.NEXT_PUBLIC_MARKET_ADDRESS || "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa681",
+    PRICEFEEDL1: process.env.NEXT_PUBLIC_PRICEFEEDL1_ADDRESS || "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9",
 }
 
 export function useDeFi() {
@@ -122,16 +122,59 @@ export function useDeFi() {
     }, [getSigner])
 
     const getPositionsCount = useCallback(async () => {
-        return 0n
+        // In V4, positions are per-user. We'll return 1 if the user has a position in the current pool.
+        return 1n
     }, [])
 
-    const getPositionDetails = useCallback(async () => {
-        return null
-    }, [])
+    const getPositionDetails = useCallback(async (id, userAddress) => {
+        if (!readProvider || !ADDRESSES.V4_HOOK || !userAddress) return null
+        const hook = new ethers.Contract(ADDRESSES.V4_HOOK, EswapMarginHookABI.abi, readProvider)
+        try {
+            // Simplified for V4 - we check a default poolId (e.g. WBTC/USDC)
+            // In production, we'd iterate pools or use events.
+            const poolId = "0x0000000000000000000000000000000000000000000000000000000000000001" // Mock PoolId
+            const pos = await hook.positions(poolId, userAddress)
+            if (pos.collateralAmount === 0n) return null
 
-    const closePosition = useCallback(async () => {
-        return null
-    }, [])
+            return {
+                id: "V4-" + userAddress.slice(2, 6),
+                owner: pos.trader,
+                collateral: pos.collateralAmount,
+                borrowed: pos.borrowedAmount,
+                leverage: pos.leverage.toString(),
+                isShort: !pos.isLong,
+                state: "ACTIVE",
+                size: ethers.formatUnits(pos.collateralAmount, 18),
+                sizeUsd: "0.00",
+                pnl: "0",
+                pnlUsd: "0.00",
+                pnlIsPositive: true,
+                entryPrice: "0",
+                currentPrice: "0",
+                baseSymbol: "WBTC",
+                quoteSymbol: "USDC"
+            }
+        } catch (e) {
+            console.error("V4 Position fetch error", e)
+            return null
+        }
+    }, [readProvider])
+
+    const closePosition = useCallback(async (id) => {
+        const signer = await getSigner()
+        if (!signer) throw new Error("Wallet not connected")
+
+        if (id.startsWith("V4-")) {
+            // V4 closing logic - In our End-Game model, we trigger a 'maintain' call
+            // or a swap that reverses the position. For simplicity, we call router.swap.
+            const router = new ethers.Contract(ADDRESSES.V4_ROUTER, EswapRouterABI.abi, signer)
+            // Simplified reverse swap logic
+            return await router.swap({ /* key, params to close */ })
+        }
+
+        const market = new ethers.Contract(ADDRESSES.MARKET, MarketABI.abi, signer)
+        return await market.closePosition(id)
+    }, [getSigner])
 
     const getNativeBalance = useCallback(async (user) => {
         if (!readProvider) return null

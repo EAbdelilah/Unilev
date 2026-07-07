@@ -32,8 +32,12 @@ export function PositionsList() {
 
             // Fetch position details
             const promises = []
+            if (address) {
+                // For V4, we pass the user address
+                promises.push(getPositionDetails(0, address))
+            }
             for (let i = 1; i < maxId; i++) {
-                promises.push(getPositionDetails(i))
+                promises.push(getPositionDetails(i, null))
             }
 
             const results = await Promise.all(promises)
