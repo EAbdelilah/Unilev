@@ -288,6 +288,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
 
     /**
      * @notice URC-4 swapToPrice: Allows solvers to route split-fills to our margin pool.
+     * @dev Solvers see the actual rehypothecated capacity as immediately swappable depth.
      */
     function swapToPrice(
         PoolKey calldata key,
@@ -295,11 +296,11 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         bytes calldata
     ) external override returns (int128 delta0, int128 delta1) {
         (uint160 currentPrice, , , ) = manager.getSlot0(key.toId());
-        // Simple simulation of available depth for solvers
         bool zeroForOne = currentPrice > targetSqrtPriceX96;
-        // Reporting 10% of total collateral as immediately swappable depth for solvers
+
+        // Return actual available depth based on total rehypothecated collateral
         Currency currencyIn = zeroForOne ? key.currency0 : key.currency1;
-        uint256 swappable = totalCollateral[currencyIn] / 10;
+        uint256 swappable = totalCollateral[currencyIn];
 
         delta0 = zeroForOne ? int128(uint128(swappable)) : -int128(uint128(swappable));
         delta1 = zeroForOne ? -int128(uint128(swappable)) : int128(uint128(swappable));
