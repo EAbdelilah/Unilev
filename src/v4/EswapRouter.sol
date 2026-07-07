@@ -17,9 +17,11 @@ interface IEswapHook {
  */
 contract EswapRouter {
     IPoolManager public immutable manager;
+    address public owner;
 
     constructor(IPoolManager _manager) {
         manager = _manager;
+        owner = msg.sender;
     }
 
     struct SwapParams {
@@ -49,26 +51,14 @@ contract EswapRouter {
         // 1. Execute the swap
         int128 delta = manager.swap(params.key, params.zeroForOne, params.amountSpecified, params.hookData);
 
-        // 2. Settle the input currency (Trader's Margin + Hook's Borrowed portion)
+        // 2. Settle only the Trader's initial margin.
+        // The 'borrowed' portion is provided by the Hook transiently.
         Currency input = params.zeroForOne ? params.key.currency0 : params.key.currency1;
+        uint256 marginAmount = uint256(int256(params.amountSpecified < 0 ? -params.amountSpecified : params.amountSpecified));
 
-        // PM delta for the input currency will be (Trader Margin + Borrowed Amount)
-        // We settle the total delta. Trader provides margin, Hook's LP provides the rest.
-        int256 totalDelta = manager.currencyDelta(address(this), input);
-        if (totalDelta > 0) {
-            uint256 toSettle = uint256(totalDelta);
-            // Trader's portion (margin) is pulled here
-            uint256 marginAmount = uint256(int256(params.amountSpecified < 0 ? -params.amountSpecified : params.amountSpecified));
-            if (toSettle > marginAmount) {
-                // The difference (borrowed amount) was already sent to PM by the LiquidityPool
-                // so we just need to settle the total delta.
-                IERC20(Currency.unwrap(input)).transferFrom(trader, address(manager), marginAmount);
-                manager.settle(input);
-            } else {
-                IERC20(Currency.unwrap(input)).transferFrom(trader, address(manager), toSettle);
-                manager.settle(input);
-            }
-        }
+        // Settle the margin input from the trader
+        IERC20(Currency.unwrap(input)).transferFrom(trader, address(manager), marginAmount);
+        manager.settle(input);
 
         // 3. Post-swap Maintenance (Liquidations/Rebalancing)
         // The router as the locker can safely call maintenance functions on the hook
@@ -88,6 +78,7 @@ contract EswapRouter {
      * @notice External maintenance call for keepers to trigger liquidations or rebalancing
      */
     function maintain(address hook, PoolKey calldata key, address trader) external {
+        require(msg.sender == owner, "Not authorized");
         manager.unlock(abi.encode(hook, key, trader));
     }
 
