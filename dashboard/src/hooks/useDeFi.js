@@ -121,6 +121,38 @@ export function useDeFi() {
         }
     }, [getSigner])
 
+    const getPositionsCount = useCallback(async () => {
+        return 0n
+    }, [])
+
+    const getPositionDetails = useCallback(async () => {
+        return null
+    }, [])
+
+    const closePosition = useCallback(async () => {
+        return null
+    }, [])
+
+    const getNativeBalance = useCallback(async (user) => {
+        if (!readProvider) return null
+        try {
+            const bal = await readProvider.getBalance(user)
+            return { balance: ethers.formatEther(bal), usdValue: "0.00" }
+        } catch { return null }
+    }, [readProvider])
+
+    const getProtocolBalances = useCallback(async () => {
+        return {}
+    }, [])
+
+    const getFeeDefaults = useCallback(async () => {
+        return { treasuryFee: 0, liquidationReward: 0 }
+    }, [])
+
+    const updateFeeDefaults = useCallback(async () => {
+        return null
+    }, [])
+
     return {
         ADDRESSES,
         SUPPORTED_TOKENS_LIST,
@@ -133,6 +165,13 @@ export function useDeFi() {
         getTokenBalance,
         getAllowance,
         approveToken,
+        getPositionsCount,
+        getPositionDetails,
+        closePosition,
+        getNativeBalance,
+        getProtocolBalances,
+        getFeeDefaults,
+        updateFeeDefaults,
         isMetaMaskInstalled: typeof window !== "undefined" && !!window.ethereum
     }
 }

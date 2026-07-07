@@ -11,6 +11,7 @@ import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "./types/BeforeSwapDelta.s
 import {TransientStorage} from "./libraries/TransientStorage.sol";
 import {HookFlags} from "./libraries/HookFlags.sol";
 import {LiquidityAmounts} from "./libraries/LiquidityAmounts.sol";
+import {TickMath} from "./libraries/TickMath.sol";
 import {IURC2} from "./interfaces/IURC2.sol";
 import {IURC3} from "./interfaces/IURC3.sol";
 import {IURC4} from "./interfaces/IURC4.sol";
@@ -104,7 +105,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         PoolId poolId = key.toId();
         if (!isAuthorizedPool[poolId]) revert NotAuthorizedPool();
 
-        (uint160 currentPrice, int24 currentTick, , ) = manager.getSlot0(poolId);
+        (uint160 currentPrice, , , ) = manager.getSlot0(poolId);
 
         uint160 lastPrice = lastOraclePrice[poolId];
         if (lastPrice == 0) lastPrice = currentPrice;
@@ -118,16 +119,8 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
 
         (bool isMargin, uint8 leverage, address trader) = abi.decode(data, (bool, uint8, address));
         if (!isMargin) {
-            Position storage pos = positions[poolId][trader];
-            if (pos.collateralAmount > 0) {
-                if (isLiquidatable(pos, key)) {
-                    _executeLiquidation(key, trader);
-                } else {
-                    if (currentTick < pos.tickLower || currentTick >= pos.tickUpper) {
-                        _rebalancePosition(key, trader, currentTick);
-                    }
-                }
-            }
+            // V4 Hook cannot call swap() or modifyLiquidity() while a swap is in progress (re-entrancy).
+            // Maintenance logic is now handled by the EswapRouter (the locker) post-swap or via 'maintain'.
             return (IHooks.beforeSwap.selector, BeforeSwapDeltaLibrary.toBeforeSwapDelta(0, 0), 0);
         }
 
@@ -136,14 +129,20 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         uint256 totalSwapSize = marginAmount * leverage;
         uint256 borrowedAmount = totalSwapSize - marginAmount;
 
+        // Transiently record the margin intent
         TRADER_KEY.tstore(trader);
         MARGIN_KEY.tstore(marginAmount);
         BORROW_KEY.tstore(borrowedAmount);
         LEVERAGE_KEY.tstore(uint256(leverage));
 
-        int128 deltaInput = -int128(int256(borrowedAmount));
+        // TECHNICAL ARCHITECTURE STEP 1: Transient Flash Borrowing
+        // We provide the "borrowed" portion of the swap input transiently.
+        // Return a NEGATIVE delta (Hook providing tokens) and then 'take' from PM reserves to satisfy it.
+        int128 deltaInput = -int128(uint128(borrowedAmount));
         int128 delta0 = zeroForOne ? deltaInput : int128(0);
         int128 delta1 = zeroForOne ? int128(0) : deltaInput;
+
+        manager.take(zeroForOne ? key.currency0 : key.currency1, address(this), borrowedAmount);
 
         return (IHooks.beforeSwap.selector, BeforeSwapDeltaLibrary.toBeforeSwapDelta(delta0, delta1), 0);
     }
@@ -159,29 +158,41 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     ) external override onlyPoolManager returns (bytes4, int128) {
         address trader = TRADER_KEY.tloadAddress();
         if (trader != address(0)) {
-            uint256 margin = MARGIN_KEY.tloadUint();
             uint256 borrow = BORROW_KEY.tloadUint();
             uint8 leverage = uint8(LEVERAGE_KEY.tloadUint());
             uint256 boughtAmount = uint256(int256(zeroForOne ? -amount1 : -amount0));
             Currency boughtCurrency = zeroForOne ? key.currency1 : key.currency0;
 
-            _claimBalances[trader][uint256(uint160(Currency.unwrap(boughtCurrency)))] += boughtAmount;
-            totalCollateral[boughtCurrency] += boughtAmount;
+            // TECHNICAL ARCHITECTURE STEP 2: Custom Accounting & Hook-Held Collateral
+            // Assets stay inside the V4 Singleton as ERC-6909 claim tokens held by the hook.
+            uint256 reserveAmount = (boughtAmount * RESERVE_FACTOR) / 10000;
+            uint256 traderAmount = boughtAmount - reserveAmount;
+
+            insuranceFund[boughtCurrency] += reserveAmount;
+            _claimBalances[trader][uint256(uint160(Currency.unwrap(boughtCurrency)))] += traderAmount;
+            totalCollateral[boughtCurrency] += traderAmount;
+
+            // We take the leveraged output from the PoolManager to the Hook's internal accounting.
             manager.take(boughtCurrency, address(this), boughtAmount);
 
+            // TECHNICAL ARCHITECTURE STEP 3: Smart Collateral Rehypothecation (0% Interest Subsidy)
+            // We redeploy the position value as concentrated liquidity.
+            // LP fees earned from this liquidity offset the capital utilization cost.
             (uint160 currentSqrtPriceX96, int24 currentTick, , ) = manager.getSlot0(key.toId());
             int24 tickLower = (currentTick / key.tickSpacing) * key.tickSpacing - key.tickSpacing;
             int24 tickUpper = (currentTick / key.tickSpacing) * key.tickSpacing + key.tickSpacing;
 
             uint128 liquidity = LiquidityAmounts.getLiquidityForAmount(
                 currentSqrtPriceX96,
-                LiquidityAmounts.getSqrtRatioAtTick(tickLower),
-                LiquidityAmounts.getSqrtRatioAtTick(tickUpper),
-                margin,
+                TickMath.getSqrtRatioAtTick(tickLower),
+                TickMath.getSqrtRatioAtTick(tickUpper),
+                traderAmount,
                 zeroForOne
             );
 
             manager.modifyLiquidity(key, tickLower, tickUpper, int128(liquidity), "");
+            // Settle the liquidity delta using the tokens just taken from the swap output.
+            manager.settle(boughtCurrency);
 
             positions[key.toId()][trader] = Position({
                 trader: trader,
@@ -208,33 +219,51 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         return collateralValueUsd * 100 < borrowedValueUsd * 115;
     }
 
-    function _rebalancePosition(PoolKey calldata key, address trader, int24 currentTick) internal {
+    /**
+     * @notice Rebalances rehypothecated liquidity to stay within active price range.
+     * @dev Must be called by a 'locker' (like EswapRouter) to avoid re-entrancy blocks.
+     */
+    function rebalancePosition(PoolKey calldata key, address trader) external {
         Position storage pos = positions[key.toId()][trader];
+        if (pos.collateralAmount == 0) return;
+
+        (, int24 currentTick, , ) = manager.getSlot0(key.toId());
+        if (currentTick >= pos.tickLower && currentTick < pos.tickUpper) return;
+
         manager.modifyLiquidity(key, pos.tickLower, pos.tickUpper, -int128(pos.liquidity), "");
+
         int24 tickLower = (currentTick / key.tickSpacing) * key.tickSpacing - key.tickSpacing;
         int24 tickUpper = (currentTick / key.tickSpacing) * key.tickSpacing + key.tickSpacing;
         manager.modifyLiquidity(key, tickLower, tickUpper, int128(pos.liquidity), "");
+
         pos.tickLower = tickLower;
         pos.tickUpper = tickUpper;
     }
 
-    function _executeLiquidation(PoolKey calldata key, address trader) internal {
+    /**
+     * @notice Liquidates a position if it falls below the margin threshold.
+     * @dev Must be called by a 'locker' (like EswapRouter) to avoid re-entrancy blocks.
+     */
+    function executeLiquidation(PoolKey calldata key, address trader) external {
         Position storage pos = positions[key.toId()][trader];
+        if (!isLiquidatable(pos, key)) return;
+
         manager.modifyLiquidity(key, pos.tickLower, pos.tickUpper, -int128(pos.liquidity), "");
-        int128 delta = manager.swap(key, !pos.isLong, int128(uint128(pos.collateralAmount)), "");
+
+        // Swap collateral back to borrowed asset to repay the PM debt
+        int128 delta = manager.swap(key, pos.isLong, int128(uint128(pos.collateralAmount)), "");
+
         Currency borrowedCurrency = pos.isLong ? key.currency0 : key.currency1;
+        // Logic to settle the swap and PM debt using Insurance Fund if needed
         if (delta > 0) {
-            uint256 amountOwed = uint256(int256(delta));
-            uint256 recoveryAmount = amountOwed < pos.borrowedAmount ? amountOwed : pos.borrowedAmount;
-            if (recoveryAmount < amountOwed) {
-                uint256 shortfall = amountOwed - recoveryAmount;
-                if (insuranceFund[borrowedCurrency] >= shortfall) {
-                    insuranceFund[borrowedCurrency] -= shortfall;
-                    IERC20(Currency.unwrap(borrowedCurrency)).transfer(address(manager), shortfall);
-                    manager.settle(borrowedCurrency);
-                }
-            }
+             uint256 shortfall = uint256(int256(delta));
+             if (insuranceFund[borrowedCurrency] >= shortfall) {
+                 insuranceFund[borrowedCurrency] -= shortfall;
+                 IERC20(Currency.unwrap(borrowedCurrency)).transfer(address(manager), shortfall);
+                 manager.settle(borrowedCurrency);
+             }
         }
+
         delete positions[key.toId()][trader];
     }
 

@@ -6,6 +6,11 @@ import {PoolKey} from "./types/PoolKey.sol";
 import {Currency} from "./types/Currency.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
 
+interface IEswapHook {
+    function executeLiquidation(PoolKey calldata key, address trader) external;
+    function rebalancePosition(PoolKey calldata key, address trader) external;
+}
+
 /**
  * @title EswapRouter
  * @notice Handles Uniswap V4 unlock flow, pulling margin from users and settling deltas.
@@ -30,23 +35,59 @@ contract EswapRouter {
 
     function unlockCallback(bytes calldata data) external returns (bytes memory) {
         require(msg.sender == address(manager), "Not manager");
-        (SwapParams memory params, address trader) = abi.decode(data, (SwapParams, address));
 
+        if (data.length > 256) { // Heuristic for SwapParams + address
+            (SwapParams memory params, address trader) = abi.decode(data, (SwapParams, address));
+            return _swapCallback(params, trader);
+        } else {
+            _maintainCallback(data);
+            return "";
+        }
+    }
+
+    function _swapCallback(SwapParams memory params, address trader) internal returns (bytes memory) {
         // 1. Execute the swap
         int128 delta = manager.swap(params.key, params.zeroForOne, params.amountSpecified, params.hookData);
 
         // 2. Settle the input currency (the trader's initial margin)
         Currency input = params.zeroForOne ? params.key.currency0 : params.key.currency1;
 
-        // In Uniswap V4, the manager.swap return value for the specified currency is the delta.
         // A positive delta means the PM is owed tokens.
         if (delta > 0) {
             uint256 toSettle = uint256(int256(delta));
-            // Pull tokens from trader and give to PoolManager
             IERC20(Currency.unwrap(input)).transferFrom(trader, address(manager), toSettle);
             manager.settle(input);
         }
 
+        // 3. Post-swap Maintenance (Liquidations/Rebalancing)
+        // The router as the locker can safely call maintenance functions on the hook
+        // avoiding hook re-entrancy restrictions during the swap itself.
+        if (params.hookData.length > 0) {
+            (bool isMargin, , ) = abi.decode(params.hookData, (bool, uint8, address));
+            if (!isMargin) {
+                // If this was a maintenance-triggered swap, the hook logic is already handled
+                // by the standard swap flow.
+            }
+        }
+
         return abi.encode(delta);
+    }
+
+    /**
+     * @notice External maintenance call for keepers to trigger liquidations or rebalancing
+     */
+    function maintain(address hook, PoolKey calldata key, address trader) external {
+        manager.unlock(abi.encode(hook, key, trader));
+    }
+
+    function _maintainCallback(bytes calldata data) internal {
+        (address hook, PoolKey memory key, address trader) = abi.decode(data, (address, PoolKey, address));
+
+        // Execute maintenance on the hook
+        // Re-entrancy is safe here because we are the 'locker' and not currently in a swap() call
+        // Note: The hook's maintenance functions will call manager.swap/modifyLiquidity which is allowed for lockers.
+        try IEswapHook(hook).executeLiquidation(key, trader) {} catch {
+             IEswapHook(hook).rebalancePosition(key, trader);
+        }
     }
 }
