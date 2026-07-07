@@ -25,8 +25,14 @@ interface IPriceFeed {
 /**
  * @title EswapMarginHook
  * @notice The "Perfect Solution" V4 hook addressing TVL and User Acquisition via:
- * 1. EIP-1153 Flash Borrowing (Solves TVL bottleneck)
+ * 1. EIP-1153 Flash Borrowing (Solves TVL bottleneck via transient reserve utilization)
  * 2. Standardized URC Compliance (Solves User Acquisition via Solver/Aggregator routing)
+ *
+ * @dev [DEFI CRITIQUE] Note: This implementation is an experimental "Perfect Solution" model.
+ * In production, 'Flash Borrowing' from reserves across blocks is restricted by V4's
+ * delta settlement requirements. This hook serves as a blueprint for a future
+ * Vault-Integrated model where liquidity is sourced from an ESWAP ERC-4626 pool
+ * while maintaining the 0% interest subsidy through Smart Collateral rehypothecation.
  */
 contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     using PoolIdLibrary for PoolKey;
