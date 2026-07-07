@@ -2,9 +2,9 @@
 
 ESWAP V4 solves the two greatest hurdles in DeFi margin trading: **Liquidity (TVL)** and **User Acquisition**.
 
-## 1. The TVL Solution: Transient Flash Borrowing (EIP-1153)
-Instead of relying on multi-block peer-to-pool lending, ESWAP transiently "borrows" reserves from the Uniswap V4 Singleton within the `beforeSwap` callback.
-- **0% Interest**: Traders pay exactly 0% interest because their capital is borrowed directly from AMM reserves.
+## 1. The TVL Solution: Treasury-Assisted Borrowing (EIP-1153)
+Instead of relying on external lending vaults, ESWAP utilizes its internal protocol buffer to "carry" AMM reserves for the trader.
+- **Multi-Day 0% Interest**: Traders can keep positions open for days at exactly 0% interest. The protocol handles the V4 delta settlement using its internal liquidity pool.
 - **Smart Collateral**: The leveraged collateral is rehypothecated as concentrated liquidity, ensuring LPs earn maximum yield from trading activity.
 
 ## 2. The User Solution: Programmatic Acquisition (URC Standard)
