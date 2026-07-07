@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {Test} from "forge-std/Test.sol";
 import {EswapMarginHook, IPriceFeed} from "../EswapMarginHook.sol";
 import {PoolManagerMock} from "./mocks/PoolManagerMock.sol";
+import {LiquidityPoolMock} from "./mocks/LiquidityPoolMock.sol";
 import {PoolKey} from "../types/PoolKey.sol";
 import {Currency} from "../types/Currency.sol";
 
@@ -19,11 +20,13 @@ contract BaseV4Test is Test {
     EswapMarginHook public hook;
     PoolManagerMock public manager;
     PriceFeedMock public priceFeed;
+    LiquidityPoolMock public lp;
     PoolKey public key;
 
     function setUp() public virtual {
         manager = new PoolManagerMock();
         priceFeed = new PriceFeedMock();
+        lp = new LiquidityPoolMock();
 
         // Mine for a salt that satisfies flags
         // For testing, we can often just use a predictable salt if the flags are simple,
@@ -35,6 +38,7 @@ contract BaseV4Test is Test {
         address hookAddr = address(uint160(uint256(keccak256("test_hook")) | (1 << 159 | 1 << 158 | 1 << 153 | 1 << 152 | 1 << 148)));
 
         hook = new EswapMarginHook{salt: bytes32(0)}(manager, priceFeed);
+        hook.setLiquidityPool(address(lp));
 
         key = PoolKey({
             currency0: Currency.wrap(address(0x1)),

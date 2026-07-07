@@ -18,7 +18,7 @@ contract EswapLogicTest is BaseV4Test {
         hook.afterSwap(address(this), key, true, -10 ether, 10 ether, -9.5 ether, "");
         vm.stopPrank();
 
-        (address trader, uint256 collateral, uint256 borrow, uint8 lev,,,, uint128 liq) = hook.positions(key.toId(), address(this));
+        (address trader, uint256 collateral, uint256 borrow, uint8 lev, , , , , uint128 liq, , ) = hook.positions(key.toId(), address(this));
         assertEq(trader, address(this));
         assertEq(collateral, 9.5 ether);
         assertEq(borrow, 0);
@@ -38,7 +38,7 @@ contract EswapLogicTest is BaseV4Test {
         hook.afterSwap(address(this), key, false, -50 ether, 50 ether, -48 ether, "");
         vm.stopPrank();
 
-        (address trader, uint256 collateral, uint256 borrow, uint8 lev,,,, uint128 liq) = hook.positions(key.toId(), address(this));
+        (address trader, uint256 collateral, uint256 borrow, uint8 lev, , , , , uint128 liq, , ) = hook.positions(key.toId(), address(this));
         assertEq(trader, address(this));
         assertEq(collateral, 48 ether);
         assertEq(borrow, 40 ether);

@@ -22,6 +22,11 @@ interface IPriceFeed {
     function getAmountInUsd(address token, uint256 amount) external view returns (uint256);
 }
 
+interface ILiquidityPool {
+    function lend(address token, uint256 amount, address receiver) external;
+    function repay(address token, uint256 amount) external;
+}
+
 /**
  * @title EswapMarginHook
  * @notice The "Perfect Solution" V4 hook addressing TVL and User Acquisition via:
@@ -59,6 +64,8 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         int24 tickLower;
         int24 tickUpper;
         uint128 liquidity;
+        uint256 lastUpdate;
+        uint256 accruedInterest;
     }
 
     mapping(PoolId => bool) public isAuthorizedPool;
@@ -69,9 +76,12 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     mapping(Currency => uint256) public totalCollateral;
     mapping(PoolId => uint160) public lastOraclePrice;
 
+    address public owner;
     IPriceFeed public immutable priceFeed;
+    address public liquidityPool; // The source of margin capital (fixes Delta Settlement flaw)
+
     mapping(Currency => uint256) public insuranceFund;
-    uint256 public constant RESERVE_FACTOR = 1000; // 10%
+    uint256 public constant RESERVE_FACTOR = 2000; // Increased to 20% to fix Insurance Buffer flaw
 
     uint160 public constant MAX_PRICE_SWING_BPS = 500;
     uint8 public constant MAX_LEVERAGE = 5;
@@ -84,7 +94,13 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
 
     constructor(IPoolManager _manager, IPriceFeed _priceFeed) BaseHook(_manager) {
         priceFeed = _priceFeed;
+        owner = msg.sender;
         if (uint160(address(this)) & getHookFlags() != getHookFlags()) revert InvalidHookAddress();
+    }
+
+    function setLiquidityPool(address _lp) external {
+        require(msg.sender == owner, "Not owner");
+        liquidityPool = _lp;
     }
 
     function getHookFlags() public pure returns (uint160) {
@@ -141,14 +157,16 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         BORROW_KEY.tstore(borrowedAmount);
         LEVERAGE_KEY.tstore(uint256(leverage));
 
-        // TECHNICAL ARCHITECTURE STEP 1: Transient Flash Borrowing
-        // We provide the "borrowed" portion of the swap input transiently.
-        // Return a NEGATIVE delta (Hook providing tokens) and then 'take' from PM reserves to satisfy it.
+        // HARDENED STEP 1: Vault-Integrated Borrowing
+        // Instead of 'taking' from PM reserves (deadlock), we pull from our dedicated LiquidityPool.
+        // This ensures deltas are fully settled in the PoolManager while allowing cross-block debt.
         int128 deltaInput = -int128(uint128(borrowedAmount));
         int128 delta0 = zeroForOne ? deltaInput : int128(0);
         int128 delta1 = zeroForOne ? int128(0) : deltaInput;
 
-        manager.take(zeroForOne ? key.currency0 : key.currency1, address(this), borrowedAmount);
+        Currency borrowCurrency = zeroForOne ? key.currency0 : key.currency1;
+        ILiquidityPool(liquidityPool).lend(Currency.unwrap(borrowCurrency), borrowedAmount, address(manager));
+        // Note: manager.settle() will be called by the Router (locker) to fulfill the Hook's provided delta.
 
         return (IHooks.beforeSwap.selector, BeforeSwapDeltaLibrary.toBeforeSwapDelta(delta0, delta1), 0);
     }
@@ -209,7 +227,9 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
                 liquidationSqrtPrice: 0,
                 tickLower: tickLower,
                 tickUpper: tickUpper,
-                liquidity: liquidity
+                liquidity: liquidity,
+                lastUpdate: block.timestamp,
+                accruedInterest: 0
             });
 
             TRADER_KEY.tstore(address(0));
@@ -248,7 +268,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
 
     /**
      * @notice Liquidates a position if it falls below the margin threshold.
-     * @dev Must be called by a 'locker' (like EswapRouter) to avoid re-entrancy blocks.
+     * @dev [FIX] Now repays the LiquidityPool and uses a larger Insurance Fund buffer.
      */
     function executeLiquidation(PoolKey calldata key, address trader) external {
         Position storage pos = positions[key.toId()][trader];
@@ -256,19 +276,31 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
 
         manager.modifyLiquidity(key, pos.tickLower, pos.tickUpper, -int128(pos.liquidity), "");
 
-        // Swap collateral back to borrowed asset to repay the PM debt
+        // 1. Swap collateral back to the borrowed asset
+        // We use the Hook's internal accounting to handle the swap output
         int128 delta = manager.swap(key, pos.isLong, int128(uint128(pos.collateralAmount)), "");
 
         Currency borrowedCurrency = pos.isLong ? key.currency0 : key.currency1;
-        // Logic to settle the swap and PM debt using Insurance Fund if needed
-        if (delta > 0) {
-             uint256 shortfall = uint256(int256(delta));
-             if (insuranceFund[borrowedCurrency] >= shortfall) {
-                 insuranceFund[borrowedCurrency] -= shortfall;
-                 IERC20(Currency.unwrap(borrowedCurrency)).transfer(address(manager), shortfall);
-                 manager.settle(borrowedCurrency);
-             }
+        uint256 amountToRepay = pos.borrowedAmount;
+
+        // 2. Repay the LiquidityPool
+        // Any shortfall between the swap output and amountToRepay is covered by the Insurance Fund
+        uint256 swapOutput = 0;
+        if (delta < 0) {
+            swapOutput = uint256(int256(-delta));
         }
+
+        if (swapOutput < amountToRepay) {
+            uint256 shortfall = amountToRepay - swapOutput;
+            if (insuranceFund[borrowedCurrency] >= shortfall) {
+                insuranceFund[borrowedCurrency] -= shortfall;
+                // Hook uses insurance fund to make up the difference
+            }
+        }
+
+        // HARDENED REPAYMENT: Ensure the vault is made whole.
+        IERC20(Currency.unwrap(borrowedCurrency)).approve(liquidityPool, amountToRepay);
+        ILiquidityPool(liquidityPool).repay(Currency.unwrap(borrowedCurrency), amountToRepay);
 
         delete positions[key.toId()][trader];
     }

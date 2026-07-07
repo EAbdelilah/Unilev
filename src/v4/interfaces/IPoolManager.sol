@@ -12,6 +12,7 @@ interface IPoolManager {
     function modifyLiquidity(PoolKey calldata key, int24 tickLower, int24 tickUpper, int128 liquidityDelta, bytes calldata hookData) external returns (int128 delta0, int128 delta1);
     function settle(Currency currency) external payable returns (uint256);
     function take(Currency currency, address to, uint256 amount) external;
+    function currencyDelta(address locker, Currency currency) external view returns (int256);
     function mint(address to, uint256 id, uint256 amount) external;
     function burn(address from, uint256 id, uint256 amount) external;
 }
