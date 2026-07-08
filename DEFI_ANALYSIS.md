@@ -18,3 +18,9 @@ By implementing **URC-4 (`IALFHook`)**, ESWAP allows solvers (1inch, CoW Swap, U
 ### 4. Technical Moat
 - **Treasury-Assisted Settlement:** Solves the V4 singleton invariant by using the `insuranceFund` as a buffer for multi-block positions.
 - **Oracle Resilience:** Combines a 500bps Truncated Oracle (Slot0) with an external Chainlink `PriceFeed` for liquidations.
+
+### 5. Distribution Roadmap (Aggregator Listing)
+To win on derivative aggregators, ESWAP focuses on:
+1. **1inch Fusion & CoW Swap**: Standardizing URC-4 simulations so Solvers can atomically route through ESWAP hooks to beat external perpetual routes.
+2. **UniswapX**: Positioning the hook as a primary liquidity source for Dutch Auction fillers who require 0% cost capital.
+3. **Launchpad Integration**: Partnering with V4-native launchpads (e.g., Flaunch) to provide 0% interest leverage on new tokens from T0.
