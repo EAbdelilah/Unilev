@@ -1,28 +1,40 @@
-# ESWAP V4: Aggregator & Solver Integration Roadmap
+# ESWAP V4: Global Aggregator & Solver Integration Roadmap
 
-To maximize user acquisition without a proprietary frontend, ESWAP targets meta-aggregators and intent-based networks where its **0% interest model** provides a structural execution advantage.
+To win the user acquisition war, ESWAP bypasses the proprietary frontend bottleneck by listing its **0% interest margin pools** across the world's most prominent derivative aggregators and intent-based networks.
 
-## 1. Primary Listing Targets
+## 1. Multi-Chain & Perp Aggregators (The Volume Drivers)
 
-| Aggregator / Network | Integration Type | Competitive Edge |
+ESWAP targets these venues to capture traders who manage multi-platform positions from a single interface.
+
+| Aggregator | Integration Mechanism | Competitive Edge |
 | :--- | :--- | :--- |
-| **UniswapX** | Dutch Auction Fillers | Fillers can utilize ESWAP's rehypothecated liquidity to settle orders with 0% interest overhead, beating external CEX/DEX hedges. |
-| **CoW Swap** | Solver Network | Solvers simulate ESWAP's URC-4 `swapToPrice` to include margin liquidity in split-fill routes, offering better "Net Price" due to zero borrow fees. |
-| **1inch Fusion** | Resolver Integration | Resolvers (Resolvers/Market Makers) route through the ESWAP hook to capture the 0% interest "Smart Collateral" yield, improving their quote competitiveness. |
-| **Odos / Matcha** | Smart Order Routing | Standardized URC-3 stats allow these aggregators to index ESWAP as a high-liquidity venue for leveraged pairs (e.g., WBTC/USDC). |
+| **Mux Protocol** | Unified Margin Routing | Mux routes across GMX/Gains. ESWAP beats these on cost because it has **0% borrow fees**, making it the priority route for unified margin traders. |
+| **LogX** | Low-Slippage Routing | ESWAP's V4 rehypothecated liquidity (URC-4) provides the "absolute lowest slippage" for major pairs like ETH/USDC by utilizing deep AMM TVL. |
+| **Liquid / Liquid X** | Multi-Venue Management | Traders on Liquid can open ESWAP positions directly. ESWAP’s 0% interest is a major "draw" for retail users migrating from high-cost perp venues. |
+| **Rage Trade** | Delta-Neutral Vaults | Rage Trade can build vaults on top of ESWAP. Since ESWAP positions earn LP fees, these vaults can offer higher net yield with 0% interest overhead. |
 
-## 2. Competitive Advantage vs. Incumbents
+## 2. Intent-Based & Solver Networks (The Scalability Play)
 
-| Feature | GMX / dYdX | ESWAP V4 Hook |
+Instead of relying on an AMM curve, ESWAP plugs into professional market maker networks.
+
+| Network | Role | Eswap Integration |
 | :--- | :--- | :--- |
-| **Borrowing Cost** | 5% - 25% APR | **0% APR** (Subsidized by fees) |
-| **Routing** | Siloed / Custom | **Programmatic (URC-4)** |
-| **Capital Efficiency** | Isolated Pool | **V4 Native (AMM + Hook)** |
-| **Execution** | External Oracle | **Atomic (V4 Lifecycle)** |
+| **SYMMIO** | Backend Protocol | ESWAP acts as a liquidity venue for SYMMIO frontends (IntentX, Thenian). Solvers use ESWAP's 0% interest hooks to hedge their bilateral trades. |
+| **Orbs (Liquidity Hub)** | L3 Optimization | Orbs routes institutional liquidity to ESWAP hooks, optimizing execution for large orders using our V4 custom accounting. |
+| **UniswapX / CoW Swap** | Intent Fillers | Fillers compete to settle "intents" using ESWAP's hook-held collateral as the primary liquidity source. |
 
-## 3. Integration Steps for Solvers
+## 3. Specialized & Yield Aggregators
 
-1. **Indicative Quote**: Solvers call `getIndicativeQuote` to check liveness and estimated output.
-2. **Capacity Check**: `getSwappableCapacity` (URC-3) reports the total rehypothecated margin available for routing.
-3. **Execution Path**: Solvers call `swapToPrice` (URC-4) to determine the exact tick-impact and slippage within the hook's concentrated range.
-4. **Settlement**: The trade is executed via the `EswapRouter` to ensure atomic settlement of the hook's transient deltas.
+| Platform | Strategy | Value Proposition |
+| :--- | :--- | :--- |
+| **Index Coop** | Structural Yield Tokens | Creates "0% Interest Leveraged Tokens" by aggregating ESWAP's hook-held positions. |
+| **Neira / Umami** | Delta-Neutral Vaults | High-performance vaults that use ESWAP's 0% interest to farm funding rates with zero capital cost. |
+
+## 4. The "StartEd" Pitch: The Aggregator-First Strategy
+
+**"We don't build a silo; we build the engine for the aggregators."**
+
+Building a standalone perpetual exchange is capital-intensive. ESWAP’s strategy is to:
+1. **Leverage V4 TVL**: Avoid the need to raise millions for a new pool by using Uniswap's existing $5B+ liquidity.
+2. **Standardize Interop**: Use URC-2/3/4 to become "plug-and-play" for SYMMIO and Orbs.
+3. **Capture Intent**: Focus on being the **lowest-cost venue** for Solvers, ensuring that whenever a user trades on 1inch or CoW Swap, the trade is routed through ESWAP.

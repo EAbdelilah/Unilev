@@ -19,8 +19,12 @@ By implementing **URC-4 (`IALFHook`)**, ESWAP allows solvers (1inch, CoW Swap, U
 - **Treasury-Assisted Settlement:** Solves the V4 singleton invariant by using the `insuranceFund` as a buffer for multi-block positions.
 - **Oracle Resilience:** Combines a 500bps Truncated Oracle (Slot0) with an external Chainlink `PriceFeed` for liquidations.
 
-### 5. Distribution Roadmap (Aggregator Listing)
-To win on derivative aggregators, ESWAP focuses on:
-1. **1inch Fusion & CoW Swap**: Standardizing URC-4 simulations so Solvers can atomically route through ESWAP hooks to beat external perpetual routes.
-2. **UniswapX**: Positioning the hook as a primary liquidity source for Dutch Auction fillers who require 0% cost capital.
-3. **Launchpad Integration**: Partnering with V4-native launchpads (e.g., Flaunch) to provide 0% interest leverage on new tokens from T0.
+### 5. Distribution Roadmap (The Aggregator-First Strategy)
+ESWAP bypasses the "New Protocol" user acquisition bottleneck by becoming a foundational liquidity venue for the world's largest derivative aggregators:
+
+1. **Unified Margin Aggregators (Mux, LogX, Liquid)**: By offering 0% interest, ESWAP becomes the *primary* route for Mux and LogX solvers. When a user trades on Mux, the algorithm will prioritize the ESWAP hook because it structurally beats GMX and Gains on execution cost.
+2. **Intent-Based Networks (SYMMIO, Orbs)**: ESWAP integrates as a "Market Maker Venue" for SYMMIO frontends. Solvers utilize the ESWAP hook to hedge bilateral trades with 0% capital cost, allowing them to offer tighter spreads to users on IntentX or Thenian.
+3. **Yield & Strategy Vaults (Rage Trade, Umami)**: Delta-neutral vaults can build on top of ESWAP to harvest rehypothecation yield without the drag of borrowing interest, creating "S-Tier" yield products for institutional investors.
+
+### 6. The "StartEd" Pitch
+Instead of raising venture capital to seed a proprietary liquidity pool, ESWAP leverages Uniswap V4's $5B+ TVL and plugs directly into the **intent-based routing layer**. This allows us to offer 500+ deep-liquidity markets on day one, while maintaining a lean, solver-optimized architecture that solves the user acquisition problem programmatically.
