@@ -58,6 +58,9 @@ contract EswapRouter {
 
         // Settle the margin input from the trader
         IERC20(Currency.unwrap(input)).transferFrom(trader, address(manager), marginAmount);
+
+        // Also ensure any hook-provided liquidity (borrowed capital) is settled to the PM.
+        // The hook returned a negative delta (it provided tokens), so the PM expects tokens.
         manager.settle(input);
 
         // 3. Post-swap Maintenance (Liquidations/Rebalancing)

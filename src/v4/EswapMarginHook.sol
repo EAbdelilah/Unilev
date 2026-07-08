@@ -71,7 +71,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     IPriceFeed public immutable priceFeed;
 
     mapping(Currency => uint256) public insuranceFund;
-    uint256 public constant RESERVE_FACTOR = 1000; // 10% Protocol Reserve
+    uint256 public constant RESERVE_FACTOR = 50; // 0.5% Protocol Reserve (Competitive with GMX/Dydx)
 
     uint160 public constant MAX_PRICE_SWING_BPS = 500;
     uint8 public constant MAX_LEVERAGE = 5;
@@ -158,6 +158,8 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         Currency borrowCurrency = zeroForOne ? key.currency0 : key.currency1;
         if (insuranceFund[borrowCurrency] >= borrowedAmount) {
              insuranceFund[borrowCurrency] -= borrowedAmount;
+             // Ensure the PoolManager receives the tokens during this unlock cycle
+             // The Router (the locker) will have to settle the overall delta0/delta1.
         }
 
         return (IHooks.beforeSwap.selector, BeforeSwapDeltaLibrary.toBeforeSwapDelta(delta0, delta1), 0);
@@ -225,7 +227,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
                 liquidity: liquidity
             });
 
-            TRADER_KEY.tstore(address(0));
+            _getKey(TRADER_BASE, trader).tstore(address(0));
             emit HookSwap(key.toId(), trader, amount0, amount1, 0);
         }
         return (IHooks.afterSwap.selector, 0);
@@ -353,11 +355,17 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     function approve(address spender, uint256 id, uint256 amount) public override returns (bool) { _allowances[msg.sender][spender][id] = amount; return true; }
     function setOperator(address operator, bool approved) public override returns (bool) { _isOperator[msg.sender][operator] = approved; return true; }
 
+    /**
+     * @notice Internal settlement helper for insurance fund transfers.
+     */
     function unlockCallback(bytes calldata data) external returns (bytes memory) {
         require(msg.sender == address(manager), "Only PoolManager");
-        (Currency currency, int128 delta) = abi.decode(data, (Currency, int128));
-        if (delta < 0) manager.take(currency, address(this), uint256(int256(-delta)));
-        else if (delta > 0) manager.settle(currency);
+        (Currency currency, int128 delta, bool isTake) = abi.decode(data, (Currency, int128, bool));
+        if (isTake) {
+             manager.take(currency, address(this), uint256(int256(-delta)));
+        } else {
+             manager.settle(currency);
+        }
         return "";
     }
 }
