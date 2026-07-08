@@ -27,13 +27,13 @@ ESWAP holds a "Double Advantage" across both spot and derivative aggregation lay
 2. **Intent-Based Networks (SYMMIO, Orbs)**: ESWAP integrates as a "Market Maker Venue" for SYMMIO frontends. Solvers utilize the ESWAP hook to hedge bilateral trades with 0% capital cost, allowing them to offer tighter spreads to users on IntentX or Thenian.
 3. **Yield & Strategy Vaults (Rage Trade, Umami)**: Delta-neutral vaults can build on top of ESWAP to harvest rehypothecation yield without the drag of borrowing interest, creating "S-Tier" yield products for institutional investors.
 
-### 6. The "Liquidity Flywheel"
-The ESWAP ecosystem is powered by a self-reinforcing flywheel:
-1. **Margin Traders** open positions -> Collateral is rehypothecated.
-2. **Rehypothecation** deepens the V4 pool's active price range.
-3. **Spot Aggregators (1inch)** detect the increased depth -> Route more volume through the ESWAP pool.
-4. **Increased Volume** generates more swap fees for the Hook.
-5. **Hook Fees** fully subsidize the capital cost -> Maintaining **0% Interest** for the traders.
+### 6. The "Self-Seeding" Flywheel
+ESWAP solves the capital bottleneck by bootstrapping its own insurance fund:
+1. **Spot Volume**: 1inch/Matcha route spot trades through ESWAP to capture depth.
+2. **Organic Revenue**: Each trade contributes to the Insurance Fund via the `RESERVE_FACTOR`.
+3. **Dynamic Leverage**: The Hook enables higher leverage proportionally to the fund balance (10x utilization cap).
+4. **Volume Scaling**: Higher leverage attracts more trades -> Exponential fund growth.
+5. **Zero Upfront**: The owner launches with $0 capital, and the protocol "earns" its ability to offer margin.
 
 ### 7. The "StartEd" Pitch
 Instead of raising venture capital to seed a proprietary liquidity pool, ESWAP leverages Uniswap V4's $5B+ TVL and plugs directly into the **intent-based routing layer**. This allows us to offer 500+ deep-liquidity markets on day one, while maintaining a lean, solver-optimized architecture that solves the user acquisition problem programmatically.

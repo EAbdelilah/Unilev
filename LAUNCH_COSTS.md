@@ -1,54 +1,27 @@
-# ESWAP V4: Owner's Launch Cost Analysis
+# ESWAP V4: The "$0 Upfront" Launch Path
 
-This document provides a financial roadmap for deploying and operating the ESWAP V4 protocol on a Layer 2 network (e.g., Polygon, Arbitrum, or Base).
+You do not need personal capital to seed the insurance fund. The ESWAP V4 architecture includes a **Self-Seeding Bootstrap Phase** that builds the fund using organic trading revenue.
 
-## 1. Fixed Deployment Costs (Gas)
+## 1. The Bootstrap Flywheel
 
-Estimated gas costs for deploying the infrastructure (assuming 30 gwei on Polygon or similar L2 costs).
+1. **Launch**: Deploy the Hook with $0 in the Insurance Fund.
+2. **1x Spot Trading**: Users use the ESWAP hook for spot swaps (1x leverage).
+3. **Fee Accumulation**: Every swap pays a **0.5% Treasure Fee** (`RESERVE_FACTOR`) directly into the Insurance Fund.
+4. **Leverage Scaling**: As the Fund grows (e.g., $1,000 collected), the Hook automatically enables leveraged trades (up to 10x the fund balance).
+5. **Growth**: Higher leverage attracts more volume -> More fees -> Larger Insurance Fund -> Higher Leverage Capacity.
 
-| Component | Est. Gas Used | Cost (USD @ $2500 ETH) |
+## 2. Updated Launch Cost Estimate
+
+| Component | Cost | Source |
 | :--- | :--- | :--- |
-| **EswapRouter** | ~1,500,000 | ~$15 - $25 |
-| **EswapMarginHook** | ~2,500,000 | ~$25 - $40 |
-| **Pool Initialization** | ~500,000 | ~$5 - $10 |
-| **Total Gas** | **~4,500,000** | **~$45 - $75** |
+| **Gas (Deployment)** | ~$50 - $100 | Owner (One-time) |
+| **Insurance Fund** | **$0** | **Organic Revenue (Treasure Fees)** |
+| **Ops (Monthly)** | ~$70 | Covered by first 10-20 trades |
 
-*Note: Deployment is extremely cheap on L2s. The primary cost is capital, not gas.*
+## 3. Why this works for Aggregators
+Even with 1x leverage, ESWAP is competitive on **1inch** and **Matcha** because of the rehypothecation yield (Smart Collateral). Aggregators will route volume to your pool to capture the lowest slippage, effectively "donating" the fees needed to seed your leverage engine.
 
-## 2. Capital Requirements (The Insurance Fund)
-
-The **Insurance Fund** is the most critical cost. It facilitates the "0% interest" by bridging the borrowed portion of the trade.
-
-| Launch Tier | Target Volume Cap | Seed Capital Required |
-| :--- | :--- | :--- |
-| **Alpha Launch** | $50,000 | **$10,000** |
-| **Beta Launch** | $250,000 | **$50,000** |
-| **Institutional** | $1,000,000 | **$200,000** |
-
-**Why this amount?**
-At 5x leverage, the protocol bridges 80% of the position value. However, because collateral is rehypothecated, the *net* capital lock is often lower. A 20% "Reserve Ratio" ($20k for $100k volume) is a safe starting point to ensure 0% interest availability.
-
-## 3. Operational Costs (Monthly)
-
-| Item | Description | Est. Monthly Cost |
-| :--- | :--- | :--- |
-| **Keeper Bots** | Gas for rebalancing & liquidations | $50 - $150 |
-| **RPC Provider** | Alchemy/QuickNode (Scale tier) | $0 - $49 |
-| **Hosting** | Dashboard & Bot servers | $20 - $50 |
-| **Total Ops** | | **$70 - $249** |
-
-## 4. Total "Go-Live" Estimate
-
-### **Minimum Viable Launch: ~$10,200**
-- **$10,000** Insurance Fund (USDC/WETH)
-- **$200** Deployment & Initial Ops
-
-### **Recommended Growth Launch: ~$50,500**
-- **$50,000** Insurance Fund (Scales to $250k trading volume)
-- **$500** Deployment, Audit buffer, and Ops
-
-## 5. Monetization (Payback Period)
-With a **0.5% Treasure Fee** on $250,000 monthly volume:
-- **Revenue**: $1,250 / month
-- **Yield**: Additional 2-5% APR from rehypothecated swap fees.
-- **Payback**: Operational costs are covered immediately; capital remains in the pool as the protocol's "Equity."
+## 4. Operational Strategy
+- **Phase 1 (Days 1-30)**: Focus on Spot Aggregators (1inch) to build the initial $5k insurance fund.
+- **Phase 2 (Day 30+)**: Enable 2x-3x leverage as the fund hits milestones.
+- **Phase 3 (Mature)**: Full 5x leverage and listing on Derivative Aggregators (Mux/LogX).

@@ -75,6 +75,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
 
     uint160 public constant MAX_PRICE_SWING_BPS = 500;
     uint8 public constant MAX_LEVERAGE = 5;
+    uint256 public constant MAX_FUND_UTILIZATION = 10; // 10x Max Borrows per Insurance Fund unit
 
     // Transient storage key bases
     bytes32 constant TRADER_BASE = keccak256("TRADER");
@@ -146,19 +147,24 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         _getKey(BORROW_BASE, trader).tstore(borrowedAmount);
         _getKey(LEVERAGE_BASE, trader).tstore(uint256(leverage));
 
+        // BOOTSTRAP STEP: Dynamic Leverage Scaling
+        // If the insurance fund is empty (Launch Phase), users can only trade with 1x leverage.
+        // As protocol fees grow the fund, higher leverage becomes available programmatically.
+        Currency borrowCurrency = zeroForOne ? key.currency0 : key.currency1;
+        uint256 currentFund = insuranceFund[borrowCurrency];
+
+        if (borrowedAmount > currentFund * MAX_FUND_UTILIZATION) {
+             revert InsufficientInsuranceFund();
+        }
+
         // END-GAME STEP 1: Treasury-Assisted Borrowing (Enables Multi-Day 0% Interest)
-        // To allow the position to stay open across blocks (V4 restriction), the Hook
-        // provides the borrowed capital from the Protocol Insurance Fund to the swap.
-        // This satisfies the PM's one-block settlement while maintaining the 0% interest USP.
         int128 deltaInput = -int128(uint128(borrowedAmount));
         int128 delta0 = zeroForOne ? deltaInput : int128(0);
         int128 delta1 = zeroForOne ? int128(0) : deltaInput;
 
         // The Hook physically provides the borrowed tokens to the swap from its buffer
-        Currency borrowCurrency = zeroForOne ? key.currency0 : key.currency1;
-        if (insuranceFund[borrowCurrency] >= borrowedAmount) {
+        if (currentFund >= borrowedAmount) {
              insuranceFund[borrowCurrency] -= borrowedAmount;
-             // Ensure the PoolManager receives the tokens during this unlock cycle
              // The Router (the locker) will have to settle the overall delta0/delta1.
         }
 
@@ -314,8 +320,9 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     }
 
     function getSwappableCapacity(Currency currency) external view override returns (uint256) {
-        // Reporting 100% of rehypothecated collateral as capacity for URC-3 integration
-        return totalCollateral[currency];
+        // Capacity is limited by the current Insurance Fund during Bootstrap Phase
+        uint256 leverageCapacity = insuranceFund[currency] * MAX_FUND_UTILIZATION;
+        return totalCollateral[currency] > leverageCapacity ? totalCollateral[currency] : leverageCapacity;
     }
 
     function getIndicativeQuote(
