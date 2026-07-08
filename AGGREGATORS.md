@@ -2,14 +2,22 @@
 
 To win the user acquisition war, ESWAP bypasses the proprietary frontend bottleneck by listing its **0% interest margin pools** across the world's most prominent derivative aggregators and intent-based networks.
 
-## 1. Multi-Chain & Perp Aggregators (The Volume Drivers)
+## 1. The Spot Aggregator Advantage (1inch, Matcha, Paraswap)
 
-ESWAP targets these venues to capture traders who manage multi-platform positions from a single interface.
+While spot aggregators already access Uniswap V4 pools, ESWAP provides a **depth multiplier** that makes its pools the "best price" route:
+
+- **Liquidity Concentration**: ESWAP rehypothecates 100% of its margin collateral back into the V4 pool as **tightly concentrated liquidity** (Tick -1 to +1).
+- **The Depth Flywheel**: A $1M margin position on ESWAP results in $1M of *additional* concentrated spot liquidity in the V4 pool.
+- **Better Execution**: For a spot aggregator like 1inch, the ESWAP-enhanced pool will show **lower slippage** than a standard V4 pool. Consequently, 1inch will route more volume through our hook, generating more fees to subsidize our 0% interest model.
+
+## 2. The Derivative Aggregator Advantage (Mux, LogX, Liquid)
+
+This is where ESWAP structurally disrupts the perpetual market by eliminating the "Cost of Carry":
 
 | Aggregator | Integration Mechanism | Competitive Edge |
 | :--- | :--- | :--- |
-| **Mux Protocol** | Unified Margin Routing | Mux routes across GMX/Gains. ESWAP beats these on cost because it has **0% borrow fees**, making it the priority route for unified margin traders. |
-| **LogX** | Low-Slippage Routing | ESWAP's V4 rehypothecated liquidity (URC-4) provides the "absolute lowest slippage" for major pairs like ETH/USDC by utilizing deep AMM TVL. |
+| **Mux Protocol** | Unified Margin Routing | Mux routes across GMX/Gains. ESWAP beats these on cost because it has **0% borrow fees** and **0 funding fees**, making it the priority route. |
+| **LogX** | Low-Slippage Routing | ESWAP's rehypothecated liquidity (URC-4) provides the "absolute lowest slippage" by utilizing the underlying V4 AMM reserves. |
 | **Liquid / Liquid X** | Multi-Venue Management | Traders on Liquid can open ESWAP positions directly. ESWAP’s 0% interest is a major "draw" for retail users migrating from high-cost perp venues. |
 | **Rage Trade** | Delta-Neutral Vaults | Rage Trade can build vaults on top of ESWAP. Since ESWAP positions earn LP fees, these vaults can offer higher net yield with 0% interest overhead. |
 

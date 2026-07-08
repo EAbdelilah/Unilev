@@ -20,11 +20,20 @@ By implementing **URC-4 (`IALFHook`)**, ESWAP allows solvers (1inch, CoW Swap, U
 - **Oracle Resilience:** Combines a 500bps Truncated Oracle (Slot0) with an external Chainlink `PriceFeed` for liquidations.
 
 ### 5. Distribution Roadmap (The Aggregator-First Strategy)
-ESWAP bypasses the "New Protocol" user acquisition bottleneck by becoming a foundational liquidity venue for the world's largest derivative aggregators:
+ESWAP holds a "Double Advantage" across both spot and derivative aggregation layers:
 
-1. **Unified Margin Aggregators (Mux, LogX, Liquid)**: By offering 0% interest, ESWAP becomes the *primary* route for Mux and LogX solvers. When a user trades on Mux, the algorithm will prioritize the ESWAP hook because it structurally beats GMX and Gains on execution cost.
+1. **Spot Aggregators (1inch, Matcha)**: Our advantage is **Slippage Reduction**. By rehypothecating margin as concentrated liquidity, we artificially deepen the V4 pool's active range. 1inch routes through ESWAP not because of "leverage," but because our hook makes the V4 pool the most efficient path for high-volume spot swaps.
+2. **Derivative Aggregators (Mux, LogX, Liquid)**: Our advantage is **Zero Cost of Carry**. We beat GMX and Gains because we have **0% borrow fees** and **0 funding fees**. Mux solvers will prioritize ESWAP because it offers the highest net return for their users.
 2. **Intent-Based Networks (SYMMIO, Orbs)**: ESWAP integrates as a "Market Maker Venue" for SYMMIO frontends. Solvers utilize the ESWAP hook to hedge bilateral trades with 0% capital cost, allowing them to offer tighter spreads to users on IntentX or Thenian.
 3. **Yield & Strategy Vaults (Rage Trade, Umami)**: Delta-neutral vaults can build on top of ESWAP to harvest rehypothecation yield without the drag of borrowing interest, creating "S-Tier" yield products for institutional investors.
 
-### 6. The "StartEd" Pitch
+### 6. The "Liquidity Flywheel"
+The ESWAP ecosystem is powered by a self-reinforcing flywheel:
+1. **Margin Traders** open positions -> Collateral is rehypothecated.
+2. **Rehypothecation** deepens the V4 pool's active price range.
+3. **Spot Aggregators (1inch)** detect the increased depth -> Route more volume through the ESWAP pool.
+4. **Increased Volume** generates more swap fees for the Hook.
+5. **Hook Fees** fully subsidize the capital cost -> Maintaining **0% Interest** for the traders.
+
+### 7. The "StartEd" Pitch
 Instead of raising venture capital to seed a proprietary liquidity pool, ESWAP leverages Uniswap V4's $5B+ TVL and plugs directly into the **intent-based routing layer**. This allows us to offer 500+ deep-liquidity markets on day one, while maintaining a lean, solver-optimized architecture that solves the user acquisition problem programmatically.
