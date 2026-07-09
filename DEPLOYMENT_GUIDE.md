@@ -32,6 +32,9 @@ Ensure the `priceFeed` address passed during deployment is correctly returning U
 ### D. Whitelist Liquidity
 Optionally, call `setAuthorizedPool` on the Hook to restrict margin trading to specific high-liquidity pairs.
 
+### E. Set Router Authorization
+Call `setRouter(address router)` on the Hook contract to authorize the Router to pull from the Insurance Fund and deploy collateral.
+
 ## 4. Frontend Integration
 1. Update `dashboard/src/hooks/useDeFi.js` with your newly deployed `V4_ROUTER` and `V4_HOOK` addresses.
 2. The dashboard will automatically switch to "Solver-Ready" mode using the new architecture.

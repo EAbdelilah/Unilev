@@ -130,11 +130,22 @@ export function useDeFi() {
         if (!readProvider || !ADDRESSES.V4_HOOK || !userAddress) return null
         const hook = new ethers.Contract(ADDRESSES.V4_HOOK, EswapMarginHookABI.abi, readProvider)
         try {
-            // Simplified for V4 - we check a default poolId (e.g. WBTC/USDC)
-            // In production, we'd iterate pools or use events.
-            const poolId = "0x0000000000000000000000000000000000000000000000000000000000000001" // Mock PoolId
+            // Calculate actual WBTC/USDC V4 PoolId
+            const wbtc = ADDRESSES.WBTC
+            const usdc = ADDRESSES.USDC
+            const [c0, c1] = wbtc.toLowerCase() < usdc.toLowerCase() ? [wbtc, usdc] : [usdc, wbtc]
+
+            const poolId = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(
+                ["address", "address", "uint24", "int24", "address"],
+                [c0, c1, 3000, 60, ADDRESSES.V4_HOOK]
+            ))
+
             const pos = await hook.positions(poolId, userAddress)
             if (pos.collateralAmount === 0n) return null
+
+            const isLong = pos.isLong
+            const collateralSymbol = isLong ? "WBTC" : "USDC"
+            const decimals = collateralSymbol === "WBTC" ? 8 : 6
 
             return {
                 id: "V4-" + userAddress.slice(2, 6),
@@ -144,7 +155,7 @@ export function useDeFi() {
                 leverage: pos.leverage.toString(),
                 isShort: !pos.isLong,
                 state: "ACTIVE",
-                size: ethers.formatUnits(pos.collateralAmount, 18),
+                size: ethers.formatUnits(pos.collateralAmount, decimals),
                 sizeUsd: "0.00",
                 pnl: "0",
                 pnlUsd: "0.00",

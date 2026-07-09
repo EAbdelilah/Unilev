@@ -38,7 +38,6 @@ contract BaseV4Test is Test {
         address hookAddr = address(uint160(uint256(keccak256("test_hook")) | (1 << 159 | 1 << 158 | 1 << 153 | 1 << 152 | 1 << 148)));
 
         hook = new EswapMarginHook{salt: bytes32(0)}(manager, priceFeed);
-        hook.setLiquidityPool(address(lp));
 
         key = PoolKey({
             currency0: Currency.wrap(address(0x1)),

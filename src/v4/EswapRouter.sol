@@ -9,6 +9,7 @@ import {IERC20} from "../interfaces/IERC20.sol";
 interface IEswapHook {
     function executeLiquidation(PoolKey calldata key, address trader) external;
     function rebalancePosition(PoolKey calldata key, address trader) external;
+    function deployCollateral(PoolKey calldata key, address trader) external;
 }
 
 /**
@@ -28,6 +29,7 @@ contract EswapRouter {
         PoolKey key;
         bool zeroForOne;
         int128 amountSpecified;
+        uint8 leverage;
         bytes hookData;
     }
 
@@ -51,26 +53,31 @@ contract EswapRouter {
         // 1. Execute the swap
         int128 delta = manager.swap(params.key, params.zeroForOne, params.amountSpecified, params.hookData);
 
-        // 2. Settle only the Trader's initial margin.
-        // The 'borrowed' portion is provided by the Hook transiently.
+        // 2. Settle the Trader's initial margin + the Hook's borrowed bridge.
         Currency input = params.zeroForOne ? params.key.currency0 : params.key.currency1;
         uint256 marginAmount = uint256(int256(params.amountSpecified < 0 ? -params.amountSpecified : params.amountSpecified));
 
-        // Settle the margin input from the trader
+        // Pull margin from trader
         IERC20(Currency.unwrap(input)).transferFrom(trader, address(manager), marginAmount);
 
-        // Also ensure any hook-provided liquidity (borrowed capital) is settled to the PM.
-        // The hook returned a negative delta (it provided tokens), so the PM expects tokens.
+        // Pull the borrowed "bridge" from the Hook's Insurance Fund to settle the V4 singleton
+        // This allows for Unlimited Execution Depth using AMM reserves while satisfying PM invariants.
+        uint256 bridgeAmount = marginAmount * (params.leverage - 1);
+        if (bridgeAmount > 0) {
+            try IEswapHook(params.key.hooks).pullInsuranceBridge(input, bridgeAmount) {
+                IERC20(Currency.unwrap(input)).transfer(address(manager), bridgeAmount);
+            } catch {}
+        }
+
         manager.settle(input);
 
-        // 3. Post-swap Maintenance (Liquidations/Rebalancing)
-        // The router as the locker can safely call maintenance functions on the hook
-        // avoiding hook re-entrancy restrictions during the swap itself.
+        // 3. Smart Collateral Rehypothecation (0% Interest)
+        // We call this AFTER the swap delta is settled but while we still hold the lock.
+        // This avoids the V4 re-entrancy lock on modifyLiquidity.
         if (params.hookData.length > 0) {
             (bool isMargin, , ) = abi.decode(params.hookData, (bool, uint8, address));
-            if (!isMargin) {
-                // If this was a maintenance-triggered swap, the hook logic is already handled
-                // by the standard swap flow.
+            if (isMargin) {
+                try IEswapHook(params.key.hooks).deployCollateral(params.key, trader) {} catch {}
             }
         }
 

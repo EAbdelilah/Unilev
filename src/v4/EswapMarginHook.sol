@@ -66,6 +66,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     mapping(PoolId => uint160) public lastOraclePrice;
 
     address public owner;
+    address public router;
     IPriceFeed public immutable priceFeed;
 
     mapping(Currency => uint256) public insuranceFund;
@@ -100,6 +101,19 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     function withdrawInsuranceFund(Currency currency, address to, uint256 amount) external onlyOwner {
         insuranceFund[currency] -= amount;
         IERC20(Currency.unwrap(currency)).transfer(to, amount);
+    }
+
+    function setRouter(address _router) external onlyOwner {
+        router = _router;
+    }
+
+    /**
+     * @notice Allows the Router (locker) to pull capital to bridge a V4 swap.
+     */
+    function pullInsuranceBridge(Currency currency, uint256 amount) external {
+        require(msg.sender == router, "Only Router");
+        insuranceFund[currency] -= amount;
+        IERC20(Currency.unwrap(currency)).transfer(msg.sender, amount);
     }
 
     function seedInsuranceFund(Currency currency, uint256 amount) external {
@@ -183,23 +197,6 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
 
             manager.take(boughtCurrency, address(this), boughtAmount);
 
-            // STEP 3: Smart Collateral Rehypothecation (0% Interest)
-            // Deploy the entire collateral as concentrated liquidity to harvest fees.
-            (uint160 currentSqrtPriceX96, int24 currentTick, , ) = manager.getSlot0(key.toId());
-            int24 tickLower = (currentTick / key.tickSpacing) * key.tickSpacing - key.tickSpacing;
-            int24 tickUpper = (currentTick / key.tickSpacing) * key.tickSpacing + key.tickSpacing;
-
-            uint128 liquidity = LiquidityAmounts.getLiquidityForAmount(
-                currentSqrtPriceX96,
-                TickMath.getSqrtRatioAtTick(tickLower),
-                TickMath.getSqrtRatioAtTick(tickUpper),
-                boughtAmount,
-                zeroForOne
-            );
-
-            manager.modifyLiquidity(key, tickLower, tickUpper, int128(liquidity), "");
-            manager.settle(boughtCurrency);
-
             positions[key.toId()][trader] = Position({
                 trader: trader,
                 collateralAmount: boughtAmount,
@@ -207,9 +204,9 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
                 leverage: uint8(_getKey(LEVERAGE_BASE, trader).tloadUint()),
                 isLong: !zeroForOne,
                 liquidationSqrtPrice: 0,
-                tickLower: tickLower,
-                tickUpper: tickUpper,
-                liquidity: liquidity
+                tickLower: 0,
+                tickUpper: 0,
+                liquidity: 0
             });
 
             _getKey(TRADER_BASE, trader).tstore(address(0));
@@ -283,6 +280,39 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         if (data.length > 0) { (bool isM, uint8 l, ) = abi.decode(data, (bool, uint8, address)); if (isM) lev = l; }
         quote.amountOut = amountSpecified * int128(uint128(lev));
         return quote;
+    }
+
+    /**
+     * @notice STEP 3: Smart Collateral Rehypothecation (0% Interest)
+     * Deploy the entire collateral as concentrated liquidity to harvest fees.
+     * Called by the Router AFTER the swap to avoid re-entrancy locks.
+     */
+    function deployCollateral(PoolKey calldata key, address trader) external {
+        require(msg.sender == router, "Only Router");
+        Position storage pos = positions[key.toId()][trader];
+        if (pos.collateralAmount == 0 || pos.liquidity > 0) return;
+
+        Currency boughtCurrency = pos.isLong ? key.currency1 : key.currency0;
+
+        (uint160 currentSqrtPriceX96, int24 currentTick, , ) = manager.getSlot0(key.toId());
+        int24 tickLower = (currentTick / key.tickSpacing) * key.tickSpacing - key.tickSpacing;
+        int24 tickUpper = (currentTick / key.tickSpacing) * key.tickSpacing + key.tickSpacing;
+
+        uint128 liquidity = LiquidityAmounts.getLiquidityForAmount(
+            currentSqrtPriceX96,
+            TickMath.getSqrtRatioAtTick(tickLower),
+            TickMath.getSqrtRatioAtTick(tickUpper),
+            pos.collateralAmount,
+            !pos.isLong // zeroForOne if short
+        );
+
+        IERC20(Currency.unwrap(boughtCurrency)).approve(address(manager), pos.collateralAmount);
+        manager.modifyLiquidity(key, tickLower, tickUpper, int128(liquidity), "");
+        manager.settle(boughtCurrency);
+
+        pos.tickLower = tickLower;
+        pos.tickUpper = tickUpper;
+        pos.liquidity = liquidity;
     }
 
     // --- IERC6909 ---

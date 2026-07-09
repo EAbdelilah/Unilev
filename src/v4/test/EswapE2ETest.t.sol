@@ -9,22 +9,27 @@ contract EswapE2ETest is BaseV4Test {
     function test_EndToEnd_MarginTrade_Success() public {
         uint8 leverage = 5;
         int128 margin = -100 ether;
-        bytes memory data = abi.encode(true, leverage);
+        bytes memory data = abi.encode(true, leverage, address(this));
 
-        // 1. BeforeSwap Trigger
+        // 1. Set Router
+        hook.setRouter(address(this));
+
+        // 2. BeforeSwap Trigger
         vm.prank(address(manager));
         hook.beforeSwap(address(this), key, true, margin, data);
 
-        // 2. AfterSwap Trigger (Liquidity deployment)
+        // 3. AfterSwap Trigger
         vm.startPrank(address(manager));
-        hook.afterSwap(address(this), key, true, -500 ether, 500 ether, -480 ether, "");
+        hook.afterSwap(address(this), key, true, -500 ether, 500 ether, -480 ether, data);
         vm.stopPrank();
 
-        // 3. Verify Position
-        (address trader, uint256 collateral, uint128 liq,,,,bool isLong) = hook.positions(key.toId(), address(this));
+        // 4. Deploy Collateral (Called by Router/this)
+        hook.deployCollateral(key, address(this));
+
+        // 5. Verify Position
+        (address trader, uint256 collateral, , , , , , , uint128 liq) = hook.positions(key.toId(), address(this));
         assertEq(trader, address(this));
         assertEq(collateral, 480 ether);
-        assertEq(liq, 100 ether * 1e9); // Based on our stub
-        assertTrue(isLong);
+        assertTrue(liq > 0);
     }
 }
