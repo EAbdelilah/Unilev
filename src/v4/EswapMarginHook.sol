@@ -93,6 +93,20 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         if (uint160(address(this)) & getHookFlags() != getHookFlags()) revert InvalidHookAddress();
     }
 
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Not owner");
+        _;
+    }
+
+    function setAuthorizedPool(PoolId poolId, bool authorized) external onlyOwner {
+        isAuthorizedPool[poolId] = authorized;
+    }
+
+    function withdrawInsuranceFund(Currency currency, address to, uint256 amount) external onlyOwner {
+        insuranceFund[currency] -= amount;
+        IERC20(Currency.unwrap(currency)).transfer(to, amount);
+    }
+
     function getHookFlags() public pure returns (uint160) {
         return HookFlags.BEFORE_INITIALIZE_FLAG |
                HookFlags.AFTER_INITIALIZE_FLAG |
