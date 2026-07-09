@@ -187,13 +187,12 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         int128,
         int128 amount0,
         int128 amount1,
-        bytes calldata
+        bytes calldata data
     ) external override onlyPoolManager returns (bytes4, int128) {
-        // We need the trader address from the data if possible, or we assume the current unlock is for a specific trader.
-        // For simplicity in this End-Game model, we check a known TRADER slot.
-        // In production, the Router would pass the trader address in hookData.
-        address trader = _getKey(TRADER_BASE, tx.origin).tloadAddress();
-        if (trader != address(0)) {
+        if (data.length == 0) return (IHooks.afterSwap.selector, 0);
+
+        (bool isMargin, , address trader) = abi.decode(data, (bool, uint8, address));
+        if (isMargin && trader != address(0)) {
             uint256 borrow = _getKey(BORROW_BASE, trader).tloadUint();
             uint8 leverage = uint8(_getKey(LEVERAGE_BASE, trader).tloadUint());
             uint256 boughtAmount = uint256(int256(zeroForOne ? -amount1 : -amount0));
