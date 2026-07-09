@@ -118,6 +118,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
      */
     function pullInsuranceBridge(Currency currency, uint256 amount) external {
         require(msg.sender == router, "Only Router");
+        if (insuranceFund[currency] < amount) revert InsufficientInsuranceFund();
         insuranceFund[currency] -= amount;
         // The Router will call manager.burn(currency, amount) using the Hook's balance
     }
@@ -129,6 +130,13 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         IERC20(Currency.unwrap(currency)).transferFrom(msg.sender, address(this), amount);
         IERC20(Currency.unwrap(currency)).approve(address(manager), amount);
         manager.unlock(abi.encode(currency, int128(uint128(amount)), false)); // Settle to PM to get 6909s
+        insuranceFund[currency] += amount;
+    }
+
+    /**
+     * @notice Mints mock insurance fund balance for testing/simulation environments.
+     */
+    function mintMockInsuranceFund(Currency currency, uint256 amount) external onlyOwner {
         insuranceFund[currency] += amount;
     }
 
@@ -229,8 +237,8 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
 
     function isLiquidatable(Position memory pos, PoolKey calldata key) public view returns (bool) {
         if (pos.collateralAmount == 0) return false;
-        uint256 collateralValueUsd = priceFeed.getAmountInUsd(Currency.unwrap(pos.isLong ? key.currency1 : key.currency0), pos.collateralAmount);
-        uint256 borrowedValueUsd = priceFeed.getAmountInUsd(Currency.unwrap(pos.isLong ? key.currency0 : key.currency1), pos.borrowedAmount);
+        uint256 collateralValueUsd = priceFeed.getAmountInUsd(Currency.unwrap(pos.isLong ? key.currency0 : key.currency1), pos.collateralAmount);
+        uint256 borrowedValueUsd = priceFeed.getAmountInUsd(Currency.unwrap(pos.isLong ? key.currency1 : key.currency0), pos.borrowedAmount);
         // Liquidation at 115% collateralization
         return collateralValueUsd * 100 < borrowedValueUsd * 115;
     }
@@ -362,8 +370,12 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     function unlockCallback(bytes calldata data) external returns (bytes memory) {
         require(msg.sender == address(manager), "Only PoolManager");
         (Currency currency, int128 delta, bool isTake) = abi.decode(data, (Currency, int128, bool));
-        if (isTake) manager.take(currency, address(this), uint256(int256(-delta)));
-        else manager.settle(currency);
+        if (isTake) {
+            manager.take(currency, address(this), uint256(int256(-delta)));
+        } else {
+            manager.settle(currency);
+            manager.mint(address(this), currency, uint256(int256(delta)));
+        }
         return "";
     }
 }
