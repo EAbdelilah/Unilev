@@ -170,21 +170,14 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         _getKey(BORROW_BASE, trader).tstore(borrowedAmount);
         _getKey(LEVERAGE_BASE, trader).tstore(uint256(leverage));
 
-        // END-GAME: Unlimited TVL Scaling (Utilizing V4 Flash Accounting)
-        // ESWAP bypasses the peer-to-pool lending bottleneck by "borrowing" directly
-        // from the PoolManager reserves. This utilizes Uniswap's $5B+ TVL.
-        // The Insurance Fund acts as a Bad Debt backstop, not a liquidity constraint.
+        // UNLIMITED TVL SOLUTION: V4 Flash Accounting
+        // We utilize the PoolManager's native reserves to facilitate the swap.
+        // The Hook returns a negative delta, signaling that it is providing the tokens.
+        // In the same block, the Protocol Treasury (via the Router) fulfills this delta,
+        // allowing the position to stay open across blocks with 0% interest.
         int128 deltaInput = -int128(uint128(borrowedAmount));
         int128 delta0 = zeroForOne ? deltaInput : int128(0);
         int128 delta1 = zeroForOne ? int128(0) : deltaInput;
-
-        // The Hook transiently provides the borrowed portion from the PM reserves.
-        // To satisfy V4 single-block settlement, the Protocol Treasury bridges
-        // the delta, while the 0% interest is subsidized by rehypothecation yield.
-        Currency borrowCurrency = zeroForOne ? key.currency0 : key.currency1;
-        if (insuranceFund[borrowCurrency] >= borrowedAmount) {
-             insuranceFund[borrowCurrency] -= borrowedAmount;
-        }
 
         return (IHooks.beforeSwap.selector, BeforeSwapDeltaLibrary.toBeforeSwapDelta(delta0, delta1), 0);
     }
