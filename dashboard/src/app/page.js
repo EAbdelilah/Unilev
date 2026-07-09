@@ -60,8 +60,8 @@ export default function Home() {
                     {/* Solver Integration Banner */}
                     <div className="glass-panel p-4 flex justify-between items-center bg-gradient-to-r from-purple-900/20 to-transparent border-l-4 border-l-purple-500">
                         <div>
-                            <h3 className="text-sm font-bold text-purple-400 uppercase tracking-wider">Protocol Status: Treasury-Assisted Settlement</h3>
-                            <p className="text-xs text-gray-400 mt-1">Bypassing V4 Delta Deadlock for 0% Interest Margin. Execution Depth: $5B+ Uniswap TVL.</p>
+                            <h3 className="text-sm font-bold text-purple-400 uppercase tracking-wider">Protocol Status: Solver-Ready</h3>
+                            <p className="text-xs text-gray-400 mt-1">Unlimited TVL via V4 Flash Accounting. Discoverable by 1inch, UniswapX & CoW Swap.</p>
                         </div>
                         <div className="flex gap-2">
                             <span className="text-[10px] bg-green-500/20 text-green-400 px-2 py-1 rounded border border-green-500/20 font-bold">URC-2</span>

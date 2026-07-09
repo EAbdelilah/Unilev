@@ -1,20 +1,23 @@
-# ESWAP V4: Go-Live & Launch Costs
+# ESWAP V4: The $0 Launch Roadmap
 
-Because ESWAP V4 utilizes Uniswap's native TVL, the owner **does not need to seed the protocol with millions of dollars**.
+ESWAP is designed to bootstrap itself from $0 upfront capital by leveraging the "Flywheel of Organic Volume."
 
-## 1. Zero-Capital TVL Scaling
-The protocol "borrows" from the PoolManager's existing reserves. This means your "Liquidity Depth" is equal to the depth of the Uniswap V4 pool itself. You can facilitate **$1,000,000+ in trading volume** without providing a single dollar of your own liquidity.
+## Phase 1: Spot Margin (The 1x Seed)
+*   **Action**: Launch the Hook with an empty `insuranceFund`.
+*   **Mechanism**: The Hook allows traders to open **1x Leverage** positions (Spot Margin).
+*   **Revenue**: Because these are spot trades, they don't require a bridge. The 0.5% `RESERVE_FACTOR` is still applied to the swap output.
+*   **Goal**: Accumulate the first $10,000 in the Insurance Fund via organic trading volume and rehypothecation yield.
 
-## 2. Real Launch Costs (L2)
+## Phase 2: Low-Leverage Expansion (2x - 3x)
+*   **Action**: Enable 2x and 3x leverage for whitelisted pairs.
+*   **Mechanism**: The accumulated Insurance Fund now serves as the "Bridge" to settle the V4 singleton deltas for the borrowed portion.
+*   **Growth**: High-leverage trades generate larger "Treasure Fees" (as fees are calculated on the full $100 position, not just the $20 margin). This accelerates Insurance Fund growth.
 
-| Item | Estimated Cost | Notes |
-| :--- | :--- | :--- |
-| **Deployment (Gas)** | ~$50 - $100 | One-time cost for Hook & Router on L2. |
-| **Insurance Fund** | **Optional** | You can start with $0. The fund will grow from the **0.5% Treasure Fee** on every trade. |
-| **Operations** | ~$70/mo | For RPCs and Keeper bots. |
+## Phase 3: Unlimited Scaling (5x+)
+*   **Action**: Open the protocol to the full 5x leverage limit.
+*   **Flywheel**: Aggregators (1inch, Paraswap) begin routing high-value intent-based trades through the Hook because its 0% interest model offers structurally better execution prices.
+*   **End-Game**: The protocol becomes a self-sustaining liquidity engine where the Insurance Fund is large enough to bridge millions in daily volume, all while maintaining 0.0% interest for every trader.
 
-## 3. The Scaling Roadmap
-1. **Day 1**: Deploy with $100 for gas.
-2. **Day 1-7**: Spot aggregators (1inch) route volume through your pool, generating the first $1,000 in fees.
-3. **Day 7+**: These fees build your **Bad Debt Backstop**.
-4. **Day 30+**: The protocol is fully self-sustaining, offering unlimited 5x leverage backed by a growing insurance fund.
+---
+**Founder Capital Required**: $0.
+**Growth Engine**: Organic swap fees + Rehypothecation yield.

@@ -65,7 +65,9 @@ contract EswapRouter {
         uint256 bridgeAmount = marginAmount * (params.leverage - 1);
         if (bridgeAmount > 0) {
             try IEswapHook(params.key.hooks).pullInsuranceBridge(input, bridgeAmount) {
-                IERC20(Currency.unwrap(input)).transfer(address(manager), bridgeAmount);
+                // We "burn" the Hook's 6909 claim tokens to satisfy the PM singleton delta.
+                // This bypasses ERC-20 transfers and saves significant gas.
+                manager.burn(address(params.key.hooks), input, bridgeAmount);
             } catch {}
         }
 

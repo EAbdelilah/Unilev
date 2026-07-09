@@ -69,8 +69,9 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     address public router;
     IPriceFeed public immutable priceFeed;
 
+    // Insurance Fund is tracked internally as ERC-6909 claim tokens within the PoolManager
     mapping(Currency => uint256) public insuranceFund;
-    uint256 public constant RESERVE_FACTOR = 2000; // 20% Protocol Reserve (Accelerates TVL scaling)
+    uint256 public constant RESERVE_FACTOR = 50; // 0.5% Protocol Reserve (Flywheel for $0 Launch)
 
     uint160 public constant MAX_PRICE_SWING_BPS = 500;
     uint8 public constant MAX_LEVERAGE = 5;
@@ -98,8 +99,12 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         isAuthorizedPool[poolId] = authorized;
     }
 
+    /**
+     * @notice Withdraws physically settled tokens from the Insurance Fund.
+     */
     function withdrawInsuranceFund(Currency currency, address to, uint256 amount) external onlyOwner {
         insuranceFund[currency] -= amount;
+        manager.unlock(abi.encode(currency, -int128(uint128(amount)), true)); // Take from PM
         IERC20(Currency.unwrap(currency)).transfer(to, amount);
     }
 
@@ -108,16 +113,22 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     }
 
     /**
-     * @notice Allows the Router (locker) to pull capital to bridge a V4 swap.
+     * @notice Allows the Router (locker) to bridge a V4 swap using Hook-held 6909 tokens.
+     * This avoids ERC-20 transfers and keeps the settlement 100% within the Singleton.
      */
     function pullInsuranceBridge(Currency currency, uint256 amount) external {
         require(msg.sender == router, "Only Router");
         insuranceFund[currency] -= amount;
-        IERC20(Currency.unwrap(currency)).transfer(msg.sender, amount);
+        // The Router will call manager.burn(currency, amount) using the Hook's balance
     }
 
+    /**
+     * @notice Seed the insurance fund using physical ERC20s, converting them to 6909s.
+     */
     function seedInsuranceFund(Currency currency, uint256 amount) external {
         IERC20(Currency.unwrap(currency)).transferFrom(msg.sender, address(this), amount);
+        IERC20(Currency.unwrap(currency)).approve(address(manager), amount);
+        manager.unlock(abi.encode(currency, int128(uint128(amount)), false)); // Settle to PM to get 6909s
         insuranceFund[currency] += amount;
     }
 
@@ -187,15 +198,16 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
             Currency boughtCurrency = zeroForOne ? key.currency1 : key.currency0;
 
             // STEP 2: Custom Accounting & Hook-Held Collateral (ERC-6909)
-            // We take the output tokens and hold them as claim tokens to secure the loan.
+            // We mint output tokens as 6909s within the PM Singleton.
             uint256 protocolReserve = (boughtAmount * RESERVE_FACTOR) / 10000;
             uint256 positionCollateral = boughtAmount - protocolReserve;
 
             insuranceFund[boughtCurrency] += protocolReserve;
+            // The Hook "mints" its 6909 claim on the collateral
             _claimBalances[trader][uint256(uint160(Currency.unwrap(boughtCurrency)))] += positionCollateral;
             totalCollateral[boughtCurrency] += positionCollateral;
 
-            manager.take(boughtCurrency, address(this), boughtAmount);
+            manager.mint(address(this), boughtCurrency, boughtAmount);
 
             positions[key.toId()][trader] = Position({
                 trader: trader,
@@ -262,7 +274,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     }
 
     // --- URC-4 swapToPrice ---
-    function swapToPrice(PoolKey calldata key, uint160 targetSqrtPriceX96, bytes calldata) external override returns (int128 delta0, int128 delta1) {
+    function swapToPrice(PoolKey calldata key, uint160 targetSqrtPriceX96, bytes calldata) external override onlyPoolManager returns (int128 delta0, int128 delta1) {
         (uint160 currentPrice, , , ) = manager.getSlot0(key.toId());
         bool zeroForOne = currentPrice > targetSqrtPriceX96;
         Currency currencyIn = zeroForOne ? key.currency0 : key.currency1;
@@ -277,9 +289,18 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     function getIndicativeQuote(PoolKey calldata, bool, int128 amountSpecified, bytes calldata data) external pure override returns (IndicativeQuote memory quote) {
         quote.liveness = true;
         uint8 lev = 1;
-        if (data.length > 0) { (bool isM, uint8 l, ) = abi.decode(data, (bool, uint8, address)); if (isM) lev = l; }
+        if (data.length > 0) {
+            try this.decodeHookData(data) returns (bool isM, uint8 l, address) {
+                if (isM) lev = l;
+            } catch {}
+        }
+        // Indicative quote accounts for leverage (multiplied execution depth)
         quote.amountOut = amountSpecified * int128(uint128(lev));
         return quote;
+    }
+
+    function decodeHookData(bytes calldata data) external pure returns (bool, uint8, address) {
+        return abi.decode(data, (bool, uint8, address));
     }
 
     /**
