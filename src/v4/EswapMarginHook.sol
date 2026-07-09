@@ -65,6 +65,15 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     mapping(Currency => uint256) public totalCollateral;
     mapping(PoolId => uint160) public lastOraclePrice;
 
+    struct SolverDebt {
+        address solver;
+        uint256 principal;
+        uint256 accumulatedYield;
+    }
+
+    // PoolId => trader => solver => SolverDebt
+    mapping(PoolId => mapping(address => mapping(address => SolverDebt))) public solverDebts;
+
     address public owner;
     address public router;
     IPriceFeed public immutable priceFeed;
@@ -366,6 +375,77 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     }
     function approve(address spender, uint256 id, uint256 amount) public override returns (bool) { _allowances[msg.sender][spender][id] = amount; return true; }
     function setOperator(address operator, bool approved) public override returns (bool) { _isOperator[msg.sender][operator] = approved; return true; }
+
+    /**
+     * @notice Registers solver debt when a leveraged margin position is opened.
+     */
+    function registerSolverDebt(PoolId poolId, address trader, address solver, uint256 principal) external {
+        require(msg.sender == router, "Only Router");
+        solverDebts[poolId][trader][solver] = SolverDebt({
+            solver: solver,
+            principal: principal,
+            accumulatedYield: 0
+        });
+    }
+
+    /**
+     * @notice Closes a leveraged margin position, settling solver debt and returning profit.
+     */
+    function closePosition(PoolKey calldata key, address trader, address solver) external {
+        require(msg.sender == router || msg.sender == trader, "Only Router or Trader");
+        PoolId poolId = key.toId();
+        Position storage pos = positions[poolId][trader];
+        require(pos.collateralAmount > 0, "No active position");
+
+        SolverDebt storage debt = solverDebts[poolId][trader][solver];
+
+        // 1. Remove concentrated liquidity if deployed
+        if (pos.liquidity > 0) {
+            manager.modifyLiquidity(key, pos.tickLower, pos.tickUpper, -int128(pos.liquidity), "");
+            pos.liquidity = 0;
+        }
+
+        // 2. Perform the swap back to pay off the debt
+        bool zeroForOne = pos.isLong;
+        int128 swapAmount = int128(uint128(pos.collateralAmount));
+        manager.swap(key, zeroForOne, swapAmount, "");
+
+        // 3. Settle deltas with the PoolManager using customized IPoolManager's currencyDelta
+        Currency debtCurrency = pos.isLong ? key.currency1 : key.currency0;
+        Currency collateralCurrency = pos.isLong ? key.currency0 : key.currency1;
+
+        int256 deltaDebt = manager.currencyDelta(address(this), debtCurrency);
+        if (deltaDebt < 0) {
+            IERC20(Currency.unwrap(debtCurrency)).approve(address(manager), uint256(-deltaDebt));
+            manager.settle(debtCurrency);
+        } else if (deltaDebt > 0) {
+            manager.take(debtCurrency, address(this), uint256(deltaDebt));
+        }
+
+        int256 deltaCollateral = manager.currencyDelta(address(this), collateralCurrency);
+        if (deltaCollateral < 0) {
+            IERC20(Currency.unwrap(collateralCurrency)).approve(address(manager), uint256(-deltaCollateral));
+            manager.settle(collateralCurrency);
+        } else if (deltaCollateral > 0) {
+            manager.take(collateralCurrency, address(this), uint256(deltaCollateral));
+        }
+
+        // 4. Settle Solver Principal + Yield
+        uint256 totalPayout = debt.principal + debt.accumulatedYield;
+        if (totalPayout > 0) {
+            IERC20(Currency.unwrap(debtCurrency)).transfer(debt.solver, totalPayout);
+        }
+
+        // 5. Return remaining collateral/profit to the trader
+        uint256 receivedAmount = deltaDebt > 0 ? uint256(deltaDebt) : 0;
+        if (receivedAmount > totalPayout) {
+            uint256 profit = receivedAmount - totalPayout;
+            IERC20(Currency.unwrap(debtCurrency)).transfer(trader, profit);
+        }
+
+        delete positions[poolId][trader];
+        delete solverDebts[poolId][trader][solver];
+    }
 
     function unlockCallback(bytes calldata data) external returns (bytes memory) {
         require(msg.sender == address(manager), "Only PoolManager");

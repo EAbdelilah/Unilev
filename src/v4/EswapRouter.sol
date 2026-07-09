@@ -10,6 +10,7 @@ interface IEswapHook {
     function executeLiquidation(PoolKey calldata key, address trader) external;
     function rebalancePosition(PoolKey calldata key, address trader) external;
     function deployCollateral(PoolKey calldata key, address trader) external;
+    function closePosition(PoolKey calldata key, address trader, address solver) external;
 }
 
 /**
@@ -43,6 +44,10 @@ contract EswapRouter {
         if (data.length > 256) { // Heuristic for SwapParams + address
             (SwapParams memory params, address trader) = abi.decode(data, (SwapParams, address));
             return _swapCallback(params, trader);
+        } else if (data.length == 256) {
+            (address hook, PoolKey memory key, address trader, address solver) = abi.decode(data, (address, PoolKey, address, address));
+            _closeCallback(hook, key, trader, solver);
+            return "";
         } else {
             _maintainCallback(data);
             return "";
@@ -80,6 +85,9 @@ contract EswapRouter {
             (bool isMargin, , ) = abi.decode(params.hookData, (bool, uint8, address));
             if (isMargin) {
                 try IEswapHook(params.key.hooks).deployCollateral(params.key, trader) {} catch {}
+
+                // Register Solver Debt
+                try IEswapHook(params.key.hooks).registerSolverDebt(params.key.toId(), trader, msg.sender, bridgeAmount) {} catch {}
             }
         }
 
@@ -92,6 +100,14 @@ contract EswapRouter {
     function maintain(address hook, PoolKey calldata key, address trader) external {
         require(msg.sender == owner, "Not authorized");
         manager.unlock(abi.encode(hook, key, trader));
+    }
+
+    function closePosition(address hook, PoolKey calldata key, address trader, address solver) external {
+        manager.unlock(abi.encode(hook, key, trader, solver));
+    }
+
+    function _closeCallback(address hook, PoolKey memory key, address trader, address solver) internal {
+        try IEswapHook(hook).closePosition(key, trader, solver) {} catch {}
     }
 
     function _maintainCallback(bytes calldata data) internal {
