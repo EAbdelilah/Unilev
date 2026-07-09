@@ -8,6 +8,7 @@ import {PoolKey} from "./types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "./types/PoolId.sol";
 import {Currency} from "./types/Currency.sol";
 import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "./types/BeforeSwapDelta.sol";
+import {BalanceDelta, BalanceDeltaLibrary} from "./types/BalanceDelta.sol";
 import {TransientStorage} from "./libraries/TransientStorage.sol";
 import {HookFlags} from "./libraries/HookFlags.sol";
 import {LiquidityAmounts} from "./libraries/LiquidityAmounts.sol";
@@ -182,7 +183,10 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         uint256 marginAmount = uint256(int256(amountSpecified < 0 ? -amountSpecified : amountSpecified));
         uint256 borrowedAmount = marginAmount * (leverage - 1);
 
-        _getKey(TRADER_BASE, trader).tstore(trader);
+        bytes32 traderKey = _getKey(TRADER_BASE, trader);
+        require(traderKey.tload() == address(0), "Transient reentrancy guard");
+
+        traderKey.tstore(trader);
         _getKey(BORROW_BASE, trader).tstore(borrowedAmount);
         _getKey(LEVERAGE_BASE, trader).tstore(uint256(leverage));
 
@@ -274,11 +278,13 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         if (!isLiquidatable(pos, key)) return;
 
         manager.modifyLiquidity(key, pos.tickLower, pos.tickUpper, -int128(pos.liquidity), "");
-        int128 delta = manager.swap(key, pos.isLong, int128(uint128(pos.collateralAmount)), "");
+        BalanceDelta delta = manager.swap(key, pos.isLong, int128(uint128(pos.collateralAmount)), "");
 
         Currency borrowedCurrency = pos.isLong ? key.currency0 : key.currency1;
-        if (delta > 0) {
-             uint256 shortfall = uint256(int256(delta));
+        int128 borrowedDelta = pos.isLong ? delta.amount1() : delta.amount0();
+
+        if (borrowedDelta > 0) {
+             uint256 shortfall = uint256(int256(borrowedDelta));
              // Cover Bad Debt using Insurance Fund if necessary
              if (insuranceFund[borrowedCurrency] >= shortfall) {
                  insuranceFund[borrowedCurrency] -= shortfall;

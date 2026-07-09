@@ -5,6 +5,7 @@ import {IPoolManager} from "./interfaces/IPoolManager.sol";
 import {PoolKey} from "./types/PoolKey.sol";
 import {Currency} from "./types/Currency.sol";
 import {IERC20} from "../interfaces/IERC20.sol";
+import {BalanceDelta} from "./types/BalanceDelta.sol";
 
 interface IEswapHook {
     function executeLiquidation(PoolKey calldata key, address trader) external;
@@ -56,7 +57,7 @@ contract EswapRouter {
 
     function _swapCallback(SwapParams memory params, address trader) internal returns (bytes memory) {
         // 1. Execute the swap
-        int128 delta = manager.swap(params.key, params.zeroForOne, params.amountSpecified, params.hookData);
+        BalanceDelta delta = manager.swap(params.key, params.zeroForOne, params.amountSpecified, params.hookData);
 
         // 2. Settle the Trader's initial margin + the Hook's borrowed bridge.
         Currency input = params.zeroForOne ? params.key.currency0 : params.key.currency1;
