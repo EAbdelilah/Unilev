@@ -207,6 +207,14 @@ export function useDeFi() {
         return null
     }, [])
 
+    const getBridgeCapacity = useCallback(async (token) => {
+        if (!readProvider || !ADDRESSES.V4_HOOK || !token) return 0n
+        const hook = new ethers.Contract(ADDRESSES.V4_HOOK, EswapMarginHookABI.abi, readProvider)
+        try {
+            return await hook.getBridgeCapacity(token)
+        } catch { return 0n }
+    }, [readProvider])
+
     return {
         ADDRESSES,
         SUPPORTED_TOKENS_LIST,
@@ -226,6 +234,7 @@ export function useDeFi() {
         getProtocolBalances,
         getFeeDefaults,
         updateFeeDefaults,
+        getBridgeCapacity,
         isMetaMaskInstalled: typeof window !== "undefined" && !!window.ethereum
     }
 }

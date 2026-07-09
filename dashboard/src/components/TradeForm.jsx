@@ -12,6 +12,7 @@ export function TradeForm() {
         getAmountInUsd,
         getAllowance,
         approveToken,
+        getBridgeCapacity,
         ADDRESSES,
         SUPPORTED_TOKENS_LIST,
     } = useDeFi()
@@ -26,19 +27,22 @@ export function TradeForm() {
     const [balanceData, setBalanceData] = useState(null)
     const [usdValue, setUsdValue] = useState("0.00")
     const [allowance, setAllowance] = useState(0n)
+    const [bridgeCapacity, setBridgeCapacity] = useState(0n)
 
     useEffect(() => {
         const fetchState = async () => {
             if (!isConnected || !address || !ADDRESSES[marginToken]) return
-            const [bal, allow] = await Promise.all([
+            const [bal, allow, cap] = await Promise.all([
                 getTokenBalance(ADDRESSES[marginToken], address),
-                getAllowance(ADDRESSES[marginToken], address, ADDRESSES.V4_ROUTER)
+                getAllowance(ADDRESSES[marginToken], address, ADDRESSES.V4_ROUTER),
+                getBridgeCapacity(ADDRESSES[marginToken])
             ])
             setBalanceData(bal)
             setAllowance(allow)
+            setBridgeCapacity(cap)
         }
         fetchState()
-    }, [marginToken, isConnected, address, getTokenBalance, getAllowance, ADDRESSES])
+    }, [marginToken, isConnected, address, getTokenBalance, getAllowance, getBridgeCapacity, ADDRESSES])
 
     useEffect(() => {
         const fetchUsd = async () => {
@@ -125,6 +129,19 @@ export function TradeForm() {
                         <select value={tradingToken} onChange={(e) => setTradingToken(e.target.value)} className="input-field bg-black/40 text-sm">
                             {SUPPORTED_TOKENS_LIST.map(t => <option key={t.key} value={t.key}>{t.name}</option>)}
                         </select>
+                    </div>
+                </div>
+
+                <div className="p-3 bg-purple-500/5 rounded-lg border border-purple-500/10 mb-4">
+                    <div className="flex justify-between items-center text-[10px]">
+                        <span className="text-gray-400 font-bold uppercase">Treasury Bridge Capacity</span>
+                        <span className="text-purple-400 font-mono">{ethers.formatUnits(bridgeCapacity, balanceData?.decimals || 18)} {marginToken}</span>
+                    </div>
+                    <div className="w-full bg-white/5 h-1 rounded-full mt-2 overflow-hidden">
+                        <div
+                            className="bg-purple-500 h-full transition-all"
+                            style={{ width: `${Math.min(100, (parseFloat(ethers.formatUnits(bridgeCapacity, balanceData?.decimals || 18)) / 1000) * 100)}%` }}
+                        />
                     </div>
                 </div>
 

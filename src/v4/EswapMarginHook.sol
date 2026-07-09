@@ -35,6 +35,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     using TransientStorage for bytes32;
 
     error NotPoolManager();
+    error OnlyRouter();
     error LeverageTooHigh();
     error NotAuthorizedPool();
     error InvalidHookAddress();
@@ -79,6 +80,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     bytes32 constant TRADER_BASE = keccak256("TRADER");
     bytes32 constant BORROW_BASE = keccak256("BORROW");
     bytes32 constant LEVERAGE_BASE = keccak256("LEVERAGE");
+    bytes32 constant ACTIVE_LOCKER = keccak256("ACTIVE_LOCKER");
 
     function _getKey(bytes32 base, address trader) internal pure returns (bytes32) {
         return keccak256(abi.encode(base, trader));
@@ -110,6 +112,16 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
 
     function setRouter(address _router) external onlyOwner {
         router = _router;
+        // Grant router permission to manage hook's 6909 tokens for bridge settlement
+        IERC6909(address(manager)).setOperator(_router, true);
+    }
+
+    /**
+     * @notice Security verification set by the Router during its unlock callback.
+     */
+    function setTickLocker(address locker) external {
+        if (msg.sender != router) revert OnlyRouter();
+        ACTIVE_LOCKER.tstore(locker);
     }
 
     /**
@@ -161,6 +173,9 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         (bool isMargin, uint8 leverage, address trader) = abi.decode(data, (bool, uint8, address));
         if (!isMargin) return (IHooks.beforeSwap.selector, BeforeSwapDeltaLibrary.toBeforeSwapDelta(0, 0), 0);
 
+        // SECURITY FIX: Ensure the swap is initiated by our authorized Router
+        if (ACTIVE_LOCKER.tload() != router) revert OnlyRouter();
+
         if (leverage > MAX_LEVERAGE) revert LeverageTooHigh();
         uint256 marginAmount = uint256(int256(amountSpecified < 0 ? -amountSpecified : amountSpecified));
         uint256 borrowedAmount = marginAmount * (leverage - 1);
@@ -207,7 +222,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
             _claimBalances[trader][uint256(uint160(Currency.unwrap(boughtCurrency)))] += positionCollateral;
             totalCollateral[boughtCurrency] += positionCollateral;
 
-            manager.mint(address(this), boughtCurrency, boughtAmount);
+            manager.mint(address(this), uint256(uint160(Currency.unwrap(boughtCurrency))), boughtAmount);
 
             positions[key.toId()][trader] = Position({
                 trader: trader,
@@ -257,35 +272,76 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         if (!isLiquidatable(pos, key)) return;
 
         manager.modifyLiquidity(key, pos.tickLower, pos.tickUpper, -int128(pos.liquidity), "");
-        int128 delta = manager.swap(key, pos.isLong, int128(uint128(pos.collateralAmount)), "");
 
+        Currency collateralCurrency = pos.isLong ? key.currency1 : key.currency0;
         Currency borrowedCurrency = pos.isLong ? key.currency0 : key.currency1;
-        if (delta > 0) {
-             uint256 shortfall = uint256(int256(delta));
+
+        // 1. Swap collateral back to borrowed currency
+        manager.swap(key, pos.isLong, int128(uint128(pos.collateralAmount)), "");
+
+        // 2. Settle the collateral input using 6909 claims
+        manager.burn(address(this), uint256(uint160(Currency.unwrap(collateralCurrency))), pos.collateralAmount);
+
+        // 3. Check borrowed currency delta to see if we have bad debt or surplus
+        int256 borrowedDelta = manager.currencyDelta(router, borrowedCurrency);
+
+        if (borrowedDelta > 0) {
+             uint256 shortfall = uint256(borrowedDelta);
              // Cover Bad Debt using Insurance Fund if necessary
              if (insuranceFund[borrowedCurrency] >= shortfall) {
                  insuranceFund[borrowedCurrency] -= shortfall;
+                 manager.burn(address(this), uint256(uint160(Currency.unwrap(borrowedCurrency))), shortfall);
+             } else {
+                 // Settle physically if insurance fund is insufficient
+                 IERC20(Currency.unwrap(borrowedCurrency)).transfer(address(manager), shortfall);
+                 manager.settle(borrowedCurrency);
              }
-             IERC20(Currency.unwrap(borrowedCurrency)).transfer(address(manager), shortfall);
-             manager.settle(borrowedCurrency);
+        } else if (borrowedDelta < 0) {
+             // Surplus! Add to Insurance Fund
+             uint256 surplus = uint256(-borrowedDelta);
+             manager.mint(address(this), uint256(uint160(Currency.unwrap(borrowedCurrency))), surplus);
+             insuranceFund[borrowedCurrency] += surplus;
         }
 
         delete positions[key.toId()][trader];
     }
 
     // --- URC-4 swapToPrice ---
+    /**
+     * @notice URC-4 Compliance: Allows solvers to simulate execution depth to a specific price.
+     * ESWAP utilizes its hook-held collateral as "active liquidity" that solvers can route through.
+     */
     function swapToPrice(PoolKey calldata key, uint160 targetSqrtPriceX96, bytes calldata) external override onlyPoolManager returns (int128 delta0, int128 delta1) {
-        (uint160 currentPrice, , , ) = manager.getSlot0(key.toId());
-        bool zeroForOne = currentPrice > targetSqrtPriceX96;
+        (uint160 currentSqrtPriceX96, , , ) = manager.getSlot0(key.toId());
+        bool zeroForOne = currentSqrtPriceX96 > targetSqrtPriceX96;
+
         Currency currencyIn = zeroForOne ? key.currency0 : key.currency1;
-        uint256 swappable = totalCollateral[currencyIn];
-        delta0 = zeroForOne ? int128(uint128(swappable)) : -int128(uint128(swappable));
-        delta1 = zeroForOne ? -int128(uint128(swappable)) : int128(uint128(swappable));
+        uint256 swappableAmount = totalCollateral[currencyIn];
+
+        // Simplified price-math for simulation:
+        // Solvers use this to understand how much the hook can contribute to reaching target price.
+        // We contribute up to our total held collateral of the input currency.
+        if (zeroForOne) {
+            delta0 = int128(uint128(swappableAmount));
+            // Output delta (delta1) would be calculated by PM based on curve
+            delta1 = 0;
+        } else {
+            delta1 = int128(uint128(swappableAmount));
+            delta0 = 0;
+        }
+
         return (delta0, delta1);
     }
 
     function getHookTVL(Currency currency) external view override returns (uint256) { return totalCollateral[currency]; }
     function getSwappableCapacity(Currency currency) external view override returns (uint256) { return totalCollateral[currency]; }
+
+    /**
+     * @notice Returns the amount of debt the protocol can currently "bridge" to settle V4 deltas.
+     */
+    function getBridgeCapacity(Currency currency) external view returns (uint256) {
+        return insuranceFund[currency];
+    }
     function getIndicativeQuote(PoolKey calldata, bool, int128 amountSpecified, bytes calldata data) external pure override returns (IndicativeQuote memory quote) {
         quote.liveness = true;
         uint8 lev = 1;
@@ -327,9 +383,9 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
             !pos.isLong // zeroForOne if short
         );
 
-        IERC20(Currency.unwrap(boughtCurrency)).approve(address(manager), pos.collateralAmount);
         manager.modifyLiquidity(key, tickLower, tickUpper, int128(liquidity), "");
-        manager.settle(boughtCurrency);
+        // ACCOUNTING FIX: Use 6909 tokens (claims) held by the hook to settle the delta
+        manager.burn(address(this), uint256(uint160(Currency.unwrap(boughtCurrency))), pos.collateralAmount);
 
         pos.tickLower = tickLower;
         pos.tickUpper = tickUpper;

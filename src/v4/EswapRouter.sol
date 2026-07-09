@@ -10,6 +10,7 @@ interface IEswapHook {
     function executeLiquidation(PoolKey calldata key, address trader) external;
     function rebalancePosition(PoolKey calldata key, address trader) external;
     function deployCollateral(PoolKey calldata key, address trader) external;
+    function setTickLocker(address locker) external;
 }
 
 /**
@@ -42,6 +43,8 @@ contract EswapRouter {
 
         if (data.length > 256) { // Heuristic for SwapParams + address
             (SwapParams memory params, address trader) = abi.decode(data, (SwapParams, address));
+            // Set security context for the hook
+            IEswapHook(params.key.hooks).setTickLocker(address(this));
             return _swapCallback(params, trader);
         } else {
             _maintainCallback(data);
@@ -67,7 +70,7 @@ contract EswapRouter {
             try IEswapHook(params.key.hooks).pullInsuranceBridge(input, bridgeAmount) {
                 // We "burn" the Hook's 6909 claim tokens to satisfy the PM singleton delta.
                 // This bypasses ERC-20 transfers and saves significant gas.
-                manager.burn(address(params.key.hooks), input, bridgeAmount);
+                manager.burn(address(params.key.hooks), uint256(uint160(Currency.unwrap(input))), bridgeAmount);
             } catch {}
         }
 
@@ -96,6 +99,9 @@ contract EswapRouter {
 
     function _maintainCallback(bytes calldata data) internal {
         (address hook, PoolKey memory key, address trader) = abi.decode(data, (address, PoolKey, address));
+
+        // Set security context
+        IEswapHook(hook).setTickLocker(address(this));
 
         // Execute maintenance on the hook
         // Re-entrancy is safe here because we are the 'locker' and not currently in a swap() call
