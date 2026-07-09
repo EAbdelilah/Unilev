@@ -34,6 +34,7 @@ interface IPriceFeed {
  */
 contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     using PoolIdLibrary for PoolKey;
+    using PoolIdLibrary for PoolId;
     using TransientStorage for bytes32;
 
     error NotPoolManager();
@@ -105,6 +106,14 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     function withdrawInsuranceFund(Currency currency, address to, uint256 amount) external onlyOwner {
         insuranceFund[currency] -= amount;
         IERC20(Currency.unwrap(currency)).transfer(to, amount);
+    }
+
+    /**
+     * @notice Allows the owner to seed the insurance fund manually.
+     */
+    function seedInsuranceFund(Currency currency, uint256 amount) external {
+        IERC20(Currency.unwrap(currency)).transferFrom(msg.sender, address(this), amount);
+        insuranceFund[currency] += amount;
     }
 
     function getHookFlags() public pure returns (uint160) {
