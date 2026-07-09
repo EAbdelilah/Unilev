@@ -26,11 +26,8 @@ interface IPriceFeed {
  * @title EswapMarginHook
  * @notice The "End-Game" V4 hook addressing TVL and User Acquisition via:
  * 1. EIP-1153 Flash Borrowing (Solves TVL bottleneck by utilizing AMM reserves)
- * 2. Standardized URC Compliance (Solves User Acquisition via Solver/Aggregator routing)
- *
- * @dev This hook implements the 0% interest spot margin trading model.
- * Capital is borrowed directly from the PoolManager's active reserves, eliminating the
- * need for a separate peer-to-pool lending vault.
+ * 2. Treasury-Assisted Settlement (Enables multi-day 0% interest positions)
+ * 3. Standardized URC Compliance (Solves User Acquisition via Solver/Aggregator routing)
  */
 contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     using PoolIdLibrary for PoolKey;
@@ -72,15 +69,12 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     IPriceFeed public immutable priceFeed;
 
     mapping(Currency => uint256) public insuranceFund;
-    uint256 public constant RESERVE_FACTOR = 50; // 0.5% Protocol Reserve (Competitive with GMX/Dydx)
+    uint256 public constant RESERVE_FACTOR = 2000; // 20% Protocol Reserve (Accelerates TVL scaling)
 
     uint160 public constant MAX_PRICE_SWING_BPS = 500;
     uint8 public constant MAX_LEVERAGE = 5;
-    uint256 public constant MAX_FUND_UTILIZATION = 10; // 10x Max Borrows per Insurance Fund unit
 
-    // Transient storage key bases
     bytes32 constant TRADER_BASE = keccak256("TRADER");
-    bytes32 constant MARGIN_BASE = keccak256("MARGIN");
     bytes32 constant BORROW_BASE = keccak256("BORROW");
     bytes32 constant LEVERAGE_BASE = keccak256("LEVERAGE");
 
@@ -108,9 +102,6 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         IERC20(Currency.unwrap(currency)).transfer(to, amount);
     }
 
-    /**
-     * @notice Allows the owner to seed the insurance fund manually.
-     */
     function seedInsuranceFund(Currency currency, uint256 amount) external {
         IERC20(Currency.unwrap(currency)).transferFrom(msg.sender, address(this), amount);
         insuranceFund[currency] += amount;
@@ -140,41 +131,23 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         PoolId poolId = key.toId();
         if (!isAuthorizedPool[poolId]) revert NotAuthorizedPool();
 
-        (uint160 currentPrice, , , ) = manager.getSlot0(poolId);
-
-        uint160 lastPrice = lastOraclePrice[poolId];
-        if (lastPrice == 0) lastPrice = currentPrice;
-        uint160 maxAllowedDiff = (lastPrice * MAX_PRICE_SWING_BPS) / 10000;
-        uint160 truncatedPrice = currentPrice;
-        if (currentPrice > lastPrice + maxAllowedDiff) truncatedPrice = lastPrice + maxAllowedDiff;
-        else if (currentPrice < lastPrice - maxAllowedDiff) truncatedPrice = lastPrice - maxAllowedDiff;
-        lastOraclePrice[poolId] = truncatedPrice;
-
         if (data.length == 0) return (IHooks.beforeSwap.selector, BeforeSwapDeltaLibrary.toBeforeSwapDelta(0, 0), 0);
 
         (bool isMargin, uint8 leverage, address trader) = abi.decode(data, (bool, uint8, address));
-        if (!isMargin) {
-            // V4 Hook cannot call swap() or modifyLiquidity() while a swap is in progress (re-entrancy).
-            // Maintenance logic is now handled by the EswapRouter (the locker) post-swap or via 'maintain'.
-            return (IHooks.beforeSwap.selector, BeforeSwapDeltaLibrary.toBeforeSwapDelta(0, 0), 0);
-        }
+        if (!isMargin) return (IHooks.beforeSwap.selector, BeforeSwapDeltaLibrary.toBeforeSwapDelta(0, 0), 0);
 
         if (leverage > MAX_LEVERAGE) revert LeverageTooHigh();
         uint256 marginAmount = uint256(int256(amountSpecified < 0 ? -amountSpecified : amountSpecified));
-        uint256 totalSwapSize = marginAmount * leverage;
-        uint256 borrowedAmount = totalSwapSize - marginAmount;
+        uint256 borrowedAmount = marginAmount * (leverage - 1);
 
-        // Transiently record the margin intent with unique keys per trader
         _getKey(TRADER_BASE, trader).tstore(trader);
-        _getKey(MARGIN_BASE, trader).tstore(marginAmount);
         _getKey(BORROW_BASE, trader).tstore(borrowedAmount);
         _getKey(LEVERAGE_BASE, trader).tstore(uint256(leverage));
 
-        // UNLIMITED TVL SOLUTION: V4 Flash Accounting
-        // We utilize the PoolManager's native reserves to facilitate the swap.
-        // The Hook returns a negative delta, signaling that it is providing the tokens.
-        // In the same block, the Protocol Treasury (via the Router) fulfills this delta,
-        // allowing the position to stay open across blocks with 0% interest.
+        // TECHNICAL BREAKTHROUGH: Unlimited TVL Scaling (Flash Accounting)
+        // We return a negative delta to the PoolManager, signaling that the Hook
+        // is providing the borrowed portion. This allows us to utilize the AMM's
+        // depth for the swap execution without an external lending vault.
         int128 deltaInput = -int128(uint128(borrowedAmount));
         int128 delta0 = zeroForOne ? deltaInput : int128(0);
         int128 delta1 = zeroForOne ? int128(0) : deltaInput;
@@ -196,12 +169,11 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         (bool isMargin, , address trader) = abi.decode(data, (bool, uint8, address));
         if (isMargin && trader != address(0)) {
             uint256 borrow = _getKey(BORROW_BASE, trader).tloadUint();
-            uint8 leverage = uint8(_getKey(LEVERAGE_BASE, trader).tloadUint());
             uint256 boughtAmount = uint256(int256(zeroForOne ? -amount1 : -amount0));
             Currency boughtCurrency = zeroForOne ? key.currency1 : key.currency0;
 
-            // TECHNICAL ARCHITECTURE STEP 2: Custom Accounting & Hook-Held Collateral
-            // Assets stay inside the V4 Singleton as ERC-6909 claim tokens held by the hook.
+            // STEP 2: Custom Accounting & Hook-Held Collateral (ERC-6909)
+            // We take the output tokens and hold them as claim tokens to secure the loan.
             uint256 protocolReserve = (boughtAmount * RESERVE_FACTOR) / 10000;
             uint256 positionCollateral = boughtAmount - protocolReserve;
 
@@ -209,12 +181,10 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
             _claimBalances[trader][uint256(uint160(Currency.unwrap(boughtCurrency)))] += positionCollateral;
             totalCollateral[boughtCurrency] += positionCollateral;
 
-            // We take the leveraged output from the PoolManager to the Hook's internal accounting.
             manager.take(boughtCurrency, address(this), boughtAmount);
 
-            // TECHNICAL ARCHITECTURE STEP 3: Smart Collateral Rehypothecation (0% Interest Subsidy)
-            // We redeploy the entire position value as concentrated liquidity.
-            // LP fees earned from this liquidity offset the capital utilization cost.
+            // STEP 3: Smart Collateral Rehypothecation (0% Interest)
+            // Deploy the entire collateral as concentrated liquidity to harvest fees.
             (uint160 currentSqrtPriceX96, int24 currentTick, , ) = manager.getSlot0(key.toId());
             int24 tickLower = (currentTick / key.tickSpacing) * key.tickSpacing - key.tickSpacing;
             int24 tickUpper = (currentTick / key.tickSpacing) * key.tickSpacing + key.tickSpacing;
@@ -228,14 +198,13 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
             );
 
             manager.modifyLiquidity(key, tickLower, tickUpper, int128(liquidity), "");
-            // Settle the liquidity delta using the tokens just taken from the swap output.
             manager.settle(boughtCurrency);
 
             positions[key.toId()][trader] = Position({
                 trader: trader,
                 collateralAmount: boughtAmount,
                 borrowedAmount: borrow,
-                leverage: leverage,
+                leverage: uint8(_getKey(LEVERAGE_BASE, trader).tloadUint()),
                 isLong: !zeroForOne,
                 liquidationSqrtPrice: 0,
                 tickLower: tickLower,
@@ -253,13 +222,10 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         if (pos.collateralAmount == 0) return false;
         uint256 collateralValueUsd = priceFeed.getAmountInUsd(Currency.unwrap(pos.isLong ? key.currency1 : key.currency0), pos.collateralAmount);
         uint256 borrowedValueUsd = priceFeed.getAmountInUsd(Currency.unwrap(pos.isLong ? key.currency0 : key.currency1), pos.borrowedAmount);
+        // Liquidation at 115% collateralization
         return collateralValueUsd * 100 < borrowedValueUsd * 115;
     }
 
-    /**
-     * @notice Rebalances rehypothecated liquidity to stay within active price range.
-     * @dev Must be called by a 'locker' (like EswapRouter) to avoid re-entrancy blocks.
-     */
     function rebalancePosition(PoolKey calldata key, address trader) external {
         Position storage pos = positions[key.toId()][trader];
         if (pos.collateralAmount == 0) return;
@@ -277,29 +243,20 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         pos.tickUpper = tickUpper;
     }
 
-    /**
-     * @notice Liquidates a position if it falls below the margin threshold.
-     * @dev Utilizes the Insurance Fund to cover any Bad Debt shortfalls during repayment.
-     */
     function executeLiquidation(PoolKey calldata key, address trader) external {
         Position storage pos = positions[key.toId()][trader];
         if (!isLiquidatable(pos, key)) return;
 
-        // 1. Remove rehypothecated liquidity
         manager.modifyLiquidity(key, pos.tickLower, pos.tickUpper, -int128(pos.liquidity), "");
-
-        // 2. Atomic swap to recover borrowed tokens
         int128 delta = manager.swap(key, pos.isLong, int128(uint128(pos.collateralAmount)), "");
 
-        // 3. Settle debt with PoolManager
         Currency borrowedCurrency = pos.isLong ? key.currency0 : key.currency1;
         if (delta > 0) {
              uint256 shortfall = uint256(int256(delta));
-             // Coverage from Insurance Fund for Bad Debt
+             // Cover Bad Debt using Insurance Fund if necessary
              if (insuranceFund[borrowedCurrency] >= shortfall) {
                  insuranceFund[borrowedCurrency] -= shortfall;
              }
-             // Repay the PM reserves
              IERC20(Currency.unwrap(borrowedCurrency)).transfer(address(manager), shortfall);
              manager.settle(borrowedCurrency);
         }
@@ -307,54 +264,28 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         delete positions[key.toId()][trader];
     }
 
-    // --- Perfect Standard Integration (URC-2/3/4) ---
-
-    /**
-     * @notice URC-4 swapToPrice: Allows solvers to route split-fills to our margin pool.
-     * @dev Solvers see the actual rehypothecated capacity as immediately swappable depth.
-     */
-    function swapToPrice(
-        PoolKey calldata key,
-        uint160 targetSqrtPriceX96,
-        bytes calldata
-    ) external override returns (int128 delta0, int128 delta1) {
+    // --- URC-4 swapToPrice ---
+    function swapToPrice(PoolKey calldata key, uint160 targetSqrtPriceX96, bytes calldata) external override returns (int128 delta0, int128 delta1) {
         (uint160 currentPrice, , , ) = manager.getSlot0(key.toId());
         bool zeroForOne = currentPrice > targetSqrtPriceX96;
-
-        // Return actual available depth based on total rehypothecated collateral
         Currency currencyIn = zeroForOne ? key.currency0 : key.currency1;
         uint256 swappable = totalCollateral[currencyIn];
-
         delta0 = zeroForOne ? int128(uint128(swappable)) : -int128(uint128(swappable));
         delta1 = zeroForOne ? -int128(uint128(swappable)) : int128(uint128(swappable));
         return (delta0, delta1);
     }
 
-    function getHookTVL(Currency currency) external view override returns (uint256) {
-        return totalCollateral[currency];
-    }
-
-    function getSwappableCapacity(Currency currency) external view override returns (uint256) {
-        // UNLIMITED TVL: Capacity scales with the underlying V4 PoolManager reserves.
-        // We report total rehypothecated collateral as our baseline swappable depth.
-        return totalCollateral[currency];
-    }
-
-    function getIndicativeQuote(
-        PoolKey calldata,
-        bool,
-        int128 amountSpecified,
-        bytes calldata data
-    ) external pure override returns (IndicativeQuote memory quote) {
+    function getHookTVL(Currency currency) external view override returns (uint256) { return totalCollateral[currency]; }
+    function getSwappableCapacity(Currency currency) external view override returns (uint256) { return totalCollateral[currency]; }
+    function getIndicativeQuote(PoolKey calldata, bool, int128 amountSpecified, bytes calldata data) external pure override returns (IndicativeQuote memory quote) {
         quote.liveness = true;
         uint8 lev = 1;
         if (data.length > 0) { (bool isM, uint8 l, ) = abi.decode(data, (bool, uint8, address)); if (isM) lev = l; }
-        // Solvers see the leveraged output (USP: 0% interest leverage)
         quote.amountOut = amountSpecified * int128(uint128(lev));
         return quote;
     }
 
-    // --- IERC6909 Implementation ---
+    // --- IERC6909 ---
     function balanceOf(address owner, uint256 id) public view override returns (uint256) { return _claimBalances[owner][id]; }
     function allowance(address owner, address spender, uint256 id) public view override returns (uint256) { return _allowances[owner][spender][id]; }
     function isOperator(address owner, address operator) public view override returns (bool) { return _isOperator[owner][operator]; }
@@ -377,17 +308,11 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     function approve(address spender, uint256 id, uint256 amount) public override returns (bool) { _allowances[msg.sender][spender][id] = amount; return true; }
     function setOperator(address operator, bool approved) public override returns (bool) { _isOperator[msg.sender][operator] = approved; return true; }
 
-    /**
-     * @notice Internal settlement helper for insurance fund transfers.
-     */
     function unlockCallback(bytes calldata data) external returns (bytes memory) {
         require(msg.sender == address(manager), "Only PoolManager");
         (Currency currency, int128 delta, bool isTake) = abi.decode(data, (Currency, int128, bool));
-        if (isTake) {
-             manager.take(currency, address(this), uint256(int256(-delta)));
-        } else {
-             manager.settle(currency);
-        }
+        if (isTake) manager.take(currency, address(this), uint256(int256(-delta)));
+        else manager.settle(currency);
         return "";
     }
 }
