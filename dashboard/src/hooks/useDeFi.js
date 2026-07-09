@@ -171,21 +171,26 @@ export function useDeFi() {
         }
     }, [readProvider])
 
-    const closePosition = useCallback(async (id) => {
+    const closePosition = useCallback(async (id, solverAddress) => {
         const signer = await getSigner()
         if (!signer) throw new Error("Wallet not connected")
 
         if (id.startsWith("V4-")) {
-            // V4 closing logic - In our End-Game model, we trigger a 'maintain' call
-            // or a swap that reverses the position. For simplicity, we call router.swap.
             const router = new ethers.Contract(ADDRESSES.V4_ROUTER, EswapRouterABI.abi, signer)
-            // Simplified reverse swap logic
-            return await router.swap({ /* key, params to close */ })
+            const wbtc = ADDRESSES.WBTC
+            const usdc = ADDRESSES.USDC
+            const [c0, c1] = wbtc.toLowerCase() < usdc.toLowerCase() ? [wbtc, usdc] : [usdc, wbtc]
+            const key = { currency0: c0, currency1: c1, fee: 3000, tickSpacing: 60, hooks: ADDRESSES.V4_HOOK }
+
+            // Default solverAddress to Router if not provided
+            const finalSolver = solverAddress || ADDRESSES.V4_ROUTER
+
+            return await router.closePosition(ADDRESSES.V4_HOOK, key, address, finalSolver)
         }
 
         const market = new ethers.Contract(ADDRESSES.MARKET, MarketABI.abi, signer)
         return await market.closePosition(id)
-    }, [getSigner])
+    }, [getSigner, address])
 
     const getNativeBalance = useCallback(async (user) => {
         if (!readProvider) return null
