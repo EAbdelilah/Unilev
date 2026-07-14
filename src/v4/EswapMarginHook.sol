@@ -81,7 +81,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
 
     // Insurance Fund is tracked internally as ERC-6909 claim tokens within the PoolManager
     mapping(Currency => uint256) public insuranceFund;
-    uint256 public constant RESERVE_FACTOR = 50; // 0.5% Protocol Reserve (Flywheel for $0 Launch)
+    uint256 public reserveFactor = 50; // 0.5% Protocol Reserve (Mutable, default 50 basis points)
 
     uint160 public constant MAX_PRICE_SWING_BPS = 500;
     uint8 public constant MAX_LEVERAGE = 5;
@@ -120,6 +120,15 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
 
     function setRouter(address _router) external onlyOwner {
         router = _router;
+    }
+
+    /**
+     * @notice Allows the owner to dynamically lower or adjust the reserve fee to compete with aggregators.
+     * Maximum safety ceiling is set to 100 basis points (1.0%) to protect traders.
+     */
+    function setReserveFactor(uint256 _newFactor) external onlyOwner {
+        require(_newFactor <= 100, "Fee exceeds safety ceiling");
+        reserveFactor = _newFactor;
     }
 
     /**
@@ -220,7 +229,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
 
             // STEP 2: Custom Accounting & Hook-Held Collateral (ERC-6909)
             // We mint output tokens as 6909s within the PM Singleton.
-            uint256 protocolReserve = (boughtAmount * RESERVE_FACTOR) / 10000;
+            uint256 protocolReserve = (boughtAmount * reserveFactor) / 10000;
             uint256 positionCollateral = boughtAmount - protocolReserve;
 
             insuranceFund[boughtCurrency] += protocolReserve;
