@@ -423,19 +423,26 @@ export function useDeFi() {
                 const posParams = await positions.openPositions(posId)
                 const initialPrice = posParams.initialPrice
 
-                const usdValueBigInt = await priceFeed.getAmountInUsd(baseToken, positionSize)
+                // Determine the correct token and decimals for size/PnL
+                // For Long, size is positionSize (in baseToken).
+                // For Short, size is totalBorrow (in baseToken).
+                const displaySize = isShort ? posParams.totalBorrow : positionSize
+                const targetToken = baseToken
+                const targetDecimals = baseDecimals
+
+                const usdValueBigInt = await priceFeed.getAmountInUsd(targetToken, displaySize)
                 const usdValue = parseFloat(ethers.formatUnits(usdValueBigInt, 18)).toFixed(2)
 
-                // Calculate PnL - currentPnL is in base token units, can be negative
-                const pnlInBase = Number(currentPnL)
-                const formattedPnl = ethers.formatUnits(
-                    pnlInBase < 0 ? -currentPnL : currentPnL,
-                    baseDecimals
-                )
-                const pnlUsdBigInt = await priceFeed.getAmountInUsd(
-                    baseToken,
-                    pnlInBase < 0 ? -currentPnL : currentPnL
-                )
+                // Calculate PnL
+                const pnlIsPositive = currentPnL >= 0n
+                const absPnL = pnlIsPositive ? currentPnL : -currentPnL
+
+                const targetPnlToken = isShort ? quoteToken : baseToken
+                const targetPnlDecimals = isShort ? quoteDecimals : baseDecimals
+
+                const formattedPnl = ethers.formatUnits(absPnL, targetPnlDecimals)
+                
+                const pnlUsdBigInt = await priceFeed.getAmountInUsd(targetPnlToken, absPnL)
                 const pnlUsd = parseFloat(ethers.formatUnits(pnlUsdBigInt, 18)).toFixed(2)
 
                 // Get current price
@@ -472,14 +479,14 @@ export function useDeFi() {
                     quoteToken,
                     baseSymbol,
                     quoteSymbol,
-                    size: ethers.formatUnits(positionSize, baseDecimals),
+                    size: ethers.formatUnits(displaySize, targetDecimals),
                     sizeUsd: usdValue,
                     pnl: formattedPnl,
                     pnlUsd: pnlUsd,
-                    pnlIsPositive: pnlInBase >= 0,
+                    pnlIsPositive,
                     collateralLeft: ethers.formatUnits(
-                        collateralLeft < 0 ? -collateralLeft : collateralLeft,
-                        baseDecimals
+                        collateralLeft < 0n ? -collateralLeft : collateralLeft,
+                        targetDecimals
                     ),
                     entryPrice: formattedEntryPrice,
                     currentPrice: formattedCurrentPrice,

@@ -196,7 +196,7 @@ function PositionCard({ position, isOwner, onClose }) {
                             )}
                         >
                             {position.pnlIsPositive ? "+" : "-"}
-                            {formatTokenAmount(position.pnl, position.baseSymbol)} {position.baseSymbol}
+                            {formatTokenAmount(position.pnl, position.isShort ? position.quoteSymbol : position.baseSymbol)} {position.isShort ? position.quoteSymbol : position.baseSymbol}
                             <span
                                 className={clsx(
                                     "text-xs ml-1",

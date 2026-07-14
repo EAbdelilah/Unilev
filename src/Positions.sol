@@ -60,7 +60,10 @@ contract Positions is ERC721Enumerable, Ownable, ReentrancyGuard, Pausable {
     uint256 public constant MIN_POSITION_AMOUNT_IN_USD = 1e18;
     uint256 public constant MAX_LEVERAGE = 5;
     uint256 public constant USD_DECIMALS = 18; // The standard for USD values in this contract
-    uint256 public constant SLIPPAGE_TOLERANCE = 9900; // 99% = 1% slippage buffer (9900/10000)
+    /// @notice Slippage tolerance for Uniswap swaps, expressed as a fraction of 10000.
+    /// 9900 = 1% slippage, 9700 = 3% slippage, 9500 = 5% slippage (minimum).
+    /// Can be updated by the market owner (admin) to handle low-liquidity environments.
+    uint256 public slippageTolerance = 9700; // default 3% slippage buffer
     // [FIX LOW-2] Deadline buffer passed to UniswapV3Helper swap calls.
     // block.timestamp alone gives zero MEV protection; this forces the tx to expire
     // if not included within 2 minutes, preventing validator-held reorder attacks.
@@ -73,6 +76,20 @@ contract Positions is ERC721Enumerable, Ownable, ReentrancyGuard, Pausable {
     address public immutable LIQUIDITY_POOL_FACTORY_UNISWAP_V3;
     address public treasure;
     FeeManager public feeManager;
+
+    event SlippageToleranceUpdated(uint256 oldTolerance, uint256 newTolerance);
+
+    error Positions__SLIPPAGE_OUT_OF_RANGE(uint256 tolerance);
+
+    /// @notice Update the slippage tolerance. Only callable by the Market (owner).
+    /// @param _newTolerance New tolerance in basis points of 10000. Must be in [9500, 9990].
+    function setSlippageTolerance(uint256 _newTolerance) external onlyOwner {
+        if (_newTolerance < 9500 || _newTolerance > 9990) {
+            revert Positions__SLIPPAGE_OUT_OF_RANGE(_newTolerance);
+        }
+        emit SlippageToleranceUpdated(slippageTolerance, _newTolerance);
+        slippageTolerance = _newTolerance;
+    }
 
     uint256 public posId = 1;
     uint256 public totalNbPos;
@@ -302,7 +319,7 @@ contract Positions is ERC721Enumerable, Ownable, ReentrancyGuard, Pausable {
 
             uint256 priceToCollateral = PRICE_FEED.getPairLatestPrice(params.token0, collateralToken);
             uint256 minOut = (params.amount * priceToCollateral) / (params.isShort ? baseDecimalsPow : quoteDecimalsPow);
-            minOut = (minOut * SLIPPAGE_TOLERANCE) / 10000;
+            minOut = (minOut * slippageTolerance) / 10000;
 
             baseCollateralAmount = uint128(
                 UNISWAP_V3_HELPER.swapExactInputSingle(
@@ -351,7 +368,7 @@ contract Positions is ERC721Enumerable, Ownable, ReentrancyGuard, Pausable {
         uint256 priceBorrow = PRICE_FEED.getPairLatestPrice(swapFrom, swapTo);
         uint256 minOutBorrow = (calcResult.totalBorrow * priceBorrow) /
             (params.isShort ? baseDecimalsPow : quoteDecimalsPow);
-        minOutBorrow = (minOutBorrow * SLIPPAGE_TOLERANCE) / 10000;
+        minOutBorrow = (minOutBorrow * slippageTolerance) / 10000;
 
         uint256 amountBorrow = UNISWAP_V3_HELPER.swapExactInputSingle(
             swapFrom,
@@ -567,7 +584,7 @@ contract Positions is ERC721Enumerable, Ownable, ReentrancyGuard, Pausable {
                 );
                 uint256 minOut = (netReceived * priceBaseToQuote) /
                     (10 ** IERC20Metadata(addTokenReceived).decimals());
-                minOut = (minOut * SLIPPAGE_TOLERANCE) / 10000;
+                minOut = (minOut * slippageTolerance) / 10000;
 
                 uint256 finalOut = UNISWAP_V3_HELPER.swapExactInputSingle(
                     addTokenReceived,
@@ -754,7 +771,7 @@ contract Positions is ERC721Enumerable, Ownable, ReentrancyGuard, Pausable {
         // by the oracle-derived maxSwapCost (already guards against CRIT-2 MEV).
         if (oracleAvailable && priceFeedRate > 0) {
             uint256 expectedCost = (amountOut * token0DecimalsPow) / priceFeedRate;
-            uint256 maxSwapCost = (expectedCost * (20000 - SLIPPAGE_TOLERANCE)) / 10000;
+            uint256 maxSwapCost = (expectedCost * (20000 - slippageTolerance)) / 10000;
 
             if (maxSwapCost <= amountInMaximum && expectedCost <= amountInMaximum) {
                 uint256 currentAllowance = token0Erc20.allowance(address(this), address(UNISWAP_V3_HELPER));
@@ -788,7 +805,7 @@ contract Positions is ERC721Enumerable, Ownable, ReentrancyGuard, Pausable {
         uint256 minOut = 0;
         if (oracleAvailable && priceFeedRate > 0) {
             minOut = (amountInMaximum * priceFeedRate) / token0DecimalsPow;
-            minOut = (minOut * SLIPPAGE_TOLERANCE) / 10000;
+            minOut = (minOut * slippageTolerance) / 10000;
         }
 
         uint256 outAmount = UNISWAP_V3_HELPER.swapExactInputSingle(

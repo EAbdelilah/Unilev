@@ -240,6 +240,12 @@ contract Market is IMarket, Ownable, Pausable {
         PRICE_FEED.setStalenessThreshold(_newThreshold);
     }
 
+    /// @notice Adjust Uniswap swap slippage tolerance. Range: 9500 (5%) to 9990 (0.1%).
+    /// Default is 9700 (3%). Increase for thin-liquidity pairs, decrease for high-liquidity.
+    function setSlippageTolerance(uint256 _newTolerance) external onlyOwner {
+        POSITIONS.setSlippageTolerance(_newTolerance);
+    }
+
     function initializeTokens(
         address[] calldata _tokens,
         address[] calldata _priceFeeds

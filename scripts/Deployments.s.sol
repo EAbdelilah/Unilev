@@ -76,7 +76,7 @@ contract Deployments is Script, HelperConfig {
         priceFeedL1.transferOwnership(address(market));
 
         // initialize tokens (create pools + add price feeds)
-        // market.initializeTokens(tokens, priceFeeds);
+        market.initializeTokens(tokens, priceFeeds);
 
         vm.stopBroadcast();
 
