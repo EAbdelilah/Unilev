@@ -1,0 +1,26 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: "eswap-keeper-v3"
+    static_configs:
+      - targets:
+          - "${KEEPER_V3_HOST:-localhost}:${KEEPER_V3_PORT:-9090}"
+        labels:
+          keeper: "v3"
+
+  - job_name: "eswap-keeper-v4"
+    static_configs:
+      - targets:
+          - "${KEEPER_V4_HOST:-localhost}:${KEEPER_V4_PORT:-9091}"
+        labels:
+          keeper: "v4"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+rule_files:
+  - "alerts.yml"

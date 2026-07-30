@@ -1,0 +1,39 @@
+groups:
+  - name: eswap_keepers
+    interval: 30s
+    rules:
+      - alert: KeeperDown
+        expr: up{job=~"eswap-keeper-.*"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Keeper {{ $labels.job }} is down"
+          description: "{{ $labels.job }} has been unreachable for over 1 minute."
+
+      - alert: KeeperErrors
+        expr: rate(eswap_keeper_errors_total[5m]) > 1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate on {{ $labels.job }}"
+          description: "Error rate on {{ $labels.job }} is {{ $value }} errors/sec over 5 min."
+
+      - alert: NoLiquidations
+        expr: time() - eswap_keeper_last_liquidation_timestamp > 3600
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No liquidations in 1 hour on {{ $labels.job }}"
+          description: "Last liquidation on {{ $labels.job }} was over {{ $value }} seconds ago."
+
+      - alert: FrequentRpcFailovers
+        expr: rate(eswap_keeper_rpc_failovers[15m]) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Frequent RPC failovers on {{ $labels.job }}"
+          description: "RPC failover rate is {{ $value }} failovers/min on {{ $labels.job }}."

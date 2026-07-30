@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  slither:
+    name: Slither — Static Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Run Slither
+        uses: crytic/slither-action@v0.4.0
+        continue-on-error: true
+        with:
+          target: src/
+          sarif: results.sarif
+          fail-on: none
+
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: results.sarif
+
+  solidity:
+    name: Solidity — Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Forge build
+        run: forge build --via-ir
+        timeout-minutes: 15
+
+      - name: Forge V4 tests (no fork required)
+        run: forge test --via-ir --match-path "src/v4/test/**/*.t.sol" -vv
+        timeout-minutes: 10
+
+      - name: Forge unit tests (no fork required)
+        run: forge test --via-ir --match-contract PriceFeedL1Test -vv
+        timeout-minutes: 5
+
+  dashboard:
+    name: Dashboard — Build & Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dashboard
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npx jest --no-coverage
+        timeout-minutes: 5
+
+      - name: Build
+        run: npm run build
+        timeout-minutes: 5

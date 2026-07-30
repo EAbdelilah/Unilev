@@ -1,0 +1,45 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      network:
+        description: Target network
+        required: true
+        type: choice
+        options:
+          - polygon-v3
+          - polygon-v4
+          - unichain
+
+jobs:
+  deploy:
+    name: Deploy to ${{ github.event.inputs.network }}
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Forge build
+        run: forge build --via-ir
+        timeout-minutes: 15
+
+      - name: Deploy
+        env:
+          POLYGON_RPC_URL: ${{ secrets.POLYGON_RPC_URL }}
+          UNICHAIN_RPC_URL: ${{ secrets.UNICHAIN_RPC_URL }}
+          PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
+        run: |
+          case "${{ github.event.inputs.network }}" in
+            polygon-v3) make deploy-polygon ;;
+            polygon-v4) make deploy-v4-polygon ;;
+            unichain)   make deploy-unichain ;;
+          esac
+
+      - name: Sync dashboard config
+        run: node javascript/update-dashboard.js

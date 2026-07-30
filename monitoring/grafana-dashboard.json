@@ -1,0 +1,95 @@
+{
+  "title": "Eswap Keeper Dashboard",
+  "uid": "eswap-keeper",
+  "version": 1,
+  "tags": ["eswap", "keeper", "defi"],
+  "timezone": "browser",
+  "editable": true,
+  "panels": [
+    {
+      "title": "Keeper Uptime",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "time() - eswap_keeper_uptime_seconds",
+          "format": "time_series"
+        }
+      ],
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "auto" }
+    },
+    {
+      "title": "Positions Tracked",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
+      "targets": [
+        { "expr": "eswap_keeper_positions_tracked", "format": "time_series" }
+      ],
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "auto" }
+    },
+    {
+      "title": "Pools Tracked",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
+      "targets": [
+        { "expr": "eswap_keeper_pools_tracked" }
+      ],
+      "options": { "colorMode": "value", "graphMode": "none" }
+    },
+    {
+      "title": "Liquidations Over Time",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "targets": [
+        { "expr": "rate(eswap_keeper_liquidations_total[5m])", "legendFormat": "Attempted" },
+        { "expr": "rate(eswap_keeper_liquidations_succeeded[5m])", "legendFormat": "Succeeded" },
+        { "expr": "rate(eswap_keeper_liquidations_failed[5m])", "legendFormat": "Failed" }
+      ],
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } }
+    },
+    {
+      "title": "Error Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 12 },
+      "targets": [
+        { "expr": "rate(eswap_keeper_errors_total[5m])", "legendFormat": "Errors/sec" },
+        { "expr": "rate(eswap_keeper_rpc_errors[5m])", "legendFormat": "RPC Errors/sec" }
+      ]
+    },
+    {
+      "title": "RPC Failovers",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 12 },
+      "targets": [
+        { "expr": "rate(eswap_keeper_rpc_failovers[5m])", "legendFormat": "Failovers/min" }
+      ]
+    },
+    {
+      "title": "Last Liquidation",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 20 },
+      "targets": [
+        { "expr": "time() - eswap_keeper_last_liquidation_timestamp", "format": "time_series" }
+      ],
+      "options": { "colorMode": "value", "graphMode": "none" }
+    },
+    {
+      "title": "Nonce Conflicts",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 20 },
+      "targets": [
+        { "expr": "rate(eswap_keeper_nonce_conflicts[5m])" }
+      ],
+      "options": { "colorMode": "value", "graphMode": "none" }
+    },
+    {
+      "title": "Gas Estimation Fails",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 20 },
+      "targets": [
+        { "expr": "rate(eswap_keeper_gas_estimation_fails[5m])" }
+      ],
+      "options": { "colorMode": "value", "graphMode": "none" }
+    }
+  ]
+}
