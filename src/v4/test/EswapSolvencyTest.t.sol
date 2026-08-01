@@ -87,16 +87,22 @@ contract EswapSolvencyTest is BaseV4Test {
         // collateral value = 4.8 * 0.5 = 2.4, borrow value = 4 * 1 = 4
         // 2.4*100 < 4*115 => liquidatable ✓
 
+        // SHORT liquidation: zeroForOne=true → sell currency0 (collateral) → receive currency1 (debt)
+        // New directional mock: amount0=-5 ether (sold), amount1=+5 ether (received)
+        // receivedAmount comes from amount1 (positive) = 5 ether
+        // liquidatorReward = 5 * 3% = 0.15 → goes to insuranceFund[currency1]
         token0.mint(address(hook), 10 ether);
         token1.mint(address(hook), 10 ether);
-        manager.setNextSwapDelta(-5 ether, -5 ether);
+        // Override with explicit directional delta: selling token0, receiving token1
+        manager.setNextSwapDelta(-5 ether, 5 ether);
 
         hook.executeLiquidation(key, address(this), 0);
 
         (address trader, uint256 collateral,,,,,,,) = hook.positions(key.toId(), address(this));
         assertEq(trader, address(0));
         assertEq(collateral, 0);
-        assertTrue(hook.insuranceFund(key.currency0) > 0);
+        // 3% of 5 ether received = 0.15 ether goes to insurance fund (currency1 = debt token)
+        assertTrue(hook.insuranceFund(key.currency1) > 0);
     }
 
     function test_BadDebt_CoveredByInsurance() public {
@@ -111,10 +117,11 @@ contract EswapSolvencyTest is BaseV4Test {
         token1.approve(address(hook), 100 ether);
         hook.seedInsuranceFund(key.currency1, 10 ether);
 
+        // SHORT liquidation bad-debt: sell token0, receive tiny amount of token1
+        // Override delta: amount1=+0.3 ether (received), borrow=4 ether → shortfall=3.7 ether
         token0.mint(address(hook), 100 ether);
         token1.mint(address(hook), 100 ether);
-        // Negative delta so receivedAmount = 0.3 ether < borrow = 4 ether → bad debt
-        manager.setNextSwapDelta(-0.3 ether, -0.3 ether);
+        manager.setNextSwapDelta(-0.3 ether, 0.3 ether);
 
         hook.executeLiquidation(key, address(this), 0);
 
@@ -132,9 +139,9 @@ contract EswapSolvencyTest is BaseV4Test {
 
         token0.mint(address(hook), 100 ether);
         token1.mint(address(hook), 100 ether);
-        // receivedAmount = 0.3 ether < borrow = 4 ether → shortfall = 3.7 ether
+        // SHORT liquidation: receives token1 = 0.3 ether < borrow 4 ether → shortfall 3.7
         // Insurance for currency1 = 0 → should revert
-        manager.setNextSwapDelta(-0.3 ether, -0.3 ether);
+        manager.setNextSwapDelta(-0.3 ether, 0.3 ether);
 
         vm.expectRevert();
         hook.executeLiquidation(key, address(this), 0);

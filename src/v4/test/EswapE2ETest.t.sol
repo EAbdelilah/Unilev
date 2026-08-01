@@ -32,7 +32,8 @@ contract EswapE2ETest is BaseV4Test {
         // 5. Verify Position
         (address trader, uint256 collateral, , , , , , , uint128 liq) = hook.positions(key.toId(), address(this));
         assertEq(trader, address(this));
-        assertEq(collateral, 480 ether);
+        // positionCollateral = 480 ether * 9950/10000 (0.5% fee deducted)
+        assertEq(collateral, (480 ether * 9950) / 10000);
         assertTrue(liq > 0);
     }
 }

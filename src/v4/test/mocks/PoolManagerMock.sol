@@ -53,11 +53,25 @@ contract PoolManagerMock is IPoolManager {
         return "";
     }
 
-    function swap(PoolKey calldata, bool, int128, bytes calldata) external override returns (BalanceDelta delta) {
+    function swap(PoolKey calldata, bool zeroForOne, int128 amountSpecified, bytes calldata) external override returns (BalanceDelta delta) {
         if (hasOverrideSwapDelta) {
+            hasOverrideSwapDelta = false; // consume once
             return overrideSwapDelta;
         }
-        return delta;
+        // Enforce real swap direction semantics:
+        //   zeroForOne=true  → selling token0 (amount0<0), receiving token1 (amount1>0)
+        //   zeroForOne=false → selling token1 (amount1<0), receiving token0 (amount0>0)
+        // Use a 1:1 exchange rate with 4% slippage for realistic output.
+        uint256 absIn = uint256(int256(amountSpecified < 0 ? -amountSpecified : amountSpecified));
+        int128 output = int128(uint128((absIn * 96) / 100));
+        int128 input  = -int128(uint128(absIn));
+        if (zeroForOne) {
+            // selling token0 → receiving token1
+            delta = BalanceDeltaLibrary.toBalanceDelta(input, output);
+        } else {
+            // selling token1 → receiving token0
+            delta = BalanceDeltaLibrary.toBalanceDelta(output, input);
+        }
     }
 
     function modifyLiquidity(

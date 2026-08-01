@@ -39,7 +39,8 @@ contract EswapSmartCollateralTest is BaseV4Test {
         (address trader, uint256 collateral, uint256 borrow, uint8 lev, bool isLong,, int24 tickLower, int24 tickUpper, uint128 liquidity) = hook.positions(key.toId(), address(this));
 
         assertEq(trader, address(this));
-        assertEq(collateral, 480 ether);
+        // positionCollateral = 480 ether * 9950/10000 (0.5% fee deducted)
+        assertEq(collateral, (480 ether * 9950) / 10000);
         assertEq(borrow, 400 ether); // 100 * (5-1)
         assertEq(lev, 5);
         assertFalse(isLong);
