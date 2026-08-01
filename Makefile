@@ -1,6 +1,6 @@
 -include .env
 
-.PHONY: all test clean deploy-anvil
+.PHONY: all test test-v4 clean deploy-anvil deploy-polygon deploy-unichain deploy-unichain-sepolia
 
 all: clean install update build
 
@@ -23,6 +23,8 @@ compile:; forge compile --via-ir
 
 test :; forge test --fork-url ${POLYGON_RPC_URL} -vv --via-ir 
 test-gas :; forge test --fork-url ${POLYGON_RPC_URL} -vv --gas-report --via-ir 
+# V4 suite (no fork required; uses local mocks)
+test-v4 :; forge test --match-path "src/v4/test/**/*.t.sol" -vv --via-ir
 
 slither :; slither ./src 
 
@@ -39,4 +41,12 @@ deploy-anvil :; @forge script scripts/Deployments.s.sol:Deployments --via-ir --f
 
 # Deploy to Polygon mainnet
 deploy-polygon :; @forge script scripts/Deployments.s.sol:Deployments --via-ir --rpc-url ${POLYGON_RPC_URL} --private-key ${PRIVATE_KEY} --broadcast --slow
+
+# --- V4 / Unichain ---
+
+# Deploy V4 protocol to Unichain mainnet
+deploy-unichain :; @forge script scripts/v4/DeployUnichain.s.sol:DeployUnichain --via-ir --rpc-url ${UNICHAIN_RPC_URL} --private-key ${PRIVATE_KEY} --broadcast --slow
+
+# Deploy V4 protocol to Unichain Sepolia testnet
+deploy-unichain-sepolia :; @forge script scripts/v4/DeployUnichainSepolia.s.sol:DeployUnichainSepolia --via-ir --rpc-url ${UNICHAIN_SEPOLIA_RPC_URL} --private-key ${PRIVATE_KEY} --broadcast --slow
 

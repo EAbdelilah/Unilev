@@ -22,7 +22,7 @@ interface IEswapHook {
 contract EswapRouter is Ownable {
     IPoolManager public immutable manager;
 
-    enum CallType { SWAP, CLOSE, MAINTAIN }
+    enum CallType { SWAP, CLOSE, LIQUIDATE, REBALANCE }
 
     constructor(IPoolManager _manager) Ownable(msg.sender) {
         manager = _manager;
@@ -52,9 +52,13 @@ contract EswapRouter is Ownable {
             (, address hook, PoolKey memory key, address trader, address solver, uint256 minAmountOut) = abi.decode(data, (CallType, address, PoolKey, address, address, uint256));
             _closeCallback(hook, key, trader, solver, minAmountOut);
             return "";
+        } else if (callType == CallType.LIQUIDATE) {
+            (, address hook, PoolKey memory key, address trader, uint256 minAmountOut) = abi.decode(data, (CallType, address, PoolKey, address, uint256));
+            IEswapHook(hook).executeLiquidation(key, trader, minAmountOut);
+            return "";
         } else {
-            (, address hook, PoolKey memory key, address trader, uint256 minAmountOut, bool isLiquidation) = abi.decode(data, (CallType, address, PoolKey, address, uint256, bool));
-            _maintainCallback(hook, key, trader, minAmountOut, isLiquidation);
+            (, address hook, PoolKey memory key, address trader) = abi.decode(data, (CallType, address, PoolKey, address));
+            IEswapHook(hook).rebalancePosition(key, trader);
             return "";
         }
     }
@@ -79,12 +83,25 @@ contract EswapRouter is Ownable {
     }
 
     /**
-     * @notice External maintenance call for keepers to trigger liquidations or rebalancing.
-     * @param minAmountOut Minimum swap output for liquidations (slippage protection).
-     *                     Pass 0 to skip the check (only use this for rebalancing calls).
+     * @notice Permissionless liquidation entrypoint for keepers.
+     * @dev Anyone may trigger the liquidation of an underwater position. The hook
+     *      validates the position is actually liquidatable and enforces slippage
+     *      via minAmountOut, so permissionless access cannot force bad liquidations.
+     * @param minAmountOut Minimum swap output for the liquidation unwind (slippage
+     *                     protection against MEV); derive it from an oracle quote.
      */
-    function maintain(address hook, PoolKey calldata key, address trader, uint256 minAmountOut, bool isLiquidation) external onlyOwner {
-        manager.unlock(abi.encode(CallType.MAINTAIN, hook, key, trader, minAmountOut, isLiquidation));
+    function liquidate(address hook, PoolKey calldata key, address trader, uint256 minAmountOut) external {
+        manager.unlock(abi.encode(CallType.LIQUIDATE, hook, key, trader, minAmountOut));
+    }
+
+    /**
+     * @notice Permissionless rebalancing entrypoint for keepers.
+     * @dev Re-centers an out-of-range position's concentrated liquidity around the
+     *      current tick. Safe to run permissionless: it only moves liquidity ranges,
+     *      is a no-op when the tick is already in range, and the caller pays gas.
+     */
+    function rebalance(address hook, PoolKey calldata key, address trader) external {
+        manager.unlock(abi.encode(CallType.REBALANCE, hook, key, trader));
     }
 
     function closePosition(address hook, PoolKey calldata key, address trader, address solver, uint256 minAmountOut) external {
@@ -92,17 +109,7 @@ contract EswapRouter is Ownable {
     }
 
     function _closeCallback(address hook, PoolKey memory key, address trader, address solver, uint256 minAmountOut) internal {
-        try IEswapHook(hook).closePosition(key, trader, solver, minAmountOut) {} catch {}
-    }
-
-    function _maintainCallback(address hook, PoolKey memory key, address trader, uint256 minAmountOut, bool isLiquidation) internal {
-        // Execute maintenance on the hook.
-        // Re-entrancy is safe here because we are the 'locker' and not currently in a swap() call.
-        if (isLiquidation) {
-            IEswapHook(hook).executeLiquidation(key, trader, minAmountOut);
-        } else {
-            IEswapHook(hook).rebalancePosition(key, trader);
-        }
+        IEswapHook(hook).closePosition(key, trader, solver, minAmountOut);
     }
 
     /**

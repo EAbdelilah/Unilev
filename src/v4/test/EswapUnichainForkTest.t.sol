@@ -17,9 +17,9 @@ contract EswapUnichainForkTest is Test {
     using PoolIdLibrary for PoolKey;
 
     // --- Unichain Mainnet Constants ---
-    // User must replace these with real addresses once they are fully known on mainnet
-    address constant UNICHAIN_WETH = address(0x4200000000000000000000000000000000000006); // Standard OP-stack WETH
-    address constant UNICHAIN_USDC = address(0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913); // Example OP-stack USDC
+    // Verified live on Unichain mainnet (Alchemy RPC).
+    address constant UNICHAIN_WETH = address(0x4200000000000000000000000000000000000006); // OP-stack WETH
+    address constant UNICHAIN_USDC = address(0x078D782b760474a361dDA0AF3839290b0EF57AD6); // Native USDC
     address constant UNICHAIN_V3_POOL_WETH_USDC = address(0x123); // Placeholder for V3 Pool
     
     // Core contracts
@@ -77,14 +77,23 @@ contract EswapUnichainForkTest is Test {
         });
 
         hook.setAuthorizedPool(key.toId(), true);
+        // WETH is the base token: "long WETH" positions report isLong=true. On
+        // Unichain USDC < WETH, so currency0=USDC and currency1=WETH.
+        hook.setBaseCurrency(key.toId(), Currency.wrap(UNICHAIN_WETH));
+        // Configure decimals so the V4-spot vs V3-TWAP circuit breaker compares
+        // like-for-like prices (USDC is 6-decimal, WETH 18-decimal).
+        hook.setTokenDecimals(UNICHAIN_WETH, 18);
+        hook.setTokenDecimals(UNICHAIN_USDC, 6);
 
-        // Initialize the V4 pool with a starting price of 3000 USDC per WETH
-        // sqrtPriceX96 for 3000 = ~4342511470701198426038843936496 (depends on decimals, assuming both 18 here for mock simplicity)
+        // Initialize the V4 pool with a starting price of 3000 USDC per WETH.
+        // sqrtPriceX96 is computed from the raw token1/token0 ratio (decimals-aware):
+        //   WETH as currency0: raw = 3000e6/1e18 = 3e-9
+        //   USDC as currency0: raw = 1e18/3000e6 = 3.333e8
         uint160 startingSqrtPrice = 79228162514264337593543950336; // 1:1 for mock fallback
         if (token0 == UNICHAIN_WETH) {
-            startingSqrtPrice = 4342511470701198426038843936496; // sqrt(3000) * 2^96
+            startingSqrtPrice = 4339505179874779489431521; // sqrt(3e-9) * 2^96
         } else {
-            startingSqrtPrice = 1446706790936181774319409893; // sqrt(1/3000) * 2^96
+            startingSqrtPrice = 1446501726624926496477173928747177; // sqrt(3.333e8) * 2^96
         }
         manager.setSlot0(key.toId(), startingSqrtPrice, 0);
 
@@ -107,8 +116,11 @@ contract EswapUnichainForkTest is Test {
         // Let's assume WETH is token0 for this test logic
         bool isWeth0 = Currency.unwrap(key.currency0) == UNICHAIN_WETH;
         
-        // Manipulate spot price significantly (e.g. sqrt(4000) instead of sqrt(3000))
-        uint160 manipulatedSqrtPrice = isWeth0 ? 5014389020963507567786443426725 : 1251919808620888126046757134; 
+        // Manipulate spot price significantly (spot shows 4000 USDC/WETH instead of 3000).
+        // Decimals-aware sqrtPriceX96 values:
+        //   WETH as currency0: raw = 4000e6/1e18 = 4e-9
+        //   USDC as currency0: raw = 1e18/4000e6 = 2.5e8
+        uint160 manipulatedSqrtPrice = isWeth0 ? 5010828967500958623728276 : 1252707241875239655932069007848031;
         manager.setSlot0(key.toId(), manipulatedSqrtPrice, 0);
 
         // Attempt to open a position. The hook should revert due to V4 Spot vs V3 TWAP deviation
@@ -121,26 +133,43 @@ contract EswapUnichainForkTest is Test {
     }
 
     function test_Unichain_OpenProfitableLong() public {
-        // Restore correct spot price
-        uint160 correctSqrtPrice = Currency.unwrap(key.currency0) == UNICHAIN_WETH ? 4342511470701198426038843936496 : 1446706790936181774319409893;
+        // Restore correct spot price (3000 USDC per WETH, decimals-aware)
+        uint160 correctSqrtPrice = Currency.unwrap(key.currency0) == UNICHAIN_WETH ? 4339505179874779489431521 : 1446501726624926496477173928747177;
         manager.setSlot0(key.toId(), correctSqrtPrice, 0);
 
-        // Trader opens 5x Long on WETH
+        // Trader opens 5x Long on WETH (borrows USDC, buys WETH).
+        // On Unichain USDC < WETH so currency0=USDC: we sell USDC (currency0) to buy
+        // WETH (currency1) → zeroForOne=true. If WETH were currency0 (e.g. Base),
+        // we would sell USDC (currency1) to buy WETH → zeroForOne=false.
+        bool zeroForOne = Currency.unwrap(key.currency0) == UNICHAIN_USDC;
+
         bytes memory hookData = abi.encode(true, uint8(5), trader);
-        bool zeroForOne = Currency.unwrap(key.currency0) == UNICHAIN_USDC; // If WETH is token1, we swap USDC(0) for WETH(1) to go long
-        
+
         vm.startPrank(address(manager));
-        // Provide 1000 USDC as margin
+        // Provide margin (input USDC)
         hook.beforeSwap(address(this), key, zeroForOne, -1000e18, hookData);
-        
-        // Simulate exact AMM swap execution (5000 USDC worth of WETH)
-        // V4 Transient states are mocked in afterSwap
-        hook.afterSwap(address(this), key, zeroForOne, 1000e18, -1666666666666666666, 5000e18, hookData);
+
+        // Simulate exact AMM swap execution. afterSwap receives the pool-side deltas
+        // (amount0, amount1): the pool receives the input currency (positive) and pays
+        // the output currency (negative). For zeroForOne=true on Unichain, amount0 is
+        // the USDC received (positive) and amount1 is the WETH paid out (negative).
+        int128 amount0;
+        int128 amount1;
+        if (zeroForOne) {
+            amount0 = 5000e18;
+            amount1 = -1666666666666666666;
+        } else {
+            amount0 = -1666666666666666666;
+            amount1 = 5000e18;
+        }
+        hook.afterSwap(address(this), key, zeroForOne, -1000e18, amount0, amount1, hookData);
         vm.stopPrank();
 
-        // Verify position was created
+        // Verify position was created, is a LONG (base = WETH), and collateral is WETH
         ( , , , uint8 leverage, bool isLong, , , , ) = hook.positions(key.toId(), trader);
         assertEq(leverage, 5);
         assertTrue(isLong);
+        (Currency collateral, ) = hook.positionCurrencies(key, trader);
+        assertEq(Currency.unwrap(collateral), UNICHAIN_WETH);
     }
 }

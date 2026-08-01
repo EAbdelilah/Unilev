@@ -63,13 +63,18 @@ export function useV4Position() {
             ["bool", "uint8", "address"], [true, leverage, address]
         )
 
-        const zeroForOne = !isShort
+        // WETH is the pool's base token (set via hook.setBaseCurrency). A LONG buys
+        // WETH, so the swap direction depends on whether WETH sorted into currency0:
+        //   base == currency1 (Unichain) → LONG = zeroForOne (sell USDC, buy WETH)
+        //   base == currency0 (Base)     → LONG = !zeroForOne (sell USDC, buy WETH)
+        const wethIsCurrency0 = WETH_ADDR.toLowerCase() === key.currency0.toLowerCase()
+        const zeroForOne = isShort ? wethIsCurrency0 : !wethIsCurrency0
         let amountOutMin = BigInt(0)
         if (readProvider && ADDRESSES.PRICEFEEDL1) {
             try {
                 const feed = new ethers.Contract(ADDRESSES.PRICEFEEDL1, PriceFeedL1ABI.abi, readProvider)
-                const collateralToken = zeroForOne ? currency0 : currency1
-                const outputToken = zeroForOne ? currency1 : currency0
+                const collateralToken = zeroForOne ? key.currency0 : key.currency1
+                const outputToken = zeroForOne ? key.currency1 : key.currency0
                 const collateralUsd = await feed.getAmountInUsd(collateralToken, BigInt(amount))
                 if (collateralUsd > 0n) {
                     const oneUnit = BigInt(10) ** BigInt(18)
@@ -116,9 +121,10 @@ export function useV4Position() {
             const pos = await hook.positions(poolId, userAddress)
             if (pos.collateralAmount === 0n) return null
 
+            // isLong is anchored to the pool's base token (WETH via setBaseCurrency),
+            // so a LONG position holds WETH collateral and a SHORT holds USDC.
             const isLong = pos.isLong
-            const [c0, c1] = sortCurrencies(WETH_ADDR, USDC_ADDR)
-            const collateralAddr = isLong ? c0 : c1
+            const collateralAddr = isLong ? WETH_ADDR : USDC_ADDR
             const tokenNameMap = { [WETH_ADDR.toLowerCase()]: "WETH", [USDC_ADDR.toLowerCase()]: "USDC" }
             const collateralSymbol = tokenNameMap[collateralAddr.toLowerCase()] || "UNKNOWN"
             const collateralDecimals = collateralSymbol === "USDC" ? 6 : 18

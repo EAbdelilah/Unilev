@@ -40,6 +40,11 @@ contract EswapReentrancyTest is BaseV4Test {
         hook.beforeSwap(address(this), key, true, -100 ether, data);
         vm.prank(address(manager));
         hook.afterSwap(address(this), key, true, -300 ether, -300 ether, -290 ether, data);
+
+        // Fund the hook with the debt currency so the close can transfer the surplus to the
+        // trader (the mock's take() is a no-op, so the recovered tokens never reach the hook).
+        // The position opened with zeroForOne=true is a SHORT, so the debt currency is currency0.
+        token0.mint(address(hook), 200 ether);
     }
 
     function test_NonReentrant_ClosePosition() public {

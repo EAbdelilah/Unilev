@@ -7,6 +7,10 @@ import {Currency} from "../../types/Currency.sol";
 import {BalanceDelta, BalanceDeltaLibrary} from "../../types/BalanceDelta.sol";
 import {PoolId} from "../../types/PoolId.sol";
 
+interface IUnlockCallback {
+    function unlockCallback(bytes calldata data) external returns (bytes memory);
+}
+
 contract PoolManagerMock is IPoolManager {
     using BalanceDeltaLibrary for BalanceDelta;
 
@@ -31,6 +35,10 @@ contract PoolManagerMock is IPoolManager {
     mapping(address => mapping(Currency => int256)) public currencyDeltas;
     BalanceDelta public overrideSwapDelta;
     bool public hasOverrideSwapDelta;
+    uint256 public settleCount;
+    uint256 public takeCount;
+    BalanceDelta public overrideModifyLiquidityDelta;
+    bool public hasOverrideModifyLiquidityDelta;
 
     function setSlot0(PoolId id, uint160 sqrtPriceX96, int24 tick) external {
         slot0[id] = Slot0Data(sqrtPriceX96, tick, 0, 3000);
@@ -45,11 +53,16 @@ contract PoolManagerMock is IPoolManager {
         hasOverrideSwapDelta = true;
     }
 
+    function setNextModifyLiquidityDelta(int128 delta0, int128 delta1) external {
+        overrideModifyLiquidityDelta = BalanceDeltaLibrary.toBalanceDelta(delta0, delta1);
+        hasOverrideModifyLiquidityDelta = true;
+    }
+
     function balanceOf(address owner, uint256 id) external view returns (uint256) {
         return balances[owner][id];
     }
 
-    function unlock(bytes calldata data) external override returns (bytes memory) {
+    function unlock(bytes calldata data) external override virtual returns (bytes memory) {
         return "";
     }
 
@@ -87,14 +100,21 @@ contract PoolManagerMock is IPoolManager {
             tickUpper: tickUpper,
             liquidityDelta: liquidityDelta
         }));
+        if (hasOverrideModifyLiquidityDelta) {
+            hasOverrideModifyLiquidityDelta = false; // consume once
+            return overrideModifyLiquidityDelta;
+        }
         return delta;
     }
 
     function settle(Currency) external payable override returns (uint256) {
+        settleCount++;
         return 0;
     }
 
-    function take(Currency, address, uint256) external override {}
+    function take(Currency, address, uint256) external override {
+        takeCount++;
+    }
 
     function mint(address to, uint256 id, uint256 amount) external override {
         balances[to][id] += amount;
@@ -123,5 +143,15 @@ contract PoolManagerMock is IPoolManager {
             protocolFee = s.protocolFee;
             lpFee = s.lpFee;
         }
+    }
+}
+
+/**
+ * @dev Like PoolManagerMock but unlock() forwards to the caller's unlockCallback,
+ *      mirroring real V4 so the router's unlock flow can be exercised in tests.
+ */
+contract PoolManagerCallbackMock is PoolManagerMock {
+    function unlock(bytes calldata data) external override returns (bytes memory) {
+        return IUnlockCallback(msg.sender).unlockCallback(data);
     }
 }

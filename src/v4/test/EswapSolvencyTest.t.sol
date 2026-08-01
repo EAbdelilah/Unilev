@@ -11,11 +11,11 @@ contract EswapSolvencyTest is BaseV4Test {
     using PoolIdLibrary for PoolKey;
 
     // When zeroForOne=true: isLong=false (short)
-    //   collateral = currency0 (token0), borrow = currency1 (token1)
-    // To make it liquidatable: drop token0 price relative to token1
+    //   collateral = currency1 (token1, the bought asset), borrow = currency0 (token0)
+    // To make it liquidatable: drop token1 price relative to token0
     // collateral value < borrow value * 115%
-    //   (amount0 * p0) < (amount1 * p1 * 1.15)
-    //   e.g. p0=0.5, p1=1, collateral=4.8, borrow=4 => 2.4 < 4.6 => YES
+    //   (amount1 * p1) < (amount0 * p0 * 1.15)
+    //   e.g. p1=0.5, p0=1, collateral=4.8, borrow=4 => 2.4 < 4.6 => YES
 
     function setUp() public override {
         super.setUp();
@@ -25,7 +25,7 @@ contract EswapSolvencyTest is BaseV4Test {
         priceFeed.setPrice(address(token0), 1e18);
         priceFeed.setPrice(address(token1), 1e18);
 
-        // isLong=false (zeroForOne=true), collateral=token0, borrow=token1
+        // isLong=false (zeroForOne=true), collateral=token1, borrow=token0
         EswapMarginHook.Position memory pos = EswapMarginHook.Position({
             trader: address(this),
             collateralAmount: 200 ether,  // $200 token0
@@ -42,10 +42,10 @@ contract EswapSolvencyTest is BaseV4Test {
     }
 
     function test_HealthFactor_Below1_Liquidatable() public {
-        priceFeed.setPrice(address(token0), 0.5e18); // collateral (token0) dropped 50%
-        priceFeed.setPrice(address(token1), 1e18);
+        priceFeed.setPrice(address(token1), 0.5e18); // collateral (token1) dropped 50%
+        priceFeed.setPrice(address(token0), 1e18);
 
-        // isLong=false, collateral=token0 @ 0.5, borrow=token1 @ 1
+        // isLong=false, collateral=token1 @ 0.5, borrow=token0 @ 1
         EswapMarginHook.Position memory pos = EswapMarginHook.Position({
             trader: address(this),
             collateralAmount: 100 ether, // value=$50
@@ -69,7 +69,7 @@ contract EswapSolvencyTest is BaseV4Test {
         // Also sync PoolManager spot to 1:1 (sqrtPriceX96 = Q96)
         manager.setSlot0(key.toId(), 79228162514264337593543950336, 0);
 
-        // zeroForOne=true => isLong=false; collateral=token0, borrow=token1
+        // zeroForOne=true => isLong=false; collateral=token1, borrow=token0
         bytes memory data = abi.encode(true, uint8(5), address(this));
         vm.prank(address(manager));
         hook.beforeSwap(address(this), key, true, -1 ether, data);
@@ -80,48 +80,57 @@ contract EswapSolvencyTest is BaseV4Test {
     function test_Liquidation_InsuranceSplit_ExactAmounts() public {
         _openPosition(); // opens at 1:1
 
-        // Now simulate price crash: token0 drops to 0.5, making position liquidatable
-        priceFeed.setPrice(address(token0), 0.5e18);
-        priceFeed.setPrice(address(token1), 1e18);
-        // pos: isLong=false, collateral=token0 @ $0.5, borrow=token1 @ $1
+        // Now simulate price crash: token1 drops to 0.5, making position liquidatable
+        priceFeed.setPrice(address(token1), 0.5e18);
+        priceFeed.setPrice(address(token0), 1e18);
+        // pos: isLong=false, collateral=token1 @ $0.5, borrow=token0 @ $1
         // collateral value = 4.8 * 0.5 = 2.4, borrow value = 4 * 1 = 4
         // 2.4*100 < 4*115 => liquidatable ✓
 
-        // SHORT liquidation: zeroForOne=true → sell currency0 (collateral) → receive currency1 (debt)
-        // New directional mock: amount0=-5 ether (sold), amount1=+5 ether (received)
-        // receivedAmount comes from amount1 (positive) = 5 ether
-        // liquidatorReward = 5 * 3% = 0.15 → goes to insuranceFund[currency1]
+        // SHORT liquidation: zeroForOne=false → sell currency1 (collateral) → receive currency0 (debt)
+        // New directional mock: amount0=+5 ether (received), amount1=-5 ether (sold)
+        // receivedAmount comes from amount0 (positive) = 5 ether
+        // liquidatorReward = 5 * 3% = 0.15 → goes to insuranceFund[currency0]
         token0.mint(address(hook), 10 ether);
         token1.mint(address(hook), 10 ether);
-        // Override with explicit directional delta: selling token0, receiving token1
-        manager.setNextSwapDelta(-5 ether, 5 ether);
+        // Override with explicit directional delta: selling token1, receiving token0
+        manager.setNextSwapDelta(5 ether, -5 ether);
+
+        // Verify the claim is populated before liquidation (makes the clear assertion meaningful).
+        // SHORT (zeroForOne=true) collateral = currency1 (token1), the bought asset
+        uint256 claimId = uint256(uint160(address(token1)));
+        assertTrue(hook._claimBalances(address(this), claimId) > 0, "claim should be populated before liquidation");
 
         hook.executeLiquidation(key, address(this), 0);
 
         (address trader, uint256 collateral,,,,,,,) = hook.positions(key.toId(), address(this));
         assertEq(trader, address(0));
         assertEq(collateral, 0);
-        // 3% of 5 ether received = 0.15 ether goes to insurance fund (currency1 = debt token)
-        assertTrue(hook.insuranceFund(key.currency1) > 0);
+        // 3% of 5 ether received = 0.15 ether goes to insurance fund (currency0 = debt token)
+        assertTrue(hook.insuranceFund(key.currency0) > 0);
+
+        // No phantom ERC-6909 claim or collateral aggregate should remain after liquidation
+        assertEq(hook._claimBalances(address(this), claimId), 0, "claim balance not cleared on liquidation");
+        assertEq(hook.totalCollateral(key.currency1), 0, "totalCollateral not cleared on liquidation");
     }
 
     function test_BadDebt_CoveredByInsurance() public {
         _openPosition(); // opens at 1:1
 
-        // Now simulate extreme crash: token0 drops to 0.1 (bad debt scenario)
-        priceFeed.setPrice(address(token0), 0.1e18);
-        priceFeed.setPrice(address(token1), 1e18);
+        // Now simulate extreme crash: token1 drops to 0.1 (bad debt scenario)
+        priceFeed.setPrice(address(token1), 0.1e18);
+        priceFeed.setPrice(address(token0), 1e18);
 
-        // Seed insurance fund for the BORROW currency (currency1 = token1)
-        token1.mint(address(this), 100 ether);
-        token1.approve(address(hook), 100 ether);
-        hook.seedInsuranceFund(key.currency1, 10 ether);
+        // Seed insurance fund for the BORROW currency (currency0 = token0)
+        token0.mint(address(this), 100 ether);
+        token0.approve(address(hook), 100 ether);
+        hook.seedInsuranceFund(key.currency0, 10 ether);
 
-        // SHORT liquidation bad-debt: sell token0, receive tiny amount of token1
-        // Override delta: amount1=+0.3 ether (received), borrow=4 ether → shortfall=3.7 ether
+        // SHORT liquidation bad-debt: sell token1, receive tiny amount of token0
+        // Override delta: amount0=+0.3 ether (received), borrow=4 ether → shortfall=3.7 ether
         token0.mint(address(hook), 100 ether);
         token1.mint(address(hook), 100 ether);
-        manager.setNextSwapDelta(-0.3 ether, 0.3 ether);
+        manager.setNextSwapDelta(0.3 ether, -0.3 ether);
 
         hook.executeLiquidation(key, address(this), 0);
 
@@ -134,14 +143,14 @@ contract EswapSolvencyTest is BaseV4Test {
         _openPosition(); // opens at 1:1
 
         // Now simulate extreme crash
-        priceFeed.setPrice(address(token0), 0.1e18);
-        priceFeed.setPrice(address(token1), 1e18);
+        priceFeed.setPrice(address(token1), 0.1e18);
+        priceFeed.setPrice(address(token0), 1e18);
 
         token0.mint(address(hook), 100 ether);
         token1.mint(address(hook), 100 ether);
-        // SHORT liquidation: receives token1 = 0.3 ether < borrow 4 ether → shortfall 3.7
-        // Insurance for currency1 = 0 → should revert
-        manager.setNextSwapDelta(-0.3 ether, 0.3 ether);
+        // SHORT liquidation: receives token0 = 0.3 ether < borrow 4 ether → shortfall 3.7
+        // Insurance for currency0 = 0 → should revert
+        manager.setNextSwapDelta(0.3 ether, -0.3 ether);
 
         vm.expectRevert();
         hook.executeLiquidation(key, address(this), 0);

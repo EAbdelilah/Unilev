@@ -14,6 +14,7 @@ import {TickMath} from "../../src/v4/libraries/TickMath.sol";
 import {EswapMarginHook, IPriceFeed} from "../../src/v4/EswapMarginHook.sol";
 import {EswapRouter} from "../../src/v4/EswapRouter.sol";
 import {EswapSolverAdapter} from "../../src/v4/EswapSolverAdapter.sol";
+import {EswapLiquidationKeeper} from "../../src/v4/EswapLiquidationKeeper.sol";
 import {HookFlags} from "../../src/v4/libraries/HookFlags.sol";
 
 contract DeployUnichainSepolia is Script {
@@ -41,8 +42,7 @@ contract DeployUnichainSepolia is Script {
         uint160 flags = HookFlags.AFTER_INITIALIZE_FLAG |
                         HookFlags.BEFORE_SWAP_FLAG |
                         HookFlags.BEFORE_SWAP_RETURNS_DELTA_FLAG |
-                        HookFlags.AFTER_SWAP_FLAG |
-                        HookFlags.AFTER_SWAP_RETURNS_DELTA_FLAG;
+                        HookFlags.AFTER_SWAP_FLAG;
 
         bytes memory bytecode = abi.encodePacked(
             type(EswapMarginHook).creationCode,
@@ -76,25 +76,40 @@ contract DeployUnichainSepolia is Script {
         EswapSolverAdapter adapter = new EswapSolverAdapter(address(router));
         console.log("SolverAdapter deployed at:", address(adapter));
 
+        // 5b. Deploy liquidation keeper (automation bot)
+        EswapLiquidationKeeper keeper = new EswapLiquidationKeeper(address(hook), address(router));
+        console.log("LiquidationKeeper deployed at:", address(keeper));
+
         // 6. Configure hook
         hook.setRouter(address(router));
+        // Configure token decimals so the V4-spot vs V3-TWAP circuit breaker can
+        // compare like-for-like prices (USDC has 6 decimals, WETH defaults to 18).
+        hook.setTokenDecimals(WETH, 18);
+        hook.setTokenDecimals(USDC, 6);
 
-        // 7. Initialize the WETH/USDC pool (0.30% fee)
+        // 7. Initialize the WETH/USDC pool (0.30% fee).
+        //    Uniswap V4 orders currencies ascending by address: on Unichain Sepolia
+        //    USDC (0x31d0..) sorts below WETH (0x4200..), so currency0=USDC and
+        //    currency1=WETH (the reverse would revert CurrenciesOutOfOrderOrEqual).
         PoolKey memory key = PoolKey({
-            currency0: Currency.wrap(WETH),
-            currency1: Currency.wrap(USDC),
+            currency0: Currency.wrap(USDC),
+            currency1: Currency.wrap(WETH),
             fee: 3000,
             tickSpacing: 60,
             hooks: IHooks(address(hook))
         });
 
-        // sqrtPriceX96 for ~$3500 ETH/USDC on testnet (price is arbitrary on testnet)
-        uint160 sqrtPriceX96 = TickMath.getSqrtRatioAtTick(-263813);
+        // Initial price ≈ 3000 USDC per WETH. With currency0=USDC(6)/currency1=WETH(18)
+        // the raw pool price is 1e18/3000e6 = 3.333e8 → tick ≈ 196256 (rounded to the
+        // 60 tick spacing => 196260). The previous tick -263813 implied ~0.00035
+        // USDC/WETH and was off by ~9 orders of magnitude.
+        uint160 sqrtPriceX96 = TickMath.getSqrtRatioAtTick(196260);
         pm.initialize(key, sqrtPriceX96);
 
-        // 8. Authorize the pool
+        // 8. Authorize the pool and anchor isLong to WETH (base token)
         PoolId poolId = key.toId();
         hook.setAuthorizedPool(poolId, true);
+        hook.setBaseCurrency(poolId, Currency.wrap(WETH));
 
         vm.stopBroadcast();
 
@@ -106,6 +121,7 @@ contract DeployUnichainSepolia is Script {
         console.log(string.concat("Hook:        ", vm.toString(address(hook))));
         console.log(string.concat("Router:      ", vm.toString(address(router))));
         console.log(string.concat("Adapter:     ", vm.toString(address(adapter))));
+        console.log(string.concat("Keeper:      ", vm.toString(address(keeper))));
         console.log("Oracle:      TWAP-only (no Chainlink dependency)");
         console.log("Pool:        WETH/USDC 0.30%");
         console.log("");
@@ -118,5 +134,6 @@ contract DeployUnichainSepolia is Script {
         console.log(string.concat("   V4_HOOK_ADDRESS=", vm.toString(address(hook))));
         console.log(string.concat("   V4_ROUTER_ADDRESS=", vm.toString(address(router))));
         console.log(string.concat("   V4_ADAPTER_ADDRESS=", vm.toString(address(adapter))));
+        console.log(string.concat("   V4_KEEPER_ADDRESS=", vm.toString(address(keeper))));
     }
 }
