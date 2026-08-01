@@ -4,6 +4,10 @@ out = 'out'
 libs = ['lib']
 gas_reports = ["*"]
 optimizer = true
-optimizer_runs = 1
-solc = "0.8.20"
+optimizer_runs = 20000
+solc = "0.8.28"
 via_ir = true
+
+remappings = [
+    '@uniswap/v4-core/=lib/v4-core/',
+]

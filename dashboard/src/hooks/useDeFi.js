@@ -570,36 +570,7 @@ export function useDeFi() {
         }
     }, [readProvider])
 
-    const getPoolBorrowCapacity = useCallback(
-        async (tokenAddress) => {
-            if (!readProvider || !tokenAddress) return null
-            try {
-                const market = new ethers.Contract(ADDRESSES.MARKET, MarketABI.abi, readProvider)
-                const poolAddress = await market.getTokenToLiquidityPools(tokenAddress)
-                if (!poolAddress || poolAddress === ethers.ZeroAddress) return null
 
-                const poolContract = new ethers.Contract(
-                    poolAddress,
-                    LiquidityPoolABI.abi,
-                    readProvider
-                )
-                const capacityBigInt = await poolContract.borrowCapacityLeft()
-
-                const tokenContract = new ethers.Contract(tokenAddress, ERC20ABI.abi, readProvider)
-                const decimals = await tokenContract.decimals()
-
-                return {
-                    rawCapacity: capacityBigInt,
-                    capacityFormatted: ethers.formatUnits(capacityBigInt, decimals),
-                    decimals: decimals,
-                }
-            } catch (error) {
-                console.error("Error fetching borrow capacity:", error)
-                return null
-            }
-        },
-        [readProvider]
-    )
 
     // Calculate required borrow amount using the Market contract's calculatePositionOpening method
     const calculateRequiredBorrow = useCallback(

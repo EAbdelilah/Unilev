@@ -13,7 +13,7 @@ export function TradeForm({ onTradingTokenChange }) {
         openPosition,
         calculateTokenAmountFromUsd,
         calculateRequiredBorrow,
-        getPoolBorrowCapacity,
+        calculateRequiredBorrow,
         ADDRESSES,
         SUPPORTED_TOKENS_LIST,
         isMetaMaskInstalled,
@@ -39,11 +39,9 @@ export function TradeForm({ onTradingTokenChange }) {
     const [allowance, setAllowance] = useState(0n)
 
     // Liquidity State
-    const [borrowCapacity, setBorrowCapacity] = useState(null)
     const [requiredBorrow, setRequiredBorrow] = useState(null)
     const [requiredBorrowUsd, setRequiredBorrowUsd] = useState("0.00")
     const [liquidationFloor, setLiquidationFloor] = useState(null)
-    const [isLiquiditySufficient, setIsLiquiditySufficient] = useState(true)
 
     const isCorrectNetwork = chainId === polygon.id
 
@@ -92,23 +90,7 @@ export function TradeForm({ onTradingTokenChange }) {
         fetchAllowance()
     }, [isConnected, address, isCorrectNetwork, marginToken, ADDRESSES, getAllowance])
 
-    // Fetch pool capacity when collateral token changes
     useEffect(() => {
-        const fetchCapacity = async () => {
-            if (!isConnected || !isCorrectNetwork) return
-
-            // If shorting, the borrowed capacity relies on the trading token (base) pool
-            // If longing, the borrowed capacity relies on the margin token (quote) pool
-            const borrowCapacityToken = isShort ? tradingToken : marginToken
-            const capacityTokenAddr = ADDRESSES[borrowCapacityToken]
-
-            if (!capacityTokenAddr) return
-
-            const capacityData = await getPoolBorrowCapacity(capacityTokenAddr)
-            setBorrowCapacity(capacityData)
-        }
-        fetchCapacity()
-
         // Setup initial default selected tokens if not set properly (e.g if 'USDC/WBTC' don't exist in config)
         if (SUPPORTED_TOKENS_LIST.length > 0) {
             if (!SUPPORTED_TOKENS_LIST.find((t) => t.key === marginToken)) {
@@ -127,18 +109,16 @@ export function TradeForm({ onTradingTokenChange }) {
         tradingToken,
         isShort,
         ADDRESSES,
-        getPoolBorrowCapacity,
         SUPPORTED_TOKENS_LIST,
     ])
 
     // Calculate required borrow when amount/leverage changes using contract logic
     useEffect(() => {
         const calculateRequired = async () => {
-            if (!isConnected || !isCorrectNetwork || !borrowCapacity || !balanceData) {
+            if (!isConnected || !isCorrectNetwork || !balanceData) {
                 setRequiredBorrow(null)
                 setRequiredBorrowUsd("0.00")
                 setLiquidationFloor(null)
-                setIsLiquiditySufficient(true)
                 return
             }
 
@@ -146,7 +126,6 @@ export function TradeForm({ onTradingTokenChange }) {
                 setRequiredBorrow(null)
                 setRequiredBorrowUsd("0.00")
                 setLiquidationFloor(null)
-                setIsLiquiditySufficient(true)
                 return
             }
 
@@ -182,15 +161,6 @@ export function TradeForm({ onTradingTokenChange }) {
                     })
                     setRequiredBorrowUsd(borrowData.borrowUsdFormatted)
                     setLiquidationFloor(borrowData.liquidationFloor)
-
-                    // Check liquidity sufficiency
-                    if (borrowCapacity.rawCapacity) {
-                        setIsLiquiditySufficient(
-                            borrowCapacity.rawCapacity >= borrowData.totalBorrow
-                        )
-                    } else {
-                        setIsLiquiditySufficient(false)
-                    }
                 } else {
                     setRequiredBorrow(null)
                     setRequiredBorrowUsd("0.00")
@@ -210,7 +180,6 @@ export function TradeForm({ onTradingTokenChange }) {
     }, [
         isConnected,
         isCorrectNetwork,
-        borrowCapacity,
         amount,
         leverage,
         marginToken,
@@ -359,15 +328,6 @@ export function TradeForm({ onTradingTokenChange }) {
                 )
             }
 
-            // Check liquidity locally first for better error message
-            if (!isLiquiditySufficient) {
-                throw new Error(
-                    `Insufficient liquidity in the ${
-                        isShort ? tradingToken : marginToken
-                    } pool. The protocol cannot lend you the required amount for this leverage.`
-                )
-            }
-
             const result = await simulateOpenPosition(
                 marginAddr,
                 tradingAddr,
@@ -385,10 +345,7 @@ export function TradeForm({ onTradingTokenChange }) {
                 const friendlyError = formatContractError(result.error)
 
                 // Try to provide a more detailed explanation based on common errors
-                if (friendlyError.includes("Not enough liquidity")) {
-                    explanation =
-                        " The protocol doesn't have enough assets to lend for this position size and leverage."
-                } else if (friendlyError.includes("size is too small")) {
+                if (friendlyError.includes("size is too small")) {
                     explanation =
                         " The protocol requires a minimum position size (usually $1 USD) to prevent dust positions."
                 } else if (friendlyError.includes("leverage is out of the allowed range")) {
@@ -561,13 +518,11 @@ export function TradeForm({ onTradingTokenChange }) {
                 </div>
 
                 {/* Liquidity Information */}
-                {requiredBorrow !== null && borrowCapacity !== null && leverage > 1 && (
+                {requiredBorrow !== null && leverage > 1 && (
                     <div
                         className={clsx(
                             "p-3 rounded text-sm transition-colors",
-                            isLiquiditySufficient
-                                ? "bg-white/5 text-gray-400"
-                                : "bg-red-500/20 text-red-400 border border-red-500/50"
+                            "bg-white/5 text-gray-400"
                         )}
                     >
                         <div className="flex justify-between mb-1">
@@ -582,18 +537,6 @@ export function TradeForm({ onTradingTokenChange }) {
                                 </span>
                             </div>
                         </div>
-                        <div className="flex justify-between mb-1">
-                            <span>Pool Capacity:</span>
-                            <span className="font-mono">
-                                {formatTokenAmount(borrowCapacity.capacityFormatted, isShort ? tradingToken : marginToken)}{" "}
-                                {isShort ? tradingToken : marginToken}
-                            </span>
-                        </div>
-                        {!isLiquiditySufficient && (
-                            <div className="mt-2 text-xs font-bold w-full text-center uppercase tracking-wide">
-                                Insufficient Pool Liquidity
-                            </div>
-                        )}
                     </div>
                 )}
 
@@ -603,7 +546,6 @@ export function TradeForm({ onTradingTokenChange }) {
                         loading ||
                         !isConnected ||
                         !isCorrectNetwork ||
-                        !isLiquiditySufficient ||
                         !isMetaMaskInstalled ||
                         hasZeroAmount ||
                         hasInsufficientBalance
@@ -612,7 +554,6 @@ export function TradeForm({ onTradingTokenChange }) {
                         "w-full primary-button mt-4",
                         (loading ||
                             !isCorrectNetwork ||
-                            !isLiquiditySufficient ||
                             !isMetaMaskInstalled ||
                             hasZeroAmount ||
                             hasInsufficientBalance) &&
@@ -623,8 +564,6 @@ export function TradeForm({ onTradingTokenChange }) {
                         ? "Install MetaMask"
                         : !isCorrectNetwork
                         ? "Wrong Network"
-                        : !isLiquiditySufficient
-                        ? "Insufficient Liquidity"
                         : hasZeroAmount
                         ? "Enter Amount"
                         : hasInsufficientBalance
@@ -644,7 +583,6 @@ export function TradeForm({ onTradingTokenChange }) {
                         simulating ||
                         !isConnected ||
                         !isCorrectNetwork ||
-                        !isLiquiditySufficient ||
                         !isMetaMaskInstalled ||
                         hasZeroAmount
                     }
@@ -653,7 +591,6 @@ export function TradeForm({ onTradingTokenChange }) {
                         (loading ||
                             simulating ||
                             !isCorrectNetwork ||
-                            !isLiquiditySufficient ||
                             !isMetaMaskInstalled ||
                             hasZeroAmount) &&
                             "opacity-50 cursor-not-allowed"

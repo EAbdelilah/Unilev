@@ -3,13 +3,10 @@ pragma solidity ^0.8.24;
 
 import {BaseV4Test} from "./BaseV4Test.t.sol";
 import {EswapMarginHook} from "../EswapMarginHook.sol";
-import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
-import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
-import {IUnlockCallback} from "@uniswap/v4-core/src/interfaces/callback/IUnlockCallback.sol";
-import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
-import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
+import {PoolKey} from "../types/PoolKey.sol";
+import {IPoolManager} from "../interfaces/IPoolManager.sol";
 
-contract ReentrancyAttacker is IUnlockCallback {
+contract ReentrancyAttacker {
     EswapMarginHook public target;
     PoolKey public key;
     bool public attackAttempted;
@@ -21,10 +18,9 @@ contract ReentrancyAttacker is IUnlockCallback {
 
     function unlockCallback(bytes calldata) external returns (bytes memory) {
         attackAttempted = true;
-        try target.closePosition(key, address(this), 0) {} catch {}
+        try target.closePosition(key, address(this), address(0), 0) {} catch {}
         try target.beforeSwap(
-            address(this), key,
-            IPoolManager.SwapParams({zeroForOne: true, amountSpecified: -100 ether, sqrtPriceLimitX96: 0}),
+            address(this), key, true, -100 ether,
             abi.encode(true, uint8(3), address(this))
         ) {} catch {}
         return "";
@@ -41,24 +37,26 @@ contract EswapReentrancyTest is BaseV4Test {
         hook.setRouter(address(this));
         bytes memory data = abi.encode(true, uint8(3), address(this));
         vm.prank(address(manager));
-        beforeSwap(address(this), key, true, -100 ether, data);
+        hook.beforeSwap(address(this), key, true, -100 ether, data);
         vm.prank(address(manager));
-        afterSwap(address(this), key, true, -300 ether, -300 ether, 290 ether, data);
+        hook.afterSwap(address(this), key, true, -300 ether, -300 ether, -290 ether, data);
     }
 
     function test_NonReentrant_ClosePosition() public {
-        ReentrancyAttacker attacker = new ReentrancyAttacker(hook, key);
-        hook.closePosition(key, address(this), 0);
+        PoolKey memory keyMem = key;
+        ReentrancyAttacker attacker = new ReentrancyAttacker(hook, keyMem);
+        hook.closePosition(key, address(this), address(0), 0);
 
         assertFalse(attacker.attackAttempted());
     }
 
     function test_NonReentrant_BeforeSwap() public {
-        ReentrancyAttacker attacker = new ReentrancyAttacker(hook, key);
+        PoolKey memory keyMem = key;
+        ReentrancyAttacker attacker = new ReentrancyAttacker(hook, keyMem);
 
         bytes memory data = abi.encode(true, uint8(3), address(attacker));
         vm.prank(address(manager));
-        beforeSwap(address(attacker), key, true, -100 ether, data);
+        hook.beforeSwap(address(attacker), key, true, -100 ether, data);
 
         assertFalse(attacker.attackAttempted());
     }
