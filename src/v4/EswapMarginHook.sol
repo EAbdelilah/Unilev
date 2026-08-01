@@ -271,7 +271,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
 
             positions[key.toId()][trader] = Position({
                 trader: trader,
-                collateralAmount: boughtAmount,
+                collateralAmount: positionCollateral,
                 borrowedAmount: borrow,
                 leverage: uint8(_getKey(LEVERAGE_BASE, trader).tloadUint()),
                 isLong: !zeroForOne,
@@ -333,8 +333,10 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
 
     function isLiquidatable(Position memory pos, PoolKey calldata key) public view returns (bool) {
         if (pos.collateralAmount == 0) return false;
+        // LONG:  bought currency1 (collateral), borrowed currency0 (debt)
+        // SHORT: bought currency0 (collateral), borrowed currency1 (debt)
         uint256 collateralValueUsd = priceFeed.getAmountInUsd(Currency.unwrap(pos.isLong ? key.currency1 : key.currency0), pos.collateralAmount);
-        uint256 borrowedValueUsd = priceFeed.getAmountInUsd(Currency.unwrap(pos.isLong ? key.currency0 : key.currency1), pos.borrowedAmount);
+        uint256 borrowedValueUsd   = priceFeed.getAmountInUsd(Currency.unwrap(pos.isLong ? key.currency0 : key.currency1), pos.borrowedAmount);
         // Liquidation at 115% collateralization
         return collateralValueUsd * 100 < borrowedValueUsd * 115;
     }
@@ -378,7 +380,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
 
         // Determine which currency is received from the swap
         Currency receivedCurrency = pos.isLong ? key.currency1 : key.currency0;
-        Currency borrowedCurrency = pos.isLong ? key.currency0 : key.currency1;
+        Currency borrowedCurrency = pos.isLong ? key.currency1 : key.currency0;
 
         // Amount received from the swap (positive = we receive tokens from the PM)
         int128 receivedDelta = pos.isLong ? delta.amount1() : delta.amount0();

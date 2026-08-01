@@ -95,8 +95,6 @@ contract EswapTradingScenariosTest is BaseV4Test {
 
     /// @dev Simulate a liquidation (seeds hook with tokens, sets swap delta, executes)
     function _liquidate(address trader, bool isLong, int128 recoveredDelta) internal {
-        token0.mint(address(hook), 100 ether);
-        token1.mint(address(hook), 100 ether);
         // Seed insurance so bad-debt path doesn't revert in WIN/LOSE scenarios
         token1.mint(address(this), 50 ether);
         token1.approve(address(hook), 50 ether);
