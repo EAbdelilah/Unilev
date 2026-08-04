@@ -17,6 +17,7 @@ import {IURC2} from "./interfaces/IURC2.sol";
 import {IURC3} from "./interfaces/IURC3.sol";
 import {IURC4} from "./interfaces/IURC4.sol";
 import {IERC6909} from "./interfaces/IERC6909.sol";
+import {IExttload} from "@uniswap/v4-core/src/interfaces/IExttload.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {FullMath} from "@uniswap/v4-core/src/libraries/FullMath.sol";
@@ -32,11 +33,20 @@ interface IPriceFeed {
  * 1. EIP-1153 Flash Borrowing (Solves TVL bottleneck by utilizing AMM reserves)
  * 2. Treasury-Assisted Settlement (Enables multi-day 0% interest positions)
  * 3. Standardized URC Compliance (Solves User Acquisition via Solver/Aggregator routing)
+ *
+ * @dev SDIM execution model: the hook is a registry + ERC-6909 collateral
+ *      custodian. No protocol vaults exist. An off-chain Solver physically
+ *      settles the borrowed leg (margin x (leverage-1)) inside the router's
+ *      unlock callback; the hook guarantees Solver repayment (principal + yield)
+ *      via the on-chain `solverDebts` registry before the trader can withdraw.
+ *      The PoolManager API is the REAL lib/v4-core ABI: extsload for the packed
+ *      slot0, exttload for transient currency deltas, no-arg settle().
  */
 contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     using PoolIdLibrary for PoolKey;
     using PoolIdLibrary for PoolId;
     using TransientStorage for bytes32;
+    using BalanceDeltaLibrary for BalanceDelta;
 
     error NotPoolManager();
     error LeverageTooHigh();
@@ -99,6 +109,10 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
 
     // PoolId => trader => solver => SolverDebt
     mapping(PoolId => mapping(address => mapping(address => SolverDebt))) public solverDebts;
+    // PoolId => trader => solver responsible for repaying the position's borrow.
+    // Populated by registerSolverDebt so liquidations can repay without an
+    // explicit solver argument.
+    mapping(PoolId => mapping(address => address)) public positionSolver;
 
     address public owner;
     address public router;
@@ -133,6 +147,40 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     modifier onlyOwner() {
         require(msg.sender == owner, "Not owner");
         _;
+    }
+
+    /**
+     * @notice Reads the REAL packed slot0 of a pool from the PoolManager via
+     *         extsload. `_pools[id].slot0` lives at the mapping slot
+     *         keccak256(abi.encode(id, uint256(0))) and packs
+     *         sqrtPriceX96 (low 160) | tick (160..184) | protocolFee (184..200)
+     *         | lpFee (200..224) — exactly as Pool.State.slot0 in lib/v4-core.
+     */
+    function _slot0(PoolId id)
+        internal
+        view
+        returns (uint160 sqrtPriceX96, int24 tick, uint16 protocolFee, uint24 lpFee)
+    {
+        bytes32 packed = manager.extsload(keccak256(abi.encode(id, uint256(0))));
+        sqrtPriceX96 = uint160(uint256(packed));
+        tick = int24(int256(uint256(packed) >> 160));
+        protocolFee = uint16(uint256(packed) >> 184);
+        lpFee = uint24(uint256(packed) >> 200);
+    }
+
+    /**
+     * @notice Reads a transient currency delta via exttload. Mirrors the REAL
+     *         CurrencyDelta._computeSlot: keccak256(abi.encodePacked(target, currency)).
+     */
+    function _currencyDelta(address locker, Currency currency) internal view returns (int256) {
+        bytes32 slot = keccak256(abi.encodePacked(locker, Currency.unwrap(currency)));
+        // Low-level call: solc 0.8.28 via-ir fails to resolve the `extttload` member
+        // on IPoolManager when the contract name matches the source file name, so
+        // route around it. Selector matches IExttload.extttload(bytes32).
+        (bool success, bytes memory data) =
+            address(manager).staticcall(abi.encodeWithSignature("extttload(bytes32)", slot));
+        require(success, "extttload failed");
+        return int256(uint256(abi.decode(data, (bytes32))));
     }
 
     function setAuthorizedPool(PoolId poolId, bool authorized) external onlyOwner {
@@ -237,8 +285,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     function beforeSwap(
         address,
         PoolKey calldata key,
-        bool zeroForOne,
-        int128 amountSpecified,
+        IPoolManager.SwapParams calldata params,
         bytes calldata data
     ) external override onlyPoolManager returns (bytes4, BeforeSwapDelta, uint24) {
         if (router == address(0)) revert RouterNotSet();
@@ -251,7 +298,8 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         if (!isMargin) return (IHooks.beforeSwap.selector, BeforeSwapDeltaLibrary.toBeforeSwapDelta(0, 0), 0);
 
         if (leverage == 0 || leverage > MAX_LEVERAGE) revert MaxLeverageExceeded();
-        uint256 marginAmount = uint256(int256(amountSpecified < 0 ? -amountSpecified : amountSpecified));
+
+        uint256 marginAmount = uint256(int256(params.amountSpecified < 0 ? -params.amountSpecified : params.amountSpecified));
         if (marginAmount < MIN_COLLATERAL) revert CollateralTooLow();
         uint256 borrowedAmount = marginAmount * (leverage - 1);
 
@@ -270,11 +318,17 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         // We return a negative delta to the PoolManager, signaling that the Hook
         // is providing the borrowed portion. This allows us to utilize the AMM's
         // depth for the swap execution without an external lending vault.
+        //
+        // Real v4-core packs BeforeSwapDelta as (specified, unspecified): the
+        // SPECIFIED leg is the swap input (currency0 for zeroForOne, currency1
+        // otherwise). The hook flash-provides the borrowed amount on the input
+        // leg, so the specified delta is always the (negative) borrow and the
+        // unspecified delta is zero. Mapping by zeroForOne here would break the
+        // short direction against the real PoolManager (the borrow would land on
+        // the output leg and never be added to amountToSwap).
         int128 deltaInput = -int128(uint128(borrowedAmount));
-        int128 delta0 = zeroForOne ? deltaInput : int128(0);
-        int128 delta1 = zeroForOne ? int128(0) : deltaInput;
 
-        return (IHooks.beforeSwap.selector, BeforeSwapDeltaLibrary.toBeforeSwapDelta(delta0, delta1), 0);
+        return (IHooks.beforeSwap.selector, BeforeSwapDeltaLibrary.toBeforeSwapDelta(deltaInput, 0), 0);
     }
 
     /// @dev Effective base currency for a pool (defaults to currency0 when unset).
@@ -304,10 +358,8 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     function afterSwap(
         address,
         PoolKey calldata key,
-        bool zeroForOne,
-        int128,
-        int128 amount0,
-        int128 amount1,
+        IPoolManager.SwapParams calldata params,
+        BalanceDelta delta,
         bytes calldata data
     ) external override onlyPoolManager returns (bytes4, int128) {
         if (data.length == 0) return (IHooks.afterSwap.selector, 0);
@@ -315,25 +367,29 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         (bool isMargin, , address trader) = abi.decode(data, (bool, uint8, address));
         if (isMargin && trader != address(0)) {
             uint256 borrow = _getKey(BORROW_BASE, trader).tloadUint();
-            int128 rawAmount = zeroForOne ? -amount1 : -amount0;
+            // Delta is provided from the swapper's perspective: the received currency
+            // is positive (the output of the swap), regardless of zeroForOne direction.
+            int128 rawAmount = params.zeroForOne ? delta.amount1() : delta.amount0();
             if (rawAmount <= 0) revert SwapOutputZero();
             uint256 boughtAmount = uint256(int256(rawAmount));
-            Currency boughtCurrency = zeroForOne ? key.currency1 : key.currency0;
+            Currency boughtCurrency = params.zeroForOne ? key.currency1 : key.currency0;
 
             // STEP 2: Custom Accounting & Hook-Held Collateral (ERC-6909)
-            // We mint output tokens as 6909s within the PM Singleton.
+            // The Router mints the collateral as ERC-6909 claims held by THIS hook
+            // (the custodian) inside the unlock callback. No mint here: minting in
+            // afterSwap would create an unpayable -amount delta for the hook against
+            // the real PoolManager (CurrencyNotSettled at unlock exit).
             uint256 protocolReserve = (boughtAmount * reserveFactor) / 10000;
             uint256 positionCollateral = boughtAmount - protocolReserve;
 
             protocolFees[boughtCurrency] += protocolReserve;
-            // The Hook "mints" its 6909 claim on the collateral
+            // Hook-side ledger of trader-held collateral claims (mirrors the
+            // ERC-6909 claims the router mints to this hook on the PM singleton).
             _claimBalances[trader][uint256(uint160(Currency.unwrap(boughtCurrency)))] += positionCollateral;
             totalCollateral[boughtCurrency] += positionCollateral;
 
-            manager.mint(address(this), uint256(uint160(Currency.unwrap(boughtCurrency))), boughtAmount);
-
             // Track borrow for protocol-wide health view
-            Currency borrowedToken = zeroForOne ? key.currency0 : key.currency1;
+            Currency borrowedToken = params.zeroForOne ? key.currency0 : key.currency1;
             totalBorrowedByToken[borrowedToken] += borrow;
 
             positions[key.toId()][trader] = Position({
@@ -349,10 +405,10 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
             });
 
             _getKey(TRADER_BASE, trader).tstore(address(0));
-            emit HookSwap(key.toId(), trader, amount0, amount1, 0);
+            emit HookSwap(key.toId(), trader, delta.amount0(), delta.amount1(), 0);
 
             // Record last oracle sqrtPriceX96 for oracle price-capping test
-            (uint160 sqrtPriceX96,,,) = manager.getSlot0(key.toId());
+            (uint160 sqrtPriceX96,,,) = _slot0(key.toId());
             if (sqrtPriceX96 > 0) lastOraclePrice[key.toId()] = sqrtPriceX96;
         }
         return (IHooks.afterSwap.selector, 0);
@@ -365,7 +421,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     function _checkV4SpotAgainstV3Twap(PoolKey calldata key) internal view {
         uint256 twap0 = priceFeed.getTwapPrice(Currency.unwrap(key.currency0));
         uint256 twap1 = priceFeed.getTwapPrice(Currency.unwrap(key.currency1));
-        
+
         // If TWAP is not configured for these tokens, we gracefully bypass the check
         if (twap0 == 0 || twap1 == 0) return;
 
@@ -375,7 +431,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         uint256 twapRatio18 = (twap0 * 1e18) / twap1;
 
         // V4 Spot Price
-        (uint160 sqrtPriceX96,,,) = manager.getSlot0(key.toId());
+        (uint160 sqrtPriceX96,,,) = _slot0(key.toId());
         if (sqrtPriceX96 == 0) return; // Pool uninitialized
 
         // Raw pool ratio: Token1 raw units per Token0 raw unit (scaled by 1e18)
@@ -432,15 +488,23 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         Position storage pos = positions[key.toId()][trader];
         if (pos.collateralAmount == 0) return;
 
-        (, int24 currentTick, , ) = manager.getSlot0(key.toId());
+        (, int24 currentTick, , ) = _slot0(key.toId());
         if (currentTick >= pos.tickLower && currentTick < pos.tickUpper) return;
 
-        BalanceDelta removeDelta = manager.modifyLiquidity(key, pos.tickLower, pos.tickUpper, -int128(pos.liquidity), "");
+        (BalanceDelta removeDelta, ) = manager.modifyLiquidity(
+            key,
+            IPoolManager.ModifyLiquidityParams(pos.tickLower, pos.tickUpper, -int128(pos.liquidity), 0),
+            ""
+        );
         _netLiquidityDelta(key, removeDelta);
 
         int24 tickLower = (currentTick / key.tickSpacing) * key.tickSpacing - key.tickSpacing;
         int24 tickUpper = (currentTick / key.tickSpacing) * key.tickSpacing + key.tickSpacing;
-        BalanceDelta addDelta = manager.modifyLiquidity(key, tickLower, tickUpper, int128(pos.liquidity), "");
+        (BalanceDelta addDelta, ) = manager.modifyLiquidity(
+            key,
+            IPoolManager.ModifyLiquidityParams(tickLower, tickUpper, int128(pos.liquidity), 0),
+            ""
+        );
         _netLiquidityDelta(key, addDelta);
 
         pos.tickLower = tickLower;
@@ -476,23 +540,33 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
      */
     function executeLiquidation(PoolKey calldata key, address trader, uint256 minAmountOut) external {
         require(msg.sender == router, "Only Router");
-        Position storage pos = positions[key.toId()][trader];
+        PoolId poolId = key.toId();
+        Position storage pos = positions[poolId][trader];
         if (!isLiquidatable(pos, key)) return;
 
         // Remove concentrated liquidity if deployed so we hold the tokens
         if (pos.liquidity > 0) {
-            BalanceDelta removeDelta = manager.modifyLiquidity(key, pos.tickLower, pos.tickUpper, -int128(pos.liquidity), "");
+            (BalanceDelta removeDelta, ) = manager.modifyLiquidity(
+                key,
+                IPoolManager.ModifyLiquidityParams(pos.tickLower, pos.tickUpper, -int128(pos.liquidity), 0),
+                ""
+            );
             _netLiquidityDelta(key, removeDelta);
+            pos.liquidity = 0;
         }
+
+        Currency collateralCurrency = _collateralCurrency(pos, key);
+        Currency debtCurrency = _debtCurrency(pos, key);
+        uint256 collateralAmount = pos.collateralAmount;
 
         // To unwind: sell the held collateral → receive the borrowed (debt) currency.
         // zeroForOne is true when the collateral is currency0, false when it is currency1.
-        bool zeroForOne = Currency.unwrap(_collateralCurrency(pos, key)) == Currency.unwrap(key.currency0);
-        BalanceDelta delta = manager.swap(key, zeroForOne, int128(uint128(pos.collateralAmount)), "");
-
-        // receivedCurrency == borrowedCurrency: we sold collateral to repay what was borrowed
-        Currency receivedCurrency = _debtCurrency(pos, key);
-        Currency borrowedCurrency = receivedCurrency;
+        bool zeroForOne = Currency.unwrap(collateralCurrency) == Currency.unwrap(key.currency0);
+        BalanceDelta delta = manager.swap(
+            key,
+            IPoolManager.SwapParams(zeroForOne, -int256(collateralAmount), 0),
+            ""
+        );
 
         // Amount received from the swap: zeroForOne=true  → amount1 is positive output
         //                                zeroForOne=false → amount0 is positive output
@@ -504,54 +578,61 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
             revert SlippageExceeded(receivedAmount, minAmountOut);
         }
 
+        // Pay the swap's collateral leg by burning the hook's ERC-6909 claim
+        // (canonical settle-using-burn against the real PoolManager).
+        uint256 collateralId = uint256(uint160(Currency.unwrap(collateralCurrency)));
+        if (manager.balanceOf(address(this), collateralId) >= collateralAmount) {
+            manager.burn(address(this), collateralId, collateralAmount);
+        }
+
         // Take the received tokens from the PoolManager
         if (receivedAmount > 0) {
-            manager.take(receivedCurrency, address(this), receivedAmount);
+            manager.take(debtCurrency, address(this), receivedAmount);
         }
 
-        // Fix 1: Route 3% of recovered output to the protocol insurance fund
-        uint256 liquidatorReward = (receivedAmount * LIQUIDATION_REWARD_BPS) / 10000;
+        // SDIM: repay the solver (principal + yield) first; it funded the borrow leg.
+        address solver = positionSolver[poolId][trader];
+        SolverDebt storage debt = solverDebts[poolId][trader][solver];
+        uint256 totalPayout = debt.principal + debt.accumulatedYield;
+
+        uint256 afterSolver = receivedAmount >= totalPayout ? receivedAmount - totalPayout : 0;
+
+        // Fix 1: Route 3% of recovered output (after solver repayment) to the protocol insurance fund
+        uint256 liquidatorReward = (afterSolver * LIQUIDATION_REWARD_BPS) / 10000;
         if (liquidatorReward > 0) {
-            insuranceFund[receivedCurrency] += liquidatorReward;
+            insuranceFund[debtCurrency] += liquidatorReward;
         }
 
-        // Repay the borrowed amount to the PoolManager
-        uint256 borrowedAmount = pos.borrowedAmount;
-        uint256 remainingAfterReward = receivedAmount - liquidatorReward;
+        uint256 remainingAfterReward = afterSolver - liquidatorReward;
 
-        if (remainingAfterReward >= borrowedAmount) {
-            // Solvent: repay the full debt, return surplus to the trader
-            IERC20(Currency.unwrap(borrowedCurrency)).approve(address(manager), borrowedAmount);
-            manager.settle(borrowedCurrency);
-
-            uint256 surplus = remainingAfterReward - borrowedAmount;
-            if (surplus > 0) {
-                IERC20(Currency.unwrap(receivedCurrency)).transfer(pos.trader, surplus);
+        if (totalPayout > 0) {
+            if (receivedAmount < totalPayout) {
+                // Fix 3: Bad-debt path – only proceed if insurance fund can cover the shortfall
+                uint256 shortfall = totalPayout - receivedAmount;
+                if (insuranceFund[debtCurrency] < shortfall) {
+                    revert InsufficientInsuranceFundForShortfall(shortfall, insuranceFund[debtCurrency]);
+                }
+                insuranceFund[debtCurrency] -= shortfall;
             }
-        } else {
-            // Fix 3: Bad-debt path – only proceed if insurance fund can cover the shortfall
-            uint256 shortfall = borrowedAmount - remainingAfterReward;
-            if (insuranceFund[borrowedCurrency] < shortfall) {
-                revert InsufficientInsuranceFundForShortfall(shortfall, insuranceFund[borrowedCurrency]);
-            }
-            insuranceFund[borrowedCurrency] -= shortfall;
+            IERC20(Currency.unwrap(debtCurrency)).transfer(solver, totalPayout);
+        }
 
-            // Use recovered amount + insurance to settle the debt with the PM
-            uint256 totalToSettle = remainingAfterReward + shortfall; // == borrowedAmount
-            IERC20(Currency.unwrap(borrowedCurrency)).approve(address(manager), totalToSettle);
-            manager.settle(borrowedCurrency);
+        // Return any surplus to the trader
+        if (remainingAfterReward > 0) {
+            IERC20(Currency.unwrap(debtCurrency)).transfer(trader, remainingAfterReward);
         }
 
         // Clear the trader's ERC-6909 claim and protocol-wide collateral aggregate
-        // (collateral = the currency bought by the opening swap, see afterSwap)
-        _clearCollateralAccounting(pos.trader, _collateralCurrency(pos, key), pos.collateralAmount);
+        _clearCollateralAccounting(trader, collateralCurrency, collateralAmount);
 
-        delete positions[key.toId()][trader];
+        delete positions[poolId][trader];
+        delete solverDebts[poolId][trader][solver];
+        delete positionSolver[poolId][trader];
     }
 
     // --- URC-4 swapToPrice ---
     function swapToPrice(PoolKey calldata key, uint160 targetSqrtPriceX96, bytes calldata) external override onlyPoolManager returns (int128 delta0, int128 delta1) {
-        (uint160 currentPrice, , , ) = manager.getSlot0(key.toId());
+        (uint160 currentPrice, , , ) = _slot0(key.toId());
         bool zeroForOne = currentPrice > targetSqrtPriceX96;
         Currency currencyIn = zeroForOne ? key.currency0 : key.currency1;
         uint256 swappable = totalCollateral[currencyIn];
@@ -589,7 +670,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         Position storage pos = positions[key.toId()][trader];
         if (pos.collateralAmount == 0 || pos.liquidity > 0) return;
 
-        (uint160 currentSqrtPriceX96, int24 currentTick, , ) = manager.getSlot0(key.toId());
+        (uint160 currentSqrtPriceX96, int24 currentTick, , ) = _slot0(key.toId());
         int24 tickLower = (currentTick / key.tickSpacing) * key.tickSpacing - key.tickSpacing;
         int24 tickUpper = (currentTick / key.tickSpacing) * key.tickSpacing + key.tickSpacing;
 
@@ -609,7 +690,11 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         }
         if (liquidity == 0) return;
 
-        BalanceDelta addDelta = manager.modifyLiquidity(key, tickLower, tickUpper, int128(liquidity), "");
+        (BalanceDelta addDelta, ) = manager.modifyLiquidity(
+            key,
+            IPoolManager.ModifyLiquidityParams(tickLower, tickUpper, int128(liquidity), 0),
+            ""
+        );
         _netLiquidityDelta(key, addDelta);
 
         pos.tickLower = tickLower;
@@ -623,7 +708,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
      * @dev In real V4, modifyLiquidity returns a delta of the minted/burned position tokens:
      *      a positive component means the pool owes the caller tokens (caller `take`s them),
      *      a negative component means the caller must provide tokens (caller `settle`s them).
-     *      Mock PoolManagers often return zero, which masks this requirement in tests.
+     *      The canonical settle pattern is sync + transfer + no-arg settle().
      */
     function _netLiquidityDelta(PoolKey calldata key, BalanceDelta delta) internal {
         int128 amount0 = delta.amount0();
@@ -631,14 +716,16 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         if (amount0 > 0) {
             manager.take(key.currency0, address(this), uint256(int256(amount0)));
         } else if (amount0 < 0) {
-            IERC20(Currency.unwrap(key.currency0)).approve(address(manager), uint256(int256(-amount0)));
-            manager.settle(key.currency0);
+            manager.sync(key.currency0);
+            IERC20(Currency.unwrap(key.currency0)).transfer(address(manager), uint256(int256(-amount0)));
+            manager.settle();
         }
         if (amount1 > 0) {
             manager.take(key.currency1, address(this), uint256(int256(amount1)));
         } else if (amount1 < 0) {
-            IERC20(Currency.unwrap(key.currency1)).approve(address(manager), uint256(int256(-amount1)));
-            manager.settle(key.currency1);
+            manager.sync(key.currency1);
+            IERC20(Currency.unwrap(key.currency1)).transfer(address(manager), uint256(int256(-amount1)));
+            manager.settle();
         }
     }
 
@@ -683,6 +770,9 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
 
     /**
      * @notice Registers solver debt when a leveraged margin position is opened.
+     * The solver physically settled the borrowed leg inside the router's unlock
+     * callback; this registry guarantees its repayment (principal + yield)
+     * before the trader can withdraw on close/liquidation.
      */
     function registerSolverDebt(PoolId poolId, address trader, address solver, uint256 principal) external {
         require(msg.sender == router, "Only Router");
@@ -691,6 +781,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
             principal: principal,
             accumulatedYield: 0
         });
+        positionSolver[poolId][trader] = solver;
     }
 
     /**
@@ -702,47 +793,40 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         Position storage pos = positions[poolId][trader];
         require(pos.collateralAmount > 0, "No active position");
 
-        // Decrement totalCollateral and the trader's ERC-6909 claim balance.
-        // Collateral is the currency actually bought by the opening swap (see afterSwap):
-        //   LONG  (zeroForOne=false) → bought currency0
-        //   SHORT (zeroForOne=true)  → bought currency1
-        _clearCollateralAccounting(trader, _collateralCurrency(pos, key), pos.collateralAmount);
-
-        SolverDebt storage debt = solverDebts[poolId][trader][solver];
+        Currency collateralCurrency = _collateralCurrency(pos, key);
+        Currency debtCurrency = _debtCurrency(pos, key);
+        uint256 collateralAmount = pos.collateralAmount;
 
         // 1. Remove concentrated liquidity if deployed
         if (pos.liquidity > 0) {
-            BalanceDelta removeDelta = manager.modifyLiquidity(key, pos.tickLower, pos.tickUpper, -int128(pos.liquidity), "");
+            (BalanceDelta removeDelta, ) = manager.modifyLiquidity(
+                key,
+                IPoolManager.ModifyLiquidityParams(pos.tickLower, pos.tickUpper, -int128(pos.liquidity), 0),
+                ""
+            );
             _netLiquidityDelta(key, removeDelta);
             pos.liquidity = 0;
         }
 
         // 2. Swap collateral back to the debt token to repay the borrowed amount
         //    zeroForOne is true when the collateral is currency0, false when currency1.
-        bool zeroForOne = Currency.unwrap(_collateralCurrency(pos, key)) == Currency.unwrap(key.currency0);
-        int128 swapAmount = int128(uint128(pos.collateralAmount));
-        BalanceDelta delta = manager.swap(key, zeroForOne, swapAmount, "");
+        bool zeroForOne = Currency.unwrap(collateralCurrency) == Currency.unwrap(key.currency0);
+        BalanceDelta delta = manager.swap(
+            key,
+            IPoolManager.SwapParams(zeroForOne, -int256(collateralAmount), 0),
+            ""
+        );
 
-        // 3. Determine the debt (borrowed) currency and how much the unwind swap recovered
-        //    debtCurrency      = what was originally borrowed (what we receive back)
-        //    collateralCurrency = what we sold (the position's held token)
-        Currency debtCurrency       = _debtCurrency(pos, key);
-        Currency collateralCurrency = _collateralCurrency(pos, key);
-
-        // Amount received from the unwind swap: zeroForOne=true → amount1 (positive), zeroForOne=false → amount0 (positive)
+        // 3. Amount received from the unwind swap: zeroForOne=true → amount1 (positive),
+        //    zeroForOne=false → amount0 (positive)
         int128 receivedDelta = zeroForOne ? delta.amount1() : delta.amount0();
         uint256 receivedAmount = receivedDelta > 0 ? uint256(uint128(receivedDelta)) : 0;
 
-        // 4. Slippage protection – the floor applies to the trader's NET proceeds after
-        //    repaying the borrowed principal and solver. Comparing against the gross unwind
-        //    output is vacuous at leverage: gross includes the borrowed principal
-        //    (~leverage × margin), so the floor would never bind even on a losing trade.
-        uint256 totalPayout = debt.principal + debt.accumulatedYield;
-        uint256 netToTrader = receivedAmount >= totalPayout + pos.borrowedAmount
-            ? receivedAmount - totalPayout - pos.borrowedAmount
-            : 0;
-        if (netToTrader < minAmountOut) {
-            revert SlippageExceeded(netToTrader, minAmountOut);
+        // 4. Pay the swap's collateral leg by burning the hook's ERC-6909 claim
+        //    (canonical settle-using-burn against the real PoolManager).
+        uint256 collateralId = uint256(uint160(Currency.unwrap(collateralCurrency)));
+        if (manager.balanceOf(address(this), collateralId) >= collateralAmount) {
+            manager.burn(address(this), collateralId, collateralAmount);
         }
 
         // 5. Take the recovered debt tokens from the PoolManager
@@ -750,51 +834,38 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
             manager.take(debtCurrency, address(this), receivedAmount);
         }
 
-        // 6. Settle the collateral side of the unwind swap (the sold collateral)
-        int256 deltaCollateral = manager.currencyDelta(address(this), collateralCurrency);
-        if (deltaCollateral < 0) {
-            IERC20(Currency.unwrap(collateralCurrency)).approve(address(manager), uint256(-deltaCollateral));
-            manager.settle(collateralCurrency);
+        // 6. Slippage protection – the floor applies to the trader's NET proceeds
+        //    after repaying the solver (principal + yield).
+        SolverDebt storage debt = solverDebts[poolId][trader][solver];
+        uint256 totalPayout = debt.principal + debt.accumulatedYield;
+        uint256 netToTrader = receivedAmount >= totalPayout ? receivedAmount - totalPayout : 0;
+        if (netToTrader < minAmountOut) {
+            revert SlippageExceeded(netToTrader, minAmountOut);
         }
 
         // 7. Settle solver principal + yield (first cut of the recovered funds)
-        uint256 remainingAfterPayout = receivedAmount;
         if (totalPayout > 0) {
-            if (remainingAfterPayout < totalPayout) {
-                revert InsufficientInsuranceFundForShortfall(totalPayout, remainingAfterPayout);
+            if (receivedAmount < totalPayout) {
+                uint256 shortfall = totalPayout - receivedAmount;
+                if (insuranceFund[debtCurrency] < shortfall) {
+                    revert InsufficientInsuranceFundForShortfall(shortfall, insuranceFund[debtCurrency]);
+                }
+                insuranceFund[debtCurrency] -= shortfall;
             }
-            IERC20(Currency.unwrap(debtCurrency)).transfer(debt.solver, totalPayout);
-            remainingAfterPayout -= totalPayout;
+            IERC20(Currency.unwrap(debtCurrency)).transfer(solver, totalPayout);
         }
 
-        // 8. Explicitly repay the originally borrowed amount to the PoolManager.
-        //    Mirrors executeLiquidation: solvent closes repay the full debt and return
-        //    the surplus; loss closes cover the shortfall from the insurance fund.
-        uint256 borrowedAmount = pos.borrowedAmount;
-        if (remainingAfterPayout >= borrowedAmount) {
-            // Solvent: repay the full debt, return the surplus to the trader
-            if (borrowedAmount > 0) {
-                IERC20(Currency.unwrap(debtCurrency)).approve(address(manager), borrowedAmount);
-                manager.settle(debtCurrency);
-            }
-            uint256 surplus = remainingAfterPayout - borrowedAmount;
-            if (surplus > 0) {
-                IERC20(Currency.unwrap(debtCurrency)).transfer(trader, surplus);
-            }
-        } else {
-            // Loss path: only proceed if the insurance fund can cover the shortfall
-            uint256 shortfall = borrowedAmount - remainingAfterPayout;
-            if (insuranceFund[debtCurrency] < shortfall) {
-                revert InsufficientInsuranceFundForShortfall(shortfall, insuranceFund[debtCurrency]);
-            }
-            insuranceFund[debtCurrency] -= shortfall;
-
-            IERC20(Currency.unwrap(debtCurrency)).approve(address(manager), borrowedAmount);
-            manager.settle(debtCurrency);
+        // 8. Return the trader's net proceeds
+        if (netToTrader > 0) {
+            IERC20(Currency.unwrap(debtCurrency)).transfer(trader, netToTrader);
         }
+
+        // Decrement totalCollateral and the trader's ERC-6909 claim balance.
+        _clearCollateralAccounting(trader, collateralCurrency, collateralAmount);
 
         delete positions[poolId][trader];
         delete solverDebts[poolId][trader][solver];
+        delete positionSolver[poolId][trader];
     }
 
     // --- Invariant & Health View Helpers ---
@@ -841,8 +912,11 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         if (isTake) {
             manager.take(currency, address(this), uint256(int256(-delta)));
         } else {
-            manager.settle(currency);
-            manager.mint(address(this), uint256(uint160(Currency.unwrap(currency))), uint256(int256(delta)));
+            uint256 amount = uint256(int256(delta));
+            manager.sync(currency);
+            IERC20(Currency.unwrap(currency)).transfer(address(manager), amount);
+            manager.settle();
+            manager.mint(address(this), uint256(uint160(Currency.unwrap(currency))), amount);
         }
         return "";
     }

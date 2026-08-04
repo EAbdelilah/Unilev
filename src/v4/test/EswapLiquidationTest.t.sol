@@ -4,6 +4,8 @@ pragma solidity ^0.8.24;
 import {BaseV4Test} from "./BaseV4Test.t.sol";
 import {PoolKey} from "../types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "../types/PoolId.sol";
+import {IPoolManager} from "../interfaces/IPoolManager.sol";
+import {BalanceDeltaLibrary} from "../types/BalanceDelta.sol";
 
 contract EswapLiquidationTest is BaseV4Test {
     using PoolIdLibrary for PoolKey;
@@ -18,10 +20,10 @@ contract EswapLiquidationTest is BaseV4Test {
 
         bytes memory data = abi.encode(true, uint8(5), address(this));
         vm.prank(address(manager));
-        hook.beforeSwap(address(this), key, true, -10 ether, data);
+        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -10 ether, 0), data);
 
         vm.prank(address(manager));
-        hook.afterSwap(address(this), key, true, -50 ether, 50 ether, -48 ether, data);
+        hook.afterSwap(address(this), key, IPoolManager.SwapParams(true, -50 ether, 0), BalanceDeltaLibrary.toBalanceDelta(-50 ether, 48 ether), data);
 
         // Verify initial price saved
         assertGt(hook.lastOraclePrice(key.toId()), 0);

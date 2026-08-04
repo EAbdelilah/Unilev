@@ -33,6 +33,8 @@ import {EswapMarginHook} from "../EswapMarginHook.sol";
 import {PoolKey} from "../types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "../types/PoolId.sol";
 import {Currency} from "../types/Currency.sol";
+import {IPoolManager} from "../interfaces/IPoolManager.sol";
+import {BalanceDeltaLibrary} from "../types/BalanceDelta.sol";
 
 contract EswapTradingScenariosTest is BaseV4Test {
     using PoolIdLibrary for PoolKey;
@@ -65,10 +67,10 @@ contract EswapTradingScenariosTest is BaseV4Test {
         int128 bought    =  int128(uint128((marginEth * lev * 96) / 100)); // 4% slippage
 
         vm.prank(address(manager));
-        hook.beforeSwap(address(this), key, false, int128(uint128(marginEth)), data);
+        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(false, int128(uint128(marginEth)), 0), data);
 
         vm.prank(address(manager));
-        hook.afterSwap(address(this), key, false, totalSize, totalSize, bought, data);
+        hook.afterSwap(address(this), key, IPoolManager.SwapParams(false, totalSize, 0), BalanceDeltaLibrary.toBalanceDelta(-totalSize, -bought), data);
     }
 
     /**
@@ -93,10 +95,10 @@ contract EswapTradingScenariosTest is BaseV4Test {
         int128 bought    =  int128(uint128((marginEth * lev * 96) / 100));
 
         vm.prank(address(manager));
-        hook.beforeSwap(address(this), key, true, int128(uint128(marginEth)), data);
+        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, int128(uint128(marginEth)), 0), data);
 
         vm.prank(address(manager));
-        hook.afterSwap(address(this), key, true, totalSize, bought, totalSize, data);
+        hook.afterSwap(address(this), key, IPoolManager.SwapParams(true, totalSize, 0), BalanceDeltaLibrary.toBalanceDelta(-bought, -totalSize), data);
     }
 
     /// @dev Simulate a liquidation (seeds hook with tokens, sets swap delta, executes)

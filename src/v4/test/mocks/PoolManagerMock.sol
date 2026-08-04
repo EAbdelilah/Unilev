@@ -11,6 +11,11 @@ interface IUnlockCallback {
     function unlockCallback(bytes calldata data) external returns (bytes memory);
 }
 
+/// @notice Mock PoolManager implementing the REAL Uniswap V4 IPoolManager ABI
+///         (mirrored in src/v4/interfaces/IPoolManager.sol). Swap/modifyLiquidity
+///         deltas are simulated; extsload/exttload expose persistent + transient
+///         storage slots exactly like the real PoolManager so the hook's slot0
+///         and currency-delta reads work unchanged.
 contract PoolManagerMock is IPoolManager {
     using BalanceDeltaLibrary for BalanceDelta;
 
@@ -23,6 +28,15 @@ contract PoolManagerMock is IPoolManager {
 
     ModifyLiquidityCall[] public modifyLiquidityCalls;
 
+    struct SwapCall {
+        PoolKey key;
+        bool zeroForOne;
+        int128 amountSpecified;
+        bytes hookData;
+    }
+
+    SwapCall[] public swapCalls;
+
     struct Slot0Data {
         uint160 sqrtPriceX96;
         int24 tick;
@@ -31,8 +45,10 @@ contract PoolManagerMock is IPoolManager {
     }
 
     mapping(PoolId => Slot0Data) public slot0;
+    // Emulates the PoolManager's persistent storage so `extsload` returns the
+    // pool slot0 at the exact keccak256 mapping slot the real PM uses.
+    mapping(bytes32 => bytes32) public persistentStorage;
     mapping(address => mapping(uint256 => uint256)) public balances;
-    mapping(address => mapping(Currency => int256)) public currencyDeltas;
     BalanceDelta public overrideSwapDelta;
     bool public hasOverrideSwapDelta;
     uint256 public settleCount;
@@ -42,10 +58,27 @@ contract PoolManagerMock is IPoolManager {
 
     function setSlot0(PoolId id, uint160 sqrtPriceX96, int24 tick) external {
         slot0[id] = Slot0Data(sqrtPriceX96, tick, 0, 3000);
+        // Pack exactly like the real Pool.State.slot0 at mapping slot 0:
+        // _pools[id].slot0 lives at keccak256(abi.encode(id, uint256(0))).
+        bytes32 packed = bytes32(
+            uint256(sqrtPriceX96)
+                | uint256(int256(tick) << 160)
+                | (uint256(0) << 184)
+                | (uint256(3000) << 200)
+        );
+        persistentStorage[keccak256(abi.encode(id, uint256(0)))] = packed;
+    }
+
+    function swapCallsLength() external view returns (uint256) {
+        return swapCalls.length;
     }
 
     function setCurrencyDelta(address locker, Currency currency, int256 delta) external {
-        currencyDeltas[locker][currency] = delta;
+        // Mirrors CurrencyDelta._computeSlot: keccak256(abi.encodePacked(target, currency))
+        bytes32 slot = keccak256(abi.encodePacked(locker, Currency.unwrap(currency)));
+        assembly ("memory-safe") {
+            tstore(slot, delta)
+        }
     }
 
     function setNextSwapDelta(int128 delta0, int128 delta1) external {
@@ -62,11 +95,25 @@ contract PoolManagerMock is IPoolManager {
         return balances[owner][id];
     }
 
-    function unlock(bytes calldata data) external override virtual returns (bytes memory) {
+    function unlock(bytes calldata) external override virtual returns (bytes memory) {
         return "";
     }
 
-    function swap(PoolKey calldata, bool zeroForOne, int128 amountSpecified, bytes calldata) external override returns (BalanceDelta delta) {
+    function initialize(PoolKey memory, uint160) external override returns (int24) {
+        return 0;
+    }
+
+    function swap(
+        PoolKey calldata key,
+        IPoolManager.SwapParams calldata params,
+        bytes calldata hookData
+    ) external override returns (BalanceDelta delta) {
+        swapCalls.push(SwapCall({
+            key: key,
+            zeroForOne: params.zeroForOne,
+            amountSpecified: int128(params.amountSpecified),
+            hookData: hookData
+        }));
         if (hasOverrideSwapDelta) {
             hasOverrideSwapDelta = false; // consume once
             return overrideSwapDelta;
@@ -75,10 +122,10 @@ contract PoolManagerMock is IPoolManager {
         //   zeroForOne=true  → selling token0 (amount0<0), receiving token1 (amount1>0)
         //   zeroForOne=false → selling token1 (amount1<0), receiving token0 (amount0>0)
         // Use a 1:1 exchange rate with 4% slippage for realistic output.
-        uint256 absIn = uint256(int256(amountSpecified < 0 ? -amountSpecified : amountSpecified));
+        uint256 absIn = uint256(int256(params.amountSpecified < 0 ? -params.amountSpecified : params.amountSpecified));
         int128 output = int128(uint128((absIn * 96) / 100));
         int128 input  = -int128(uint128(absIn));
-        if (zeroForOne) {
+        if (params.zeroForOne) {
             // selling token0 → receiving token1
             delta = BalanceDeltaLibrary.toBalanceDelta(input, output);
         } else {
@@ -89,28 +136,39 @@ contract PoolManagerMock is IPoolManager {
 
     function modifyLiquidity(
         PoolKey calldata key,
-        int24 tickLower,
-        int24 tickUpper,
-        int128 liquidityDelta,
+        IPoolManager.ModifyLiquidityParams calldata params,
         bytes calldata
-    ) external override returns (BalanceDelta delta) {
+    ) external override returns (BalanceDelta delta, BalanceDelta) {
         modifyLiquidityCalls.push(ModifyLiquidityCall({
             key: key,
-            tickLower: tickLower,
-            tickUpper: tickUpper,
-            liquidityDelta: liquidityDelta
+            tickLower: params.tickLower,
+            tickUpper: params.tickUpper,
+            liquidityDelta: int128(params.liquidityDelta)
         }));
         if (hasOverrideModifyLiquidityDelta) {
             hasOverrideModifyLiquidityDelta = false; // consume once
-            return overrideModifyLiquidityDelta;
+            return (overrideModifyLiquidityDelta, BalanceDeltaLibrary.toBalanceDelta(0, 0));
         }
-        return delta;
+        return (delta, BalanceDeltaLibrary.toBalanceDelta(0, 0));
     }
 
-    function settle(Currency) external payable override returns (uint256) {
+    function donate(PoolKey memory, uint256, uint256, bytes calldata) external override returns (BalanceDelta) {
+        return BalanceDeltaLibrary.toBalanceDelta(0, 0);
+    }
+
+    function sync(Currency) external override {}
+
+    function settle() external payable override returns (uint256) {
         settleCount++;
         return 0;
     }
+
+    function settleFor(address) external payable override returns (uint256) {
+        settleCount++;
+        return 0;
+    }
+
+    function clear(Currency, uint256) external override {}
 
     function take(Currency, address, uint256) external override {
         takeCount++;
@@ -126,23 +184,18 @@ contract PoolManagerMock is IPoolManager {
         }
     }
 
-    function currencyDelta(address locker, Currency currency) external view override returns (int256) {
-        return currencyDeltas[locker][currency];
+    function updateDynamicLPFee(PoolKey memory, uint24) external override {}
+
+    function extsload(bytes32 slot) external view override returns (bytes32) {
+        return persistentStorage[slot];
     }
 
-    function getSlot0(PoolId id) external view override returns (uint160 sqrtPriceX96, int24 tick, uint16 protocolFee, uint24 lpFee) {
-        Slot0Data memory s = slot0[id];
-        if (s.sqrtPriceX96 == 0) {
-            sqrtPriceX96 = 79228162514264337593543950336;
-            tick = 0;
-            protocolFee = 0;
-            lpFee = 3000;
-        } else {
-            sqrtPriceX96 = s.sqrtPriceX96;
-            tick = s.tick;
-            protocolFee = s.protocolFee;
-            lpFee = s.lpFee;
+    function exttload(bytes32 slot) external view override returns (bytes32) {
+        bytes32 value;
+        assembly ("memory-safe") {
+            value := tload(slot)
         }
+        return value;
     }
 }
 

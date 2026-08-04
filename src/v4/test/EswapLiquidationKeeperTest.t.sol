@@ -9,6 +9,8 @@ import {EswapLiquidationKeeper} from "../EswapLiquidationKeeper.sol";
 import {PoolKey} from "../types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "../types/PoolId.sol";
 import {Currency} from "../types/Currency.sol";
+import {IPoolManager} from "../interfaces/IPoolManager.sol";
+import {BalanceDeltaLibrary} from "../types/BalanceDelta.sol";
 
 contract EswapLiquidationKeeperTest is BaseV4Test {
     using PoolIdLibrary for PoolKey;
@@ -48,9 +50,9 @@ contract EswapLiquidationKeeperTest is BaseV4Test {
         // Open a 3x SHORT (zeroForOne=true): margin 10 ether, borrow 20 ether.
         bytes memory data = abi.encode(true, uint8(3), address(this));
         vm.prank(address(manager));
-        hook.beforeSwap(address(this), key, true, -10 ether, data);
+        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -10 ether, 0), data);
         vm.prank(address(manager));
-        hook.afterSwap(address(this), key, true, -30 ether, 30 ether, -28 ether, data);
+        hook.afterSwap(address(this), key, IPoolManager.SwapParams(true, -30 ether, 0), BalanceDeltaLibrary.toBalanceDelta(-30 ether, 28 ether), data);
     }
 
     function _makeLiquidatable() internal {

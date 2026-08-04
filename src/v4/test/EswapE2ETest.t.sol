@@ -6,6 +6,8 @@ import {BeforeSwapDelta} from "../types/BeforeSwapDelta.sol";
 import {Currency} from "../types/Currency.sol";
 import {PoolId, PoolIdLibrary} from "../types/PoolId.sol";
 import {PoolKey} from "../types/PoolKey.sol";
+import {IPoolManager} from "../interfaces/IPoolManager.sol";
+import {BalanceDeltaLibrary} from "../types/BalanceDelta.sol";
 
 contract EswapE2ETest is BaseV4Test {
     using PoolIdLibrary for PoolKey;
@@ -19,11 +21,11 @@ contract EswapE2ETest is BaseV4Test {
 
         // 2. BeforeSwap Trigger
         vm.prank(address(manager));
-        hook.beforeSwap(address(this), key, true, margin, data);
+        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, margin, 0), data);
 
         // 3. AfterSwap Trigger
         vm.startPrank(address(manager));
-        hook.afterSwap(address(this), key, true, -500 ether, 500 ether, -480 ether, data);
+        hook.afterSwap(address(this), key, IPoolManager.SwapParams(true, -500 ether, 0), BalanceDeltaLibrary.toBalanceDelta(-500 ether, 480 ether), data);
         vm.stopPrank();
 
         // 4. Deploy Collateral (Called by Router/this)

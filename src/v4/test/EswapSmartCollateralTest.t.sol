@@ -6,6 +6,8 @@ import {BeforeSwapDelta} from "../types/BeforeSwapDelta.sol";
 import {Currency} from "../types/Currency.sol";
 import {PoolKey} from "../types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "../types/PoolId.sol";
+import {IPoolManager} from "../interfaces/IPoolManager.sol";
+import {BalanceDeltaLibrary} from "../types/BalanceDelta.sol";
 
 contract EswapSmartCollateralTest is BaseV4Test {
     using PoolIdLibrary for PoolKey;
@@ -20,15 +22,13 @@ contract EswapSmartCollateralTest is BaseV4Test {
         bytes memory data = abi.encode(true, leverage, address(this));
 
         vm.startPrank(address(manager));
-        hook.beforeSwap(address(this), key, true, -100 ether, data);
+        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -100 ether, 0), data);
 
         hook.afterSwap(
             address(this),
             key,
-            true,
-            -500 ether,
-            500 ether,
-            -480 ether,
+            IPoolManager.SwapParams(true, -500 ether, 0),
+            BalanceDeltaLibrary.toBalanceDelta(-500 ether, 480 ether),
             data
         );
         vm.stopPrank();
@@ -60,8 +60,8 @@ contract EswapSmartCollateralTest is BaseV4Test {
         bytes memory data = abi.encode(true, leverage, address(this));
 
         vm.startPrank(address(manager));
-        hook.beforeSwap(address(this), key, true, -100 ether, data);
-        hook.afterSwap(address(this), key, true, -500 ether, 500 ether, -480 ether, data);
+        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -100 ether, 0), data);
+        hook.afterSwap(address(this), key, IPoolManager.SwapParams(true, -500 ether, 0), BalanceDeltaLibrary.toBalanceDelta(-500 ether, 480 ether), data);
         vm.stopPrank();
 
         // Real V4 returns a negative delta when adding liquidity (the hook must provide
@@ -84,8 +84,8 @@ contract EswapSmartCollateralTest is BaseV4Test {
         bytes memory data = abi.encode(true, leverage, address(this));
 
         vm.startPrank(address(manager));
-        hook.beforeSwap(address(this), key, true, -100 ether, data);
-        hook.afterSwap(address(this), key, true, -500 ether, 500 ether, -480 ether, data);
+        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -100 ether, 0), data);
+        hook.afterSwap(address(this), key, IPoolManager.SwapParams(true, -500 ether, 0), BalanceDeltaLibrary.toBalanceDelta(-500 ether, 480 ether), data);
         vm.stopPrank();
 
         hook.deployCollateral(key, address(this));

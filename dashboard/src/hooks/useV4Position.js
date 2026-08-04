@@ -9,6 +9,7 @@ import { useReadProvider } from "./useReadProvider"
 
 const FALLBACK_CHAIN = "1301"
 const POOL_FEE = 3000
+const STANDARD_POOL_FEE = 0
 const TICK_SPACING = 60
 
 function sortCurrencies(c0, c1) {
@@ -55,6 +56,19 @@ export function useV4Position() {
         }
     }
 
+    // Standard (physical execution) pool: same currency ordering as the hook pool,
+    // $0 fees, no hook. The router executes the leveraged physical swap here.
+    function buildStandardPoolKey() {
+        const [currency0, currency1] = sortCurrencies(WETH_ADDR, USDC_ADDR)
+        return {
+            currency0,
+            currency1,
+            fee: STANDARD_POOL_FEE,
+            tickSpacing: TICK_SPACING,
+            hooks: ethers.ZeroAddress,
+        }
+    }
+
     function computePoolId(hookAddress) {
         const [c0, c1] = sortCurrencies(WETH_ADDR, USDC_ADDR)
         return ethers.keccak256(
@@ -83,9 +97,9 @@ export function useV4Position() {
                 ["bool", "uint8", "address"],
                 [true, leverage, address]
             )
-            return { key, zeroForOne, amountSpecified: -amount, leverage, hookData }
+            return { key, standardPoolKey: buildStandardPoolKey(), zeroForOne, amountSpecified: -amount, leverage, hookData }
         },
-        [WETH_ADDR, address]
+        [WETH_ADDR, address, buildStandardPoolKey]
     )
 
     const openV4Position = useCallback(

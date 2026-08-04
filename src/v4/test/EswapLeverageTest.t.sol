@@ -5,6 +5,8 @@ import {BaseV4Test} from "./BaseV4Test.t.sol";
 import {BeforeSwapDelta} from "../types/BeforeSwapDelta.sol";
 import {PoolKey} from "../types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "../types/PoolId.sol";
+import {IPoolManager} from "../interfaces/IPoolManager.sol";
+import {BalanceDeltaLibrary} from "../types/BalanceDelta.sol";
 
 contract EswapLeverageTest is BaseV4Test {
     using PoolIdLibrary for PoolKey;
@@ -17,10 +19,10 @@ contract EswapLeverageTest is BaseV4Test {
     function test_Leverage_1x_Succeeds() public {
         bytes memory data = abi.encode(true, uint8(1), address(this));
         vm.prank(address(manager));
-        hook.beforeSwap(address(this), key, true, -1 ether, data);
+        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -1 ether, 0), data);
 
         vm.prank(address(manager));
-        hook.afterSwap(address(this), key, true, -1 ether, 1 ether, -0.95 ether, data);
+        hook.afterSwap(address(this), key, IPoolManager.SwapParams(true, -1 ether, 0), BalanceDeltaLibrary.toBalanceDelta(-1 ether, 0.95 ether), data);
 
         (address trader, uint256 collateral, uint256 borrow, uint8 lev,,,,,) = hook.positions(key.toId(), address(this));
         assertEq(trader, address(this));
@@ -32,10 +34,10 @@ contract EswapLeverageTest is BaseV4Test {
     function test_Leverage_2x_Succeeds() public {
         bytes memory data = abi.encode(true, uint8(2), address(this));
         vm.prank(address(manager));
-        hook.beforeSwap(address(this), key, true, -1 ether, data);
+        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -1 ether, 0), data);
 
         vm.prank(address(manager));
-        hook.afterSwap(address(this), key, true, -2 ether, 2 ether, -1.9 ether, data);
+        hook.afterSwap(address(this), key, IPoolManager.SwapParams(true, -2 ether, 0), BalanceDeltaLibrary.toBalanceDelta(-2 ether, 1.9 ether), data);
 
         (, uint256 collateral, uint256 borrow, uint8 lev,,,,,) = hook.positions(key.toId(), address(this));
         assertEq(borrow, 1 ether);
@@ -46,10 +48,10 @@ contract EswapLeverageTest is BaseV4Test {
     function test_Leverage_5x_Succeeds() public {
         bytes memory data = abi.encode(true, uint8(5), address(this));
         vm.prank(address(manager));
-        hook.beforeSwap(address(this), key, true, -1 ether, data);
+        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -1 ether, 0), data);
 
         vm.prank(address(manager));
-        hook.afterSwap(address(this), key, true, -5 ether, 5 ether, -4.8 ether, data);
+        hook.afterSwap(address(this), key, IPoolManager.SwapParams(true, -5 ether, 0), BalanceDeltaLibrary.toBalanceDelta(-5 ether, 4.8 ether), data);
 
         (, uint256 collateral, uint256 borrow, uint8 lev,,,,,) = hook.positions(key.toId(), address(this));
         assertEq(borrow, 4 ether);
@@ -61,7 +63,7 @@ contract EswapLeverageTest is BaseV4Test {
         bytes memory data = abi.encode(true, uint8(10), address(this));
         vm.prank(address(manager));
         vm.expectRevert();
-        hook.beforeSwap(address(this), key, true, -1 ether, data);
+        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -1 ether, 0), data);
     }
 
     // Boundary test: 6x is the smallest integer above MAX_LEVERAGE (5x)
@@ -70,23 +72,23 @@ contract EswapLeverageTest is BaseV4Test {
         bytes memory data = abi.encode(true, uint8(6), address(this));
         vm.prank(address(manager));
         vm.expectRevert(abi.encodeWithSignature("MaxLeverageExceeded()"));
-        hook.beforeSwap(address(this), key, true, -1 ether, data);
+        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -1 ether, 0), data);
     }
 
     function test_MinCollateral_Floor_Reverts() public {
         bytes memory data = abi.encode(true, uint8(2), address(this));
         vm.prank(address(manager));
         vm.expectRevert();
-        hook.beforeSwap(address(this), key, true, -0.001 ether, data);
+        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -0.001 ether, 0), data);
     }
 
     function test_ERC6909_Backing_ExactWei() public {
         bytes memory data = abi.encode(true, uint8(3), address(this));
         vm.prank(address(manager));
-        hook.beforeSwap(address(this), key, true, -1 ether, data);
+        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -1 ether, 0), data);
 
         vm.prank(address(manager));
-        hook.afterSwap(address(this), key, true, -3 ether, 3 ether, -2.8 ether, data);
+        hook.afterSwap(address(this), key, IPoolManager.SwapParams(true, -3 ether, 0), BalanceDeltaLibrary.toBalanceDelta(-3 ether, 2.8 ether), data);
 
         uint256 claimId = uint256(uint160(address(token1)));
         assertEq(manager.balanceOf(address(hook), claimId), 2.8 ether);

@@ -5,6 +5,8 @@ import {BaseV4Test} from "./BaseV4Test.t.sol";
 import {EswapMarginHook} from "../EswapMarginHook.sol";
 import {PoolKey} from "../types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "../types/PoolId.sol";
+import {IPoolManager} from "../interfaces/IPoolManager.sol";
+import {BalanceDeltaLibrary} from "../types/BalanceDelta.sol";
 
 contract EswapPositionLifecycleTest is BaseV4Test {
     using PoolIdLibrary for PoolKey;
@@ -17,10 +19,10 @@ contract EswapPositionLifecycleTest is BaseV4Test {
     function test_ClosePosition_Full_PnLToTrader() public {
         bytes memory data = abi.encode(true, uint8(3), address(this));
         vm.prank(address(manager));
-        hook.beforeSwap(address(this), key, true, -10 ether, data);
+        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -10 ether, 0), data);
 
         vm.prank(address(manager));
-        hook.afterSwap(address(this), key, true, -30 ether, 30 ether, -28 ether, data);
+        hook.afterSwap(address(this), key, IPoolManager.SwapParams(true, -30 ether, 0), BalanceDeltaLibrary.toBalanceDelta(-30 ether, 28 ether), data);
 
         manager.setCurrencyDelta(address(hook), key.currency1, 35 ether);
         // SHORT debt is currency0 (token0): the solvent close repays the borrowed amount
@@ -44,10 +46,10 @@ contract EswapPositionLifecycleTest is BaseV4Test {
     function test_ClosePosition_SlippageRevert_BelowMinOut() public {
         bytes memory data = abi.encode(true, uint8(3), address(this));
         vm.prank(address(manager));
-        hook.beforeSwap(address(this), key, true, -10 ether, data);
+        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -10 ether, 0), data);
 
         vm.prank(address(manager));
-        hook.afterSwap(address(this), key, true, -30 ether, 30 ether, -28 ether, data);
+        hook.afterSwap(address(this), key, IPoolManager.SwapParams(true, -30 ether, 0), BalanceDeltaLibrary.toBalanceDelta(-30 ether, 28 ether), data);
 
         manager.setCurrencyDelta(address(hook), key.currency1, 10 ether);
         (,uint256 collateral2,,,,,,,) = hook.positions(key.toId(), address(this));
@@ -61,9 +63,9 @@ contract EswapPositionLifecycleTest is BaseV4Test {
         // receives ~9.95 ether of collateral (after the 0.5% protocol reserve).
         bytes memory data = abi.encode(true, uint8(3), address(this));
         vm.prank(address(manager));
-        hook.beforeSwap(address(this), key, true, -10 ether, data);
+        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -10 ether, 0), data);
         vm.prank(address(manager));
-        hook.afterSwap(address(this), key, true, -30 ether, 30 ether, -10 ether, data);
+        hook.afterSwap(address(this), key, IPoolManager.SwapParams(true, -30 ether, 0), BalanceDeltaLibrary.toBalanceDelta(-30 ether, 10 ether), data);
 
         (, uint256 collateral, uint256 borrowed, , , , , , ) = hook.positions(key.toId(), address(this));
         assertGt(collateral, 0);
@@ -114,9 +116,9 @@ contract EswapPositionLifecycleTest is BaseV4Test {
         // 5x SHORT (zeroForOne=true): margin 10 ether, borrows 40 ether, collateral ~47.76 ether.
         bytes memory data = abi.encode(true, uint8(5), address(this));
         vm.prank(address(manager));
-        hook.beforeSwap(address(this), key, true, -10 ether, data);
+        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -10 ether, 0), data);
         vm.prank(address(manager));
-        hook.afterSwap(address(this), key, true, -50 ether, 50 ether, -48 ether, data);
+        hook.afterSwap(address(this), key, IPoolManager.SwapParams(true, -50 ether, 0), BalanceDeltaLibrary.toBalanceDelta(-50 ether, 48 ether), data);
 
         // Fund the hook with the debt currency (token0 for a SHORT) for the surplus transfer (mock take() is a no-op).
         token0.mint(address(hook), 10 ether);
@@ -142,11 +144,11 @@ contract EswapPositionLifecycleTest is BaseV4Test {
     function test_OpenPosition_SlippageRevert_BelowMinOut() public {
         bytes memory data = abi.encode(true, uint8(3), address(this));
         vm.prank(address(manager));
-        hook.beforeSwap(address(this), key, true, -10 ether, data);
+        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -10 ether, 0), data);
 
         // afterSwap returns zero output -> SwapOutputZero
         vm.prank(address(manager));
         vm.expectRevert();
-        hook.afterSwap(address(this), key, true, -30 ether, 30 ether, 0, data);
+        hook.afterSwap(address(this), key, IPoolManager.SwapParams(true, -30 ether, 0), BalanceDeltaLibrary.toBalanceDelta(-30 ether, 0), data);
     }
 }

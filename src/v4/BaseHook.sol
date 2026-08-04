@@ -7,6 +7,7 @@ import {PoolKey} from "./types/PoolKey.sol";
 import {PoolId} from "./types/PoolId.sol";
 import {Currency} from "./types/Currency.sol";
 import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "./types/BeforeSwapDelta.sol";
+import {BalanceDelta} from "./types/BalanceDelta.sol";
 
 abstract contract BaseHook is IHooks {
     IPoolManager public immutable manager;
@@ -39,11 +40,11 @@ abstract contract BaseHook is IHooks {
         return IHooks.afterRemoveLiquidity.selector;
     }
 
-    function beforeSwap(address, PoolKey calldata, bool, int128, bytes calldata) external virtual returns (bytes4, BeforeSwapDelta, uint24) {
+    function beforeSwap(address, PoolKey calldata, IPoolManager.SwapParams calldata, bytes calldata) external virtual returns (bytes4, BeforeSwapDelta, uint24) {
         return (IHooks.beforeSwap.selector, BeforeSwapDeltaLibrary.toBeforeSwapDelta(0, 0), 0);
     }
 
-    function afterSwap(address, PoolKey calldata, bool, int128, int128, int128, bytes calldata) external virtual returns (bytes4, int128) {
+    function afterSwap(address, PoolKey calldata, IPoolManager.SwapParams calldata, BalanceDelta, bytes calldata) external virtual returns (bytes4, int128) {
         return (IHooks.afterSwap.selector, 0);
     }
 

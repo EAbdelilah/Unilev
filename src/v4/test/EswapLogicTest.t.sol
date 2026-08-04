@@ -6,6 +6,8 @@ import {BeforeSwapDelta} from "../types/BeforeSwapDelta.sol";
 import {Currency} from "../types/Currency.sol";
 import {PoolKey} from "../types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "../types/PoolId.sol";
+import {IPoolManager} from "../interfaces/IPoolManager.sol";
+import {BalanceDeltaLibrary} from "../types/BalanceDelta.sol";
 
 contract EswapLogicTest is BaseV4Test {
     using PoolIdLibrary for PoolKey;
@@ -16,10 +18,10 @@ contract EswapLogicTest is BaseV4Test {
         bytes memory data = abi.encode(true, leverage, address(this));
 
         vm.prank(address(manager));
-        hook.beforeSwap(address(this), key, true, margin, data);
+        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, margin, 0), data);
 
         vm.startPrank(address(manager));
-        hook.afterSwap(address(this), key, true, -10 ether, 10 ether, -9.5 ether, data);
+        hook.afterSwap(address(this), key, IPoolManager.SwapParams(true, -10 ether, 0), BalanceDeltaLibrary.toBalanceDelta(-10 ether, 9.5 ether), data);
         vm.stopPrank();
 
         (address trader, uint256 collateral, uint256 borrow, uint8 lev,,,,,) = hook.positions(key.toId(), address(this));
@@ -36,10 +38,10 @@ contract EswapLogicTest is BaseV4Test {
         bytes memory data = abi.encode(true, leverage, address(this));
 
         vm.prank(address(manager));
-        hook.beforeSwap(address(this), key, false, margin, data);
+        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(false, margin, 0), data);
 
         vm.startPrank(address(manager));
-        hook.afterSwap(address(this), key, false, -50 ether, -48 ether, 50 ether, data);
+        hook.afterSwap(address(this), key, IPoolManager.SwapParams(false, -50 ether, 0), BalanceDeltaLibrary.toBalanceDelta(48 ether, -50 ether), data);
         vm.stopPrank();
 
         (address trader, uint256 collateral, uint256 borrow, uint8 lev,,,,,) = hook.positions(key.toId(), address(this));

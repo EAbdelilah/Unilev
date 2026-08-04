@@ -9,6 +9,7 @@ import {Currency} from "../types/Currency.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {PriceFeedMock} from "./BaseV4Test.t.sol";
 import {PoolManagerMock} from "./mocks/PoolManagerMock.sol";
+import {IPoolManager} from "../interfaces/IPoolManager.sol";
 
 contract ERC20MockDecimals is ERC20 {
     uint8 private immutable _tokenDecimals;
@@ -92,7 +93,7 @@ contract EswapTwapCircuitBreakerTest is Test {
         bytes memory hookData = abi.encode(true, uint8(5), trader);
         vm.prank(address(manager));
         vm.expectRevert("TWAP: V4 Spot Price manipulated");
-        hook.beforeSwap(address(this), key, false, -1e18, hookData);
+        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(false, -1e18, 0), hookData);
     }
 
     function test_TwapBreaker_Passes_HonestSpot_WithDecimalsConfig() public {
@@ -102,7 +103,7 @@ contract EswapTwapCircuitBreakerTest is Test {
         // Must NOT revert: spot and TWAP both represent 3000 USDC/WETH.
         bytes memory hookData = abi.encode(true, uint8(5), trader);
         vm.prank(address(manager));
-        hook.beforeSwap(address(this), key, false, -1e18, hookData);
+        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(false, -1e18, 0), hookData);
     }
 
     function test_TwapBreaker_Fires_ManipulatedSpot_WithDecimalsConfig() public {
@@ -114,7 +115,7 @@ contract EswapTwapCircuitBreakerTest is Test {
         bytes memory hookData = abi.encode(true, uint8(5), trader);
         vm.prank(address(manager));
         vm.expectRevert("TWAP: V4 Spot Price manipulated");
-        hook.beforeSwap(address(this), key, false, -1e18, hookData);
+        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(false, -1e18, 0), hookData);
     }
 
     function test_TwapBreaker_Passes_ReversedPool_WithDecimalsConfig() public {
@@ -134,6 +135,6 @@ contract EswapTwapCircuitBreakerTest is Test {
 
         bytes memory hookData = abi.encode(true, uint8(5), trader);
         vm.prank(address(manager));
-        hook.beforeSwap(address(this), reversed, true, -1e18, hookData);
+        hook.beforeSwap(address(this), reversed, IPoolManager.SwapParams(true, -1e18, 0), hookData);
     }
 }

@@ -5,6 +5,8 @@ import {BaseV4Test} from "./BaseV4Test.t.sol";
 import {IURC4} from "../interfaces/IURC4.sol";
 import {PoolKey} from "../types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "../types/PoolId.sol";
+import {IPoolManager} from "../interfaces/IPoolManager.sol";
+import {BalanceDeltaLibrary} from "../types/BalanceDelta.sol";
 
 contract EswapURCTest is BaseV4Test {
     using PoolIdLibrary for PoolKey;
@@ -33,11 +35,11 @@ contract EswapURCTest is BaseV4Test {
         bytes memory data = abi.encode(true, uint8(5), address(this));
 
         vm.prank(address(manager));
-        hook.beforeSwap(address(this), key, true, -100 ether, data);
+        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -100 ether, 0), data);
 
         vm.prank(address(manager));
-        // zeroForOne=true: boughtCurrency=currency1, rawAmount = -amount1 = 450
-        hook.afterSwap(address(this), key, true, -500 ether, 500 ether, -450 ether, data);
+        // zeroForOne=true: boughtCurrency=currency1, rawAmount = delta.amount1() = 450
+        hook.afterSwap(address(this), key, IPoolManager.SwapParams(true, -500 ether, 0), BalanceDeltaLibrary.toBalanceDelta(-500 ether, 450 ether), data);
 
         // TVL = totalCollateral[currency1] = 450 (no reserve deducted from totalCollateral)
         assertGt(hook.getHookTVL(key.currency1), 0);
@@ -47,13 +49,13 @@ contract EswapURCTest is BaseV4Test {
         bytes memory data = abi.encode(true, uint8(5), address(this));
 
         vm.prank(address(manager));
-        hook.beforeSwap(address(this), key, true, -100 ether, data);
+        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -100 ether, 0), data);
 
         // Just check that the event is emitted (topic match only, not data)
         vm.expectEmit(true, true, false, false);
         emit HookSwap(key.toId(), address(this), 0, 0, 0);
 
         vm.prank(address(manager));
-        hook.afterSwap(address(this), key, true, -500 ether, 500 ether, -450 ether, data);
+        hook.afterSwap(address(this), key, IPoolManager.SwapParams(true, -500 ether, 0), BalanceDeltaLibrary.toBalanceDelta(-500 ether, 450 ether), data);
     }
 }

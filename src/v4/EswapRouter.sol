@@ -3,23 +3,42 @@ pragma solidity ^0.8.24;
 
 import {IPoolManager} from "./interfaces/IPoolManager.sol";
 import {PoolKey} from "./types/PoolKey.sol";
+import {PoolId, PoolIdLibrary} from "./types/PoolId.sol";
 import {Currency} from "./types/Currency.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {BalanceDelta} from "./types/BalanceDelta.sol";
+import {BalanceDelta, BalanceDeltaLibrary} from "./types/BalanceDelta.sol";
 
 interface IEswapHook {
     function executeLiquidation(PoolKey calldata key, address trader, uint256 minAmountOut) external;
     function rebalancePosition(PoolKey calldata key, address trader) external;
     function deployCollateral(PoolKey calldata key, address trader) external;
     function closePosition(PoolKey calldata key, address trader, address solver, uint256 minAmountOut) external;
+    function registerSolverDebt(PoolId poolId, address trader, address solver, uint256 principal) external;
 }
 
 /**
  * @title EswapRouter
- * @notice Handles Uniswap V4 unlock flow, pulling margin from users and settling deltas.
+ * @notice Handles Uniswap V4 unlock flow for the SDIM margin model.
+ *
+ * @dev SDIM (Solver-Delegated Integration Margin) single-pool execution:
+ *      there is exactly ONE hook-enabled pool. Inside the unlock callback the
+ *      router:
+ *        1. Executes the margin swap on the hook pool with `hookData`
+ *           (the hook flash-expands the swap by the borrow and records the
+ *           position in afterSwap).
+ *        2. Pulls the trader's MARGIN and settles it (router's -margin delta).
+ *        3. Mints the swap OUTPUT as an ERC-6909 claim held by the HOOK
+ *           (collateral custodian), offsetting the router's +output delta.
+ *        4. Pulls the SOLVER's borrow and settles it FOR THE HOOK via
+ *           settleFor(hook), zeroing the hook's flash-provided -borrow delta.
+ *        5. Registers the on-chain SolverDebt guaranteeing solver repayment.
+ *      All (account, currency) transient deltas net to zero before unlock exits.
  */
 contract EswapRouter is Ownable {
+    using PoolIdLibrary for PoolKey;
+    using BalanceDeltaLibrary for BalanceDelta;
+
     IPoolManager public immutable manager;
 
     enum CallType { SWAP, CLOSE, LIQUIDATE, REBALANCE }
@@ -29,10 +48,17 @@ contract EswapRouter is Ownable {
     }
 
     struct SwapParams {
+        // Hook-enabled pool where leverage accounting (flash borrow + position
+        // registration) and the physical swap both happen.
         PoolKey key;
         bool zeroForOne;
-        int128 amountSpecified;
+        // Margin amount (negative = exact input). The hook's beforeSwap
+        // flash-expands this by the borrow, so the pool swaps margin x leverage.
+        int256 amountSpecified;
         uint8 leverage;
+        // Off-chain Solver that physically settles the borrowed leg
+        // (margin x (leverage-1)). Must be non-zero for leverage > 1.
+        address solver;
         bytes hookData;
     }
 
@@ -63,14 +89,61 @@ contract EswapRouter is Ownable {
         }
     }
 
+    /**
+     * @notice SDIM single-pool unlock callback. Executes the margin swap, settles
+     *         the trader's margin + the solver's borrow, mints the collateral
+     *         claim to the hook, and registers the solver debt.
+     * @dev All PoolManager transient deltas must net to zero here or the real
+     *      PoolManager reverts CurrencyNotSettled on unlock exit.
+     */
     function _swapCallback(SwapParams memory params, address trader) internal returns (bytes memory) {
-        BalanceDelta delta = manager.swap(params.key, params.zeroForOne, params.amountSpecified, params.hookData);
+        uint256 marginAmount = uint256(int256(params.amountSpecified < 0 ? -params.amountSpecified : params.amountSpecified));
+        uint256 borrowAmount = marginAmount * uint256(params.leverage - 1);
+        if (params.leverage > 1) {
+            require(params.solver != address(0), "Solver required for leverage");
+        }
+
+        // (1) Margin swap on the hook pool. The hook's beforeSwap flash-expands
+        //     the swap by the borrow, so the pool executes margin x leverage.
+        BalanceDelta delta = manager.swap(
+            params.key,
+            IPoolManager.SwapParams(params.zeroForOne, params.amountSpecified, 0),
+            params.hookData
+        );
 
         Currency input = params.zeroForOne ? params.key.currency0 : params.key.currency1;
-        uint256 marginAmount = uint256(int256(params.amountSpecified < 0 ? -params.amountSpecified : params.amountSpecified));
+        Currency output = params.zeroForOne ? params.key.currency1 : params.key.currency0;
+        int128 outputDelta = params.zeroForOne ? delta.amount1() : delta.amount0();
+        require(outputDelta > 0, "Swap output zero");
+        uint256 outputAmount = uint256(int256(outputDelta));
 
-        IERC20(Currency.unwrap(input)).transferFrom(trader, address(manager), marginAmount);
-        manager.settle(input);
+        // (2) Settle the trader's margin (router's -margin delta from the swap,
+        //     after the hook's flash-expansion subtracted the borrow).
+        if (marginAmount > 0) {
+            manager.sync(input);
+            IERC20(Currency.unwrap(input)).transferFrom(trader, address(manager), marginAmount);
+            manager.settle();
+        }
+
+        // (3) Mint the collateral as an ERC-6909 claim held by the hook.
+        //     Accounts -outputAmount to the router, offsetting its +outputAmount
+        //     swap delta. The hook becomes the collateral custodian.
+        manager.mint(address(params.key.hooks), uint256(uint160(Currency.unwrap(output))), outputAmount);
+
+        // (4) Settle the solver's borrow FOR THE HOOK: the hook flash-provided
+        //     the borrow leg, so it carries a -borrowAmount transient delta that
+        //     settleFor(hook) zeroes.
+        if (borrowAmount > 0) {
+            manager.sync(input);
+            IERC20(Currency.unwrap(input)).transferFrom(params.solver, address(manager), borrowAmount);
+            manager.settleFor(address(params.key.hooks));
+        }
+
+        // (5) Register the on-chain solver debt (principal + yield) guaranteeing
+        //     solver repayment before trader withdrawal.
+        if (borrowAmount > 0) {
+            IEswapHook(params.key.hooks).registerSolverDebt(params.key.toId(), trader, params.solver, borrowAmount);
+        }
 
         if (params.hookData.length > 0) {
             (bool isMargin, , ) = abi.decode(params.hookData, (bool, uint8, address));

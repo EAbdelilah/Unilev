@@ -6,6 +6,8 @@ import {EswapMarginHook} from "../EswapMarginHook.sol";
 import {PoolKey} from "../types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "../types/PoolId.sol";
 import {Currency} from "../types/Currency.sol";
+import {IPoolManager} from "../interfaces/IPoolManager.sol";
+import {BalanceDeltaLibrary} from "../types/BalanceDelta.sol";
 
 contract EswapSolvencyTest is BaseV4Test {
     using PoolIdLibrary for PoolKey;
@@ -72,9 +74,9 @@ contract EswapSolvencyTest is BaseV4Test {
         // zeroForOne=true => isLong=false; collateral=token1, borrow=token0
         bytes memory data = abi.encode(true, uint8(5), address(this));
         vm.prank(address(manager));
-        hook.beforeSwap(address(this), key, true, -1 ether, data);
+        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -1 ether, 0), data);
         vm.prank(address(manager));
-        hook.afterSwap(address(this), key, true, -5 ether, 5 ether, -4.8 ether, data);
+        hook.afterSwap(address(this), key, IPoolManager.SwapParams(true, -5 ether, 0), BalanceDeltaLibrary.toBalanceDelta(-5 ether, 4.8 ether), data);
     }
 
     function test_Liquidation_InsuranceSplit_ExactAmounts() public {

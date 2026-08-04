@@ -8,6 +8,7 @@ import {PoolId, PoolIdLibrary} from "../types/PoolId.sol";
 import {Currency} from "../types/Currency.sol";
 import {IHooks} from "../interfaces/IHooks.sol";
 import {IPoolManager} from "../interfaces/IPoolManager.sol";
+import {BalanceDeltaLibrary} from "../types/BalanceDelta.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {PriceFeedMock} from "./BaseV4Test.t.sol";
 import {PoolManagerMock} from "./mocks/PoolManagerMock.sol";
@@ -128,7 +129,7 @@ contract EswapUnichainForkTest is Test {
         
         vm.startPrank(address(manager));
         vm.expectRevert("TWAP: V4 Spot Price manipulated");
-        hook.beforeSwap(address(this), key, !isWeth0, -10 ether, hookData);
+        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(!isWeth0, -10 ether, 0), hookData);
         vm.stopPrank();
     }
 
@@ -147,22 +148,22 @@ contract EswapUnichainForkTest is Test {
 
         vm.startPrank(address(manager));
         // Provide margin (input USDC)
-        hook.beforeSwap(address(this), key, zeroForOne, -1000e18, hookData);
+        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(zeroForOne, -1000e18, 0), hookData);
 
-        // Simulate exact AMM swap execution. afterSwap receives the pool-side deltas
-        // (amount0, amount1): the pool receives the input currency (positive) and pays
-        // the output currency (negative). For zeroForOne=true on Unichain, amount0 is
-        // the USDC received (positive) and amount1 is the WETH paid out (negative).
+        // Simulate exact AMM swap execution. afterSwap now receives the SWAPPER-side
+        // BalanceDelta: amount0/amount1 are negative where the swapper pays (input)
+        // and positive where the swapper receives (output). For zeroForOne=true on
+        // Unichain, the swapper pays USDC (amount0 negative) and receives WETH (amount1 positive).
         int128 amount0;
         int128 amount1;
         if (zeroForOne) {
-            amount0 = 5000e18;
-            amount1 = -1666666666666666666;
+            amount0 = -5000e18;
+            amount1 = 1666666666666666666;
         } else {
-            amount0 = -1666666666666666666;
-            amount1 = 5000e18;
+            amount0 = 1666666666666666666;
+            amount1 = -5000e18;
         }
-        hook.afterSwap(address(this), key, zeroForOne, -1000e18, amount0, amount1, hookData);
+        hook.afterSwap(address(this), key, IPoolManager.SwapParams(zeroForOne, -1000e18, 0), BalanceDeltaLibrary.toBalanceDelta(amount0, amount1), hookData);
         vm.stopPrank();
 
         // Verify position was created, is a LONG (base = WETH), and collateral is WETH

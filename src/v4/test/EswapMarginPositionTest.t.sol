@@ -5,6 +5,7 @@ import {BaseV4Test} from "./BaseV4Test.t.sol";
 import {BeforeSwapDelta} from "../types/BeforeSwapDelta.sol";
 import {Currency} from "../types/Currency.sol";
 import {IHooks} from "../interfaces/IHooks.sol";
+import {IPoolManager} from "../interfaces/IPoolManager.sol";
 
 contract EswapMarginPositionTest is BaseV4Test {
     function test_OpenLongPosition_Success() public {
@@ -16,8 +17,7 @@ contract EswapMarginPositionTest is BaseV4Test {
         (bytes4 selector, BeforeSwapDelta delta, ) = hook.beforeSwap(
             address(this),
             key,
-            true, // zeroForOne
-            marginAmount,
+            IPoolManager.SwapParams(true, marginAmount, 0),
             data
         );
 
@@ -37,16 +37,19 @@ contract EswapMarginPositionTest is BaseV4Test {
         (bytes4 selector, BeforeSwapDelta delta, ) = hook.beforeSwap(
             address(this),
             key,
-            false, // zeroForOne = false for short (selling currency1)
-            marginAmount,
+            IPoolManager.SwapParams(false, marginAmount, 0), // zeroForOne = false for short (selling currency1)
             data
         );
 
         assertEq(selector, IHooks.beforeSwap.selector);
 
+        // Real v4-core BeforeSwapDelta packs (specified, unspecified): the upper
+        // 128 bits hold the delta on the swap's input leg. For a short
+        // (zeroForOne = false, selling currency1) the flash borrow is supplied on
+        // that input leg, so the upper (specified) half carries the borrow.
         int256 deltaValue = BeforeSwapDelta.unwrap(delta);
-        int128 delta1 = int128(deltaValue);
-        assertEq(delta1, -100 ether); // margin * (3 - 1)
+        int128 specified = int128(deltaValue >> 128);
+        assertEq(specified, -100 ether); // margin * (3 - 1)
     }
 
     function test_NormalSwap_ReturnsZeroDelta() public {
@@ -57,8 +60,7 @@ contract EswapMarginPositionTest is BaseV4Test {
         (bytes4 selector, BeforeSwapDelta delta, ) = hook.beforeSwap(
             address(this),
             key,
-            true,
-            amount,
+            IPoolManager.SwapParams(true, amount, 0),
             data
         );
 

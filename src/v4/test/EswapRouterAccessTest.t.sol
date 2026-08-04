@@ -8,6 +8,8 @@ import {EswapRouter} from "../EswapRouter.sol";
 import {PoolKey} from "../types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "../types/PoolId.sol";
 import {Currency} from "../types/Currency.sol";
+import {IPoolManager} from "../interfaces/IPoolManager.sol";
+import {BalanceDeltaLibrary} from "../types/BalanceDelta.sol";
 
 contract EswapRouterAccessTest is BaseV4Test {
     using PoolIdLibrary for PoolKey;
@@ -45,9 +47,9 @@ contract EswapRouterAccessTest is BaseV4Test {
         // Open a 3x SHORT (zeroForOne=true): margin 10 ether, borrow 20 ether, collateral ~27.86 ether.
         bytes memory data = abi.encode(true, uint8(3), address(this));
         vm.prank(address(manager));
-        hook.beforeSwap(address(this), key, true, -10 ether, data);
+        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -10 ether, 0), data);
         vm.prank(address(manager));
-        hook.afterSwap(address(this), key, true, -30 ether, 30 ether, -28 ether, data);
+        hook.afterSwap(address(this), key, IPoolManager.SwapParams(true, -30 ether, 0), BalanceDeltaLibrary.toBalanceDelta(-30 ether, 28 ether), data);
 
         // Make the position liquidatable per the hook's isLiquidatable convention for a
         // SHORT (collateral priced as currency1, borrow as currency0): drop token1 price.
@@ -83,9 +85,9 @@ contract EswapRouterAccessTest is BaseV4Test {
         manager.setSlot0(key.toId(), 1 << 96, 0); // Price 1.0, Tick 0
 
         vm.prank(address(manager));
-        hook.beforeSwap(address(0), key, true, -1 ether, data);
+        hook.beforeSwap(address(0), key, IPoolManager.SwapParams(true, -1 ether, 0), data);
         vm.prank(address(manager));
-        hook.afterSwap(address(0), key, true, -1 ether, -1 ether, -1 ether, data);
+        hook.afterSwap(address(0), key, IPoolManager.SwapParams(true, -1 ether, 0), BalanceDeltaLibrary.toBalanceDelta(1 ether, 1 ether), data);
 
         // Price moves out of range (tick 0 -> 200).
         manager.setSlot0(key.toId(), 2 << 96, 200);
