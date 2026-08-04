@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react"
+import { useState, useCallback, useEffect, useMemo } from "react"
 import { ethers } from "ethers"
 import { useAccount, useWalletClient } from "wagmi"
 
@@ -10,26 +10,54 @@ import PriceFeedL1ABI from "../abis/PriceFeedL1.json"
 import LiquidityPoolFactoryABI from "../abis/LiquidityPoolFactory.json"
 import LiquidityPoolABI from "../abis/LiquidityPool.json"
 import FeeManagerABI from "../abis/FeeManager.json"
-import supportedTokens from "../config/supported_tokens.json"
+import supportedTokensByChain from "../config/supported_tokens.json"
+import { useV4Position } from "./useV4Position"
+import { isPolygonChain } from "../utils/chains"
 
-// Create a static array of supported tokens (excluding 'wrapper' and duplicates, though in a UI, it's simpler to just filter 'wrapper')
-export const SUPPORTED_TOKENS_LIST = Object.entries(supportedTokens)
+// Polygon (V3) token list — used by V3-only protocol views (pools/admin) and
+// the module-level default. The runtime SUPPORTED_TOKENS_LIST (returned by the
+// hook) is chain-aware and picks the network's token set.
+const polygonTokens = supportedTokensByChain["137"] || {}
+export const POLYGON_TOKENS_LIST = Object.entries(polygonTokens)
     .filter(([key]) => key !== "wrapper")
     .map(([key, address]) => ({ key, name: key, address }))
 
-// Constants
-const ADDRESSES = {
-    ...supportedTokens,
+// Static contract addresses from environment (network-independent registry).
+const ENV_ADDRESSES = {
     PRICEFEEDL1: process.env.NEXT_PUBLIC_PRICEFEEDL1_ADDRESS,
     POSITIONS: process.env.NEXT_PUBLIC_POSITIONS_ADDRESS,
     MARKET: process.env.NEXT_PUBLIC_MARKET_ADDRESS,
     POOL_FACTORY: process.env.NEXT_PUBLIC_LIQUIDITYPOOLFACTORY_ADDRESS,
     FEEMANAGER_ADDRESS: process.env.NEXT_PUBLIC_FEEMANAGER_ADDRESS,
+    WRAPPER: process.env.NEXT_PUBLIC_WRAPPER_ADDRESS,
+    V4_ROUTER: process.env.NEXT_PUBLIC_V4_ROUTER_ADDRESS || "",
+    V4_HOOK: process.env.NEXT_PUBLIC_V4_HOOK_ADDRESS || "",
+    V4_PRICEFEED:
+        process.env.NEXT_PUBLIC_V4_PRICEFEED_ADDRESS ||
+        process.env.NEXT_PUBLIC_PRICEFEEDL1_ADDRESS ||
+        "",
 }
 
 export function useDeFi() {
-    const { address, isConnected } = useAccount()
+    const { address, isConnected, chainId } = useAccount()
     const { data: walletClient } = useWalletClient()
+    const v4 = useV4Position()
+
+    const isPolygon = isPolygonChain(chainId)
+    const isV4 = !isPolygon
+    const chainKey = String(chainId || "1301")
+    const chainTokens = useMemo(() => {
+        if (isPolygon) return polygonTokens
+        return supportedTokensByChain[chainKey] || supportedTokensByChain["1301"] || {}
+    }, [isPolygon, chainKey])
+    const ADDRESSES = useMemo(() => ({ ...chainTokens, ...ENV_ADDRESSES }), [chainTokens])
+    const SUPPORTED_TOKENS_LIST = useMemo(
+        () =>
+            Object.entries(chainTokens)
+                .filter(([key]) => key !== "wrapper")
+                .map(([key, address]) => ({ key, name: key, address })),
+        [chainTokens]
+    )
 
     // Providers
     const [readProvider, setReadProvider] = useState(null)
@@ -40,9 +68,13 @@ export function useDeFi() {
             const hasMetaMask = typeof window !== "undefined" && !!window.ethereum
             setIsMetaMaskInstalled(hasMetaMask)
 
-            // Priority: Local RPC_URL if configured
-            if (process.env.NEXT_PUBLIC_RPC_URL) {
-                const provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL)
+            const rpc = !isPolygon
+                ? process.env.NEXT_PUBLIC_UNICHAIN_RPC_URL || process.env.NEXT_PUBLIC_RPC_URL
+                : process.env.NEXT_PUBLIC_RPC_URL
+
+            // Priority: chain-appropriate RPC_URL if configured
+            if (rpc) {
+                const provider = new ethers.JsonRpcProvider(rpc)
                 setReadProvider(provider)
             }
             // Fallback: window.ethereum (MetaMask)
@@ -51,13 +83,13 @@ export function useDeFi() {
                 setReadProvider(provider)
             }
             // Ultimate Fallback: Polygon Public RPC
-            else {
+            else if (isPolygon) {
                 const provider = new ethers.JsonRpcProvider("https://polygon.drpc.org")
                 setReadProvider(provider)
             }
         }
         initProvider()
-    }, [])
+    }, [isPolygon])
 
     const getSigner = useCallback(async () => {
         if (!walletClient || typeof window === "undefined" || !window.ethereum) return null
@@ -85,8 +117,11 @@ export function useDeFi() {
                 // even when a token has no registered Chainlink price feed
                 let usdValue = "N/A"
                 try {
+                    const priceFeedAddress = isPolygon
+                        ? ADDRESSES.PRICEFEEDL1
+                        : ADDRESSES.V4_PRICEFEED || ADDRESSES.PRICEFEEDL1
                     const priceFeed = new ethers.Contract(
-                        ADDRESSES.PRICEFEEDL1,
+                        priceFeedAddress,
                         PriceFeedL1ABI.abi,
                         readProvider
                     )
@@ -108,7 +143,7 @@ export function useDeFi() {
                 return null
             }
         },
-        [readProvider]
+        [readProvider, isPolygon, ADDRESSES]
     )
 
     const getNativeBalance = useCallback(
@@ -116,6 +151,30 @@ export function useDeFi() {
             if (!readProvider || !userAddress) return null
             try {
                 const balance = await readProvider.getBalance(userAddress)
+
+                // On Unichain the native asset is ETH, valued via the WETH USD feed.
+                if (!isPolygon) {
+                    let usdValue = "N/A"
+                    try {
+                        const priceFeedAddress = ADDRESSES.V4_PRICEFEED || ADDRESSES.PRICEFEEDL1
+                        const priceFeed = new ethers.Contract(
+                            priceFeedAddress,
+                            PriceFeedL1ABI.abi,
+                            readProvider
+                        )
+                        const usdBig = await priceFeed.getAmountInUsd(ADDRESSES.WETH, balance)
+                        usdValue = parseFloat(ethers.formatUnits(usdBig, 18)).toFixed(2)
+                    } catch {
+                        // No feed configured yet — show balance without USD value
+                    }
+                    return {
+                        symbol: "ETH",
+                        decimals: 18,
+                        balance: ethers.formatEther(balance),
+                        usdValue,
+                        rawBalance: balance,
+                    }
+                }
 
                 // On Polygon, the native token is POL (formerly MATIC)
                 // MATIC/USD Price Feed on Polygon Mainnet: 0xAB594600376Ec9fD91F8e885dADF0CE036862dE0
@@ -149,7 +208,7 @@ export function useDeFi() {
                 return null
             }
         },
-        [readProvider]
+        [readProvider, isPolygon, ADDRESSES]
     )
 
     const calculateTokenAmountFromUsd = useCallback(
@@ -181,8 +240,12 @@ export function useDeFi() {
         async (tokenAddress, amount) => {
             if (!readProvider) return 0n
             try {
+                const priceFeedAddress = isPolygon
+                    ? ADDRESSES.PRICEFEEDL1
+                    : ADDRESSES.V4_PRICEFEED || ADDRESSES.PRICEFEEDL1
+                if (!priceFeedAddress) return 0n
                 const priceFeed = new ethers.Contract(
-                    ADDRESSES.PRICEFEEDL1,
+                    priceFeedAddress,
                     PriceFeedL1ABI.abi,
                     readProvider
                 )
@@ -192,7 +255,7 @@ export function useDeFi() {
                 return 0n
             }
         },
-        [readProvider]
+        [readProvider, isPolygon, ADDRESSES]
     )
 
     const getAllowance = useCallback(
@@ -352,6 +415,9 @@ export function useDeFi() {
 
     const closePosition = useCallback(
         async (posId) => {
+            if (!isPolygon) {
+                return v4.closePosition(posId)
+            }
             const signer = await getSigner()
             if (!signer) throw new Error("Wallet not connected")
 
@@ -359,11 +425,14 @@ export function useDeFi() {
             const tx = await marketContract.closePosition(posId, { gasLimit: 2000000 })
             return tx
         },
-        [getSigner]
+        [isPolygon, v4, getSigner, ADDRESSES]
     )
 
     const getPositionDetails = useCallback(
-        async (posId) => {
+        async (posId, userAddress) => {
+            if (!isPolygon) {
+                return v4.getPositionDetails(posId, userAddress)
+            }
             if (!readProvider || !ADDRESSES.POSITIONS || ADDRESSES.POSITIONS === ethers.ZeroAddress)
                 return null
             try {
@@ -496,7 +565,7 @@ export function useDeFi() {
                 return null
             }
         },
-        [readProvider]
+        [isPolygon, v4, readProvider, ADDRESSES]
     )
 
     /**
@@ -548,6 +617,9 @@ export function useDeFi() {
     )
 
     const getPositionsCount = useCallback(async () => {
+        if (!isPolygon) {
+            return v4.getPositionsCount()
+        }
         if (!readProvider || !ADDRESSES.POSITIONS || ADDRESSES.POSITIONS === ethers.ZeroAddress)
             return 0n
         try {
@@ -568,7 +640,7 @@ export function useDeFi() {
             console.error("Error fetching positions count:", error)
             return 0n
         }
-    }, [readProvider])
+    }, [isPolygon, v4, readProvider, ADDRESSES])
 
 
 
@@ -710,7 +782,7 @@ export function useDeFi() {
             const positionsBalances = {}
             const poolBalances = {}
 
-            for (const token of SUPPORTED_TOKENS_LIST) {
+            for (const token of POLYGON_TOKENS_LIST) {
                 if (!token.address) continue
                 try {
                     const tokenContract = new ethers.Contract(token.address, ERC20ABI.abi, readProvider)
@@ -892,10 +964,11 @@ export function useDeFi() {
         calculatePositionOpening,
         openPosition,
         simulateOpenPosition,
+        openV4Position: v4.openV4Position,
+        simulateV4Position: v4.simulateV4Position,
         closePosition,
         getPositionDetails,
         getPositionsCount,
-        getPoolBorrowCapacity,
         getProtocolBalances,
         depositToPool,
         redeemFromPool,
@@ -904,7 +977,11 @@ export function useDeFi() {
         getNativeBalance,
         getAllowance,
         approveToken,
+        ADDRESSES,
         SUPPORTED_TOKENS_LIST,
         isMetaMaskInstalled,
+        isPolygon,
+        isV4,
+        chainId,
     }
 }

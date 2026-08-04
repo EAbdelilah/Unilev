@@ -13,7 +13,7 @@ import { useState } from 'react';
 
 export default function Home() {
     const { isAdmin } = useAdmin();
-    const [activeChartToken, setActiveChartToken] = useState("WBTC");
+    const [activeChartToken, setActiveChartToken] = useState("WETH");
 
     return (
         <main className="min-h-screen p-6 text-white max-w-[1600px] mx-auto">

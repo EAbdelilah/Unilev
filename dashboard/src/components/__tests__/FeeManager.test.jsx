@@ -34,6 +34,8 @@ describe("FeeManager", () => {
         useAccount.mockReturnValue({ isConnected: true, address: "0xUser" })
         useDeFi.mockReturnValue({
             ADDRESSES: { V4_HOOK: "0xHook" },
+            getFeeDefaults: jest.fn().mockResolvedValue({ treasureFee: "100", liquidationReward: "50" }),
+            updateFeeDefaults: jest.fn().mockResolvedValue({ hash: "0xHash", wait: jest.fn().mockResolvedValue({}) }),
         })
     })
 
@@ -45,8 +47,8 @@ describe("FeeManager", () => {
 
     it("renders fee form when connected", async () => {
         await act(async () => render(<FeeManager />))
-        expect(screen.getByText("Protocol Fees")).toBeInTheDocument()
-        expect(screen.getByText("Reserve Factor (bps)")).toBeInTheDocument()
-        expect(screen.getByText("Liquidation Bonus (bps)")).toBeInTheDocument()
+        expect(screen.getByText("Fee Manager")).toBeInTheDocument()
+        expect(screen.getByText("Treasure Fee (wei)")).toBeInTheDocument()
+        expect(screen.getByText("Liquidation Reward (wei)")).toBeInTheDocument()
     })
 })

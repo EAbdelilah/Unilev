@@ -12,6 +12,7 @@ jest.mock("../../hooks/useDeFi", () => ({
 
 jest.mock("../../utils/formatContractError", () => ({
     formatContractError: jest.fn((e) => e.message || "Mocked error"),
+    isUserCancellation: jest.fn(() => false),
 }))
 
 jest.mock("ethers", () => ({
@@ -42,10 +43,12 @@ describe("TradeForm", () => {
         mockGetUsd.mockResolvedValue(BigInt(100e18))
         useDeFi.mockReturnValue({
             openV4Position: mockOpenV4,
+            simulateV4Position: jest.fn().mockResolvedValue({ success: true }),
             getTokenBalance: mockGetBal,
             getAmountInUsd: mockGetUsd,
             getAllowance: mockGetAllow,
             approveToken: mockApprove,
+            isMetaMaskInstalled: true,
             ADDRESSES: { USDC: "0xUSDC", WETH: "0xWETH", V4_ROUTER: "0xRouter" },
             SUPPORTED_TOKENS_LIST: [
                 { key: "WETH", name: "WETH", address: "0xWETH" },

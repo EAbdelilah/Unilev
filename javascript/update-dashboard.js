@@ -28,6 +28,13 @@ const envVars = [
     { key: 'LIQUIDITYPOOLFACTORY_ADDRESS', target: 'NEXT_PUBLIC_LIQUIDITYPOOLFACTORY_ADDRESS' },
     { key: 'FEEMANAGER_ADDRESS', target: 'NEXT_PUBLIC_FEEMANAGER_ADDRESS' },
     { key: 'POLYGON_RPC_URL', target: 'NEXT_PUBLIC_RPC_URL' },
+    { key: 'UNICHAIN_RPC_URL', target: 'NEXT_PUBLIC_UNICHAIN_RPC_URL' },
+    { key: 'UNICHAIN_SEPOLIA_RPC_URL', target: 'NEXT_PUBLIC_UNICHAIN_SEPOLIA_RPC_URL' },
+    { key: 'V4_HOOK_ADDRESS', target: 'NEXT_PUBLIC_V4_HOOK_ADDRESS' },
+    { key: 'V4_ROUTER_ADDRESS', target: 'NEXT_PUBLIC_V4_ROUTER_ADDRESS' },
+    { key: 'V4_KEEPER_ADDRESS', target: 'NEXT_PUBLIC_V4_KEEPER_ADDRESS' },
+    { key: 'V4_ADAPTER_ADDRESS', target: 'NEXT_PUBLIC_V4_ADAPTER_ADDRESS' },
+    { key: 'V4_PRICEFEED_ADDRESS', target: 'NEXT_PUBLIC_V4_PRICEFEED_ADDRESS' },
 ];
 
 let envContent = '';
@@ -58,7 +65,10 @@ const abis = [
     'LiquidityPoolFactory',
     'LiquidityPool',
     'ERC20',
-    'UniswapV3Helper'
+    'UniswapV3Helper',
+    'EswapRouter',
+    'EswapMarginHook',
+    'PriceFeed'
 ];
 
 abis.forEach(contractName => {

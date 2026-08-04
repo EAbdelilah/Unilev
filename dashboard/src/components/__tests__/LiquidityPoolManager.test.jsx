@@ -1,5 +1,5 @@
 import { render, screen, act } from "@testing-library/react"
-import { InsuranceFundManager } from "../LiquidityPoolManager"
+import { LiquidityPoolManager } from "../LiquidityPoolManager"
 
 jest.mock("wagmi", () => ({
     useAccount: jest.fn(),
@@ -36,30 +36,35 @@ jest.mock("ethers", () => ({
 const { useAccount } = require("wagmi")
 const { useDeFi } = require("../../hooks/useDeFi")
 
-describe("InsuranceFundManager", () => {
+describe("LiquidityPoolManager", () => {
     beforeEach(() => {
         useAccount.mockReturnValue({ isConnected: true, address: "0xUser" })
         useDeFi.mockReturnValue({
             ADDRESSES: { USDC: "0xUSDC", V4_HOOK: "0xHook" },
             getTokenBalance: jest.fn().mockResolvedValue({ balance: "1000.0", decimals: 6 }),
+            getProtocolBalances: jest.fn().mockResolvedValue({ poolBalances: { USDC: { userAssets: "500.0", userShares: "50.0" } } }),
+            depositToPool: jest.fn(),
+            redeemFromPool: jest.fn(),
+            isMetaMaskInstalled: true,
         })
     })
 
-    it("renders nothing when disconnected", () => {
+    it("renders liquidity manager UI when disconnected", () => {
         useAccount.mockReturnValue({ isConnected: false, address: null })
-        const { container } = render(<InsuranceFundManager />)
-        expect(container.innerHTML).toBe("")
+        render(<LiquidityPoolManager />)
+        expect(screen.getByText("Liquidity Manager")).toBeInTheDocument()
     })
 
-    it("renders insurance fund UI when connected", async () => {
-        await act(async () => render(<InsuranceFundManager />))
-        expect(screen.getByText("Insurance Fund")).toBeInTheDocument()
-        expect(screen.getByText("Seed Fund")).toBeInTheDocument()
-        expect(screen.getByText("Withdraw")).toBeInTheDocument()
+    it("renders liquidity manager UI when connected", async () => {
+        await act(async () => render(<LiquidityPoolManager />))
+        expect(screen.getByText("Liquidity Manager")).toBeInTheDocument()
+        expect(screen.getByText("USDC Pool")).toBeInTheDocument()
+        expect(screen.getByText("Deposit")).toBeInTheDocument()
+        expect(screen.getByText("Redeem")).toBeInTheDocument()
     })
 
     it("renders amount input", async () => {
-        await act(async () => render(<InsuranceFundManager />))
+        await act(async () => render(<LiquidityPoolManager />))
         expect(screen.getByPlaceholderText("0.00")).toBeInTheDocument()
     })
 })

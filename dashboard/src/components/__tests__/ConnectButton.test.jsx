@@ -9,7 +9,9 @@ jest.mock("wagmi", () => ({
 }))
 
 jest.mock("wagmi/chains", () => ({
-    polygon: { id: 137 },
+    polygon: { id: 137, name: "Polygon" },
+    unichain: { id: 130, name: "Unichain" },
+    unichainSepolia: { id: 1301, name: "Unichain Sepolia" },
 }))
 
 jest.mock("wagmi/connectors", () => ({
@@ -52,7 +54,19 @@ describe("ConnectButton", () => {
         expect(screen.getByText("Disconnect")).toBeInTheDocument()
     })
 
-    it('shows "Switch to Polygon" when connected to wrong chain', () => {
+    it("shows address + disconnect when connected on Unichain", () => {
+        window.ethereum = {}
+        wagmi.useAccount.mockReturnValue({
+            isConnected: true,
+            address: "0x1234567890abcdef",
+            chainId: 130,
+        })
+        render(<ConnectButton />)
+        expect(screen.getByText("0x1234...cdef")).toBeInTheDocument()
+        expect(screen.getByText("Disconnect")).toBeInTheDocument()
+    })
+
+    it('shows "Switch Network" when connected to an unsupported chain', () => {
         window.ethereum = {}
         wagmi.useAccount.mockReturnValue({
             isConnected: true,
@@ -60,6 +74,6 @@ describe("ConnectButton", () => {
             chainId: 1,
         })
         render(<ConnectButton />)
-        expect(screen.getByText("Switch to Polygon")).toBeInTheDocument()
+        expect(screen.getByText("Switch Network")).toBeInTheDocument()
     })
 })

@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useDeFi } from '../hooks/useDeFi';
 import { useAccount } from 'wagmi';
-import { polygon } from 'wagmi/chains';
+import { POLYGON_CHAIN_ID } from '../utils/chains';
 import clsx from 'clsx';
 import { ethers } from 'ethers';
 import { formatContractError, isUserCancellation } from '../utils/formatContractError';
@@ -12,7 +12,7 @@ export function LiquidityPoolManager({ selectedTokenKey = 'USDC' }) {
     const { isConnected, address, chainId } = useAccount();
     const { getProtocolBalances, depositToPool, redeemFromPool, ADDRESSES, isMetaMaskInstalled, getTokenBalance } = useDeFi();
 
-    const isCorrectNetwork = chainId === polygon.id;
+    const isCorrectNetwork = chainId === POLYGON_CHAIN_ID;
 
     // Tab state (Internal logic for tabs removed, using prop)
     const [action, setAction] = useState('deposit'); // 'deposit' | 'redeem'

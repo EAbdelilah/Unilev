@@ -33,6 +33,7 @@ describe("ProtocolBalances", () => {
                 { key: "WETH", name: "WETH" },
                 { key: "USDC", name: "USDC" },
             ],
+            getProtocolBalances: jest.fn().mockResolvedValue({}),
         })
     })
 

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react"
 import { useDeFi } from "../hooks/useDeFi"
 import clsx from "clsx"
 import { useAccount } from "wagmi"
-import { polygon } from "wagmi/chains"
+import { isUnichainChain, POLYGON_CHAIN_ID } from "../utils/chains"
 import { ethers } from "ethers"
 import { formatContractError, isUserCancellation } from "../utils/formatContractError"
 import { formatTokenAmount } from "../utils/format"
@@ -13,7 +13,6 @@ export function TradeForm({ onTradingTokenChange }) {
         openPosition,
         calculateTokenAmountFromUsd,
         calculateRequiredBorrow,
-        calculateRequiredBorrow,
         ADDRESSES,
         SUPPORTED_TOKENS_LIST,
         isMetaMaskInstalled,
@@ -22,10 +21,19 @@ export function TradeForm({ onTradingTokenChange }) {
         getAllowance,
         approveToken,
         simulateOpenPosition,
+        openV4Position,
+        simulateV4Position,
     } = useDeFi()
 
+    // V4 (Unichain) trading path. Any chain other than Polygon uses the V4 hook
+    // (Unichain mainnet 130 / Unichain Sepolia 1301). An unresolved chainId
+    // (undefined) also resolves to the V4 path so the form stays usable while
+    // the wallet connection settles.
+    const isV4 = chainId !== POLYGON_CHAIN_ID
+    const isCorrectNetwork = !chainId || chainId === POLYGON_CHAIN_ID || isUnichainChain(chainId)
+
     const [marginToken, setMarginToken] = useState("USDC")
-    const [tradingToken, setTradingToken] = useState("WBTC")
+    const [tradingToken, setTradingToken] = useState("WETH")
     const [amount, setAmount] = useState("0")
     const [leverage, setLeverage] = useState("2")
     const [isShort, setIsShort] = useState(false)
@@ -42,8 +50,6 @@ export function TradeForm({ onTradingTokenChange }) {
     const [requiredBorrow, setRequiredBorrow] = useState(null)
     const [requiredBorrowUsd, setRequiredBorrowUsd] = useState("0.00")
     const [liquidationFloor, setLiquidationFloor] = useState(null)
-
-    const isCorrectNetwork = chainId === polygon.id
 
     // Fetch USD Value of the entered amount
     useEffect(() => {
@@ -78,17 +84,18 @@ export function TradeForm({ onTradingTokenChange }) {
     }, [isConnected, address, isCorrectNetwork, marginToken, ADDRESSES, getTokenBalance])
 
     // Fetch allowance for the selected margin token
+    const spender = isV4 ? ADDRESSES.V4_ROUTER : ADDRESSES.POSITIONS
     useEffect(() => {
         const fetchAllowance = async () => {
-            if (!isConnected || !address || !isCorrectNetwork || !ADDRESSES.POSITIONS) return
+            if (!isConnected || !address || !isCorrectNetwork || !spender) return
             const marginAddr = ADDRESSES[marginToken]
             if (!marginAddr) return
 
-            const currentAllowance = await getAllowance(marginAddr, address, ADDRESSES.POSITIONS)
+            const currentAllowance = await getAllowance(marginAddr, address, spender)
             setAllowance(currentAllowance)
         }
         fetchAllowance()
-    }, [isConnected, address, isCorrectNetwork, marginToken, ADDRESSES, getAllowance])
+    }, [isConnected, address, isCorrectNetwork, marginToken, ADDRESSES, spender, getAllowance])
 
     useEffect(() => {
         // Setup initial default selected tokens if not set properly (e.g if 'USDC/WBTC' don't exist in config)
@@ -112,10 +119,19 @@ export function TradeForm({ onTradingTokenChange }) {
         SUPPORTED_TOKENS_LIST,
     ])
 
+    // V4 only trades the WETH/USDC pair; the margin token is set by direction
+    // (LONG supplies USDC, SHORT supplies WETH) and the asset is always WETH.
+    useEffect(() => {
+        if (!isV4) return
+        setMarginToken(isShort ? "WETH" : "USDC")
+        setTradingToken("WETH")
+        if (onTradingTokenChange) onTradingTokenChange("WETH")
+    }, [isV4, isShort, onTradingTokenChange])
+
     // Calculate required borrow when amount/leverage changes using contract logic
     useEffect(() => {
         const calculateRequired = async () => {
-            if (!isConnected || !isCorrectNetwork || !balanceData) {
+            if (isV4 || !isConnected || !isCorrectNetwork || !balanceData) {
                 setRequiredBorrow(null)
                 setRequiredBorrowUsd("0.00")
                 setLiquidationFloor(null)
@@ -180,6 +196,7 @@ export function TradeForm({ onTradingTokenChange }) {
     }, [
         isConnected,
         isCorrectNetwork,
+        isV4,
         amount,
         leverage,
         marginToken,
@@ -196,13 +213,13 @@ export function TradeForm({ onTradingTokenChange }) {
         setStatus("Approving token usage...")
         try {
             const marginAddr = ADDRESSES[marginToken]
-            const tx = await approveToken(marginAddr, ADDRESSES.POSITIONS)
+            const tx = await approveToken(marginAddr, spender)
             setStatus(`Approval Sent: ${tx.hash}`)
             await tx.wait()
             setStatus("✅ Token Approved!")
 
             // Refresh allowance
-            const currentAllowance = await getAllowance(marginAddr, address, ADDRESSES.POSITIONS)
+            const currentAllowance = await getAllowance(marginAddr, address, spender)
             setAllowance(currentAllowance)
         } catch (error) {
             console.error(error)
@@ -266,13 +283,20 @@ export function TradeForm({ onTradingTokenChange }) {
 
             setStatus("Opening Position...")
 
-            const tx = await openPosition(
-                marginAddr,
-                tradingAddr,
-                isShort,
-                amountBig,
-                parseInt(leverage)
-            )
+            let tx
+            if (isV4) {
+                // V4: amount is the margin (input) token supplied by the trader —
+                // USDC for a LONG, WETH for a SHORT.
+                tx = await openV4Position(isShort, amountBig, parseInt(leverage))
+            } else {
+                tx = await openPosition(
+                    marginAddr,
+                    tradingAddr,
+                    isShort,
+                    amountBig,
+                    parseInt(leverage)
+                )
+            }
 
             setStatus(`Transaction Sent: ${tx.hash}`)
             await tx.wait()
@@ -280,7 +304,7 @@ export function TradeForm({ onTradingTokenChange }) {
 
             // Refresh allowance & balance
             const [newAllowance, newData] = await Promise.all([
-                getAllowance(marginAddr, address, ADDRESSES.POSITIONS),
+                getAllowance(marginAddr, address, spender),
                 getTokenBalance(marginAddr, address),
             ])
             setAllowance(newAllowance)
@@ -328,13 +352,18 @@ export function TradeForm({ onTradingTokenChange }) {
                 )
             }
 
-            const result = await simulateOpenPosition(
-                marginAddr,
-                tradingAddr,
-                isShort,
-                amountBig,
-                parseInt(leverage)
-            )
+            let result
+            if (isV4) {
+                result = await simulateV4Position(isShort, amountBig, parseInt(leverage))
+            } else {
+                result = await simulateOpenPosition(
+                    marginAddr,
+                    tradingAddr,
+                    isShort,
+                    amountBig,
+                    parseInt(leverage)
+                )
+            }
 
             if (result.success) {
                 setStatus(
@@ -434,11 +463,12 @@ export function TradeForm({ onTradingTokenChange }) {
                 <div className="grid grid-cols-2 gap-4">
                     <div>
                         <label className="text-xs text-gray-400 mb-1 block">
-                            Margin (Sent) Token
+                            Margin Asset
                         </label>
                         <select
                             value={marginToken}
                             onChange={(e) => setMarginToken(e.target.value)}
+                            disabled={isV4}
                             className="input-field bg-black/40"
                         >
                             {SUPPORTED_TOKENS_LIST.map((t) => (
@@ -450,7 +480,7 @@ export function TradeForm({ onTradingTokenChange }) {
                     </div>
                     <div>
                         <label className="text-xs text-gray-400 mb-1 block">
-                            Trading (Asset) Token
+                            Trading Asset
                         </label>
                         <select
                             value={tradingToken}
@@ -458,6 +488,7 @@ export function TradeForm({ onTradingTokenChange }) {
                                 setTradingToken(e.target.value);
                                 if (onTradingTokenChange) onTradingTokenChange(e.target.value);
                             }}
+                            disabled={isV4}
                             className="input-field bg-black/40"
                         >
                             {SUPPORTED_TOKENS_LIST.map((t) => (
@@ -572,7 +603,7 @@ export function TradeForm({ onTradingTokenChange }) {
                         ? "Processing..."
                         : needsApproval
                         ? `Approve ${marginToken}`
-                        : "Open Position"}
+                        : "Execute 0% Interest Trade"}
                 </button>
 
                 <button

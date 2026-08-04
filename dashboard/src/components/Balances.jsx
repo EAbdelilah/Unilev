@@ -9,7 +9,7 @@ export function Balances() {
     const { getTokenBalance, getNativeBalance, ADDRESSES, SUPPORTED_TOKENS_LIST } = useDeFi();
     const [balances, setBalances] = useState({});
 
-    const displayTokens = [{ key: 'native', name: 'POL' }, ...SUPPORTED_TOKENS_LIST];
+    const displayTokens = [{ key: 'native', name: 'ETH' }, ...SUPPORTED_TOKENS_LIST];
 
     // Initial state with zeroes/dashes to prevent layout shift
     const [loading, setLoading] = useState(false);
@@ -23,7 +23,7 @@ export function Balances() {
             let bal;
             if (t.key === 'native') {
                 bal = await getNativeBalance(address);
-                if (bal) bal.symbol = 'POL';
+                if (bal) bal.symbol = 'ETH';
             } else {
                 const tokenAddr = ADDRESSES[t.key];
                 if (tokenAddr) {

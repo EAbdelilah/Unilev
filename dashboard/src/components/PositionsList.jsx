@@ -33,7 +33,7 @@ export function PositionsList() {
             // Fetch position details
             const promises = []
             for (let i = 1; i < maxId; i++) {
-                promises.push(getPositionDetails(i))
+                promises.push(getPositionDetails(i, address))
             }
 
             const results = await Promise.all(promises)
@@ -48,7 +48,7 @@ export function PositionsList() {
         } finally {
             setLoading(false)
         }
-    }, [getPositionsCount, getPositionDetails])
+    }, [getPositionsCount, getPositionDetails, address])
 
     useEffect(() => {
         fetchPositions()
