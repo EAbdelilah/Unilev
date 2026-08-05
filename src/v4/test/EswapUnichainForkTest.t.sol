@@ -21,7 +21,7 @@ contract EswapUnichainForkTest is Test {
     // Verified live on Unichain mainnet (Alchemy RPC).
     address constant UNICHAIN_WETH = address(0x4200000000000000000000000000000000000006); // OP-stack WETH
     address constant UNICHAIN_USDC = address(0x078D782b760474a361dDA0AF3839290b0EF57AD6); // Native USDC
-    address constant UNICHAIN_V3_POOL_WETH_USDC = address(0x123); // Placeholder for V3 Pool
+    address constant UNICHAIN_V3_POOL_WETH_USDC = address(0x08927058918E3Cff6F5Efe45A58dB1be1f069E49); // Real live V3 Pool
     
     // Core contracts
     PoolManagerMock manager;

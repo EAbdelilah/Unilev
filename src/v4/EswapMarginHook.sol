@@ -18,6 +18,9 @@ import {IURC3} from "./interfaces/IURC3.sol";
 import {IURC4} from "./interfaces/IURC4.sol";
 import {IERC6909} from "./interfaces/IERC6909.sol";
 import {IExttload} from "@uniswap/v4-core/src/interfaces/IExttload.sol";
+import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
+import {IPoolManager as RealIPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
+import {PoolId as RealPoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {FullMath} from "@uniswap/v4-core/src/libraries/FullMath.sol";
@@ -82,6 +85,11 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     mapping(PoolId => bool) public isAuthorizedPool;
     mapping(PoolId => mapping(address => Position)) public positions;
     mapping(PoolId => PoolKey) public standardPoolKeys;
+
+    // Dynamic tracking of registered currencies for USD aggregate valuations
+    mapping(Currency => bool) public isCurrencyRegistered;
+    Currency[] public registeredCurrencies;
+
     mapping(address => mapping(uint256 => uint256)) public _claimBalances;
     mapping(address => mapping(address => mapping(uint256 => uint256))) public _allowances;
     mapping(address => mapping(address => bool)) public _isOperator;
@@ -162,11 +170,9 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         view
         returns (uint160 sqrtPriceX96, int24 tick, uint16 protocolFee, uint24 lpFee)
     {
-        bytes32 packed = manager.extsload(keccak256(abi.encode(id, uint256(0))));
-        sqrtPriceX96 = uint160(uint256(packed));
-        tick = int24(int256(uint256(packed) >> 160));
-        protocolFee = uint16(uint256(packed) >> 184);
-        lpFee = uint24(uint256(packed) >> 200);
+        (uint160 price, int24 t, uint24 pFee, uint24 lFee) =
+            StateLibrary.getSlot0(RealIPoolManager(address(manager)), RealPoolId.wrap(PoolId.unwrap(id)));
+        return (price, t, uint16(pFee), lFee);
     }
 
     /**
@@ -282,9 +288,18 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
                HookFlags.BEFORE_SWAP_RETURNS_DELTA_FLAG;
     }
 
+    function _registerCurrency(Currency currency) internal {
+        if (!isCurrencyRegistered[currency]) {
+            isCurrencyRegistered[currency] = true;
+            registeredCurrencies.push(currency);
+        }
+    }
+
     function afterInitialize(address, PoolKey calldata key, uint160 sqrtPriceX96, int24) external override onlyPoolManager returns (bytes4) {
         isAuthorizedPool[key.toId()] = true;
         lastOraclePrice[key.toId()] = sqrtPriceX96;
+        _registerCurrency(key.currency0);
+        _registerCurrency(key.currency1);
         return IHooks.afterInitialize.selector;
     }
 
@@ -368,6 +383,10 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         BalanceDelta delta,
         bytes calldata data
     ) external override onlyPoolManager returns (bytes4, int128) {
+        // Record last oracle sqrtPriceX96 for oracle price-capping test
+        (uint160 sqrtPriceX96,,,) = _slot0(key.toId());
+        if (sqrtPriceX96 > 0) lastOraclePrice[key.toId()] = sqrtPriceX96;
+
         if (data.length == 0) return (IHooks.afterSwap.selector, 0);
 
         (bool isMargin, , address trader) = abi.decode(data, (bool, uint8, address));
@@ -394,9 +413,11 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
             _claimBalances[trader][uint256(uint160(Currency.unwrap(boughtCurrency)))] += positionCollateral;
             totalCollateral[boughtCurrency] += positionCollateral;
 
+            _registerCurrency(boughtCurrency);
             // Track borrow for protocol-wide health view
             Currency borrowedToken = params.zeroForOne ? key.currency0 : key.currency1;
             totalBorrowedByToken[borrowedToken] += borrow;
+            _registerCurrency(borrowedToken);
 
             positions[key.toId()][trader] = Position({
                 trader: trader,
@@ -412,10 +433,6 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
 
             _getKey(TRADER_BASE, trader).tstore(address(0));
             emit HookSwap(key.toId(), trader, delta.amount0(), delta.amount1(), 0);
-
-            // Record last oracle sqrtPriceX96 for oracle price-capping test
-            (uint160 sqrtPriceX96,,,) = _slot0(key.toId());
-            if (sqrtPriceX96 > 0) lastOraclePrice[key.toId()] = sqrtPriceX96;
         }
         return (IHooks.afterSwap.selector, 0);
     }
@@ -645,19 +662,17 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         delete positionSolver[poolId][trader];
     }
 
+    error UnsupportedFeature();
+
     // --- URC-4 swapToPrice ---
-    function swapToPrice(PoolKey calldata key, uint160 targetSqrtPriceX96, bytes calldata) external override onlyPoolManager returns (int128 delta0, int128 delta1) {
-        (uint160 currentPrice, , , ) = _slot0(key.toId());
-        bool zeroForOne = currentPrice > targetSqrtPriceX96;
-        Currency currencyIn = zeroForOne ? key.currency0 : key.currency1;
-        uint256 swappable = totalCollateral[currencyIn];
-        delta0 = zeroForOne ? int128(uint128(swappable)) : -int128(uint128(swappable));
-        delta1 = zeroForOne ? -int128(uint128(swappable)) : int128(uint128(swappable));
-        return (delta0, delta1);
+    function swapToPrice(PoolKey calldata, uint160, bytes calldata) external pure override returns (int128, int128) {
+        revert UnsupportedFeature();
     }
 
     function getHookTVL(Currency currency) external view override returns (uint256) { return totalCollateral[currency]; }
-    function getSwappableCapacity(Currency currency) external view override returns (uint256) { return totalCollateral[currency]; }
+    function getSwappableCapacity(Currency) external pure override returns (uint256) {
+        revert UnsupportedFeature();
+    }
     function getIndicativeQuote(PoolKey calldata, bool, int128 amountSpecified, bytes calldata data) external view override returns (IndicativeQuote memory quote) {
         quote.liveness = true;
         uint8 lev = 1;
@@ -731,16 +746,28 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         if (amount0 > 0) {
             manager.take(key.currency0, address(this), uint256(int256(amount0)));
         } else if (amount0 < 0) {
-            manager.sync(key.currency0);
-            IERC20(Currency.unwrap(key.currency0)).transfer(address(manager), uint256(int256(-amount0)));
-            manager.settle();
+            uint256 absAmt0 = uint256(int256(-amount0));
+            uint256 claimId0 = uint256(uint160(Currency.unwrap(key.currency0)));
+            if (manager.balanceOf(address(this), claimId0) >= absAmt0) {
+                manager.burn(address(this), claimId0, absAmt0);
+            } else {
+                manager.sync(key.currency0);
+                IERC20(Currency.unwrap(key.currency0)).transfer(address(manager), absAmt0);
+                manager.settle();
+            }
         }
         if (amount1 > 0) {
             manager.take(key.currency1, address(this), uint256(int256(amount1)));
         } else if (amount1 < 0) {
-            manager.sync(key.currency1);
-            IERC20(Currency.unwrap(key.currency1)).transfer(address(manager), uint256(int256(-amount1)));
-            manager.settle();
+            uint256 absAmt1 = uint256(int256(-amount1));
+            uint256 claimId1 = uint256(uint160(Currency.unwrap(key.currency1)));
+            if (manager.balanceOf(address(this), claimId1) >= absAmt1) {
+                manager.burn(address(this), claimId1, absAmt1);
+            } else {
+                manager.sync(key.currency1);
+                IERC20(Currency.unwrap(key.currency1)).transfer(address(manager), absAmt1);
+                manager.settle();
+            }
         }
     }
 
@@ -914,24 +941,31 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     }
 
     /**
-     * @notice Returns a real protocol-wide collateral aggregate in token units.
-     * For USD value, multiply externally by the oracle price.
-     * This is intentionally gas-cheap: it sums running totals, not on-chain iteration.
+     * @notice Returns a real protocol-wide collateral aggregate in USD.
      */
     function getTotalCollateralUSD() external view returns (uint256 total) {
-        // Stub: implement per-token USD conversion via priceFeed if needed.
-        // Returns 1e18 sentinel as a non-zero health indicator until real oracle aggregation
-        // is wired at the router layer (avoids unbounded loops over all currencies on-chain).
-        return 1e18;
+        uint256 len = registeredCurrencies.length;
+        for (uint256 i = 0; i < len; i++) {
+            Currency currency = registeredCurrencies[i];
+            uint256 amount = totalCollateral[currency];
+            if (amount > 0) {
+                total += priceFeed.getAmountInUsd(Currency.unwrap(currency), amount);
+            }
+        }
     }
 
     /**
-     * @notice Returns a real protocol-wide borrow aggregate in token units.
-     * Tracks cumulatively via totalBorrowedByToken; call priceFeed externally for USD.
+     * @notice Returns a real protocol-wide borrow aggregate in USD.
      */
     function getTotalDebtUSD() external view returns (uint256 total) {
-        // Stub: router/off-chain should iterate totalBorrowedByToken per registered currency.
-        return 0;
+        uint256 len = registeredCurrencies.length;
+        for (uint256 i = 0; i < len; i++) {
+            Currency currency = registeredCurrencies[i];
+            uint256 amount = totalBorrowedByToken[currency];
+            if (amount > 0) {
+                total += priceFeed.getAmountInUsd(Currency.unwrap(currency), amount);
+            }
+        }
     }
 
     function unlockCallback(bytes calldata data) external returns (bytes memory) {

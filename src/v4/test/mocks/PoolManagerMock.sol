@@ -67,6 +67,7 @@ contract PoolManagerMock is IPoolManager {
                 | (uint256(3000) << 200)
         );
         persistentStorage[keccak256(abi.encode(id, uint256(0)))] = packed;
+        persistentStorage[keccak256(abi.encodePacked(PoolId.unwrap(id), bytes32(uint256(6))))] = packed;
     }
 
     function swapCallsLength() external view returns (uint256) {
