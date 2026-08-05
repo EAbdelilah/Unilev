@@ -15,6 +15,7 @@ interface IEswapHook {
     function deployCollateral(PoolKey calldata key, address trader) external;
     function closePosition(PoolKey calldata key, address trader, address solver, uint256 minAmountOut) external;
     function registerSolverDebt(PoolId poolId, address trader, address solver, uint256 principal) external;
+    function setStandardPoolKey(PoolId poolId, PoolKey calldata key) external;
 }
 
 /**
@@ -51,6 +52,7 @@ contract EswapRouter is Ownable {
         // Hook-enabled pool where leverage accounting (flash borrow + position
         // registration) and the physical swap both happen.
         PoolKey key;
+        PoolKey standardPoolKey;
         bool zeroForOne;
         // Margin amount (negative = exact input). The hook's beforeSwap
         // flash-expands this by the borrow, so the pool swaps margin x leverage.
@@ -103,34 +105,64 @@ contract EswapRouter is Ownable {
             require(params.solver != address(0), "Solver required for leverage");
         }
 
-        // (1) Margin swap on the hook pool. The hook's beforeSwap flash-expands
-        //     the swap by the borrow, so the pool executes margin x leverage.
-        BalanceDelta delta = manager.swap(
-            params.key,
-            IPoolManager.SwapParams(params.zeroForOne, params.amountSpecified, 0),
-            params.hookData
-        );
+        bool isMultiPool = (Currency.unwrap(params.standardPoolKey.currency0) != address(0));
 
+        BalanceDelta delta;
+        uint256 outputAmount;
         Currency input = params.zeroForOne ? params.key.currency0 : params.key.currency1;
         Currency output = params.zeroForOne ? params.key.currency1 : params.key.currency0;
-        int128 outputDelta = params.zeroForOne ? delta.amount1() : delta.amount0();
-        require(outputDelta > 0, "Swap output zero");
-        uint256 outputAmount = uint256(int256(outputDelta));
 
-        // (2) Settle the trader's margin (router's -margin delta from the swap,
-        //     after the hook's flash-expansion subtracted the borrow).
-        if (marginAmount > 0) {
-            manager.sync(input);
-            IERC20(Currency.unwrap(input)).transferFrom(trader, address(manager), marginAmount);
-            manager.settle();
+        if (isMultiPool) {
+            // (1) Margin swap on the hook pool (for accounting / leverage accounting / position registration).
+            delta = manager.swap(
+                params.key,
+                IPoolManager.SwapParams(params.zeroForOne, params.amountSpecified, 0),
+                params.hookData
+            );
+
+            // (2) Settle the trader's margin (router's -margin delta from the swap)
+            if (marginAmount > 0) {
+                manager.sync(input);
+                IERC20(Currency.unwrap(input)).transferFrom(trader, address(manager), marginAmount);
+                manager.settle();
+            }
+
+            // (3) Swap the combined margin + borrow on the standard pool
+            BalanceDelta deltaPhysical = manager.swap(
+                params.standardPoolKey,
+                IPoolManager.SwapParams(params.zeroForOne, -int256(marginAmount + borrowAmount), 0),
+                ""
+            );
+
+            int128 outputDelta = params.zeroForOne ? deltaPhysical.amount1() : deltaPhysical.amount0();
+            require(outputDelta > 0, "Swap output zero");
+            outputAmount = uint256(int256(outputDelta));
+
+            // Set standard pool key mapping on the hook
+            IEswapHook(params.key.hooks).setStandardPoolKey(params.key.toId(), params.standardPoolKey);
+        } else {
+            // Legacy single-pool routing
+            delta = manager.swap(
+                params.key,
+                IPoolManager.SwapParams(params.zeroForOne, params.amountSpecified, 0),
+                params.hookData
+            );
+
+            int128 outputDelta = params.zeroForOne ? delta.amount1() : delta.amount0();
+            require(outputDelta > 0, "Swap output zero");
+            outputAmount = uint256(int256(outputDelta));
+
+            if (marginAmount > 0) {
+                manager.sync(input);
+                IERC20(Currency.unwrap(input)).transferFrom(trader, address(manager), marginAmount);
+                manager.settle();
+            }
         }
 
-        // (3) Mint the collateral as an ERC-6909 claim held by the hook.
-        //     Accounts -outputAmount to the router, offsetting its +outputAmount
-        //     swap delta. The hook becomes the collateral custodian.
+        // (4) Mint the collateral as an ERC-6909 claim held by the hook.
         manager.mint(address(params.key.hooks), uint256(uint160(Currency.unwrap(output))), outputAmount);
 
-        // (4) Settle the solver's borrow FOR THE HOOK: the hook flash-provided
+        // (5) Settle the solver's borrow FOR THE HOOK: the hook flash-provided
         //     the borrow leg, so it carries a -borrowAmount transient delta that
         //     settleFor(hook) zeroes.
         if (borrowAmount > 0) {
@@ -139,7 +171,7 @@ contract EswapRouter is Ownable {
             manager.settleFor(address(params.key.hooks));
         }
 
-        // (5) Register the on-chain solver debt (principal + yield) guaranteeing
+        // (6) Register the on-chain solver debt (principal + yield) guaranteeing
         //     solver repayment before trader withdrawal.
         if (borrowAmount > 0) {
             IEswapHook(params.key.hooks).registerSolverDebt(params.key.toId(), trader, params.solver, borrowAmount);

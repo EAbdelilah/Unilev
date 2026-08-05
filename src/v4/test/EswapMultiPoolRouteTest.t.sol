@@ -107,6 +107,7 @@ contract EswapMultiPoolRouteTest is BaseV4Test {
 
     function test_Swap_RoutesAccountingToHookPool_PhysicalToStandardPool() public {
         address trader = address(0xABC);
+        address solver = address(0x123);
         uint256 margin = 10 ether;
         uint8 leverage = 3;
 
@@ -118,12 +119,24 @@ contract EswapMultiPoolRouteTest is BaseV4Test {
             zeroForOne: true,
             amountSpecified: -int128(uint128(margin)),
             leverage: leverage,
+            solver: solver,
             hookData: abi.encode(true, leverage, trader)
         });
 
         token0.mint(trader, 100 ether);
         vm.startPrank(trader);
         token0.approve(address(router), type(uint256).max);
+        vm.stopPrank();
+
+        token0.mint(solver, 100 ether);
+        vm.startPrank(solver);
+        token0.approve(address(router), type(uint256).max);
+        vm.stopPrank();
+
+        // Mint token1 (the collateral) to the hook so deployCollateral can add concentrated liquidity
+        token1.mint(address(hook), 100 ether);
+
+        vm.startPrank(trader);
         router.swap(params);
         vm.stopPrank();
 
@@ -151,6 +164,7 @@ contract EswapMultiPoolRouteTest is BaseV4Test {
 
     function test_Swap_ReverseDirection_RoutesToStandardPool() public {
         address trader = address(0xDEF);
+        address solver = address(0x123);
         uint256 margin = 10 ether;
         uint8 leverage = 3;
 
@@ -163,12 +177,24 @@ contract EswapMultiPoolRouteTest is BaseV4Test {
             zeroForOne: false,
             amountSpecified: -int128(uint128(margin)),
             leverage: leverage,
+            solver: solver,
             hookData: abi.encode(true, leverage, trader)
         });
 
         token1.mint(trader, 100 ether);
         vm.startPrank(trader);
         token1.approve(address(router), type(uint256).max);
+        vm.stopPrank();
+
+        token1.mint(solver, 100 ether);
+        vm.startPrank(solver);
+        token1.approve(address(router), type(uint256).max);
+        vm.stopPrank();
+
+        // Mint token0 (the collateral) to the hook so deployCollateral can add concentrated liquidity
+        token0.mint(address(hook), 100 ether);
+
+        vm.startPrank(trader);
         router.swap(params);
         vm.stopPrank();
 
@@ -186,5 +212,96 @@ contract EswapMultiPoolRouteTest is BaseV4Test {
         (, , int128 physicalAmount, bytes memory physicalHookData) = manager.swapCalls(1);
         assertEq(physicalAmount, -int128(uint128(margin * leverage)));
         assertEq(physicalHookData.length, 0);
+    }
+
+    function test_OpenAndClose_5xLeveragePosition_MultiPoolRoute() public {
+        address trader = address(0xABC);
+        address solver = address(0x123);
+        uint256 margin = 10 ether;
+        uint8 leverage = 5;
+
+        // (1) Open 5x position
+        _primeHookPosition(trader, true, margin, leverage, 48 ether);
+
+        EswapRouter.SwapParams memory params = EswapRouter.SwapParams({
+            key: key,
+            standardPoolKey: standardPoolKey,
+            zeroForOne: true,
+            amountSpecified: -int128(uint128(margin)),
+            leverage: leverage,
+            solver: solver,
+            hookData: abi.encode(true, leverage, trader)
+        });
+
+        token0.mint(trader, margin);
+        token0.mint(solver, margin * (leverage - 1));
+
+        vm.startPrank(trader);
+        token0.approve(address(router), type(uint256).max);
+        vm.stopPrank();
+
+        vm.startPrank(solver);
+        token0.approve(address(router), type(uint256).max);
+        vm.stopPrank();
+
+        // Mint token1 (the collateral) to the hook so deployCollateral can add concentrated liquidity
+        token1.mint(address(hook), 100 ether);
+
+        vm.startPrank(trader);
+        router.swap(params);
+        vm.stopPrank();
+
+        // Verify position details
+        (address posTrader, uint256 collateral, uint256 borrowed, uint8 posLeverage, , , , , uint128 liquidity) =
+            hook.positions(key.toId(), trader);
+        assertEq(posTrader, trader);
+        assertEq(posLeverage, leverage);
+        assertEq(borrowed, margin * (leverage - 1));
+        assertEq(collateral, (48 ether * 9950) / 10000);
+        assertGt(liquidity, 0, "deployCollateral should deploy the position liquidity");
+
+        // Verify Solver Debt registration
+        (address debtSolver, uint256 principal, uint256 yield) = hook.solverDebts(key.toId(), trader, solver);
+        assertEq(debtSolver, solver);
+        assertEq(principal, margin * (leverage - 1));
+        assertEq(yield, 0);
+
+        // (2) Close position
+        // When closing, rehypothecated collateral is removed and swapped back.
+        // We'll prime the mock PoolManager to return a positive amount of input currency (token0) from the standard pool swap
+        // Let's set the mock swap output to 50 ether of token0 when the standard pool swap is executed during close.
+        // During close, the hook does `manager.swap(standardKey, ...)`
+        // So we can set the next swap delta.
+        // Collateral is 48 ether * 9950 / 10000 = 47.76 ether.
+        // Let's mock a standard pool swap that converts 47.76 ether of collateral (token1) back to 50 ether of token0.
+        // delta in manager.swap is from swapper's perspective: selling token1 (delta.amount1 < 0) and receiving token0 (delta.amount0 > 0).
+        // So we want delta.amount0 = 50 ether, delta.amount1 = -47.76 ether.
+        int128 outAmt = int128(uint128(47.76 ether));
+        int128 inAmt = int128(uint128(50 ether));
+        // For zeroForOne=false (selling token1):
+        manager.setNextSwapDelta(inAmt, -outAmt);
+
+        token1.mint(address(manager), 47.76 ether); // For settlement burn
+        token0.mint(address(manager), 50 ether); // For taking
+
+        // Mint the recovered debt tokens (token0) to the hook contract since the mock take() is a no-op
+        token0.mint(address(hook), 50 ether);
+
+        // Execute Close
+        vm.startPrank(trader);
+        router.closePosition(address(hook), key, trader, solver, 0);
+        vm.stopPrank();
+
+        // Verify position is cleared
+        (posTrader, collateral, borrowed, , , , , , ) = hook.positions(key.toId(), trader);
+        assertEq(posTrader, address(0));
+        assertEq(collateral, 0);
+        assertEq(borrowed, 0);
+
+        // Verify Solver Debt is cleared
+        (debtSolver, principal, yield) = hook.solverDebts(key.toId(), trader, solver);
+        assertEq(debtSolver, address(0));
+        assertEq(principal, 0);
+        assertEq(yield, 0);
     }
 }
