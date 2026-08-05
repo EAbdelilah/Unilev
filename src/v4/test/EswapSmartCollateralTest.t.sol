@@ -71,6 +71,7 @@ contract EswapSmartCollateralTest is BaseV4Test {
 
         uint256 settleBefore = manager.settleCount();
         uint256 takeBefore = manager.takeCount();
+        token0.mint(address(hook), 200 ether); // Mint tokens to the hook so it has balance to settle with PM
         hook.deployCollateral(key, address(this));
 
         assertEq(manager.settleCount(), settleBefore + 1, "negative amount0 delta must be settled");
@@ -97,7 +98,7 @@ contract EswapSmartCollateralTest is BaseV4Test {
 
         uint256 takeBefore = manager.takeCount();
         uint256 settleBefore = manager.settleCount();
-        token0.mint(address(hook), 300 ether);
+        token0.mint(address(hook), 500 ether); // Mint enough tokens to cover both solver payout and netting
         token1.mint(address(hook), 100 ether);
         hook.closePosition(key, address(this), address(0), 0);
 
