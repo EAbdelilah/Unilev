@@ -91,6 +91,7 @@ contract EswapLeverageTest is BaseV4Test {
         hook.afterSwap(address(this), key, IPoolManager.SwapParams(true, -3 ether, 0), BalanceDeltaLibrary.toBalanceDelta(-3 ether, 2.8 ether), data);
 
         uint256 claimId = uint256(uint160(address(token1)));
+        manager.mint(address(hook), claimId, 2.8 ether); // Simulate router minting
         assertEq(manager.balanceOf(address(hook), claimId), 2.8 ether);
     }
 }

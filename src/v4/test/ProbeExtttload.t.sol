@@ -31,7 +31,10 @@ contract ProbeExtttload3 is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
 
     function f(address locker, Currency c) external view returns (int256) {
         bytes32 slot = keccak256(abi.encodePacked(locker, Currency.unwrap(c)));
-        return int256(uint256(manager.extttload(slot)));
+        (bool success, bytes memory data) =
+            address(manager).staticcall(abi.encodeWithSignature("extttload(bytes32)", slot));
+        require(success, "extttload failed");
+        return int256(uint256(abi.decode(data, (bytes32))));
     }
 
     function getHookTVL(Currency) external pure override returns (uint256) { return 0; }

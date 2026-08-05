@@ -121,7 +121,7 @@ contract EswapPositionLifecycleTest is BaseV4Test {
         hook.afterSwap(address(this), key, IPoolManager.SwapParams(true, -50 ether, 0), BalanceDeltaLibrary.toBalanceDelta(-50 ether, 48 ether), data);
 
         // Fund the hook with the debt currency (token0 for a SHORT) for the surplus transfer (mock take() is a no-op).
-        token0.mint(address(hook), 10 ether);
+        token0.mint(address(hook), 50 ether);
 
         (, uint256 collateral, uint256 borrowed, , , , , , ) = hook.positions(key.toId(), address(this));
         uint256 received = (collateral * 96) / 100; // mock swap recovers 96% of the collateral
