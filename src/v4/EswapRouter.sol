@@ -46,7 +46,15 @@ contract EswapRouter is Ownable {
 
     IPoolManager public immutable manager;
 
-    enum CallType { SWAP, CLOSE, LIQUIDATE, REBALANCE }
+    enum CallType { SWAP, CLOSE, LIQUIDATE, REBALANCE, ATOMIC_MARGIN }
+
+    struct AtomicMarginParams {
+        PoolKey key;
+        PoolKey standardPoolKey;
+        bool zeroForOne;
+        uint256 borrowAmount;
+        uint256 minProfit;
+    }
 
     constructor(IPoolManager _manager) Ownable(msg.sender) {
         manager = _manager;
@@ -72,6 +80,11 @@ contract EswapRouter is Ownable {
         return manager.unlock(abi.encode(CallType.SWAP, params, msg.sender));
     }
 
+    function atomicMarginTrade(AtomicMarginParams calldata params) external returns (uint256 profit) {
+        bytes memory result = manager.unlock(abi.encode(CallType.ATOMIC_MARGIN, params, msg.sender));
+        profit = abi.decode(result, (uint256));
+    }
+
     function unlockCallback(bytes calldata data) external returns (bytes memory) {
         require(msg.sender == address(manager), "Not manager");
 
@@ -88,11 +101,76 @@ contract EswapRouter is Ownable {
             (, address hook, PoolKey memory key, address trader, uint256 minAmountOut) = abi.decode(data, (CallType, address, PoolKey, address, uint256));
             IEswapHook(hook).executeLiquidation(key, trader, minAmountOut);
             return "";
-        } else {
+        } else if (callType == CallType.REBALANCE) {
             (, address hook, PoolKey memory key, address trader) = abi.decode(data, (CallType, address, PoolKey, address));
             IEswapHook(hook).rebalancePosition(key, trader);
             return "";
+        } else if (callType == CallType.ATOMIC_MARGIN) {
+            (, AtomicMarginParams memory params, address trader) = abi.decode(data, (CallType, AtomicMarginParams, address));
+            return _atomicMarginCallback(params, trader);
         }
+        return "";
+    }
+
+    function _atomicMarginCallback(AtomicMarginParams memory params, address trader) internal returns (bytes memory) {
+        Currency input = params.zeroForOne ? params.key.currency0 : params.key.currency1;
+        Currency output = params.zeroForOne ? params.key.currency1 : params.key.currency0;
+
+        // 1. Borrow input token from PoolManager singleton (0 Capital, 0% Interest)
+        manager.take(input, address(this), params.borrowAmount);
+
+        // 2. First leg: swap borrowed input token to output token on high-liquidity standard pool
+        manager.sync(input);
+        IERC20(Currency.unwrap(input)).transfer(address(manager), params.borrowAmount);
+        manager.settle();
+
+        BalanceDelta deltaPhysical = manager.swap(
+            params.standardPoolKey,
+            IPoolManager.SwapParams(params.zeroForOne, -int256(params.borrowAmount), 0),
+            ""
+        );
+
+        int128 receivedOutputDelta = params.zeroForOne ? deltaPhysical.amount1() : deltaPhysical.amount0();
+        require(receivedOutputDelta > 0, "Swap output zero");
+        uint256 receivedOutputAmount = uint256(int256(receivedOutputDelta));
+
+        manager.take(output, address(this), receivedOutputAmount);
+
+        // 3. Second leg: swap output token back to input token on hook pool
+        bool oppositeZeroForOne = !params.zeroForOne;
+        manager.sync(output);
+        IERC20(Currency.unwrap(output)).transfer(address(manager), receivedOutputAmount);
+        manager.settle();
+
+        // Pass non-margin hookData to EswapMarginHook to skip persistent margin position updates
+        bytes memory hookData = abi.encode(false, uint8(1), trader);
+        BalanceDelta deltaHook = manager.swap(
+            params.key,
+            IPoolManager.SwapParams(oppositeZeroForOne, -int256(receivedOutputAmount), 0),
+            hookData
+        );
+
+        int128 receivedInputDelta = oppositeZeroForOne ? deltaHook.amount1() : deltaHook.amount0();
+        require(receivedInputDelta > 0, "Second swap output zero");
+        uint256 finalInputAmount = uint256(int256(receivedInputDelta));
+
+        manager.take(input, address(this), finalInputAmount);
+
+        // 4. Verify profitability: final amount must recover borrow amount + minimum profit
+        require(finalInputAmount >= params.borrowAmount + params.minProfit, "Atomic margin trade unprofitable");
+        uint256 profit = finalInputAmount - params.borrowAmount;
+
+        // 5. Settle original borrow delta to PoolManager
+        manager.sync(input);
+        IERC20(Currency.unwrap(input)).transfer(address(manager), params.borrowAmount);
+        manager.settle();
+
+        // 6. Pay profit to trader with 0 capital used
+        if (profit > 0) {
+            IERC20(Currency.unwrap(input)).transfer(trader, profit);
+        }
+
+        return abi.encode(profit);
     }
 
     /**

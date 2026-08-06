@@ -108,7 +108,7 @@ contract PoolManagerMock is IPoolManager {
         PoolKey calldata key,
         IPoolManager.SwapParams calldata params,
         bytes calldata hookData
-    ) external override returns (BalanceDelta delta) {
+    ) external override virtual returns (BalanceDelta delta) {
         swapCalls.push(SwapCall({
             key: key,
             zeroForOne: params.zeroForOne,
