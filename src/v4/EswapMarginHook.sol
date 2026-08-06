@@ -150,6 +150,13 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         _;
     }
 
+    /// @dev A sqrtPriceLimit that never binds but satisfies the real PoolManager's
+    ///      bounds check (the mock accepts 0, the real PM reverts
+    ///      PriceLimitOutOfBounds).
+    function _defaultSqrtPriceLimit(bool zeroForOne) internal pure returns (uint160) {
+        return zeroForOne ? TickMath.MIN_SQRT_RATIO + 1 : TickMath.MAX_SQRT_RATIO - 1;
+    }
+
     /**
      * @notice Reads the REAL packed slot0 of a pool from the PoolManager via
      *         extsload. `_pools[id].slot0` lives at the mapping slot
@@ -574,7 +581,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         }
         BalanceDelta delta = manager.swap(
             standardKey,
-            IPoolManager.SwapParams(zeroForOne, -int256(collateralAmount), 0),
+            IPoolManager.SwapParams(zeroForOne, -int256(collateralAmount), _defaultSqrtPriceLimit(zeroForOne)),
             ""
         );
 
@@ -832,7 +839,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         }
         BalanceDelta delta = manager.swap(
             standardKey,
-            IPoolManager.SwapParams(zeroForOne, -int256(collateralAmount), 0),
+            IPoolManager.SwapParams(zeroForOne, -int256(collateralAmount), _defaultSqrtPriceLimit(zeroForOne)),
             ""
         );
 

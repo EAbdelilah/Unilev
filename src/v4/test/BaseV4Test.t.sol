@@ -23,13 +23,19 @@ contract ERC20Mock is ERC20 {
 
 contract PriceFeedMock is IPriceFeed {
     mapping(address => uint256) public prices;
-    function setPrice(address token, uint256 price) external { prices[token] = price; }
+    mapping(address => uint256) public updatedAt;
+    function setPrice(address token, uint256 price) external {
+        prices[token] = price;
+    }
     function getAmountInUsd(address token, uint256 amount) external view override returns (uint256) {
         return (amount * (prices[token] > 0 ? prices[token] : 1e18)) / 1e18;
     }
 
     function getTwapPrice(address token) external view override returns (uint256) {
         return prices[token] > 0 ? prices[token] : 1e18;
+    }
+    function getTwapPriceUpdatedAt(address token) external view returns (uint256) {
+        return updatedAt[token];
     }
 }
 

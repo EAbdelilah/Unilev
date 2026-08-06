@@ -139,4 +139,12 @@ contract PriceFeed {
     function getTwapPrice(address token) external view returns (uint256) {
         return _getValidatedPrice(token);
     }
+
+    /// @notice Timestamp of the latest validated update for `token`, or 0 if
+    ///         no feed is registered (caller may then skip staleness gating).
+    function getTwapPriceUpdatedAt(address token) external view returns (uint256 updatedAt) {
+        address feed = priceFeeds[token];
+        if (feed == address(0)) return 0;
+        (, , , updatedAt, ) = AggregatorV3Interface(feed).latestRoundData();
+    }
 }

@@ -5,6 +5,7 @@ import {IPoolManager} from "./interfaces/IPoolManager.sol";
 import {PoolKey} from "./types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "./types/PoolId.sol";
 import {Currency} from "./types/Currency.sol";
+import {TickMath} from "./libraries/TickMath.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {BalanceDelta, BalanceDeltaLibrary} from "./types/BalanceDelta.sol";
@@ -64,6 +65,13 @@ contract EswapRouter is Ownable {
         bytes hookData;
     }
 
+    /// @dev A sqrtPriceLimit that never binds but satisfies the real PoolManager's
+    ///      bounds check (the mock accepts 0, the real PM reverts
+    ///      PriceLimitOutOfBounds).
+    function _defaultSqrtPriceLimit(bool zeroForOne) internal pure returns (uint160) {
+        return zeroForOne ? TickMath.MIN_SQRT_RATIO + 1 : TickMath.MAX_SQRT_RATIO - 1;
+    }
+
     function swap(SwapParams calldata params) external returns (bytes memory) {
         return manager.unlock(abi.encode(CallType.SWAP, params, msg.sender));
     }
@@ -116,7 +124,7 @@ contract EswapRouter is Ownable {
             // (1) Margin swap on the hook pool (for accounting / leverage accounting / position registration).
             delta = manager.swap(
                 params.key,
-                IPoolManager.SwapParams(params.zeroForOne, params.amountSpecified, 0),
+                IPoolManager.SwapParams(params.zeroForOne, params.amountSpecified, _defaultSqrtPriceLimit(params.zeroForOne)),
                 params.hookData
             );
 
@@ -130,7 +138,7 @@ contract EswapRouter is Ownable {
             // (3) Swap the combined margin + borrow on the standard pool
             BalanceDelta deltaPhysical = manager.swap(
                 params.standardPoolKey,
-                IPoolManager.SwapParams(params.zeroForOne, -int256(marginAmount + borrowAmount), 0),
+                IPoolManager.SwapParams(params.zeroForOne, -int256(marginAmount + borrowAmount), _defaultSqrtPriceLimit(params.zeroForOne)),
                 ""
             );
 
@@ -144,7 +152,7 @@ contract EswapRouter is Ownable {
             // Legacy single-pool routing
             delta = manager.swap(
                 params.key,
-                IPoolManager.SwapParams(params.zeroForOne, params.amountSpecified, 0),
+                IPoolManager.SwapParams(params.zeroForOne, params.amountSpecified, _defaultSqrtPriceLimit(params.zeroForOne)),
                 params.hookData
             );
 
