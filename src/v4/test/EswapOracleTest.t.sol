@@ -73,7 +73,8 @@ contract EswapOracleTest is Test {
     }
 
     function test_StalePrice_Reverts() public {
-        chainlinkMock.setMockData(2000e8, block.timestamp - 4000); // older than MAX_ORACLE_AGE (3600s)
+        priceFeed.setMaxOracleAge(3600); // explicit cap for this test
+        chainlinkMock.setMockData(2000e8, block.timestamp - 4000); // older than maxOracleAge (3600s)
 
         vm.expectRevert(PriceFeed.StalePrice.selector);
         priceFeed.getAmountInUsd(TOKEN, 1 ether);

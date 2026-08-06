@@ -161,12 +161,16 @@ contract PerpLedger is Ownable, ReentrancyGuard {
     ///         sqrtPriceX96, converted to USD via the quote token's TWAP.
     ///         Used ONLY for liquidation triggers, never for settlement.
     /// @dev Reads the REAL packed `_pools[id].slot0` from the PoolManager via
-    ///      extsload at keccak256(abi.encode(id, uint256(0))) — the exact
-    ///      storage slot the production PoolManager uses (same pattern as
-    ///      EswapMarginHook._slot0).
+    ///      extsload. The `_pools` mapping lives at storage slot 6 in the
+    ///      deployed PoolManager (ProtocolFees/ERC6909Claims occupy slots 0-5),
+    ///      exactly as v4-core's StateLibrary.POOLS_SLOT defines it:
+    ///      keccak256(abi.encodePacked(id, bytes32(uint256(6)))).
+    ///      slot0 packs sqrtPriceX96 (low 160) | tick (160..184) |
+    ///      protocolFee (184..208) | lpFee (208..232).
     function _triggerSpotUsd() internal view returns (uint256 spotUsd) {
         PoolId id = spotKey.toId();
-        bytes32 packed = manager.extsload(keccak256(abi.encode(id, uint256(0))));
+        bytes32 stateSlot = keccak256(abi.encodePacked(PoolId.unwrap(id), bytes32(uint256(6))));
+        bytes32 packed = manager.extsload(stateSlot);
         uint160 sqrtPriceX96 = uint160(uint256(packed));
         if (sqrtPriceX96 == 0) revert InvalidOracle();
 

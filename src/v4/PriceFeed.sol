@@ -32,7 +32,7 @@ contract PriceFeed {
     address public sequencerUptimeFeed;
 
     uint256 public constant GRACE_PERIOD_TIME = 3600; // 1 h L2 sequencer grace period
-    uint256 public constant MAX_ORACLE_AGE    = 3600; // 1 h staleness threshold
+    uint256 public maxOracleAge = 43200; // 12 h staleness threshold (Unichain feeds update on deviation)
 
     error SequencerDown();
     error GracePeriodNotMet();
@@ -56,6 +56,13 @@ contract PriceFeed {
 
     function setSequencerUptimeFeed(address feed) external onlyOwner {
         sequencerUptimeFeed = feed;
+    }
+
+    /// @notice Set the maximum acceptable age of a feed answer before it is
+    ///         considered stale. Unichain feeds update on deviation (price
+    ///         moves), so a fixed 1h cap can block trades for hours.
+    function setMaxOracleAge(uint256 age) external onlyOwner {
+        maxOracleAge = age;
     }
 
     /**
@@ -103,7 +110,7 @@ contract PriceFeed {
         (, int256 price, , uint256 updatedAt, ) = AggregatorV3Interface(feed).latestRoundData();
         require(price > 0, "PriceFeed: non-positive price");
 
-        if (block.timestamp > updatedAt && block.timestamp - updatedAt > MAX_ORACLE_AGE) {
+        if (block.timestamp > updatedAt && block.timestamp - updatedAt > maxOracleAge) {
             revert StalePrice();
         }
 
