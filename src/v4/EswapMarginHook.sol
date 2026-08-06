@@ -62,6 +62,8 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     error CollateralTooLow();
     error SwapOutputZero();
     error RouterNotSet();
+    error PositionExceedsSingleCap(uint256 tradeOI, uint256 maxSingleOI);
+    error OpenInterestExceedsCapacity(uint256 newTotalOI, uint256 maxTotalOI);
 
     event BaseCurrencySet(PoolId indexed poolId, Currency currency);
 
@@ -133,6 +135,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     mapping(Currency => uint256) public protocolFees;
     address public treasury;
     uint256 public reserveFactor = 50; // 0.5% Protocol Fee (Mutable, default 50 basis points)
+    uint256 public totalOpenInterestUSD; // Dynamic tracker of total on-chain Open Interest in USD
 
     uint160 public constant MAX_PRICE_SWING_BPS = 500;
     uint8 public constant MAX_LEVERAGE = 5;
@@ -328,6 +331,22 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         // Prevent opening/closing positions if the V4 spot price deviates heavily from the V3 TWAP
         _checkV4SpotAgainstV3Twap(key);
 
+        // Capacity Gating & Solvency Check (Shariah & Risk Guardrail)
+        uint256 poolTVL = this.getTotalCollateralUSD();
+        if (poolTVL > 100000 ether && leverage > 1) {
+            Currency inputCurrency = params.zeroForOne ? key.currency0 : key.currency1;
+            uint256 tradeOIUsd = priceFeed.getAmountInUsd(Currency.unwrap(inputCurrency), borrowedAmount);
+            uint256 maxTotalOI = (poolTVL * 15) / 100;
+            uint256 maxSingleOI = (poolTVL * 2) / 100;
+
+            if (tradeOIUsd > maxSingleOI) {
+                revert PositionExceedsSingleCap(tradeOIUsd, maxSingleOI);
+            }
+            if (totalOpenInterestUSD + tradeOIUsd > maxTotalOI) {
+                revert OpenInterestExceedsCapacity(totalOpenInterestUSD + tradeOIUsd, maxTotalOI);
+            }
+        }
+
         bytes32 traderKey = _getKey(TRADER_BASE, trader);
         require(traderKey.tload() == bytes32(0), "Transient reentrancy guard");
 
@@ -418,6 +437,11 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
             Currency borrowedToken = params.zeroForOne ? key.currency0 : key.currency1;
             totalBorrowedByToken[borrowedToken] += borrow;
             _registerCurrency(borrowedToken);
+
+            if (borrow > 0) {
+                uint256 tradeOIUsd = priceFeed.getAmountInUsd(Currency.unwrap(borrowedToken), borrow);
+                totalOpenInterestUSD += tradeOIUsd;
+            }
 
             positions[key.toId()][trader] = Position({
                 trader: trader,
@@ -656,6 +680,15 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
 
         // Clear the trader's ERC-6909 claim and protocol-wide collateral aggregate
         _clearCollateralAccounting(trader, collateralCurrency, collateralAmount);
+
+        if (pos.borrowedAmount > 0) {
+            uint256 tradeOIUsd = priceFeed.getAmountInUsd(Currency.unwrap(debtCurrency), pos.borrowedAmount);
+            if (totalOpenInterestUSD >= tradeOIUsd) {
+                totalOpenInterestUSD -= tradeOIUsd;
+            } else {
+                totalOpenInterestUSD = 0;
+            }
+        }
 
         delete positions[poolId][trader];
         delete solverDebts[poolId][trader][solver];
@@ -917,6 +950,15 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
 
         // Decrement totalCollateral and the trader's ERC-6909 claim balance.
         _clearCollateralAccounting(trader, collateralCurrency, collateralAmount);
+
+        if (pos.borrowedAmount > 0) {
+            uint256 tradeOIUsd = priceFeed.getAmountInUsd(Currency.unwrap(debtCurrency), pos.borrowedAmount);
+            if (totalOpenInterestUSD >= tradeOIUsd) {
+                totalOpenInterestUSD -= tradeOIUsd;
+            } else {
+                totalOpenInterestUSD = 0;
+            }
+        }
 
         delete positions[poolId][trader];
         delete solverDebts[poolId][trader][solver];
