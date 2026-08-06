@@ -51,10 +51,12 @@ contract PriceFeed {
     // ─── Admin ────────────────────────────────────────────────────────────────
 
     function setOwner(address newOwner) external onlyOwner {
+        require(newOwner != address(0), "Zero owner");
         owner = newOwner;
     }
 
     function setSequencerUptimeFeed(address feed) external onlyOwner {
+        require(feed != address(0), "Zero feed");
         sequencerUptimeFeed = feed;
     }
 

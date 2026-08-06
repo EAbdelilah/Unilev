@@ -36,6 +36,7 @@ contract EswapSolverAdapter {
     }
 
     constructor(address _hook) {
+        require(_hook != address(0), "Zero hook");
         hook = _hook;
         DOMAIN_SEPARATOR = keccak256(
             abi.encode(

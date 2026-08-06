@@ -135,7 +135,12 @@ contract PerpLedger is Ownable, ReentrancyGuard {
         PoolKey memory _spotKey,
         address _baseToken
     ) Ownable(msg.sender) {
-        if (_twapFeed == address(0) || _manager == address(0)) revert InvalidOracle();
+        if (
+            _twapFeed == address(0) ||
+            _manager == address(0) ||
+            _marginToken == address(0) ||
+            _baseToken == address(0)
+        ) revert InvalidOracle();
         marginToken = IERC20(_marginToken);
         twapFeed = IPerpPriceFeed(_twapFeed);
         manager = IPerpPoolManager(_manager);

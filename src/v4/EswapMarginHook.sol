@@ -22,6 +22,7 @@ import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {IPoolManager as RealIPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {PoolId as RealPoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {FullMath} from "@uniswap/v4-core/src/libraries/FullMath.sol";
 
@@ -50,6 +51,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     using PoolIdLibrary for PoolId;
     using TransientStorage for bytes32;
     using BalanceDeltaLibrary for BalanceDelta;
+    using SafeERC20 for IERC20;
 
     error NotPoolManager();
     error LeverageTooHigh();
@@ -237,7 +239,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     function withdrawInsuranceFund(Currency currency, address to, uint256 amount) external onlyOwner {
         insuranceFund[currency] -= amount;
         manager.unlock(abi.encode(currency, -SafeCast.toInt128(int256(amount)), true)); // Take from PM
-        IERC20(Currency.unwrap(currency)).transfer(to, amount);
+        IERC20(Currency.unwrap(currency)).safeTransfer(to, amount);
     }
 
     /**
@@ -247,7 +249,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         require(treasury != address(0), "Treasury not set");
         protocolFees[currency] -= amount;
         manager.unlock(abi.encode(currency, -SafeCast.toInt128(int256(amount)), true));
-        IERC20(Currency.unwrap(currency)).transfer(treasury, amount);
+        IERC20(Currency.unwrap(currency)).safeTransfer(treasury, amount);
     }
 
     /**
@@ -259,15 +261,17 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         if (amount > 0) {
             protocolFees[currency] = 0;
             manager.unlock(abi.encode(currency, -SafeCast.toInt128(int256(amount)), true));
-            IERC20(Currency.unwrap(currency)).transfer(treasury, amount);
+            IERC20(Currency.unwrap(currency)).safeTransfer(treasury, amount);
         }
     }
 
     function setTreasury(address _treasury) external onlyOwner {
+        require(_treasury != address(0), "Zero treasury");
         treasury = _treasury;
     }
 
     function setRouter(address _router) external onlyOwner {
+        require(_router != address(0), "Zero router");
         router = _router;
     }
 
@@ -284,7 +288,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
      * @notice Seed the insurance fund using physical ERC20s, converting them to 6909s.
      */
     function seedInsuranceFund(Currency currency, uint256 amount) external {
-        IERC20(Currency.unwrap(currency)).transferFrom(msg.sender, address(this), amount);
+        IERC20(Currency.unwrap(currency)).safeTransferFrom(msg.sender, address(this), amount);
         IERC20(Currency.unwrap(currency)).approve(address(manager), amount);
         manager.unlock(abi.encode(currency, SafeCast.toInt128(int256(amount)), false)); // Settle to PM to get 6909s
         insuranceFund[currency] += amount;
@@ -676,13 +680,13 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
                 insuranceFund[debtCurrency] -= shortfall;
             }
             if (solver != address(0)) {
-                IERC20(Currency.unwrap(debtCurrency)).transfer(solver, totalPayout);
+                IERC20(Currency.unwrap(debtCurrency)).safeTransfer(solver, totalPayout);
             }
         }
 
         // Return any surplus to the trader
         if (remainingAfterReward > 0) {
-            IERC20(Currency.unwrap(debtCurrency)).transfer(trader, remainingAfterReward);
+            IERC20(Currency.unwrap(debtCurrency)).safeTransfer(trader, remainingAfterReward);
         }
 
         // Clear the trader's ERC-6909 claim and protocol-wide collateral aggregate
@@ -792,7 +796,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
                 manager.burn(address(this), claimId0, absAmt0);
             } else {
                 manager.sync(key.currency0);
-                IERC20(Currency.unwrap(key.currency0)).transfer(address(manager), absAmt0);
+                IERC20(Currency.unwrap(key.currency0)).safeTransfer(address(manager), absAmt0);
                 manager.settle();
             }
         }
@@ -805,7 +809,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
                 manager.burn(address(this), claimId1, absAmt1);
             } else {
                 manager.sync(key.currency1);
-                IERC20(Currency.unwrap(key.currency1)).transfer(address(manager), absAmt1);
+                IERC20(Currency.unwrap(key.currency1)).safeTransfer(address(manager), absAmt1);
                 manager.settle();
             }
         }
@@ -942,7 +946,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
                 insuranceFund[debtCurrency] -= shortfall;
             }
             if (solver != address(0)) {
-                IERC20(Currency.unwrap(debtCurrency)).transfer(solver, totalPayout);
+                IERC20(Currency.unwrap(debtCurrency)).safeTransfer(solver, totalPayout);
             }
 
             // Settle with PoolManager to satisfy mock test assertions for explicit settlement
@@ -952,7 +956,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
 
         // 8. Return the trader's net proceeds
         if (netToTrader > 0) {
-            IERC20(Currency.unwrap(debtCurrency)).transfer(trader, netToTrader);
+            IERC20(Currency.unwrap(debtCurrency)).safeTransfer(trader, netToTrader);
         }
 
         // Decrement totalCollateral and the trader's ERC-6909 claim balance.
@@ -1025,7 +1029,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         } else {
             uint256 amount = uint256(int256(delta));
             manager.sync(currency);
-            IERC20(Currency.unwrap(currency)).transfer(address(manager), amount);
+            IERC20(Currency.unwrap(currency)).safeTransfer(address(manager), amount);
             manager.settle();
             manager.mint(address(this), uint256(uint160(Currency.unwrap(currency))), amount);
         }

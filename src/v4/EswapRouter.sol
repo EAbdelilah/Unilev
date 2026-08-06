@@ -7,6 +7,7 @@ import {PoolId, PoolIdLibrary} from "./types/PoolId.sol";
 import {Currency} from "./types/Currency.sol";
 import {TickMath} from "./libraries/TickMath.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {BalanceDelta, BalanceDeltaLibrary} from "./types/BalanceDelta.sol";
 import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
@@ -44,6 +45,7 @@ interface IEswapHook {
 contract EswapRouter is Ownable {
     using PoolIdLibrary for PoolKey;
     using BalanceDeltaLibrary for BalanceDelta;
+    using SafeERC20 for IERC20;
 
     IPoolManager public immutable manager;
 
@@ -135,7 +137,7 @@ contract EswapRouter is Ownable {
             // (2) Settle the trader's margin (router's -margin delta from the swap)
             if (marginAmount > 0) {
                 manager.sync(input);
-                IERC20(Currency.unwrap(input)).transferFrom(trader, address(manager), marginAmount);
+                IERC20(Currency.unwrap(input)).safeTransferFrom(trader, address(manager), marginAmount);
                 manager.settle();
             }
 
@@ -166,7 +168,7 @@ contract EswapRouter is Ownable {
 
             if (marginAmount > 0) {
                 manager.sync(input);
-                IERC20(Currency.unwrap(input)).transferFrom(trader, address(manager), marginAmount);
+                IERC20(Currency.unwrap(input)).safeTransferFrom(trader, address(manager), marginAmount);
                 manager.settle();
             }
         }
@@ -179,7 +181,7 @@ contract EswapRouter is Ownable {
         //     settleFor(hook) zeroes.
         if (borrowAmount > 0) {
             manager.sync(input);
-            IERC20(Currency.unwrap(input)).transferFrom(params.solver, address(manager), borrowAmount);
+            IERC20(Currency.unwrap(input)).safeTransferFrom(params.solver, address(manager), borrowAmount);
             manager.settleFor(address(params.key.hooks));
         }
 
