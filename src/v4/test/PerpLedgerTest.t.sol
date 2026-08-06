@@ -330,7 +330,14 @@ vm.prank(a); (uint256 pnl, ) = ledger.settle(0, type(uint256).max);
         (uint256 pnl, ) = ledger.settle(0, type(uint256).max);
 
         if (refDelta > 0) {
-            assertGt(pnl, 0); // profit when price up
+            // PnL is (delta * size) / PRECISION with integer division, so a
+            // sub-unit price move rounds to 0. Only require strictly-positive
+            // PnL when the reference PnL itself is at least 1 wei.
+            if ((uint256(refDelta) * size18) / 1e18 >= 1) {
+                assertGt(pnl, 0); // profit when price up materially
+            } else {
+                assertGe(pnl, 0); // sub-unit move rounds to 0, never negative
+            }
         } else if (newPrice < 3000e18) {
             assertEq(pnl, 0); // no positive PnL on a losing long
         }

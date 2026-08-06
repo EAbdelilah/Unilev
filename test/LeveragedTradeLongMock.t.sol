@@ -1014,13 +1014,14 @@ contract LeveragedTradeLongMock is TestSetupMock {
         mockV3AggregatorWbtcUsd.updateAnswer(100000 * 1e8);
         vm.stopPrank();
         
+        uint256 treasureBefore = IERC20(weth).balanceOf(conf.treasure);
         vm.startPrank(whitelistedUser);
         IERC20(weth).approve(address(positions), amount);
         market.openLongPosition(weth, wbtc, FEE_TIER, 2, amount, 0, 0);
         vm.stopPrank();
         
         uint256 treasureBalance = IERC20(weth).balanceOf(conf.treasure);
-        assertApproxEqAbs(treasureBalance, 1e14, 100);
+        assertApproxEqAbs(treasureBalance - treasureBefore, 1e14, 100);
     }
 
     function test_MultipleLiquidations_Market() public {

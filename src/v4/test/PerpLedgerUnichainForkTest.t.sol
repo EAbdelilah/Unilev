@@ -63,9 +63,12 @@ contract PerpLedgerUnichainForkTest is Test {
 
         ledger = new PerpLedger(USDC, address(priceFeed), UNICHAIN_PM, key, WETH);
         ledger.setOICapUsd(1_000_000e18);
-        // Real Unichain feeds update on deviation (hours apart), not on a 60s
-        // heartbeat. Match the live cadence or every trade reverts OldPrice.
-        ledger.setMaxOracleAge(12 hours);
+        // Real Unichain feeds update on deviation (often 10h+ apart), not on a
+        // fixed heartbeat. Match the live cadence or every trade reverts.
+        // The feed cap must stay >= the ledger cap so the ledger's configured
+        // age is the binding gate; both are set to 24h for Unichain.
+        priceFeed.setMaxOracleAge(24 hours);
+        ledger.setMaxOracleAge(24 hours);
         ledger.setWhitelist(trader, true);
 
         deal(USDC, trader, 100_000e18);
@@ -128,7 +131,7 @@ contract PerpLedgerUnichainForkTest is Test {
     function test_RealPriceIsNotStale() public {
         uint256 updatedAt = priceFeed.getTwapPriceUpdatedAt(WETH);
         assertGt(updatedAt, 0);
-        assertLt(block.timestamp - updatedAt, 12 hours);
+        assertLt(block.timestamp - updatedAt, 24 hours);
     }
 }
 

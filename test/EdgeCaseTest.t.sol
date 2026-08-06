@@ -14,7 +14,7 @@ contract EdgeCaseTest is TestSetup {
         address token1 = conf.supportedTokens[1].token;
         deal(token0, alice, 1000e6);
         vm.prank(alice);
-        IERC20(token0).approve(address(market), 1000e6);
+        IERC20(token0).approve(address(positions), 1000e6);
         vm.prank(alice);
         vm.expectRevert();
         market.openLongPosition(token0, token1, 3000, 2, 0, 0, 0);
@@ -25,7 +25,7 @@ contract EdgeCaseTest is TestSetup {
         address token1 = conf.supportedTokens[1].token;
         deal(token0, alice, 1000e6);
         vm.prank(alice);
-        IERC20(token0).approve(address(market), 1000e6);
+        IERC20(token0).approve(address(positions), 1000e6);
         vm.prank(alice);
         vm.expectRevert();
         market.openLongPosition(token0, token1, 3000, 0, 10e6, 0, 0);
@@ -36,7 +36,7 @@ contract EdgeCaseTest is TestSetup {
         address token1 = conf.supportedTokens[1].token;
         deal(token0, alice, 1000e6);
         vm.prank(alice);
-        IERC20(token0).approve(address(market), 1000e6);
+        IERC20(token0).approve(address(positions), 1000e6);
         vm.prank(alice);
         vm.expectRevert();
         market.openLongPosition(token0, token1, 3000, 11, 10e6, 0, 0);

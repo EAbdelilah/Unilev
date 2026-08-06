@@ -51,9 +51,12 @@ contract DeployPerpLedger is Script {
         PerpLedger ledger =
             new PerpLedger(address(USDC), address(priceFeed), address(pm), key, WETH);
 
-        // Unichain Chainlink feeds update on deviation (often hours apart), so
-        // relax the ledger's default 60s staleness cap to match the live cadence.
-        ledger.setMaxOracleAge(12 hours);
+        // Unichain Chainlink feeds update on deviation (often 10h+ apart), so
+        // relax the default 60s staleness caps to match the live cadence.
+        // The feed cap must stay >= the ledger cap so the ledger's configured
+        // age is the binding trade gate.
+        priceFeed.setMaxOracleAge(24 hours);
+        ledger.setMaxOracleAge(24 hours);
 
         vm.stopBroadcast();
 

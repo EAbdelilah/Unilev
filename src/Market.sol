@@ -262,10 +262,14 @@ contract Market is IMarket, Ownable, Pausable {
     }
 
     function pause() external onlyOwner {
-        _pause();
+        if (!paused()) {
+            _pause();
+        }
     }
 
     function unpause() external onlyOwner {
-        _unpause();
+        if (paused()) {
+            _unpause();
+        }
     }
 }

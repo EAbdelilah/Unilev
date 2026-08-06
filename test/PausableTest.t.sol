@@ -28,7 +28,7 @@ contract PausableTest is TestSetup {
         address token1 = conf.supportedTokens[1].token;
         deal(token0, alice, 1000e6);
         vm.prank(alice);
-        IERC20(token0).approve(address(market), 1000e6);
+        IERC20(token0).approve(address(positions), 1000e6);
         vm.prank(deployer);
         market.pause();
         vm.prank(alice);
@@ -39,11 +39,12 @@ contract PausableTest is TestSetup {
     function test_Pause_ClosePositionReverts() public {
         address token0 = conf.supportedTokens[0].token;
         address token1 = conf.supportedTokens[1].token;
+        depositLiquidity(token1, 100_000e18);
         deal(token0, alice, 1000e6);
         vm.prank(alice);
-        IERC20(token0).approve(address(market), 1000e6);
+        IERC20(token0).approve(address(positions), 1000e6);
         vm.prank(alice);
-        market.openLongPosition(token0, token1, 3000, 2, 10e6, 0, 0);
+        market.openLongPosition(token0, token1, 3000, 2, 1e6, 0, 0);
         vm.prank(deployer);
         market.pause();
         vm.prank(alice);
@@ -62,15 +63,16 @@ contract PausableTest is TestSetup {
     function test_Unpause_ReactivatesOperations() public {
         address token0 = conf.supportedTokens[0].token;
         address token1 = conf.supportedTokens[1].token;
+        depositLiquidity(token1, 100_000e18);
         deal(token0, alice, 1000e6);
         vm.prank(alice);
-        IERC20(token0).approve(address(market), 1000e6);
+        IERC20(token0).approve(address(positions), 1000e6);
         vm.prank(deployer);
         market.pause();
         vm.prank(deployer);
         market.unpause();
         vm.prank(alice);
-        market.openLongPosition(token0, token1, 3000, 2, 10e6, 0, 0);
+        market.openLongPosition(token0, token1, 3000, 2, 1e6, 0, 0);
     }
 
     function test_DoublePause_Idempotent() public {
