@@ -5,7 +5,7 @@ libs = ['lib']
 gas_reports = ["*"]
 optimizer = true
 optimizer_runs = 20000
-solc = "0.8.28"
+solc = "0.8.26"
 via_ir = true
 
 remappings = [

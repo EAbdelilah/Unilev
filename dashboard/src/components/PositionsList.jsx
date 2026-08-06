@@ -54,7 +54,7 @@ export function PositionsList() {
         fetchPositions()
         const interval = setInterval(fetchPositions, 30000) // 30s refresh
         return () => clearInterval(interval)
-    }, [fetchPositions])
+    }, [address])
 
     const filteredPositions = positions.filter((p) => {
         if (activeTab === "global") return true
