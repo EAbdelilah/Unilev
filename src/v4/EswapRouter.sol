@@ -9,6 +9,10 @@ import {TickMath} from "./libraries/TickMath.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {BalanceDelta, BalanceDeltaLibrary} from "./types/BalanceDelta.sol";
+import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
+import {IPoolManager as RealIPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
+import {PoolId as RealPoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
+import {FullMath} from "@uniswap/v4-core/src/libraries/FullMath.sol";
 
 interface IEswapHook {
     function executeLiquidation(PoolKey calldata key, address trader, uint256 minAmountOut) external;
@@ -227,16 +231,35 @@ contract EswapRouter is Ownable {
 
     /**
      * @notice Quoter-to-execution parity view helper for ODOS/Enso aggregators.
-     * Returns 0 cleanly without throwing EVM reverts on invalid input.
+     * @dev Spot-depth approximation based on the real on-chain slot0 price.
      */
     function quoteExactInput(
-        PoolKey calldata,
-        bool,
+        PoolKey calldata key,
+        bool zeroForOne,
         int128 amountSpecified,
         uint8 leverage
-    ) external pure returns (int128 amountOut) {
+    ) external view returns (int128 amountOut) {
         if (leverage == 0 || leverage > 5 || amountSpecified == 0) return 0;
         int128 absAmount = amountSpecified < 0 ? -amountSpecified : amountSpecified;
-        return absAmount * int128(uint128(leverage));
+        uint128 leveragedAmount = uint128(absAmount) * uint128(leverage);
+
+        // Fetch slot0 price of the pool
+        (uint160 sqrtPriceX96, , , ) = StateLibrary.getSlot0(RealIPoolManager(address(manager)), RealPoolId.wrap(PoolId.unwrap(key.toId())));
+        if (sqrtPriceX96 == 0) {
+            // Fallback to 1:1 if uninitialized or custom mock
+            return int128(uint128(leveragedAmount));
+        }
+
+        uint256 output;
+        if (zeroForOne) {
+            // outputUnits = inputUnits * (sqrtPriceX96^2) / 2^192
+            output = FullMath.mulDiv(leveragedAmount, uint256(sqrtPriceX96), 1 << 96);
+            output = FullMath.mulDiv(output, uint256(sqrtPriceX96), 1 << 96);
+        } else {
+            // outputUnits = inputUnits * 2^192 / (sqrtPriceX96^2)
+            uint256 temp = FullMath.mulDiv(leveragedAmount, 1 << 96, uint256(sqrtPriceX96));
+            output = FullMath.mulDiv(temp, 1 << 96, uint256(sqrtPriceX96));
+        }
+        return int128(uint128(output));
     }
 }
