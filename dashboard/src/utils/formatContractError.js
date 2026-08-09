@@ -54,7 +54,20 @@ export function formatContractError(error) {
         "User denied transaction signature": "Transaction was cancelled by the user.",
         "insufficient funds for gas": "Insufficient native token balance to pay for gas.",
         "ERC20: transfer amount exceeds balance": "Insufficient token balance.",
-        "ERC20: transfer amount exceeds allowance": "Insufficient token allowance." // Generic ERC20
+        "ERC20: transfer amount exceeds allowance": "Insufficient token allowance.", // Generic ERC20
+        "AlreadyOpen": "You already have an open position. Settle it first.",
+        "BelowMinimumPosition": "The position size is below the protocol minimum.",
+        "InvalidLeverage": "The requested leverage is out of the allowed range.",
+        "MinInitialMargin": "The margin amount is below the protocol minimum.",
+        "NotWhitelisted": "This wallet is not whitelisted for the perp ledger.",
+        "NotLiquidatable": "This position cannot be liquidated yet.",
+        "NotOpen": "No open position to settle.",
+        "OICapExceeded": "Open interest cap reached. Try a smaller size or wait.",
+        "OldPrice": "The oracle price is too old. Please wait for a price update.",
+        "SlippageControl": "Slippage check failed. Try again with a higher tolerance.",
+        "NoSurplus": "No insurance surplus above the safety floor.",
+        "ZeroAmount": "Amount cannot be zero.",
+        "Paused": "The protocol is paused."
     };
 
     // check if the error is a known custom error

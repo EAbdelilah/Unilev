@@ -32,6 +32,7 @@ const envVars = [
     { key: 'UNICHAIN_SEPOLIA_RPC_URL', target: 'NEXT_PUBLIC_UNICHAIN_SEPOLIA_RPC_URL' },
     { key: 'V4_HOOK_ADDRESS', target: 'NEXT_PUBLIC_V4_HOOK_ADDRESS' },
     { key: 'V4_ROUTER_ADDRESS', target: 'NEXT_PUBLIC_V4_ROUTER_ADDRESS' },
+    { key: 'V4_PERP_LEDGER_ADDRESS', target: 'NEXT_PUBLIC_V4_PERP_LEDGER_ADDRESS' },
     { key: 'V4_KEEPER_ADDRESS', target: 'NEXT_PUBLIC_V4_KEEPER_ADDRESS' },
     { key: 'V4_ADAPTER_ADDRESS', target: 'NEXT_PUBLIC_V4_ADAPTER_ADDRESS' },
     { key: 'V4_PRICEFEED_ADDRESS', target: 'NEXT_PUBLIC_V4_PRICEFEED_ADDRESS' },
@@ -58,6 +59,12 @@ copyFile(tokensSrc, tokensDest);
 // 2. Update ABIs
 console.log("\n🔄 Syncing ABIs...");
 
+// Some contracts live in source files whose names differ from the contract
+// (e.g. PerpLedger is defined in EswapPerpLedger.sol). Map those here.
+const abiSourceFiles = {
+    PerpLedger: 'EswapPerpLedger.sol',
+};
+
 const abis = [
     'Market',
     'Positions',
@@ -68,11 +75,13 @@ const abis = [
     'UniswapV3Helper',
     'EswapRouter',
     'EswapMarginHook',
-    'PriceFeed'
+    'PriceFeed',
+    'PerpLedger'
 ];
 
 abis.forEach(contractName => {
-    const src = path.join(projectRoot, `out/${contractName}.sol/${contractName}.json`);
+    const sourceFile = abiSourceFiles[contractName] || `${contractName}.sol`;
+    const src = path.join(projectRoot, `out/${sourceFile}/${contractName}.json`);
     const dest = path.join(projectRoot, `dashboard/src/abis/${contractName}.json`);
     copyFile(src, dest);
 });

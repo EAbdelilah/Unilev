@@ -48,6 +48,12 @@ export default function Home() {
                     >
                         Earn (Pools)
                     </Link>
+                    <Link
+                        href="/perp"
+                        className="text-xs bg-cyan-500/10 hover:bg-cyan-500/20 px-3 py-1.5 rounded border border-cyan-500/20 text-cyan-400 transition-all uppercase tracking-widest font-bold"
+                    >
+                        Perp Ledger
+                    </Link>
                     <ConnectButton />
                 </div>
             </header>

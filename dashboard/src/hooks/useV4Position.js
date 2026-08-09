@@ -4,6 +4,8 @@ import { useAccount, useWalletClient } from "wagmi"
 import EswapRouterABI from "../abis/EswapRouter.json"
 import EswapMarginHookABI from "../abis/EswapMarginHook.json"
 import PriceFeedABI from "../abis/PriceFeed.json"
+import PerpLedgerABI from "../abis/PerpLedger.json"
+import ERC20ABI from "../abis/ERC20.json"
 import supportedTokensByChain from "../config/supported_tokens.json"
 import { useReadProvider } from "./useReadProvider"
 
@@ -36,6 +38,7 @@ export function useV4Position() {
             process.env.NEXT_PUBLIC_V4_PRICEFEED_ADDRESS ||
             process.env.NEXT_PUBLIC_PRICEFEEDL1_ADDRESS ||
             "",
+        V4_PERP_LEDGER: process.env.NEXT_PUBLIC_V4_PERP_LEDGER_ADDRESS || "",
     }
 
     const SUPPORTED_TOKENS_LIST = useMemo(() => {
@@ -155,60 +158,186 @@ export function useV4Position() {
         }
     }
 
-    const getPositionsCount = useCallback(async () => {
-        if (!readProvider || !ADDRESSES.V4_HOOK || !address) return 0n
-        const hook = new ethers.Contract(ADDRESSES.V4_HOOK, EswapMarginHookABI.abi, readProvider)
-        try {
-            const poolId = computePoolId(ADDRESSES.V4_HOOK)
-            const pos = await hook.positions(poolId, address)
-            return pos.collateralAmount > 0n ? 1n : 0n
-        } catch {
-            return 0n
-        }
-    }, [readProvider, address])
+    const getHookPosition = useCallback(
+        async (userAddress) => {
+            const trader = userAddress || address
+            if (!readProvider || !ADDRESSES.V4_HOOK || !trader) return null
+            const hook = new ethers.Contract(ADDRESSES.V4_HOOK, EswapMarginHookABI.abi, readProvider)
+            try {
+                const poolId = computePoolId(ADDRESSES.V4_HOOK)
+                const pos = await hook.positions(poolId, trader)
+                if (pos.collateralAmount === 0n) return null
 
-    const getPositionDetails = useCallback(async (id, userAddress) => {
-        const trader = userAddress || address
-        if (!readProvider || !ADDRESSES.V4_HOOK || !trader) return null
-        const hook = new ethers.Contract(ADDRESSES.V4_HOOK, EswapMarginHookABI.abi, readProvider)
-        try {
-            const poolId = computePoolId(ADDRESSES.V4_HOOK)
-            const pos = await hook.positions(poolId, trader)
-            if (pos.collateralAmount === 0n) return null
+                // isLong is anchored to the pool's base token (WETH via setBaseCurrency),
+                // so a LONG holds WETH collateral and a SHORT holds USDC.
+                const isLong = pos.isLong
+                const collateralSymbol = isLong ? "WETH" : "USDC"
+                const collateralDecimals = collateralSymbol === "USDC" ? 6 : 18
+                const quoteSymbol = collateralSymbol === "WETH" ? "USDC" : "WETH"
+                const currentPrice = await computeUsdcPerWeth(hook, poolId)
 
-            // isLong is anchored to the pool's base token (WETH via setBaseCurrency),
-            // so a LONG holds WETH collateral and a SHORT holds USDC.
-            const isLong = pos.isLong
-            const collateralSymbol = isLong ? "WETH" : "USDC"
-            const collateralDecimals = collateralSymbol === "USDC" ? 6 : 18
-            const quoteSymbol = collateralSymbol === "WETH" ? "USDC" : "WETH"
-            const currentPrice = await computeUsdcPerWeth(hook, poolId)
-
-            return {
-                id: "V4-" + trader.slice(2, 6),
-                owner: pos.trader,
-                collateral: pos.collateralAmount,
-                borrowed: pos.borrowedAmount,
-                leverage: pos.leverage.toString(),
-                isShort: !isLong,
-                state: "ACTIVE",
-                size: ethers.formatUnits(pos.collateralAmount, collateralDecimals),
-                sizeUsd: "0.00",
-                pnl: "0",
-                pnlUsd: "0.00",
-                pnlIsPositive: true,
-                entryPrice: currentPrice,
-                currentPrice,
-                baseSymbol: collateralSymbol,
-                quoteSymbol,
+                return {
+                    id: "V4-" + trader.slice(2, 6),
+                    owner: pos.trader,
+                    collateral: pos.collateralAmount,
+                    borrowed: pos.borrowedAmount,
+                    leverage: pos.leverage.toString(),
+                    isShort: !isLong,
+                    state: "ACTIVE",
+                    size: ethers.formatUnits(pos.collateralAmount, collateralDecimals),
+                    sizeUsd: "0.00",
+                    pnl: "0",
+                    pnlUsd: "0.00",
+                    pnlIsPositive: true,
+                    entryPrice: currentPrice,
+                    currentPrice,
+                    baseSymbol: collateralSymbol,
+                    quoteSymbol,
+                }
+            } catch {
+                return null
             }
-        } catch {
-            return null
-        }
-    }, [readProvider, address])
+        },
+        [readProvider, address]
+    )
+
+    const getLedgerPosition = useCallback(
+        async (userAddress) => {
+            const trader = userAddress || address
+            if (!readProvider || !ADDRESSES.V4_PERP_LEDGER || !trader) return null
+            const ledger = new ethers.Contract(
+                ADDRESSES.V4_PERP_LEDGER,
+                PerpLedgerABI.abi,
+                readProvider
+            )
+            try {
+                const pos = await ledger.positions(trader)
+                if (!pos.active) return null
+
+                const [baseToken, marginToken] = await Promise.all([
+                    ledger.baseToken(),
+                    ledger.marginToken(),
+                ])
+                const priceFeed = new ethers.Contract(
+                    ADDRESSES.V4_PRICEFEED,
+                    PriceFeedABI.abi,
+                    readProvider
+                )
+
+                let currentPrice = 0n
+                let liquidatable = false
+                try {
+                    const [twap, liq] = await Promise.all([
+                        priceFeed.getTwapPrice(baseToken),
+                        ledger.isLiquidatable(trader),
+                    ])
+                    currentPrice = BigInt(twap || 0n)
+                    liquidatable = Boolean(liq)
+                } catch {
+                    // TWAP feed or liquidity check unavailable — show position without price
+                }
+
+                const entry = BigInt(pos.entryPrice)
+                const size = BigInt(pos.size)
+                let delta = 0n
+                if (pos.isLong) {
+                    delta = currentPrice > entry ? currentPrice - entry : -(entry - currentPrice)
+                } else {
+                    delta = entry > currentPrice ? entry - currentPrice : -(currentPrice - entry)
+                }
+                const pnlUsd = (delta * size) / 10n ** 18n
+                const pnlIsPositive = pnlUsd >= 0n
+                const absPnlUsd = pnlIsPositive ? pnlUsd : -pnlUsd
+
+                // Token-denominated PnL for the shared card (pnlUsd / currentPrice)
+                const pnlTokens =
+                    currentPrice > 0n ? ethers.formatUnits(absPnlUsd / currentPrice, 18) : "0"
+
+                let baseSymbol = "BASE"
+                let quoteSymbol = "USD"
+                try {
+                    const baseErc20 = new ethers.Contract(baseToken, ERC20ABI.abi, readProvider)
+                    const marginErc20 = new ethers.Contract(marginToken, ERC20ABI.abi, readProvider)
+                    const [bSym, qSym] = await Promise.all([
+                        baseErc20.symbol(),
+                        marginErc20.symbol(),
+                    ])
+                    baseSymbol = bSym
+                    quoteSymbol = qSym
+                } catch {
+                    // Symbols unavailable — fall back to placeholders
+                }
+
+                const leverage =
+                    BigInt(pos.marginUsd) > 0n
+                        ? (BigInt(pos.notionalUsd) / BigInt(pos.marginUsd)).toString()
+                        : "1"
+
+                return {
+                    id: "LEDGER-" + trader.slice(2, 6),
+                    owner: trader,
+                    state: liquidatable ? "LIQUIDATABLE" : "ACTIVE",
+                    isShort: !pos.isLong,
+                    leverage,
+                    size: ethers.formatUnits(pos.size, 18),
+                    sizeUsd: parseFloat(ethers.formatUnits(pos.notionalUsd, 18)).toFixed(2),
+                    pnl: pnlTokens,
+                    pnlUsd: parseFloat(ethers.formatUnits(absPnlUsd, 18)).toFixed(2),
+                    pnlIsPositive,
+                    entryPrice: ethers.formatUnits(pos.entryPrice, 18),
+                    currentPrice: ethers.formatUnits(currentPrice, 18),
+                    baseSymbol,
+                    quoteSymbol,
+                    marginUsd: ethers.formatUnits(pos.marginUsd, 18),
+                    notionalUsd: ethers.formatUnits(pos.notionalUsd, 18),
+                    liquidatable,
+                }
+            } catch {
+                return null
+            }
+        },
+        [readProvider, address]
+    )
+
+    const getPositionsCount = useCallback(async () => {
+        if (!readProvider || !address) return 0n
+        const [hookPos, ledgerPos] = await Promise.all([
+            getHookPosition(address),
+            getLedgerPosition(address),
+        ])
+        const combined = (hookPos ? 1 : 0) + (ledgerPos ? 1 : 0)
+        // PositionsList iterates `i < maxId`, so return combined + 1 to cover both
+        // position sources (each id beyond combined simply resolves to null).
+        return combined > 0 ? BigInt(combined + 1) : 0n
+    }, [readProvider, address, getHookPosition, getLedgerPosition])
+
+    const getPositionDetails = useCallback(
+        async (id, userAddress) => {
+            const trader = userAddress || address
+            if (!readProvider || !trader) return null
+
+            const ledgerPos = await getLedgerPosition(trader)
+            if (String(id) === "2") return ledgerPos
+
+            const hookPos = await getHookPosition(trader)
+            return hookPos || ledgerPos
+        },
+        [readProvider, address, getHookPosition, getLedgerPosition]
+    )
 
     const closePosition = useCallback(
         async (id) => {
+            if (typeof id === "string" && id.startsWith("LEDGER-")) {
+                const signer = await getSigner()
+                if (!signer) throw new Error("Wallet not connected")
+                if (!ADDRESSES.V4_PERP_LEDGER) throw new Error("Perp Ledger address not configured")
+                const ledger = new ethers.Contract(
+                    ADDRESSES.V4_PERP_LEDGER,
+                    PerpLedgerABI.abi,
+                    signer
+                )
+                return await ledger.settle(0, ethers.MaxUint256)
+            }
             if (!id || !id.startsWith("V4-")) return null
             const signer = await getSigner()
             if (!signer) throw new Error("Wallet not connected")
