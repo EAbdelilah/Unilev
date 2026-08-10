@@ -46,6 +46,45 @@ contract EswapRouter is Ownable {
 
     IPoolManager public immutable manager;
 
+    struct CrossChainOrder {
+        address settlementContract;
+        address swapper;
+        uint256 nonce;
+        uint32 originChainId;
+        uint32 initiateDeadline;
+        uint32 fillDeadline;
+        bytes orderData;
+    }
+
+    struct Input {
+        address token;
+        uint256 amount;
+    }
+
+    struct Output {
+        address token;
+        uint256 amount;
+        uint32 chainId;
+        address recipient;
+    }
+
+    struct ResolvedCrossChainOrder {
+        address settlementContract;
+        address swapper;
+        uint256 nonce;
+        uint32 originChainId;
+        uint32 initiateDeadline;
+        uint32 fillDeadline;
+        Input[] swapperInputs;
+        Output[] swapperOutputs;
+    }
+
+    bytes32 public constant CROSS_CHAIN_ORDER_TYPEHASH = keccak256(
+        "CrossChainOrder(address settlementContract,address swapper,uint256 nonce,uint32 originChainId,uint32 initiateDeadline,uint32 fillDeadline,bytes orderData)"
+    );
+
+    bytes32 public immutable DOMAIN_SEPARATOR;
+
     enum CallType { SWAP, CLOSE, LIQUIDATE, REBALANCE, ATOMIC_MARGIN }
 
     struct AtomicMarginParams {
@@ -58,6 +97,15 @@ contract EswapRouter is Ownable {
 
     constructor(IPoolManager _manager) Ownable(msg.sender) {
         manager = _manager;
+        DOMAIN_SEPARATOR = keccak256(
+            abi.encode(
+                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+                keccak256(bytes("EswapRouter")),
+                keccak256(bytes("1")),
+                block.chainid,
+                address(this)
+            )
+        );
     }
 
     struct SwapParams {
@@ -78,6 +126,120 @@ contract EswapRouter is Ownable {
 
     function swap(SwapParams calldata params) external returns (bytes memory) {
         return manager.unlock(abi.encode(CallType.SWAP, params, msg.sender));
+    }
+
+    function hashOrder(CrossChainOrder calldata order) public pure returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                CROSS_CHAIN_ORDER_TYPEHASH,
+                order.settlementContract,
+                order.swapper,
+                order.nonce,
+                order.originChainId,
+                order.initiateDeadline,
+                order.fillDeadline,
+                keccak256(order.orderData)
+            )
+        );
+    }
+
+    function _recoverSigner(bytes32 digest, bytes calldata signature) internal pure returns (address) {
+        if (signature.length != 65) return address(0);
+        bytes32 r;
+        bytes32 s;
+        uint8 v;
+        assembly {
+            r := calldataload(signature.offset)
+            s := calldataload(add(signature.offset, 0x20))
+            v := byte(0, calldataload(add(signature.offset, 0x40)))
+        }
+        return ecrecover(digest, v, r, s);
+    }
+
+    /**
+     * @notice ERC-7683 Solver Initiation Gateway.
+     * Allows permissionless solvers to fill the trader's off-chain signed intent order.
+     */
+    function initiate(CrossChainOrder calldata order, bytes calldata signature, bytes calldata) external {
+        require(order.settlementContract == address(this), "Invalid settlement contract");
+        require(order.originChainId == block.chainid, "Invalid origin chain");
+        require(block.timestamp <= order.initiateDeadline, "Initiate deadline passed");
+
+        bytes32 digest = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                DOMAIN_SEPARATOR,
+                hashOrder(order)
+            )
+        );
+        address swapper = _recoverSigner(digest, signature);
+        require(swapper == order.swapper && swapper != address(0), "Invalid signature");
+
+        (
+            PoolKey memory key,
+            PoolKey memory standardPoolKey,
+            bool zeroForOne,
+            int256 amountSpecified,
+            uint8 leverage,
+            address solver,
+            bytes memory hookData
+        ) = abi.decode(order.orderData, (PoolKey, PoolKey, bool, int256, uint8, address, bytes));
+
+        address activeSolver = solver;
+        if (activeSolver == address(0)) {
+            activeSolver = msg.sender;
+        }
+
+        SwapParams memory params = SwapParams({
+            key: key,
+            standardPoolKey: standardPoolKey,
+            zeroForOne: zeroForOne,
+            amountSpecified: amountSpecified,
+            leverage: leverage,
+            solver: activeSolver,
+            hookData: hookData
+        });
+
+        manager.unlock(abi.encode(CallType.SWAP, params, swapper));
+    }
+
+    /**
+     * @notice ERC-7683 Order Resolution Interface.
+     * Decodes the cross-chain order's custom parameters for solvers/aggregators to inspect inputs/outputs.
+     */
+    function resolve(CrossChainOrder calldata order, bytes calldata) external view returns (ResolvedCrossChainOrder memory resolved) {
+        (
+            PoolKey memory key,
+            ,
+            bool zeroForOne,
+            int256 amountSpecified,
+            uint8 leverage,
+            ,
+        ) = abi.decode(order.orderData, (PoolKey, PoolKey, bool, int256, uint8, address, bytes));
+
+        resolved.settlementContract = order.settlementContract;
+        resolved.swapper = order.swapper;
+        resolved.nonce = order.nonce;
+        resolved.originChainId = order.originChainId;
+        resolved.initiateDeadline = order.initiateDeadline;
+        resolved.fillDeadline = order.fillDeadline;
+
+        resolved.swapperInputs = new Input[](1);
+        address inputToken = zeroForOne ? Currency.unwrap(key.currency0) : Currency.unwrap(key.currency1);
+        uint256 marginAmount = uint256(amountSpecified < 0 ? -amountSpecified : amountSpecified);
+        resolved.swapperInputs[0] = Input({
+            token: inputToken,
+            amount: marginAmount
+        });
+
+        resolved.swapperOutputs = new Output[](1);
+        address outputToken = zeroForOne ? Currency.unwrap(key.currency1) : Currency.unwrap(key.currency0);
+        resolved.swapperOutputs[0] = Output({
+            token: outputToken,
+            amount: marginAmount * leverage,
+            chainId: order.originChainId,
+            recipient: order.swapper
+        });
     }
 
     function atomicMarginTrade(AtomicMarginParams calldata params) external returns (uint256 profit) {
