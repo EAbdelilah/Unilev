@@ -23,12 +23,15 @@ contract DeployUnichain is Script {
 
     address constant WETH = 0x4200000000000000000000000000000000000006;
     address constant USDC = 0x078D782b760474a361dDA0AF3839290b0EF57AD6;
+    address constant WBTC = 0x0555e30da8f98308edb960aa94c0db47230d2b9c;
     address constant UNICHAIN_PM = 0x1F98400000000000000000000000000000000004;
 
     // Verified live on Unichain Mainnet via latestRoundData() (Alchemy RPC).
     // Note: Unichain feeds report 18-decimal answers, unlike the usual 8.
     address constant ETH_USD_FEED = 0xBcE70e194940a157f3A80566505a7E96f5238CCa;
     address constant USDC_USD_FEED = 0xbd1cD1518eFB92a92100da62D4C488c810dFd75b;
+    // Default standard live placeholder for WBTC feed (can be modified in root .env)
+    address constant WBTC_USD_FEED = 0x2774C32f05B48cEcb40AFE625b1b7E7C6702e86D;
 
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
@@ -47,6 +50,8 @@ contract DeployUnichain is Script {
         console.log(string.concat("Configured WETH feed: ", vm.toString(ETH_USD_FEED)));
         priceFeed.setPriceFeed(USDC, USDC_USD_FEED, 18);
         console.log(string.concat("Configured USDC feed: ", vm.toString(USDC_USD_FEED)));
+        priceFeed.setPriceFeed(WBTC, WBTC_USD_FEED, 8);
+        console.log(string.concat("Configured WBTC feed: ", vm.toString(WBTC_USD_FEED)));
         // Chainlink has not published an L2 sequencer uptime feed for Unichain,
         // so the sequencer check stays disabled until one is available.
 
@@ -86,13 +91,12 @@ contract DeployUnichain is Script {
 
         hook.setRouter(address(router));
         // Configure token decimals so the V4-spot vs V3-TWAP circuit breaker can
-        // compare like-for-like prices (USDC has 6 decimals, WETH defaults to 18).
+        // compare like-for-like prices (USDC has 6 decimals, WETH has 18, WBTC has 8).
         hook.setTokenDecimals(WETH, 18);
         hook.setTokenDecimals(USDC, 6);
+        hook.setTokenDecimals(WBTC, 8);
 
-        // Uniswap V4 orders currencies ascending by address. On Unichain USDC (0x078D..)
-        // sorts below WETH (0x4200..), so currency0 MUST be USDC and currency1 WETH or
-        // PoolManager.initialize reverts with CurrenciesOutOfOrderOrEqual.
+        // --- Initialize Pool 1: USDC / WETH ---
         PoolKey memory key = PoolKey({
             currency0: Currency.wrap(USDC),
             currency1: Currency.wrap(WETH),
@@ -101,18 +105,32 @@ contract DeployUnichain is Script {
             hooks: IHooks(address(hook))
         });
 
-        // Initial price ≈ 3000 USDC per WETH. With currency0=USDC(6)/currency1=WETH(18)
-        // the raw pool price is token1/token0 = 1e18/3000e6 = 3.333e8, which is
-        // tick ≈ 196256 (rounded down to the 60 tick spacing => 196260). The previous
-        // tick -263813 implied ~0.00035 USDC/WETH and was off by ~9 orders of magnitude.
         uint160 sqrtPriceX96 = TickMath.getSqrtRatioAtTick(196260);
         pm.initialize(key, sqrtPriceX96);
 
         PoolId poolId = key.toId();
         hook.setAuthorizedPool(poolId, true);
-        // WETH is the base token: "long WETH" positions report isLong=true, and the
-        // frontend/keeper resolve collateral vs debt from this anchor.
         hook.setBaseCurrency(poolId, Currency.wrap(WETH));
+
+        // --- Initialize Pool 2: WBTC / USDC ---
+        // WBTC (0x0555..) sorts below USDC (0x078D..) so WBTC is currency0, USDC is currency1.
+        PoolKey memory wbtcKey = PoolKey({
+            currency0: Currency.wrap(WBTC),
+            currency1: Currency.wrap(USDC),
+            fee: 3000,
+            tickSpacing: 60,
+            hooks: IHooks(address(hook))
+        });
+
+        // Price ratio = USDC per WBTC = 100000. Raw units ratio = 100000 * 1e6 / 1e8 = 1000.
+        // Tick is log_1.0001(1000) = 69080. Multiples of 60 tick spacing = 69060.
+        uint160 wbtcPriceX96 = TickMath.getSqrtRatioAtTick(69060);
+        pm.initialize(wbtcKey, wbtcPriceX96);
+
+        PoolId wbtcPoolId = wbtcKey.toId();
+        hook.setAuthorizedPool(wbtcPoolId, true);
+        // WBTC is base currency: long WBTC buys WBTC (isLong = true) and borrows USDC.
+        hook.setBaseCurrency(wbtcPoolId, Currency.wrap(WBTC));
 
         vm.stopBroadcast();
 
