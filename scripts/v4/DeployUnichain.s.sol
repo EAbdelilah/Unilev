@@ -122,9 +122,10 @@ contract DeployUnichain is Script {
             hooks: IHooks(address(hook))
         });
 
-        // Price ratio = USDC per WBTC = 100000. Raw units ratio = 100000 * 1e6 / 1e8 = 1000.
-        // Tick is log_1.0001(1000) = 69080. Multiples of 60 tick spacing = 69060.
-        uint160 wbtcPriceX96 = TickMath.getSqrtRatioAtTick(69060);
+        // Price ratio = USDC per WBTC = ~$60,000 USD (converted from ~55,811.68 EUR).
+        // Raw units ratio = 60000 * 1e6 / 1e8 = 600.
+        // Tick is log_1.0001(600) = 63972. Multiples of 60 tick spacing = 63960.
+        uint160 wbtcPriceX96 = TickMath.getSqrtRatioAtTick(63960);
         pm.initialize(wbtcKey, wbtcPriceX96);
 
         PoolId wbtcPoolId = wbtcKey.toId();
