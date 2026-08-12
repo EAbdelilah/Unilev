@@ -4,7 +4,6 @@ import { useAccount, useWalletClient } from "wagmi"
 import EswapRouterABI from "../abis/EswapRouter.json"
 import EswapMarginHookABI from "../abis/EswapMarginHook.json"
 import PriceFeedABI from "../abis/PriceFeed.json"
-import ArbunPutOptionABI from "../abis/ArbunPutOption.json"
 import supportedTokensByChain from "../config/supported_tokens.json"
 import { useReadProvider } from "./useReadProvider"
 
@@ -37,9 +36,6 @@ export function useV4Position() {
             process.env.NEXT_PUBLIC_V4_PRICEFEED_ADDRESS ||
             process.env.NEXT_PUBLIC_PRICEFEEDL1_ADDRESS ||
             "",
-        V4_ARBUN_PUT_OPTION:
-            process.env.NEXT_PUBLIC_V4_ARBUN_PUT_OPTION_ADDRESS ||
-            "0x4830000000000000000000000000000000000010",
     }
 
     const SUPPORTED_TOKENS_LIST = useMemo(() => {
@@ -230,39 +226,6 @@ export function useV4Position() {
         [getSigner, address]
     )
 
-    const openHalalShortOption = useCallback(
-        async (underlyingToken, collateralToken, quantity, duration) => {
-            const signer = await getSigner()
-            if (!signer) throw new Error("Wallet not connected")
-            const addr = ADDRESSES.V4_ARBUN_PUT_OPTION
-            const contract = new ethers.Contract(addr, ArbunPutOptionABI.abi, signer)
-            return await contract.openHalalShort(underlyingToken, collateralToken, quantity, duration)
-        },
-        [getSigner, ADDRESSES.V4_ARBUN_PUT_OPTION]
-    )
-
-    const exerciseHalalShortOption = useCallback(
-        async (optionId) => {
-            const signer = await getSigner()
-            if (!signer) throw new Error("Wallet not connected")
-            const addr = ADDRESSES.V4_ARBUN_PUT_OPTION
-            const contract = new ethers.Contract(addr, ArbunPutOptionABI.abi, signer)
-            return await contract.exerciseHalalShort(optionId)
-        },
-        [getSigner, ADDRESSES.V4_ARBUN_PUT_OPTION]
-    )
-
-    const cancelHalalShortOption = useCallback(
-        async (optionId) => {
-            const signer = await getSigner()
-            if (!signer) throw new Error("Wallet not connected")
-            const addr = ADDRESSES.V4_ARBUN_PUT_OPTION
-            const contract = new ethers.Contract(addr, ArbunPutOptionABI.abi, signer)
-            return await contract.cancelHalalShort(optionId)
-        },
-        [getSigner, ADDRESSES.V4_ARBUN_PUT_OPTION]
-    )
-
     return {
         openV4Position,
         simulateV4Position,
@@ -270,9 +233,6 @@ export function useV4Position() {
         getPositionsCount,
         getPositionDetails,
         closePosition,
-        openHalalShortOption,
-        exerciseHalalShortOption,
-        cancelHalalShortOption,
         ADDRESSES,
         tokens,
         WETH_ADDR,
