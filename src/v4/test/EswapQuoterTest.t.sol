@@ -22,7 +22,7 @@ contract EswapQuoterTest is BaseV4Test {
     }
 
     function test_QuoteZeroOutput_InvalidLeverage() public view {
-        int128 quoteHigh = router.quoteExactInput(key, true, -10 ether, 10);
+        int128 quoteHigh = router.quoteExactInput(key, true, -10 ether, 21);
         int128 quoteZero = router.quoteExactInput(key, true, -10 ether, 0);
 
         assertEq(quoteHigh, 0);

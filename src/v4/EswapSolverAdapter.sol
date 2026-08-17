@@ -19,6 +19,9 @@ contract EswapSolverAdapter {
     bytes32 public constant INTENT_TYPEHASH = keccak256(
         "MarginIntent(address trader,uint8 leverage,uint256 amount,uint256 nonce,uint256 deadline)"
     );
+    bytes32 public constant SPOT_INTENT_TYPEHASH = keccak256(
+        "SpotIntent(address swapper,int256 amountSpecified,uint256 minAmountOut,uint256 nonce,uint256 deadline)"
+    );
 
     mapping(address => uint256) public nonces;
     address public immutable hook;
@@ -31,6 +34,14 @@ contract EswapSolverAdapter {
         address trader;
         uint8 leverage;
         uint256 amount;
+        uint256 nonce;
+        uint256 deadline;
+    }
+
+    struct SpotIntent {
+        address swapper;
+        int256 amountSpecified;
+        uint256 minAmountOut;
         uint256 nonce;
         uint256 deadline;
     }
@@ -73,6 +84,34 @@ contract EswapSolverAdapter {
     function submitIntent(MarginIntent calldata intent, bytes calldata signature) external returns (bool) {
         verifyIntent(intent, signature);
         nonces[intent.trader]++;
+        return true;
+    }
+
+    function verifySpotIntent(SpotIntent calldata intent, bytes calldata signature) public view returns (bool) {
+        if (block.timestamp > intent.deadline) revert DeadlineExpired();
+        if (intent.nonce != nonces[intent.swapper]) revert NonceInvalid();
+
+        bytes32 structHash = keccak256(
+            abi.encode(
+                SPOT_INTENT_TYPEHASH,
+                intent.swapper,
+                intent.amountSpecified,
+                intent.minAmountOut,
+                intent.nonce,
+                intent.deadline
+            )
+        );
+
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, structHash));
+        address recovered = recover(digest, signature);
+        if (recovered != intent.swapper || recovered == address(0)) revert InvalidSignature();
+
+        return true;
+    }
+
+    function submitSpotIntent(SpotIntent calldata intent, bytes calldata signature) external returns (bool) {
+        verifySpotIntent(intent, signature);
+        nonces[intent.swapper]++;
         return true;
     }
 

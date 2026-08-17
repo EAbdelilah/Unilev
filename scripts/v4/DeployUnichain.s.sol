@@ -31,7 +31,7 @@ contract DeployUnichain is Script {
     address constant ETH_USD_FEED = 0xBcE70e194940a157f3A80566505a7E96f5238CCa;
     address constant USDC_USD_FEED = 0xbd1cD1518eFB92a92100da62D4C488c810dFd75b;
     // Default standard live placeholder for WBTC feed (can be modified in root .env)
-    address constant WBTC_USD_FEED = 0x2774C32f05B48cEcb40AFE625b1b7E7C6702e86D;
+    // The feed is loaded dynamically in the run() function.
 
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
@@ -50,8 +50,9 @@ contract DeployUnichain is Script {
         console.log(string.concat("Configured WETH feed: ", vm.toString(ETH_USD_FEED)));
         priceFeed.setPriceFeed(USDC, USDC_USD_FEED, 18);
         console.log(string.concat("Configured USDC feed: ", vm.toString(USDC_USD_FEED)));
-        priceFeed.setPriceFeed(WBTC, WBTC_USD_FEED, 8);
-        console.log(string.concat("Configured WBTC feed: ", vm.toString(WBTC_USD_FEED)));
+        address wbtcUsdFeed = vm.envOr("WBTC_USD_FEED", 0xC13f3E310Dd7436FA24338174acB64254b9A8039);
+        priceFeed.setPriceFeed(WBTC, wbtcUsdFeed, 8);
+        console.log(string.concat("Configured WBTC feed: ", vm.toString(wbtcUsdFeed)));
         // Chainlink has not published an L2 sequencer uptime feed for Unichain,
         // so the sequencer check stays disabled until one is available.
 

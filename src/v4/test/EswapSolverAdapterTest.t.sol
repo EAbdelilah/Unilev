@@ -102,6 +102,38 @@ contract EswapSolverAdapterTest is BaseV4Test {
         assertEq(principal, 10 ether);
     }
 
+    function _signSpotIntent(EswapSolverAdapter.SpotIntent memory intent) internal view returns (bytes memory) {
+        bytes32 structHash = keccak256(
+            abi.encode(
+                adapter.SPOT_INTENT_TYPEHASH(),
+                intent.swapper,
+                intent.amountSpecified,
+                intent.minAmountOut,
+                intent.nonce,
+                intent.deadline
+            )
+        );
+
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", adapter.DOMAIN_SEPARATOR(), structHash));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(traderPrivateKey, digest);
+        return abi.encodePacked(r, s, v);
+    }
+
+    function test_SpotIntent_SubmitsSuccessfully() public {
+        EswapSolverAdapter.SpotIntent memory intent = EswapSolverAdapter.SpotIntent({
+            swapper: traderAddress,
+            amountSpecified: -1 ether,
+            minAmountOut: 3000 ether,
+            nonce: 0,
+            deadline: block.timestamp + 1000
+        });
+
+        bytes memory sig = _signSpotIntent(intent);
+        bool success = adapter.submitSpotIntent(intent, sig);
+        assertTrue(success);
+        assertEq(adapter.nonces(traderAddress), 1);
+    }
+
     function test_BatchOpen_3Positions_AllMapped() public {
         EswapSolverAdapter.MarginIntent[] memory intents = new EswapSolverAdapter.MarginIntent[](3);
         bytes[] memory sigs = new bytes[](3);

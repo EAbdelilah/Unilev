@@ -111,7 +111,8 @@ contract EswapTradingScenariosTest is BaseV4Test {
         token0.approve(address(hook), 50 ether);
         hook.seedInsuranceFund(key.currency0, 10 ether);
 
-        manager.setNextSwapDelta(recoveredDelta, recoveredDelta);
+        int128 posDelta = recoveredDelta > 0 ? recoveredDelta : -recoveredDelta;
+        manager.setNextSwapDelta(posDelta, posDelta);
         hook.executeLiquidation(key, trader, 0);
     }
 

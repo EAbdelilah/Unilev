@@ -3,19 +3,19 @@ pragma solidity ^0.8.19;
 
 import {ERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol"; // [FIX L-2]
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 // Errors
 error LiquidityPool__NOT_ENOUGH_LIQUIDITY(string tokenSymbol, uint256 maxBorrowCapacity);
 
-contract LiquidityPool is ERC4626, Ownable {
+contract LiquidityPool is ERC4626, Ownable2Step { // [FIX L-2]
     using SafeERC20 for IERC20;
 
     uint256 private borrowedFunds; // Funds currently used by positions
 
-    uint256 private maxBorrowRatio = 8000; // in basis points => 80%
+    uint256 public maxBorrowRatio = 8000; // [FIX M-6] Made public; in basis points => 80%
 
     constructor(
         IERC20 _asset,
@@ -65,6 +65,15 @@ contract LiquidityPool is ERC4626, Ownable {
         if (toTransfer > 0) {
             IERC20(asset()).safeTransferFrom(msg.sender, address(this), toTransfer);
         }
+    }
+
+    /**
+     * @notice [FIX M-6] Allows the owner to adjust the maximum borrow ratio.
+     * @dev Safety ceiling of 9000 bps (90%) prevents full pool drain by a single borrower.
+     */
+    function setMaxBorrowRatio(uint256 _maxBorrowRatio) external onlyOwner {
+        require(_maxBorrowRatio <= 9000, "LiquidityPool: max borrow ratio cannot exceed 90%");
+        maxBorrowRatio = _maxBorrowRatio;
     }
 
     // --------------- View Zone ---------------

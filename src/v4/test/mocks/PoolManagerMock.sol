@@ -157,21 +157,21 @@ contract PoolManagerMock is IPoolManager {
         return BalanceDeltaLibrary.toBalanceDelta(0, 0);
     }
 
-    function sync(Currency) external override {}
+    function sync(Currency) external virtual override {}
 
-    function settle() external payable override returns (uint256) {
+    function settle() external payable virtual override returns (uint256) {
         settleCount++;
         return 0;
     }
 
-    function settleFor(address) external payable override returns (uint256) {
+    function settleFor(address) external payable virtual override returns (uint256) {
         settleCount++;
         return 0;
     }
 
     function clear(Currency, uint256) external override {}
 
-    function take(Currency, address, uint256) external override {
+    function take(Currency, address, uint256) external virtual override {
         takeCount++;
     }
 
@@ -208,4 +208,46 @@ contract PoolManagerCallbackMock is PoolManagerMock {
     function unlock(bytes calldata data) external override returns (bytes memory) {
         return IUnlockCallback(msg.sender).unlockCallback(data);
     }
+}
+
+/**
+ * @dev Extends PoolManagerCallbackMock with real ERC20 token movement for take/settle.
+ *      Used for JIT spot execution integration tests.
+ *      - sync() records the last synced currency
+ *      - settle() transfers tokens from the last payer to this contract
+ *      - settleFor() same but credits a specific recipient
+ *      - take() transfers tokens from this contract to the recipient
+ */
+contract PoolManagerRealTokenMock is PoolManagerCallbackMock {
+    Currency internal _pendingCurrency;
+    address internal _pendingFrom;
+    mapping(address => mapping(address => uint256)) public tokenBalances;
+
+    function sync(Currency currency) external override {
+        _pendingCurrency = currency;
+    }
+
+    function settle() external payable override returns (uint256 amount) {
+        address token = Currency.unwrap(_pendingCurrency);
+        // Determine how many tokens were transferred to us since last sync
+        amount = IERC20Mock(token).balanceOf(address(this));
+        settleCount++;
+    }
+
+    function settleFor(address) external payable override returns (uint256 amount) {
+        address token = Currency.unwrap(_pendingCurrency);
+        amount = IERC20Mock(token).balanceOf(address(this));
+        settleCount++;
+    }
+
+    function take(Currency currency, address to, uint256 amount) external override {
+        IERC20Mock(Currency.unwrap(currency)).transfer(to, amount);
+        takeCount++;
+    }
+}
+
+interface IERC20Mock {
+    function balanceOf(address) external view returns (uint256);
+    function transfer(address, uint256) external returns (bool);
+    function transferFrom(address, address, uint256) external returns (bool);
 }

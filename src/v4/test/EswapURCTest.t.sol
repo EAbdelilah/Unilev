@@ -25,7 +25,9 @@ contract EswapURCTest is BaseV4Test {
         IURC4.IndicativeQuote memory quote = hook.getIndicativeQuote(key, true, margin, data);
 
         assertTrue(quote.liveness);
-        assertEq(quote.amountOut, margin * 5); // 5x leverage simulation
+        // 5x leverage with 0.1% slippage discount: margin * 5 * 9990 / 10000
+        int128 expected = (margin * 5 * 9990) / 10000;
+        assertEq(quote.amountOut, expected); // 5x leverage with conservative slippage discount
     }
 
     function test_URC3_TVLReporting() public {

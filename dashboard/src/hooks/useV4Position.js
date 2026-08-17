@@ -9,7 +9,7 @@ import { useReadProvider } from "./useReadProvider"
 
 const FALLBACK_CHAIN = "1301"
 const POOL_FEE = 3000
-const STANDARD_POOL_FEE = 0
+const STANDARD_POOL_FEE = 500 // 0.05% — deepest WETH/USDC pool on Unichain Mainnet
 const TICK_SPACING = 60
 
 function sortCurrencies(c0, c1) {

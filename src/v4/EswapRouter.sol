@@ -6,7 +6,7 @@ import {PoolKey} from "./types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "./types/PoolId.sol";
 import {Currency} from "./types/Currency.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol"; // [FIX L-2]
 import {BalanceDelta, BalanceDeltaLibrary} from "./types/BalanceDelta.sol";
 import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {IPoolManager as RealIPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
@@ -20,6 +20,8 @@ interface IEswapHook {
     function closePosition(PoolKey calldata key, address trader, address solver, uint256 minAmountOut) external;
     function registerSolverDebt(PoolId poolId, address trader, address solver, uint256 principal) external;
     function setStandardPoolKey(PoolId poolId, PoolKey calldata key) external;
+    function clearJITDelta(Currency token, address to, uint256 amount) external;
+    function executeArbunDelivery(PoolKey calldata key, address trader) external;
 }
 
 /**
@@ -40,7 +42,7 @@ interface IEswapHook {
  *        5. Registers the on-chain SolverDebt guaranteeing solver repayment.
  *      All (account, currency) transient deltas net to zero before unlock exits.
  */
-contract EswapRouter is Ownable {
+contract EswapRouter is Ownable2Step { // [FIX L-2]
     using PoolIdLibrary for PoolKey;
     using BalanceDeltaLibrary for BalanceDelta;
 
@@ -85,7 +87,7 @@ contract EswapRouter is Ownable {
 
     bytes32 public immutable DOMAIN_SEPARATOR;
 
-    enum CallType { SWAP, CLOSE, LIQUIDATE, REBALANCE, ATOMIC_MARGIN }
+    enum CallType { SWAP, CLOSE, LIQUIDATE, REBALANCE, ATOMIC_MARGIN, JIT_SPOT, ARBUN_DELIVERY }
 
     struct AtomicMarginParams {
         PoolKey key;
@@ -93,6 +95,17 @@ contract EswapRouter is Ownable {
         bool zeroForOne;
         uint256 borrowAmount;
         uint256 minProfit;
+    }
+
+    struct JITSpotParams {
+        PoolKey key;
+        bool zeroForOne;
+        int256 amountSpecified;
+        address solver;
+        uint256 solverOutput;
+        // [FIX H-5] Minimum acceptable solver output for slippage protection against malicious solvers
+        uint256 minSolverOutput;
+        address swapper;
     }
 
     constructor(IPoolManager _manager) Ownable(msg.sender) {
@@ -126,6 +139,12 @@ contract EswapRouter is Ownable {
 
     function swap(SwapParams calldata params) external returns (bytes memory) {
         return manager.unlock(abi.encode(CallType.SWAP, params, msg.sender));
+    }
+
+    function executeJITSpotSwap(JITSpotParams calldata params) external returns (bytes memory) {
+        // Enforce that the caller is the solver
+        require(msg.sender == params.solver, "Only solver can execute JIT");
+        return manager.unlock(abi.encode(CallType.JIT_SPOT, params));
     }
 
     function hashOrder(CrossChainOrder calldata order) public pure returns (bytes32) {
@@ -270,6 +289,13 @@ contract EswapRouter is Ownable {
         } else if (callType == CallType.ATOMIC_MARGIN) {
             (, AtomicMarginParams memory params, address trader) = abi.decode(data, (CallType, AtomicMarginParams, address));
             return _atomicMarginCallback(params, trader);
+        } else if (callType == CallType.JIT_SPOT) {
+            (, JITSpotParams memory params) = abi.decode(data, (CallType, JITSpotParams));
+            return _jitSpotCallback(params);
+        } else if (callType == CallType.ARBUN_DELIVERY) {
+            (, address hook, PoolKey memory key, address trader) = abi.decode(data, (CallType, address, PoolKey, address));
+            IEswapHook(hook).executeArbunDelivery(key, trader);
+            return "";
         }
         return "";
     }
@@ -335,6 +361,43 @@ contract EswapRouter is Ownable {
         return abi.encode(profit);
     }
 
+    function _jitSpotCallback(JITSpotParams memory params) internal returns (bytes memory) {
+        Currency input = params.zeroForOne ? params.key.currency0 : params.key.currency1;
+        Currency output = params.zeroForOne ? params.key.currency1 : params.key.currency0;
+
+        // [FIX H-5] Enforce minimum solver output before executing to protect swapper
+        require(params.solverOutput >= params.minSolverOutput, "JIT: solver output below minimum acceptable");
+
+        bytes memory hookData = abi.encode(false, params.solver, params.solverOutput);
+        
+        // 1. Execute swap on the Hook pool. The Hook's beforeSwap will absorb the delta.
+        manager.swap(
+            params.key,
+            IPoolManager.SwapParams(params.zeroForOne, params.amountSpecified, 0),
+            hookData
+        );
+        
+        uint256 inputAmount = uint256(params.amountSpecified < 0 ? -params.amountSpecified : params.amountSpecified);
+        
+        // 2. Swapper pays the input tokens to the Manager (Settles Router's input debt)
+        manager.sync(input);
+        IERC20(Currency.unwrap(input)).transferFrom(params.swapper, address(manager), inputAmount);
+        manager.settle();
+        
+        // 3. Solver pays the output tokens to the Manager FOR the Hook
+        manager.sync(output);
+        IERC20(Currency.unwrap(output)).transferFrom(params.solver, address(manager), params.solverOutput);
+        manager.settleFor(address(params.key.hooks));
+        
+        // 4. Router takes the output tokens and sends them to the Swapper
+        manager.take(output, params.swapper, params.solverOutput);
+        
+        // 5. Hook takes the input tokens and sends them to the Solver
+        IEswapHook(address(params.key.hooks)).clearJITDelta(input, params.solver, inputAmount);
+        
+        return "";
+    }
+
     /**
      * @notice SDIM single-pool unlock callback. Executes the margin swap, settles
      *         the trader's margin + the solver's borrow, mints the collateral
@@ -383,7 +446,10 @@ contract EswapRouter is Ownable {
             outputAmount = uint256(int256(outputDelta));
 
             // Set standard pool key mapping on the hook
-            IEswapHook(params.key.hooks).setStandardPoolKey(params.key.toId(), params.standardPoolKey);
+            // [FIX M-3] NOTE: setStandardPoolKey is intentionally NOT called here from user-supplied
+            // swap params — doing so would allow any caller to poison the hook's liquidation routing
+            // by supplying a malicious standardPoolKey. The standard key must be set by the owner
+            // directly via hook.setStandardPoolKey() at deployment time.
         } else {
             // Legacy single-pool routing
             delta = manager.swap(
@@ -454,7 +520,13 @@ contract EswapRouter is Ownable {
     }
 
     function closePosition(address hook, PoolKey calldata key, address trader, address solver, uint256 minAmountOut) external {
+        // [FIX C-1] Only the trader themselves can close their own position
+        require(msg.sender == trader, "EswapRouter: only the trader can close their own position");
         manager.unlock(abi.encode(CallType.CLOSE, hook, key, trader, solver, minAmountOut));
+    }
+
+    function executeArbunDelivery(address hook, PoolKey calldata key, address trader) external {
+        manager.unlock(abi.encode(CallType.ARBUN_DELIVERY, hook, key, trader));
     }
 
     function _closeCallback(address hook, PoolKey memory key, address trader, address solver, uint256 minAmountOut) internal {
@@ -471,7 +543,7 @@ contract EswapRouter is Ownable {
         int128 amountSpecified,
         uint8 leverage
     ) external view returns (int128 amountOut) {
-        if (leverage == 0 || leverage > 5 || amountSpecified == 0) return 0;
+        if (leverage == 0 || leverage > 20 || amountSpecified == 0) return 0; // [FIX L-3] Raised cap from 5 to 20 to match protocol max
         int128 absAmount = amountSpecified < 0 ? -amountSpecified : amountSpecified;
         uint128 leveragedAmount = uint128(absAmount) * uint128(leverage);
 
@@ -492,6 +564,10 @@ contract EswapRouter is Ownable {
             uint256 temp = FullMath.mulDiv(leveragedAmount, 1 << 96, uint256(sqrtPriceX96));
             output = FullMath.mulDiv(temp, 1 << 96, uint256(sqrtPriceX96));
         }
+        // Apply a conservative 0.1% discount so the quote closely matches actual
+        // execution output on the standard Uniswap pool (which has its own fee + slippage).
+        // This prevents aggregators from penalising the protocol for quote-vs-execution divergence.
+        output = (output * 9990) / 10000;
         return int128(uint128(output));
     }
 }

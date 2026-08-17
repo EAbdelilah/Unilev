@@ -64,6 +64,9 @@ contract EswapLiquidationKeeperTest is BaseV4Test {
         // Fund the hook so the unwind's surplus transfer can settle (mock take() is a no-op).
         token0.mint(address(hook), 50 ether);
         token1.mint(address(hook), 50 ether);
+        
+        // Mock the liquidation swap to return 30 ether of token0 (debt currency) to satisfy the receivedAmount > totalPayout check
+        manager.setNextSwapDelta(30 ether, -28 ether);
     }
 
     function test_Keeper_WatchList_Automation() public {

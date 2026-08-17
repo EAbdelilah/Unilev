@@ -69,6 +69,8 @@ contract EswapV4CoreProofTest is BaseV4Test {
         deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(address(realManager), address(priceFeed)), realHookAddr);
         realHook = EswapMarginHook(realHookAddr);
         realHook.setRouter(address(this));
+        // Note: RealPoolId must be cast to the local mock PoolId type to call the hook's setAuthorizedPool
+        realHook.setAuthorizedPool(_localIdFor(realHookAddr), true);
 
         realKey = RealPoolKey({
             currency0: RealCurrency.wrap(address(token0)),
@@ -287,34 +289,36 @@ contract EswapV4CoreProofTest is BaseV4Test {
 
         // SHORT: zeroForOne=false. Swapper perspective: paid -100 (token1),
         // received +480 (token0). The positive leg is amount0.
+        bytes memory shortData = abi.encode(true, uint8(5), address(1));
         vm.prank(address(manager));
-        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(false, -100 ether, 0), data);
+        hook.beforeSwap(address(1), key, IPoolManager.SwapParams(false, -100 ether, 0), shortData);
         vm.prank(address(manager));
         hook.afterSwap(
-            address(this),
+            address(1),
             key,
             IPoolManager.SwapParams(false, -100 ether, 0),
             BalanceDeltaLibrary.toBalanceDelta(480 ether, -100 ether),
-            data
+            shortData
         );
         (address shortTrader, uint256 shortCollateral, uint256 shortBorrow, , bool shortIsLong,,,,) =
-            hook.positions(key.toId(), address(this));
-        assertEq(shortTrader, address(this));
+            hook.positions(key.toId(), address(1));
+        assertEq(shortTrader, address(1));
         assertFalse(shortIsLong);
         assertEq(shortBorrow, 400 ether);
         assertEq(shortCollateral, (480 ether * 9950) / 10000);
 
         // Zero received output on the bought leg must revert (SwapOutputZero).
+        bytes memory data2 = abi.encode(true, uint8(5), address(2));
         vm.prank(address(manager));
-        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -100 ether, 0), data);
+        hook.beforeSwap(address(2), key, IPoolManager.SwapParams(true, -100 ether, 0), data2);
         vm.expectRevert(EswapMarginHook.SwapOutputZero.selector);
         vm.prank(address(manager));
         hook.afterSwap(
-            address(this),
+            address(2),
             key,
             IPoolManager.SwapParams(true, -100 ether, 0),
             BalanceDeltaLibrary.toBalanceDelta(-100 ether, 0),
-            data
+            data2
         );
     }
 }

@@ -182,4 +182,27 @@ contract EswapUnichainForkTest is Test {
         (Currency collateral, ) = hook.positionCurrencies(key, trader);
         assertEq(Currency.unwrap(collateral), UNICHAIN_WETH);
     }
+
+    function test_Unichain_HybridArbun_PhysicalDelivery() public {
+        uint160 correctSqrtPrice = Currency.unwrap(key.currency0) == UNICHAIN_WETH ? 4339505179874779489431521 : 1446501726624926496477173928747177;
+        manager.setSlot0(key.toId(), correctSqrtPrice, 0);
+
+        bool zeroForOne = Currency.unwrap(key.currency0) == UNICHAIN_USDC;
+        bytes memory hookData = abi.encode(true, uint8(3), trader);
+
+        vm.startPrank(address(manager));
+        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(zeroForOne, -1000e18, 0), hookData);
+
+        int128 amount0 = zeroForOne ? int128(-3000e18) : int128(1 ether);
+        int128 amount1 = zeroForOne ? int128(1 ether) : int128(-3000e18);
+
+        hook.afterSwap(address(this), key, IPoolManager.SwapParams(zeroForOne, -1000e18, 0), BalanceDeltaLibrary.toBalanceDelta(amount0, amount1), hookData);
+        vm.stopPrank();
+
+        // Exercise Shariah Arbun Physical Delivery Option on Unichain Fork
+        vm.prank(router);
+        hook.executeArbunDelivery(key, trader);
+
+        assertFalse(hook.isSyntheticArbun(key.toId(), trader), "Arbun physical delivery executed on Unichain Fork");
+    }
 }
