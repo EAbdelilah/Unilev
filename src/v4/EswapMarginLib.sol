@@ -22,6 +22,20 @@ library EswapMarginLib {
     error TwapNotConfigured();
     error TwapManipulated();
 
+    // ─── Uniswap V4 Swap Price Limits ──────────────────────────────────────────
+
+    // Mirrors TickMath.MIN_SQRT_PRICE / MAX_SQRT_PRICE from lib/v4-core. The real
+    // Pool library reverts PriceLimitOutOfBounds for sqrtPriceLimitX96 <= MIN or
+    // >= MAX, so a valid full-range limit must be used on every swap.
+    uint160 internal constant MIN_SQRT_PRICE = 4295128739;
+    uint160 internal constant MAX_SQRT_PRICE = 1461446703485210103287273052203988822378723970342;
+
+    /// @dev Full-range sqrtPriceLimitX96: the least restrictive valid limit for a
+    ///      swap in the given direction (no effective price floor/ceiling).
+    function sqrtPriceLimit(bool zeroForOne) internal pure returns (uint160) {
+        return zeroForOne ? MIN_SQRT_PRICE + 1 : MAX_SQRT_PRICE - 1;
+    }
+
     // ─── Liquidation Math ─────────────────────────────────────────────────────
 
     function liquidationThresholdBps(uint8 leverage) public pure returns (uint256) {
@@ -85,6 +99,35 @@ library EswapMarginLib {
         }
 
         if (deviation > maxPriceSwingBps) revert TwapManipulated();
+    }
+
+    // ─── Collateral Floor ─────────────────────────────────────────────────────
+
+    /// @dev Whether a raw `marginAmount` of `token` clears the collateral floor.
+    ///      When `usdFloor > 0` it is an 18-decimal USD threshold and the margin's
+    ///      oracle USD value must meet it. When `usdFloor == 0` the `rawFloor`
+    ///      (18-decimal normalized when the token has fewer decimals) is compared
+    ///      directly — the legacy MIN_COLLATERAL path.
+    function collateralOk(
+        address priceFeed,
+        address token,
+        uint256 marginAmount,
+        uint256 usdFloor,
+        uint256 rawFloor,
+        uint8 tokenDecimals_
+    ) public view returns (bool) {
+        if (usdFloor > 0) {
+            uint256 marginUsd = IPriceFeedLib(priceFeed).getAmountInUsd(token, marginAmount);
+            return marginUsd >= usdFloor;
+        }
+        uint8 decimals_ = tokenDecimals_ == 0 ? 18 : tokenDecimals_;
+        uint256 raw;
+        if (decimals_ >= 18) {
+            raw = marginAmount / (10 ** (decimals_ - 18));
+        } else {
+            raw = marginAmount * (10 ** (18 - decimals_));
+        }
+        return raw >= rawFloor;
     }
 
     // ─── Saturating Math ──────────────────────────────────────────────────────

@@ -23,7 +23,7 @@ contract EswapHybridArbunTest is BaseV4Test {
         super.setUp();
 
         router = new EswapRouter(manager);
-        hook.setRouter(address(router));
+        hook.setRouterAndMinCollateralUsd(address(router), 0);
 
         // Fund trader & solver
         deal(Currency.unwrap(key.currency0), trader, 100 ether);

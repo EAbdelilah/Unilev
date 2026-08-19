@@ -69,9 +69,9 @@ contract EswapTwapCircuitBreakerTest is Test {
         priceFeed.setPrice(address(usdc), 1e18);
 
         address hookAddress = address(uint160((1 << 159) | (1 << 158) | (1 << 153) | (1 << 152) | (1 << 148)));
-        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(manager, priceFeed), hookAddress);
+        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(manager, priceFeed, address(this)), hookAddress);
         hook = EswapMarginHook(hookAddress);
-        hook.setRouter(address(this));
+        hook.setRouterAndMinCollateralUsd(address(this), 0);
 
         key = PoolKey({
             currency0: Currency.wrap(address(weth)),
@@ -92,7 +92,7 @@ contract EswapTwapCircuitBreakerTest is Test {
         // breaker fires on an honest price. Documents the fail-closed default.
         bytes memory hookData = abi.encode(true, uint8(5), trader);
         vm.prank(address(manager));
-        vm.expectRevert("TWAP: V4 Spot Price manipulated");
+        vm.expectRevert(EswapMarginHook.TwapManipulated.selector);
         hook.beforeSwap(address(this), key, IPoolManager.SwapParams(false, -1e18, 0), hookData);
     }
 
@@ -114,7 +114,7 @@ contract EswapTwapCircuitBreakerTest is Test {
         manager.setSlot0(key.toId(), WETH0_MANIPULATED, 0);
         bytes memory hookData = abi.encode(true, uint8(5), trader);
         vm.prank(address(manager));
-        vm.expectRevert("TWAP: V4 Spot Price manipulated");
+        vm.expectRevert(EswapMarginHook.TwapManipulated.selector);
         hook.beforeSwap(address(this), key, IPoolManager.SwapParams(false, -1e18, 0), hookData);
     }
 

@@ -65,10 +65,10 @@ contract EswapUnichainForkTest is Test {
 
         // Deploy Hook
         address hookAddress = address(uint160((1 << 159) | (1 << 158) | (1 << 153) | (1 << 152) | (1 << 148)));
-        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(manager, priceFeed), hookAddress);
+        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(manager, priceFeed, address(this)), hookAddress);
         hook = EswapMarginHook(hookAddress);
 
-        hook.setRouter(router);
+        hook.setRouterAndMinCollateralUsd(router, 0);
         
         // Setup the V4 Pool using the real Unichain tokens
         // Sort tokens as per Uniswap convention
@@ -136,7 +136,7 @@ contract EswapUnichainForkTest is Test {
         bytes memory hookData = abi.encode(true, uint8(5), trader);
         
         vm.startPrank(address(manager));
-        vm.expectRevert("TWAP: V4 Spot Price manipulated");
+        vm.expectRevert(EswapMarginHook.TwapManipulated.selector);
         hook.beforeSwap(address(this), key, IPoolManager.SwapParams(!isWeth0, -10 ether, 0), hookData);
         vm.stopPrank();
     }

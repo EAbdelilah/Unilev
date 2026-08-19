@@ -113,7 +113,7 @@ contract EswapTradingScenariosTest is BaseV4Test {
 
         int128 posDelta = recoveredDelta > 0 ? recoveredDelta : -recoveredDelta;
         manager.setNextSwapDelta(posDelta, posDelta);
-        hook.executeLiquidation(key, trader, 0);
+        hook.executeLiquidation(key, trader, 0, address(this));
     }
 
     /// @dev Assert position is fully zeroed out after close/liquidation

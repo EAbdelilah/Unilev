@@ -17,7 +17,7 @@ contract EswapE2ETest is BaseV4Test {
         bytes memory data = abi.encode(true, leverage, address(this));
 
         // 1. Set Router
-        hook.setRouter(address(this));
+        hook.setRouterAndMinCollateralUsd(address(this), 0);
 
         // 2. BeforeSwap Trigger
         vm.prank(address(manager));

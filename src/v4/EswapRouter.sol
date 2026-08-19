@@ -12,9 +12,10 @@ import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {IPoolManager as RealIPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {PoolId as RealPoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {FullMath} from "@uniswap/v4-core/src/libraries/FullMath.sol";
+import {EswapMarginLib} from "./EswapMarginLib.sol";
 
 interface IEswapHook {
-    function executeLiquidation(PoolKey calldata key, address trader, uint256 minAmountOut) external;
+    function executeLiquidation(PoolKey calldata key, address trader, uint256 minAmountOut, address liquidator) external;
     function rebalancePosition(PoolKey calldata key, address trader) external;
     function deployCollateral(PoolKey calldata key, address trader) external;
     function closePosition(PoolKey calldata key, address trader, address solver, uint256 minAmountOut) external;
@@ -279,8 +280,8 @@ contract EswapRouter is Ownable2Step { // [FIX L-2]
             _closeCallback(hook, key, trader, solver, minAmountOut);
             return "";
         } else if (callType == CallType.LIQUIDATE) {
-            (, address hook, PoolKey memory key, address trader, uint256 minAmountOut) = abi.decode(data, (CallType, address, PoolKey, address, uint256));
-            IEswapHook(hook).executeLiquidation(key, trader, minAmountOut);
+            (, address hook, PoolKey memory key, address trader, uint256 minAmountOut, address liquidator) = abi.decode(data, (CallType, address, PoolKey, address, uint256, address));
+            IEswapHook(hook).executeLiquidation(key, trader, minAmountOut, liquidator);
             return "";
         } else if (callType == CallType.REBALANCE) {
             (, address hook, PoolKey memory key, address trader) = abi.decode(data, (CallType, address, PoolKey, address));
@@ -314,7 +315,7 @@ contract EswapRouter is Ownable2Step { // [FIX L-2]
 
         BalanceDelta deltaPhysical = manager.swap(
             params.standardPoolKey,
-            IPoolManager.SwapParams(params.zeroForOne, -int256(params.borrowAmount), 0),
+            IPoolManager.SwapParams(params.zeroForOne, -int256(params.borrowAmount), EswapMarginLib.sqrtPriceLimit(params.zeroForOne)),
             ""
         );
 
@@ -334,7 +335,7 @@ contract EswapRouter is Ownable2Step { // [FIX L-2]
         bytes memory hookData = abi.encode(false, uint8(1), trader);
         BalanceDelta deltaHook = manager.swap(
             params.key,
-            IPoolManager.SwapParams(oppositeZeroForOne, -int256(receivedOutputAmount), 0),
+            IPoolManager.SwapParams(oppositeZeroForOne, -int256(receivedOutputAmount), EswapMarginLib.sqrtPriceLimit(oppositeZeroForOne)),
             hookData
         );
 
@@ -373,7 +374,7 @@ contract EswapRouter is Ownable2Step { // [FIX L-2]
         // 1. Execute swap on the Hook pool. The Hook's beforeSwap will absorb the delta.
         manager.swap(
             params.key,
-            IPoolManager.SwapParams(params.zeroForOne, params.amountSpecified, 0),
+            IPoolManager.SwapParams(params.zeroForOne, params.amountSpecified, EswapMarginLib.sqrtPriceLimit(params.zeroForOne)),
             hookData
         );
         
@@ -402,8 +403,14 @@ contract EswapRouter is Ownable2Step { // [FIX L-2]
      * @notice SDIM single-pool unlock callback. Executes the margin swap, settles
      *         the trader's margin + the solver's borrow, mints the collateral
      *         claim to the hook, and registers the solver debt.
-     * @dev All PoolManager transient deltas must net to zero here or the real
-     *      PoolManager reverts CurrencyNotSettled on unlock exit.
+     * @dev [FIX V2] Only the single-pool execution path is used. The former
+     *      multi-pool branch executed TWO physical swaps (hook-pool accounting
+     *      swap + standard-pool physical swap) but only funded one input leg,
+     *      leaving a `-(margin+borrow)` router delta and an `+accountingOut`
+     *      output delta un-netted — the real PoolManager reverts CurrencyNotSettled.
+     *      The owner-set standard pool key is still used by the hook for close /
+     *      liquidation unwind swaps. All swaps use a valid full-range
+     *      sqrtPriceLimitX96 ([FIX V1]); the real Pool library rejects 0.
      */
     function _swapCallback(SwapParams memory params, address trader) internal returns (bytes memory) {
         uint256 marginAmount = uint256(int256(params.amountSpecified < 0 ? -params.amountSpecified : params.amountSpecified));
@@ -412,77 +419,43 @@ contract EswapRouter is Ownable2Step { // [FIX L-2]
             require(params.solver != address(0), "Solver required for leverage");
         }
 
-        bool isMultiPool = (Currency.unwrap(params.standardPoolKey.currency0) != address(0));
-
-        BalanceDelta delta;
-        uint256 outputAmount;
         Currency input = params.zeroForOne ? params.key.currency0 : params.key.currency1;
         Currency output = params.zeroForOne ? params.key.currency1 : params.key.currency0;
 
-        if (isMultiPool) {
-            // (1) Margin swap on the hook pool (for accounting / leverage accounting / position registration).
-            delta = manager.swap(
-                params.key,
-                IPoolManager.SwapParams(params.zeroForOne, params.amountSpecified, 0),
-                params.hookData
-            );
+        // The hook pool executes the swap (flash-expanded by the borrow) and
+        // records the position in afterSwap.
+        BalanceDelta delta = manager.swap(
+            params.key,
+            IPoolManager.SwapParams(params.zeroForOne, params.amountSpecified, EswapMarginLib.sqrtPriceLimit(params.zeroForOne)),
+            params.hookData
+        );
 
-            // (2) Settle the trader's margin (router's -margin delta from the swap)
-            if (marginAmount > 0) {
-                manager.sync(input);
-                IERC20(Currency.unwrap(input)).transferFrom(trader, address(manager), marginAmount);
-                manager.settle();
-            }
+        int128 outputDelta = params.zeroForOne ? delta.amount1() : delta.amount0();
+        require(outputDelta > 0, "Swap output zero");
+        uint256 outputAmount = uint256(int256(outputDelta));
 
-            // (3) Swap the combined margin + borrow on the standard pool
-            BalanceDelta deltaPhysical = manager.swap(
-                params.standardPoolKey,
-                IPoolManager.SwapParams(params.zeroForOne, -int256(marginAmount + borrowAmount), 0),
-                ""
-            );
-
-            int128 outputDelta = params.zeroForOne ? deltaPhysical.amount1() : deltaPhysical.amount0();
-            require(outputDelta > 0, "Swap output zero");
-            outputAmount = uint256(int256(outputDelta));
-
-            // Set standard pool key mapping on the hook
-            // [FIX M-3] NOTE: setStandardPoolKey is intentionally NOT called here from user-supplied
-            // swap params — doing so would allow any caller to poison the hook's liquidation routing
-            // by supplying a malicious standardPoolKey. The standard key must be set by the owner
-            // directly via hook.setStandardPoolKey() at deployment time.
-        } else {
-            // Legacy single-pool routing
-            delta = manager.swap(
-                params.key,
-                IPoolManager.SwapParams(params.zeroForOne, params.amountSpecified, 0),
-                params.hookData
-            );
-
-            int128 outputDelta = params.zeroForOne ? delta.amount1() : delta.amount0();
-            require(outputDelta > 0, "Swap output zero");
-            outputAmount = uint256(int256(outputDelta));
-
-            if (marginAmount > 0) {
-                manager.sync(input);
-                IERC20(Currency.unwrap(input)).transferFrom(trader, address(manager), marginAmount);
-                manager.settle();
-            }
+        // Settle the trader's margin (router's -margin delta from the swap)
+        if (marginAmount > 0) {
+            manager.sync(input);
+            IERC20(Currency.unwrap(input)).transferFrom(trader, address(manager), marginAmount);
+            manager.settle();
         }
 
-        // (4) Mint the collateral as an ERC-6909 claim held by the hook.
+        // Mint the collateral as an ERC-6909 claim held by the hook, offsetting
+        // the router's +output delta.
         manager.mint(address(params.key.hooks), uint256(uint160(Currency.unwrap(output))), outputAmount);
 
-        // (5) Settle the solver's borrow FOR THE HOOK: the hook flash-provided
-        //     the borrow leg, so it carries a -borrowAmount transient delta that
-        //     settleFor(hook) zeroes.
+        // Settle the solver's borrow FOR THE HOOK: the hook flash-provided the
+        // borrow leg, so it carries a -borrowAmount transient delta that
+        // settleFor(hook) zeroes.
         if (borrowAmount > 0) {
             manager.sync(input);
             IERC20(Currency.unwrap(input)).transferFrom(params.solver, address(manager), borrowAmount);
             manager.settleFor(address(params.key.hooks));
         }
 
-        // (6) Register the on-chain solver debt (principal + yield) guaranteeing
-        //     solver repayment before trader withdrawal.
+        // Register the on-chain solver debt (principal + yield) guaranteeing
+        // solver repayment before trader withdrawal.
         if (borrowAmount > 0) {
             IEswapHook(params.key.hooks).registerSolverDebt(params.key.toId(), trader, params.solver, borrowAmount);
         }
@@ -506,7 +479,7 @@ contract EswapRouter is Ownable2Step { // [FIX L-2]
      *                     protection against MEV); derive it from an oracle quote.
      */
     function liquidate(address hook, PoolKey calldata key, address trader, uint256 minAmountOut) external {
-        manager.unlock(abi.encode(CallType.LIQUIDATE, hook, key, trader, minAmountOut));
+        manager.unlock(abi.encode(CallType.LIQUIDATE, hook, key, trader, minAmountOut, msg.sender));
     }
 
     /**

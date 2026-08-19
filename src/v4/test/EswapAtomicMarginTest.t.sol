@@ -68,7 +68,7 @@ contract EswapAtomicMarginTest is BaseV4Test {
         token1 = new ERC20Mock("Token 1", "TK1");
 
         address hookAddress = address(uint160((1 << 159) | (1 << 158) | (1 << 153) | (1 << 152) | (1 << 148)));
-        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(atomicManager, priceFeed), hookAddress);
+        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(atomicManager, priceFeed, address(this)), hookAddress);
         hook = EswapMarginHook(hookAddress);
 
         router = new EswapRouter(atomicManager);
@@ -89,7 +89,7 @@ contract EswapAtomicMarginTest is BaseV4Test {
             hooks: address(0)
         });
 
-        hook.setRouter(address(router));
+        hook.setRouterAndMinCollateralUsd(address(router), 0);
         hook.setAuthorizedPool(key.toId(), true);
 
         atomicManager.setSlot0(key.toId(), 1 << 96, 0);

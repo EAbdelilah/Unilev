@@ -17,7 +17,7 @@ contract EswapSolverAdapterTest is BaseV4Test {
         super.setUp();
         traderAddress = vm.addr(traderPrivateKey);
         adapter = new EswapSolverAdapter(address(hook));
-        hook.setRouter(address(adapter));
+        hook.setRouterAndMinCollateralUsd(address(adapter), 0);
     }
 
     function _signIntent(EswapSolverAdapter.MarginIntent memory intent) internal view returns (bytes memory) {

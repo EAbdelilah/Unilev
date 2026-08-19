@@ -26,7 +26,7 @@ contract EswapRouterAccessTest is BaseV4Test {
         token1 = new ERC20Mock("Token 1", "TK1");
 
         address hookAddress = address(uint160((1 << 159) | (1 << 158) | (1 << 153) | (1 << 152) | (1 << 148)));
-        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(manager, priceFeed), hookAddress);
+        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(manager, priceFeed, address(this)), hookAddress);
         hook = EswapMarginHook(hookAddress);
 
         router = new EswapRouter(manager);
@@ -39,7 +39,7 @@ contract EswapRouterAccessTest is BaseV4Test {
             hooks: address(hook)
         });
 
-        hook.setRouter(address(router));
+        hook.setRouterAndMinCollateralUsd(address(router), 0);
         hook.setAuthorizedPool(key.toId(), true);
     }
 
@@ -67,14 +67,15 @@ contract EswapRouterAccessTest is BaseV4Test {
         (address trader, uint256 collateral, , , , , , , ) = hook.positions(key.toId(), address(this));
         assertEq(trader, address(0), "position should be liquidated");
         assertEq(collateral, 0);
-        assertTrue(hook.insuranceFund(key.currency0) > 0, "liquidator reward should hit the insurance fund");
+        // [FIX V4] the liquidation reward goes to the keeper (router.liquidate caller), not the insurance fund
+        assertGt(token0.balanceOf(keeper), 0, "liquidator reward should go to the keeper");
     }
 
     function test_Close_PropagatesHookRevert() public {
         // A close of a non-existent position reverts in the hook ("No active position").
         // The router must not swallow it: the caller should see the failure instead of
         // silently paying gas for a no-op.
-        vm.expectRevert(bytes("No active position"));
+        vm.expectRevert(EswapMarginHook.NoActivePosition.selector);
         router.closePosition(address(hook), key, address(this), address(0), 0);
     }
 

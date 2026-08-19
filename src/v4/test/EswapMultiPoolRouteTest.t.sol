@@ -34,7 +34,7 @@ contract EswapMultiPoolRouteTest is BaseV4Test {
         token1 = new ERC20Mock("Token 1", "TK1");
 
         address hookAddress = address(uint160((1 << 159) | (1 << 158) | (1 << 153) | (1 << 152) | (1 << 148)));
-        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(manager, priceFeed), hookAddress);
+        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(manager, priceFeed, address(this)), hookAddress);
         hook = EswapMarginHook(hookAddress);
 
         router = new EswapRouter(manager);
@@ -57,7 +57,7 @@ contract EswapMultiPoolRouteTest is BaseV4Test {
             hooks: address(0)
         });
 
-        hook.setRouter(address(router));
+        hook.setRouterAndMinCollateralUsd(address(router), 0);
         hook.setAuthorizedPool(key.toId(), true);
 
         // Both pools initialized at a 1:1 price. The hook pool is intentionally
@@ -149,17 +149,15 @@ contract EswapMultiPoolRouteTest is BaseV4Test {
         assertEq(collateral, (28 ether * 9950) / 10000);
         assertGt(liquidity, 0, "deployCollateral should deploy the position liquidity");
 
-        // Exactly two swaps: (0) hook-pool accounting swap with hookData,
-        // (1) physical swap on the standard pool at full leverage size, no hookData.
-        assertEq(manager.swapCallsLength(), 2, "router must perform exactly two swaps");
-        assertEq(PoolId.unwrap(_swapCallPoolId(0)), PoolId.unwrap(key.toId()), "first swap must land on the hook pool");
-        assertEq(PoolId.unwrap(_swapCallPoolId(1)), PoolId.unwrap(standardPoolKey.toId()), "physical swap must land on the standard pool");
-        (, , int128 accountingAmount, bytes memory accountingHookData) = manager.swapCalls(0);
-        (, , int128 physicalAmount, bytes memory physicalHookData) = manager.swapCalls(1);
-        assertEq(accountingAmount, -int128(uint128(margin)));
-        assertGt(accountingHookData.length, 0, "hook-pool swap must carry hookData");
-        assertEq(physicalAmount, -int128(uint128(margin * leverage)), "physical swap must be full leverage size");
-        assertEq(physicalHookData.length, 0, "standard pool swap must be plain");
+        // [FIX V2] Single-pool execution: exactly ONE swap on the hook pool,
+        // carrying the router's margin amount and hookData. The standard pool is
+        // no longer used for opens (multi-pool double-swapping left un-netted
+        // deltas and reverted CurrencyNotSettled on the real PoolManager).
+        assertEq(manager.swapCallsLength(), 1, "router must perform exactly one swap");
+        assertEq(PoolId.unwrap(_swapCallPoolId(0)), PoolId.unwrap(key.toId()), "the swap must land on the hook pool");
+        (, , int128 swapAmount, bytes memory swapHookData) = manager.swapCalls(0);
+        assertEq(swapAmount, -int128(uint128(margin)));
+        assertGt(swapHookData.length, 0, "hook pool swap must carry hookData");
     }
 
     function test_Swap_ReverseDirection_RoutesToStandardPool() public {
@@ -206,12 +204,12 @@ contract EswapMultiPoolRouteTest is BaseV4Test {
         assertEq(collateral, (28 ether * 9950) / 10000);
         assertGt(liquidity, 0);
 
-        assertEq(manager.swapCallsLength(), 2);
+        // [FIX V2] Single-pool execution: exactly ONE swap on the hook pool.
+        assertEq(manager.swapCallsLength(), 1, "router must perform exactly one swap");
         assertEq(PoolId.unwrap(_swapCallPoolId(0)), PoolId.unwrap(key.toId()));
-        assertEq(PoolId.unwrap(_swapCallPoolId(1)), PoolId.unwrap(standardPoolKey.toId()));
-        (, , int128 physicalAmount, bytes memory physicalHookData) = manager.swapCalls(1);
-        assertEq(physicalAmount, -int128(uint128(margin * leverage)));
-        assertEq(physicalHookData.length, 0);
+        (, , int128 swapAmount, bytes memory swapHookData) = manager.swapCalls(0);
+        assertEq(swapAmount, -int128(uint128(margin)));
+        assertGt(swapHookData.length, 0);
     }
 
     function test_OpenAndClose_5xLeveragePosition_MultiPoolRoute() public {

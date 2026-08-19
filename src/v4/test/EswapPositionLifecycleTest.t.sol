@@ -13,7 +13,7 @@ contract EswapPositionLifecycleTest is BaseV4Test {
 
     function setUp() public override {
         super.setUp();
-        hook.setRouter(address(this));
+        hook.setRouterAndMinCollateralUsd(address(this), 0);
     }
 
     function test_ClosePosition_Full_PnLToTrader() public {

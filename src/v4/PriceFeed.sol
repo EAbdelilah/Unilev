@@ -32,7 +32,11 @@ contract PriceFeed {
     address public sequencerUptimeFeed;
 
     uint256 public constant GRACE_PERIOD_TIME = 3600; // 1 h L2 sequencer grace period
-    uint256 public constant MAX_ORACLE_AGE    = 3600; // 1 h staleness threshold
+    // 24 h staleness threshold. Unichain Mainnet's official Chainlink feeds
+    // update on a many-hour cadence (observed gaps of 2-20 h), so the 1 h
+    // threshold made every read revert StalePrice. 24 h is the minimum window
+    // that keeps getAmountInUsd/getTwapPrice usable on Unichain today.
+    uint256 public constant MAX_ORACLE_AGE    = 86400; // 24 h staleness threshold
 
     error SequencerDown();
     error GracePeriodNotMet();

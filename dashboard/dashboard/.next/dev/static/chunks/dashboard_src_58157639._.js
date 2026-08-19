@@ -6,22 +6,29 @@ __turbopack_context__.s([
     "config",
     ()=>config
 ]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$build$2f$polyfills$2f$process$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = /*#__PURE__*/ __turbopack_context__.i("[project]/dashboard/node_modules/next/dist/build/polyfills/process.js [app-client] (ecmascript)");
 var __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f40$wagmi$2f$core$2f$dist$2f$esm$2f$createConfig$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/dashboard/node_modules/@wagmi/core/dist/esm/createConfig.js [app-client] (ecmascript)");
 var __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$viem$2f$_esm$2f$clients$2f$transports$2f$http$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/dashboard/node_modules/viem/_esm/clients/transports/http.js [app-client] (ecmascript)");
 var __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$viem$2f$_esm$2f$chains$2f$definitions$2f$polygon$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/dashboard/node_modules/viem/_esm/chains/definitions/polygon.js [app-client] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$viem$2f$_esm$2f$chains$2f$definitions$2f$unichain$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/dashboard/node_modules/viem/_esm/chains/definitions/unichain.js [app-client] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$viem$2f$_esm$2f$chains$2f$definitions$2f$unichainSepolia$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/dashboard/node_modules/viem/_esm/chains/definitions/unichainSepolia.js [app-client] (ecmascript)");
 var __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f40$wagmi$2f$core$2f$dist$2f$esm$2f$connectors$2f$injected$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/dashboard/node_modules/@wagmi/core/dist/esm/connectors/injected.js [app-client] (ecmascript)");
 ;
 ;
 ;
 const config = (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f40$wagmi$2f$core$2f$dist$2f$esm$2f$createConfig$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["createConfig"])({
     chains: [
-        __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$viem$2f$_esm$2f$chains$2f$definitions$2f$polygon$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["polygon"]
+        __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$viem$2f$_esm$2f$chains$2f$definitions$2f$polygon$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["polygon"],
+        __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$viem$2f$_esm$2f$chains$2f$definitions$2f$unichain$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["unichain"],
+        __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$viem$2f$_esm$2f$chains$2f$definitions$2f$unichainSepolia$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["unichainSepolia"]
     ],
     connectors: [
         (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f40$wagmi$2f$core$2f$dist$2f$esm$2f$connectors$2f$injected$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["injected"])()
     ],
     transports: {
-        [__TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$viem$2f$_esm$2f$chains$2f$definitions$2f$polygon$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["polygon"].id]: (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$viem$2f$_esm$2f$clients$2f$transports$2f$http$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["http"])("https://polygon-mainnet.g.alchemy.com/v2/oT1vfY4yefQFB7Czqenvb")
+        [__TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$viem$2f$_esm$2f$chains$2f$definitions$2f$polygon$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["polygon"].id]: (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$viem$2f$_esm$2f$clients$2f$transports$2f$http$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["http"])(("TURBOPACK compile-time value", "https://polygon-mainnet.g.alchemy.com/v2/MShMmpJbY-27CEbyan4Ac") || "https://polygon-mainnet.g.alchemy.com/v2/demo"),
+        [__TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$viem$2f$_esm$2f$chains$2f$definitions$2f$unichain$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["unichain"].id]: (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$viem$2f$_esm$2f$clients$2f$transports$2f$http$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["http"])(("TURBOPACK compile-time value", "https://unichain-mainnet.g.alchemy.com/v2/MShMmpJbY-27CEbyan4Ac") || "https://unichain-mainnet.g.alchemy.com/v2/demo"),
+        [__TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$viem$2f$_esm$2f$chains$2f$definitions$2f$unichainSepolia$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["unichainSepolia"].id]: (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$viem$2f$_esm$2f$clients$2f$transports$2f$http$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["http"])(("TURBOPACK compile-time value", "https://sepolia.unichain.org") || "https://sepolia.unichain.org")
     },
     ssr: true
 });

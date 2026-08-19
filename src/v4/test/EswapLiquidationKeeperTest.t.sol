@@ -28,7 +28,7 @@ contract EswapLiquidationKeeperTest is BaseV4Test {
         token1 = new ERC20Mock("Token 1", "TK1");
 
         address hookAddress = address(uint160((1 << 159) | (1 << 158) | (1 << 153) | (1 << 152) | (1 << 148)));
-        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(manager, priceFeed), hookAddress);
+        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(manager, priceFeed, address(this)), hookAddress);
         hook = EswapMarginHook(hookAddress);
 
         router = new EswapRouter(manager);
@@ -42,7 +42,7 @@ contract EswapLiquidationKeeperTest is BaseV4Test {
             hooks: address(hook)
         });
 
-        hook.setRouter(address(router));
+        hook.setRouterAndMinCollateralUsd(address(router), 0);
         hook.setAuthorizedPool(key.toId(), true);
     }
 
@@ -84,7 +84,8 @@ contract EswapLiquidationKeeperTest is BaseV4Test {
         (address trader, uint256 collateral, , , , , , , ) = hook.positions(key.toId(), address(this));
         assertEq(trader, address(0), "position should be liquidated");
         assertEq(collateral, 0);
-        assertTrue(hook.insuranceFund(key.currency0) > 0, "liquidator reward should hit the insurance fund");
+        // [FIX V4] the liquidation reward goes to the keeper, not the insurance fund
+        assertGt(token0.balanceOf(address(keeper)), 0, "liquidator reward should go to the keeper");
     }
 
     function test_Keeper_CheckData_OffChainCandidates() public {

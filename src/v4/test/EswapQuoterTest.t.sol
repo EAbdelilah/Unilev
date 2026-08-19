@@ -10,7 +10,7 @@ contract EswapQuoterTest is BaseV4Test {
     function setUp() public override {
         super.setUp();
         router = new EswapRouter(manager);
-        hook.setRouter(address(router));
+        hook.setRouterAndMinCollateralUsd(address(router), 0);
     }
 
     function test_QuoteMatchesExecution_ZeroDeviation() public view {

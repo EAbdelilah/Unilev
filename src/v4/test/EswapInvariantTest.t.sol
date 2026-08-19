@@ -7,7 +7,7 @@ import {Currency} from "../types/Currency.sol";
 contract EswapInvariantTest is BaseV4Test {
     function setUp() public override {
         super.setUp();
-        hook.setRouter(address(this));
+        hook.setRouterAndMinCollateralUsd(address(this), 0);
     }
 
     // INVARIANT 1: Protocol Solvency Guarantee

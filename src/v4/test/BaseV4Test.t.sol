@@ -53,7 +53,7 @@ contract BaseV4Test is Test {
         token1 = new ERC20Mock("Token 1", "TK1");
 
         address hookAddress = address(uint160((1 << 159) | (1 << 158) | (1 << 153) | (1 << 152) | (1 << 148)));
-        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(manager, priceFeed), hookAddress);
+        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(manager, priceFeed, address(this)), hookAddress);
         hook = EswapMarginHook(hookAddress);
 
         key = PoolKey({
@@ -64,7 +64,7 @@ contract BaseV4Test is Test {
             hooks: address(hook)
         });
 
-        hook.setRouter(address(this));
+        hook.setRouterAndMinCollateralUsd(address(this), 0);
         hook.setAuthorizedPool(key.toId(), true);
     }
 }

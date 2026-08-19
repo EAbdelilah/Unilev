@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {EswapV4CoreProofTest} from "./EswapV4CoreProofTest.t.sol";
+import {EswapMarginHook} from "../EswapMarginHook.sol";
 import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {IPoolManager as RealIPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {PoolId as RealPoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
@@ -98,7 +99,7 @@ contract EswapRealPoolManagerLifecycleTest is EswapV4CoreProofTest {
 
         bytes memory data = abi.encode(true, uint8(5), address(this));
         vm.prank(address(realManager));
-        vm.expectRevert("TWAP: V4 Spot Price manipulated");
+        vm.expectRevert(EswapMarginHook.TwapManipulated.selector);
         realHook.beforeSwap(address(this), localRealKey, IPoolManager.SwapParams(true, -1e18, 0), data);
     }
 

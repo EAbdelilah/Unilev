@@ -51,7 +51,7 @@ contract EswapJITSpotTest is Test {
 
         // Deploy hook at a valid hook address
         address hookAddress = address(uint160((1 << 159) | (1 << 158) | (1 << 153) | (1 << 152) | (1 << 148)));
-        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(manager, priceFeed), hookAddress);
+        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(manager, priceFeed, address(this)), hookAddress);
         hook = EswapMarginHook(hookAddress);
 
         key = PoolKey({
@@ -63,7 +63,7 @@ contract EswapJITSpotTest is Test {
         });
 
         router = new EswapRouter(manager);
-        hook.setRouter(address(router));
+        hook.setRouterAndMinCollateralUsd(address(router), 0);
         hook.setAuthorizedPool(key.toId(), true);
 
         // Fund swapper with token0 (input)

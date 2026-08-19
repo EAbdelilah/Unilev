@@ -35,7 +35,7 @@ contract ReentrancyAttacker {
 contract EswapReentrancyTest is BaseV4Test {
     function setUp() public override {
         super.setUp();
-        hook.setRouter(address(this));
+        hook.setRouterAndMinCollateralUsd(address(this), 0);
         bytes memory data = abi.encode(true, uint8(3), address(this));
         vm.prank(address(manager));
         hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -100 ether, 0), data);

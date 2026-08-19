@@ -51,7 +51,7 @@ contract EswapV4CoreProofTest is BaseV4Test {
     address public realHookAddr;
     RealPoolKey public realKey;
 
-    function setUp() public override {
+    function setUp() public virtual override {
         super.setUp();
 
         // token0 must sort before token1 for the real PoolManager's initialize.
@@ -66,9 +66,9 @@ contract EswapV4CoreProofTest is BaseV4Test {
         // BEFORE_SWAP=1<<7, AFTER_SWAP=1<<6, BEFORE_SWAP_RETURNS_DELTA=1<<3)
         // that the real PoolManager inspects.
         realHookAddr = address(uint160(HIGH_FLAGS | LOW_FLAGS));
-        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(address(realManager), address(priceFeed)), realHookAddr);
+        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(address(realManager), address(priceFeed), address(this)), realHookAddr);
         realHook = EswapMarginHook(realHookAddr);
-        realHook.setRouter(address(this));
+        realHook.setRouterAndMinCollateralUsd(address(this), 0);
         // Note: RealPoolId must be cast to the local mock PoolId type to call the hook's setAuthorizedPool
         realHook.setAuthorizedPool(_localIdFor(realHookAddr), true);
 
