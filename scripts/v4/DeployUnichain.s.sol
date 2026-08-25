@@ -6,6 +6,7 @@ import {console} from "forge-std/console.sol";
 import {PoolManager} from "@uniswap/v4-core/src/PoolManager.sol";
 import {IPoolManager as RealIPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
+import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 import {PoolKey as RealPoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {Currency as RealCurrency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {LPFeeLibrary} from "@uniswap/v4-core/src/libraries/LPFeeLibrary.sol";
@@ -28,7 +29,7 @@ contract DeployUnichain is Script {
 
     address constant WETH = 0x4200000000000000000000000000000000000006;
     address constant USDC = 0x078D782b760474a361dDA0AF3839290b0EF57AD6;
-    address constant WBTC = 0x0555E30da8f98308EdB960aa94C0Db47230d2B9c;
+    address constant WBTC = 0x927B51f251480a681271180DA4de28D44EC4AfB8;
     address constant UNICHAIN_PM = 0x1F98400000000000000000000000000000000004;
 
     // Verified live on Unichain Mainnet via latestRoundData() (Alchemy RPC).
@@ -53,16 +54,19 @@ contract DeployUnichain is Script {
         PoolManager pm = PoolManager(UNICHAIN_PM);
         console.log("Using Unichain PoolManager at:", UNICHAIN_PM);
 
-        // Deploy PriceFeed and configure the verified Unichain feeds
+        // Deploy PriceFeed and configure the verified Unichain feeds.
+        // Feed decimals are read LIVE from each aggregator (CF-2): canonical
+        // USD feeds are 8-dec, Unichain SVR feeds 18-dec — hardcoding either
+        // breaks price normalization on the other chain type.
         PriceFeed priceFeed = new PriceFeed();
         console.log("PriceFeed deployed at:", address(priceFeed));
 
-        priceFeed.setPriceFeed(WETH, ETH_USD_FEED, 18);
+        priceFeed.setPriceFeed(WETH, ETH_USD_FEED, AggregatorV3Interface(ETH_USD_FEED).decimals());
         console.log(string.concat("Configured WETH feed: ", vm.toString(ETH_USD_FEED)));
-        priceFeed.setPriceFeed(USDC, USDC_USD_FEED, 18);
+        priceFeed.setPriceFeed(USDC, USDC_USD_FEED, AggregatorV3Interface(USDC_USD_FEED).decimals());
         console.log(string.concat("Configured USDC feed: ", vm.toString(USDC_USD_FEED)));
         address wbtcUsdFeed = vm.envOr("WBTC_USD_FEED", 0xC13f3E310Dd7436FA24338174acB64254b9A8039);
-        priceFeed.setPriceFeed(WBTC, wbtcUsdFeed, 18);
+        priceFeed.setPriceFeed(WBTC, wbtcUsdFeed, AggregatorV3Interface(wbtcUsdFeed).decimals());
         console.log(string.concat("Configured WBTC feed: ", vm.toString(wbtcUsdFeed)));
         // Chainlink has not published an L2 sequencer uptime feed for Unichain,
         // so the sequencer check stays disabled until one is available.

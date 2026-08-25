@@ -31,7 +31,7 @@ import {PriceFeed} from "../../src/v4/PriceFeed.sol";
 contract SeedUnichainLiquidity is Script {
     address constant WETH = 0x4200000000000000000000000000000000000006;
     address constant USDC = 0x078D782b760474a361dDA0AF3839290b0EF57AD6;
-    address constant WBTC = 0x0555E30da8f98308EdB960aa94C0Db47230d2B9c;
+    address constant WBTC = 0x927B51f251480a681271180DA4de28D44EC4AfB8;
     address constant UNICHAIN_PM = 0x1F98400000000000000000000000000000000004;
 
     // sqrtPriceX96 values DeployUnichain initialized the hook pools at.

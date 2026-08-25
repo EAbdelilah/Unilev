@@ -8,11 +8,13 @@ import { PositionsList } from '@/components/PositionsList';
 import { AdminToggle } from '@/components/AdminToggle';
 import { LiveChart } from '@/components/LiveChart';
 import { useAdmin } from '@/contexts/AdminContext';
+import { useAccount } from 'wagmi';
 import Link from 'next/link';
 import { useState } from 'react';
 
 export default function Home() {
     const { isAdmin } = useAdmin();
+    const { chainId } = useAccount();
     const [activeChartToken, setActiveChartToken] = useState("WETH");
 
     return (
@@ -57,7 +59,11 @@ export default function Home() {
 
                 {/* Left Column (Main Focus): Chart & Positions */}
                 <div className="lg:col-span-2 w-full space-y-6">
-                    <LiveChart tokenKey={activeChartToken} />
+                    <LiveChart
+                        tokenKey={activeChartToken}
+                        chainId={chainId}
+                        onTokenChange={setActiveChartToken}
+                    />
                     <PositionsList />
                 </div>
 

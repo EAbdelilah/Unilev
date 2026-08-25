@@ -23,6 +23,16 @@ interface IEswapHook {
     function setStandardPoolKey(PoolId poolId, PoolKey calldata key) external;
     function clearJITDelta(Currency token, address to, uint256 amount) external;
     function executeArbunDelivery(PoolKey calldata key, address trader) external;
+    function registerMarginOpen(
+        PoolKey calldata key,
+        address trader,
+        uint8 leverage,
+        uint256 marginAmount,
+        uint256 borrowedAmount,
+        Currency boughtCurrency,
+        uint256 boughtAmount
+    ) external;
+    function standardPoolKeys(PoolId poolId) external view returns (Currency, Currency, uint24, int24, address);
 }
 
 /**
@@ -88,7 +98,7 @@ contract EswapRouter is Ownable2Step { // [FIX L-2]
 
     bytes32 public immutable DOMAIN_SEPARATOR;
 
-    enum CallType { SWAP, CLOSE, LIQUIDATE, REBALANCE, ATOMIC_MARGIN, JIT_SPOT, ARBUN_DELIVERY }
+    enum CallType { SWAP, CLOSE, LIQUIDATE, REBALANCE, ATOMIC_MARGIN, JIT_SPOT, ARBUN_DELIVERY, MULTI_POOL_SWAP }
 
     struct AtomicMarginParams {
         PoolKey key;
@@ -139,7 +149,37 @@ contract EswapRouter is Ownable2Step { // [FIX L-2]
     }
 
     function swap(SwapParams calldata params) external returns (bytes memory) {
-        return manager.unlock(abi.encode(CallType.SWAP, params, msg.sender));
+        return _swap(params, msg.sender);
+    }
+
+    /// @notice Open a leveraged position on behalf of `trader`.
+    /// For bridge/intent executors (Socket/Li.Fi/Rubic destination calldata):
+    /// the executor relays the call but the position and margin belong to
+    /// `trader`, who must have approved this router to pull the margin.
+    function swapFor(SwapParams calldata params, address trader) external returns (bytes memory) {
+        return _swap(params, trader);
+    }
+
+    function _swap(SwapParams calldata params, address trader) internal returns (bytes memory) {
+        return manager.unlock(abi.encode(CallType.SWAP, params, trader));
+    }
+
+    /// @notice Open a leveraged position with the physical fill routed to the
+    /// DEEP standard (no-hook) pool; the hook pool is used for accounting only.
+    /// Restores the V3-era execution model: fills come from Uniswap's existing
+    /// liquidity, not from our own seeded hook pool. `params.standardPoolKey`
+    /// must hold the SAME token pair as `params.key`.
+    function swapMultiPool(SwapParams calldata params) external returns (bytes memory) {
+        return _swapMultiPool(params, msg.sender);
+    }
+
+    /// @notice Executor variant of swapMultiPool for bridge/intent relays.
+    function swapMultiPoolFor(SwapParams calldata params, address trader) external returns (bytes memory) {
+        return _swapMultiPool(params, trader);
+    }
+
+    function _swapMultiPool(SwapParams calldata params, address trader) internal returns (bytes memory) {
+        return manager.unlock(abi.encode(CallType.MULTI_POOL_SWAP, params, trader));
     }
 
     function executeJITSpotSwap(JITSpotParams calldata params) external returns (bytes memory) {
@@ -220,7 +260,9 @@ contract EswapRouter is Ownable2Step { // [FIX L-2]
             hookData: hookData
         });
 
-        manager.unlock(abi.encode(CallType.SWAP, params, swapper));
+        // Aggregator intents fill on the DEEP standard pool (multi-pool mode):
+        // execution depth comes from Uniswap's existing liquidity.
+        manager.unlock(abi.encode(CallType.MULTI_POOL_SWAP, params, swapper));
     }
 
     /**
@@ -275,6 +317,9 @@ contract EswapRouter is Ownable2Step { // [FIX L-2]
         if (callType == CallType.SWAP) {
             (, SwapParams memory params, address trader) = abi.decode(data, (CallType, SwapParams, address));
             return _swapCallback(params, trader);
+        } else if (callType == CallType.MULTI_POOL_SWAP) {
+            (, SwapParams memory params, address trader) = abi.decode(data, (CallType, SwapParams, address));
+            return _multiPoolSwapCallback(params, trader);
         } else if (callType == CallType.CLOSE) {
             (, address hook, PoolKey memory key, address trader, address solver, uint256 minAmountOut) = abi.decode(data, (CallType, address, PoolKey, address, address, uint256));
             _closeCallback(hook, key, trader, solver, minAmountOut);
@@ -471,6 +516,85 @@ contract EswapRouter is Ownable2Step { // [FIX L-2]
     }
 
     /**
+     * @notice Multi-pool unlock callback: the physical fill happens on the DEEP
+     *         standard pool; the hook pool is used for accounting only (position
+     *         registration + ERC-6909 collateral custody). Mirrors the V3-era
+     *         execution model where fills come from Uniswap's existing liquidity.
+     * @dev Delta ledger inside this unlock (router perspective):
+     *        standard swap:  -notional(input), +outStd(output)
+     *        settle margin:  -margin netted          (transferFrom trader)
+     *        settle borrow:  -borrow netted          (transferFrom solver)
+     *        mint claim:     -outStd netted          (6909 to hook)
+     *      All deltas zero before unlock exits — the failure mode of the former
+     *      multi-pool branch ([FIX V2] in _swapCallback) cannot recur because
+     *      BOTH input legs are funded and the FULL output is minted as a claim.
+     */
+    function _multiPoolSwapCallback(SwapParams memory params, address trader) internal returns (bytes memory) {
+        uint256 marginAmount = uint256(int256(params.amountSpecified < 0 ? -params.amountSpecified : params.amountSpecified));
+        uint256 borrowAmount = marginAmount * uint256(params.leverage - 1);
+        if (params.leverage > 1) {
+            require(params.solver != address(0), "Solver required for leverage");
+        }
+
+        // The deep-fill venue must trade the exact same token pair as the hook pool.
+        require(
+            Currency.unwrap(params.standardPoolKey.currency0) == Currency.unwrap(params.key.currency0) &&
+                Currency.unwrap(params.standardPoolKey.currency1) == Currency.unwrap(params.key.currency1),
+            "Standard pool currency mismatch"
+        );
+
+        Currency input = params.zeroForOne ? params.key.currency0 : params.key.currency1;
+        Currency output = params.zeroForOne ? params.key.currency1 : params.key.currency0;
+        uint256 notional = marginAmount + borrowAmount;
+
+        // 1. Physical fill on the standard pool for margin + borrow.
+        BalanceDelta stdDelta = manager.swap(
+            params.standardPoolKey,
+            IPoolManager.SwapParams(params.zeroForOne, -int256(notional), EswapMarginLib.sqrtPriceLimit(params.zeroForOne)),
+            ""
+        );
+        int128 outputDelta = params.zeroForOne ? stdDelta.amount1() : stdDelta.amount0();
+        require(outputDelta > 0, "Swap output zero");
+        uint256 outputAmount = uint256(int256(outputDelta));
+
+        // 2. Fund both input legs against the router's transient deltas.
+        if (marginAmount > 0) {
+            manager.sync(input);
+            IERC20(Currency.unwrap(input)).transferFrom(trader, address(manager), marginAmount);
+            manager.settle();
+        }
+        if (borrowAmount > 0) {
+            manager.sync(input);
+            IERC20(Currency.unwrap(input)).transferFrom(params.solver, address(manager), borrowAmount);
+            manager.settle();
+        }
+
+        // 3. Hook validates the open (leverage/collateral/OI caps/TWAP breaker)
+        //    and records position accounting — no AMM fill involved.
+        IEswapHook(params.key.hooks).registerMarginOpen(
+            params.key, trader, params.leverage, marginAmount, borrowAmount, output, outputAmount
+        );
+
+        // 4. Collateral custody: full output minted as an ERC-6909 claim held by
+        //    the hook (mirrors single-pool mode, including the protocol-fee share).
+        manager.mint(address(params.key.hooks), uint256(uint160(Currency.unwrap(output))), outputAmount);
+
+        // 5. Register the solver debt guaranteeing repayment before withdrawal.
+        if (borrowAmount > 0) {
+            IEswapHook(params.key.hooks).registerSolverDebt(params.key.toId(), trader, params.solver, borrowAmount);
+        }
+
+        if (params.hookData.length > 0) {
+            (bool isMargin, , ) = abi.decode(params.hookData, (bool, uint8, address));
+            if (isMargin) {
+                try IEswapHook(params.key.hooks).deployCollateral(params.key, trader) {} catch {}
+            }
+        }
+
+        return abi.encode(stdDelta);
+    }
+
+    /**
      * @notice Permissionless liquidation entrypoint for keepers.
      * @dev Anyone may trigger the liquidation of an underwater position. The hook
      *      validates the position is actually liquidatable and enforces slippage
@@ -508,7 +632,9 @@ contract EswapRouter is Ownable2Step { // [FIX L-2]
 
     /**
      * @notice Quoter-to-execution parity view helper for ODOS/Enso aggregators.
-     * @dev Spot-depth approximation based on the real on-chain slot0 price.
+     * @dev Spot-depth approximation based on the real on-chain slot0 price of the
+     *      EXECUTION venue: the deep standard pool when one is registered for this
+     *      pair (multi-pool mode), else the hook pool itself.
      */
     function quoteExactInput(
         PoolKey calldata key,
@@ -520,8 +646,17 @@ contract EswapRouter is Ownable2Step { // [FIX L-2]
         int128 absAmount = amountSpecified < 0 ? -amountSpecified : amountSpecified;
         uint128 leveragedAmount = uint128(absAmount) * uint128(leverage);
 
-        // Fetch slot0 price of the pool
-        (uint160 sqrtPriceX96, , , ) = StateLibrary.getSlot0(RealIPoolManager(address(manager)), RealPoolId.wrap(PoolId.unwrap(key.toId())));
+        // Prefer the standard (deep-fill) pool's price: in multi-pool mode that is
+        // where the physical swap executes, so quoting it keeps parity.
+        PoolKey memory execKey = key;
+        try IEswapHook(key.hooks).standardPoolKeys(key.toId()) returns (Currency sc0, Currency sc1, uint24 sf, int24 sts, address sh) {
+            if (Currency.unwrap(sc0) != address(0)) {
+                execKey = PoolKey({currency0: sc0, currency1: sc1, fee: sf, tickSpacing: sts, hooks: sh});
+            }
+        } catch {}
+
+        // Fetch slot0 price of the execution pool
+        (uint160 sqrtPriceX96, , , ) = StateLibrary.getSlot0(RealIPoolManager(address(manager)), RealPoolId.wrap(PoolId.unwrap(execKey.toId())));
         if (sqrtPriceX96 == 0) {
             // Fallback to 1:1 if uninitialized or custom mock
             return int128(uint128(leveragedAmount));

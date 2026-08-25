@@ -34,8 +34,10 @@ contract EswapHardenedTest is BaseV4Test {
 
         (,,,,,, int24 tickLower, int24 tickUpper, uint128 liquidity) = hook.positions(key.toId(), address(this));
         assertTrue(liquidity > 0);
-        assertEq(tickLower, -60);
-        assertEq(tickUpper, 60);
+        // Single-sided band BELOW price holding token1 (SHORT collateral):
+        // tick grid at 0 with spacing 60 -> [0 - 10*60, 0].
+        assertEq(tickLower, -600);
+        assertEq(tickUpper, 0);
     }
 
     function test_ERC6909_Transfer_Success() public {

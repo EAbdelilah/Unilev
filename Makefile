@@ -50,3 +50,6 @@ deploy-unichain :; @forge script scripts/v4/DeployUnichain.s.sol:DeployUnichain 
 # Deploy V4 protocol to Unichain Sepolia testnet
 deploy-unichain-sepolia :; @forge script scripts/v4/DeployUnichainSepolia.s.sol:DeployUnichainSepolia --via-ir --rpc-url ${UNICHAIN_SEPOLIA_RPC_URL} --private-key ${PRIVATE_KEY} --broadcast --slow
 
+# Add a NEW trading pair to the LIVE V4 protocol (no redeploy; env-driven, see script header)
+add-pair :; @forge script scripts/v4/AddPair.s.sol:AddPair --via-ir --rpc-url ${UNICHAIN_RPC_URL} --private-key ${PRIVATE_KEY} --broadcast --slow
+

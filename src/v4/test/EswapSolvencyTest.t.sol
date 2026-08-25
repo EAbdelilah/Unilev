@@ -92,7 +92,7 @@ contract EswapSolvencyTest is BaseV4Test {
         // SHORT liquidation: zeroForOne=false → sell currency1 (collateral) → receive currency0 (debt)
         // New directional mock: amount0=+5 ether (received), amount1=-5 ether (sold)
         // receivedAmount comes from amount0 (positive) = 5 ether
-        // [FIX V4] liquidatorReward = (received - borrow) * 3% = 1 * 3% = 0.03 → goes to the LIQUIDATOR
+        // Surplus after repaying the 4 ether borrow = 1 ether → 3% = 0.03 to insurance
         token0.mint(address(hook), 10 ether);
         token1.mint(address(hook), 10 ether);
         // Override with explicit directional delta: selling token1, receiving token0
@@ -103,15 +103,16 @@ contract EswapSolvencyTest is BaseV4Test {
         uint256 claimId = uint256(uint160(address(token1)));
         assertTrue(hook._claimBalances(address(this), claimId) > 0, "claim should be populated before liquidation");
 
-        uint256 liquidatorBalBefore = token0.balanceOf(address(this));
+        uint256 traderBalBefore = token0.balanceOf(address(this));
         hook.executeLiquidation(key, address(this), 0, address(this));
 
         (address trader, uint256 collateral,,,,,,,) = hook.positions(key.toId(), address(this));
         assertEq(trader, address(0));
         assertEq(collateral, 0);
-        // [FIX V4] the liquidation reward goes to the LIQUIDATOR, not the insurance fund
-        assertGt(token0.balanceOf(address(this)) - liquidatorBalBefore, 0, "liquidator must receive the reward");
-        assertEq(hook.insuranceFund(key.currency0), 0, "reward no longer routed to the insurance fund");
+        // Nobody profits from a penalty: the liquidator earns 0; the trader receives
+        // the surplus minus the insurance carve-out (1 - 0.03 = 0.97 ether).
+        assertEq(token0.balanceOf(address(this)) - traderBalBefore, 0.97 ether, "trader receives surplus minus carve-out");
+        assertEq(hook.insuranceFund(key.currency0), 0.03 ether, "reward routed to the insurance fund");
 
         // No phantom ERC-6909 claim or collateral aggregate should remain after liquidation
         assertEq(hook._claimBalances(address(this), claimId), 0, "claim balance not cleared on liquidation");

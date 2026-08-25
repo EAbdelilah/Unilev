@@ -149,19 +149,10 @@ contract EswapERC7683Test is BaseV4Test {
         // 10 ether margin + 40 ether borrow = 50 ether swapped. Let's return 48 ether of token1
         manager.setNextSwapDelta(-50 ether, 48 ether);
 
-        // Prime the hook beforeSwap / afterSwap simulation (mock does not automatically route to hook)
-        bytes memory hookData = abi.encode(true, uint8(5), trader);
-        vm.prank(address(manager));
-        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -10 ether, 0), hookData);
-
-        vm.prank(address(manager));
-        hook.afterSwap(
-            address(this),
-            key,
-            IPoolManager.SwapParams(true, -50 ether, 0),
-            BalanceDeltaLibrary.toBalanceDelta(-50 ether, 48 ether),
-            hookData
-        );
+        // NOTE: initiate() now routes through MULTI_POOL_SWAP, whose callback
+        // registers the position via hook.registerMarginOpen() directly — no
+        // manual beforeSwap/afterSwap priming needed (or allowed: the position
+        // must not pre-exist).
 
         // 2. Solver initiates the order permissionlessly
         vm.prank(solver);

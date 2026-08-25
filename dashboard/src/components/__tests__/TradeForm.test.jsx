@@ -97,4 +97,39 @@ describe("TradeForm", () => {
         })
         expect(await screen.findByText(/LeverageTooHigh/)).toBeInTheDocument()
     })
+
+    it("allows switching the V4 trading asset between WETH and WBTC", async () => {
+        useDeFi.mockReturnValue({
+            openV4Position: mockOpenV4,
+            simulateV4Position: jest.fn().mockResolvedValue({ success: true }),
+            getTokenBalance: mockGetBal,
+            getAmountInUsd: mockGetUsd,
+            getAllowance: mockGetAllow,
+            approveToken: mockApprove,
+            isMetaMaskInstalled: true,
+            ADDRESSES: {
+                USDC: "0xUSDC",
+                WETH: "0xWETH",
+                WBTC: "0xWBTC",
+                V4_ROUTER: "0xRouter",
+            },
+            SUPPORTED_TOKENS_LIST: [
+                { key: "WETH", name: "WETH", address: "0xWETH" },
+                { key: "USDC", name: "USDC", address: "0xUSDC" },
+                { key: "WBTC", name: "WBTC", address: "0xWBTC" },
+            ],
+        })
+        await act(async () => render(<TradeForm />))
+        const [marginSel, tradingSel] = screen.getAllByRole("combobox")
+
+        expect([...tradingSel.options].map((o) => o.value)).toEqual(["WETH", "WBTC"])
+        expect([...marginSel.options].map((o) => o.value)).toEqual(["USDC", "WETH"])
+
+        await act(async () => userEvent.selectOptions(tradingSel, "WBTC"))
+        expect(tradingSel.value).toBe("WBTC")
+
+        // Margin options follow the selected pair + LONG defaults to USDC.
+        expect([...marginSel.options].map((o) => o.value)).toEqual(["USDC", "WBTC"])
+        expect(marginSel.value).toBe("USDC")
+    })
 })

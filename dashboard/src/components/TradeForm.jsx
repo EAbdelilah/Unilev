@@ -64,7 +64,12 @@ export function TradeForm({ onTradingTokenChange }) {
                 const marginAddr = ADDRESSES[marginToken]
                 const amountBig = ethers.parseUnits(amount.toString(), balanceData.decimals)
                 const usdBig = await getAmountInUsd(marginAddr, amountBig)
-                setUsdValue(parseFloat(ethers.formatUnits(usdBig, 18)).toFixed(2))
+                // V4 PriceFeed returns USD scaled by the token's own decimals
+                // (getAmountInUsd = amount * price18 / 1e18); the V3 L1 feed
+                // normalises to 18 decimals instead.
+                setUsdValue(
+                    parseFloat(ethers.formatUnits(usdBig, isV4 ? balanceData.decimals : 18)).toFixed(2)
+                )
             } catch (err) {
                 console.error("Error fetching USD value:", err)
             }
@@ -102,16 +107,27 @@ export function TradeForm({ onTradingTokenChange }) {
     useEffect(() => {
         // Setup initial default selected tokens if not set properly (e.g if 'USDC/WBTC' don't exist in config)
         if (SUPPORTED_TOKENS_LIST.length > 0) {
-            if (!SUPPORTED_TOKENS_LIST.find((t) => t.key === marginToken)) {
+            // On V4 the trading asset must be a pool base token (WETH/WBTC), never USDC.
+            const validTrading = isV4
+                ? SUPPORTED_TOKENS_LIST.filter((t) => t.key !== "USDC")
+                : SUPPORTED_TOKENS_LIST
+            const isValidMargin = SUPPORTED_TOKENS_LIST.find((t) => t.key === marginToken)
+            const isValidTrading =
+                validTrading.length > 0 && validTrading.find((t) => t.key === tradingToken)
+
+            if (!isValidMargin && !isV4) {
                 setMarginToken(SUPPORTED_TOKENS_LIST[0].key)
             }
-            if (!SUPPORTED_TOKENS_LIST.find((t) => t.key === tradingToken)) {
-                const initialAsset = SUPPORTED_TOKENS_LIST[Math.min(1, SUPPORTED_TOKENS_LIST.length - 1)].key;
-                setTradingToken(initialAsset)
-                if (onTradingTokenChange) onTradingTokenChange(initialAsset);
+            if (!isValidTrading) {
+                const initialAsset = validTrading[Math.min(1, validTrading.length - 1)]?.key
+                if (initialAsset) {
+                    setTradingToken(initialAsset)
+                    if (onTradingTokenChange) onTradingTokenChange(initialAsset)
+                }
             }
         }
     }, [
+        isV4,
         isConnected,
         isCorrectNetwork,
         marginToken,
@@ -121,14 +137,13 @@ export function TradeForm({ onTradingTokenChange }) {
         SUPPORTED_TOKENS_LIST,
     ])
 
-    // V4 only trades the WETH/USDC pair; the margin token is set by direction
-    // (LONG supplies USDC, SHORT supplies WETH) and the asset is always WETH.
+    // V4 trades the authorized hook pools (WETH → USDC/WETH, WBTC → WBTC/USDC).
+    // The margin (input) currency is fully determined by direction + pair:
+    // LONG sells the USDC quote, SHORT sells the base token (WETH or WBTC).
     useEffect(() => {
         if (!isV4) return
-        setMarginToken(isShort ? "WETH" : "USDC")
-        setTradingToken("WETH")
-        if (onTradingTokenChange) onTradingTokenChange("WETH")
-    }, [isV4, isShort, onTradingTokenChange])
+        setMarginToken(isShort ? tradingToken : "USDC")
+    }, [isV4, isShort, tradingToken])
 
     // Calculate required borrow when amount/leverage changes using contract logic
     useEffect(() => {
@@ -273,14 +288,21 @@ export function TradeForm({ onTradingTokenChange }) {
                 throw new Error("Maximum allowed leverage is 5x.")
             }
 
-            // Validation 2: Minimum USD amount ($1)
+            // Validation 2: Minimum USD size.
+            // V4 feed scale = token decimals (USDC → 1e6 per $, WETH → 1e18);
+            // the deployed hook enforces a ~$0.10 collateral floor, so V4 uses
+            // $0.10. Polygon V3 uses the 18-decimal feed + classic $1 rule.
+            const minUsdScale = isV4
+                ? (10n ** BigInt(balanceData.decimals)) / 10n
+                : 10n ** 18n
             // Only enforce when price feed returns a valid value —
             // if getAmountInUsd returns 0n due to a feed error, skip this check
             // and let the contract validate instead.
             const usdBig = await getAmountInUsd(marginAddr, amountBig)
-            if (usdBig > 0n && usdBig < 1000000000000000000n) {
-                // 1e18
-                throw new Error("Minimum position size is $1 USD.")
+            if (usdBig > 0n && usdBig < minUsdScale) {
+                throw new Error(
+                    isV4 ? "Minimum position size is $0.10 USD." : "Minimum position size is $1 USD."
+                )
             }
 
             if (isShort && isHalalArbunMode) {
@@ -302,8 +324,8 @@ export function TradeForm({ onTradingTokenChange }) {
                 let tx
                 if (isV4) {
                     // V4: amount is the margin (input) token supplied by the trader —
-                    // USDC for a LONG, WETH for a SHORT.
-                    tx = await openV4Position(isShort, amountBig, parseInt(leverage))
+                    // USDC for a LONG, the base token (WETH/WBTC) for a SHORT.
+                    tx = await openV4Position(isShort, amountBig, parseInt(leverage), tradingToken)
                 } else {
                     tx = await openPosition(
                         marginAddr,
@@ -377,7 +399,7 @@ export function TradeForm({ onTradingTokenChange }) {
                 setSimulating(false)
                 return
             } else if (isV4) {
-                result = await simulateV4Position(isShort, amountBig, parseInt(leverage))
+                result = await simulateV4Position(isShort, amountBig, parseInt(leverage), tradingToken)
             } else {
                 result = await simulateOpenPosition(
                     marginAddr,
@@ -513,15 +535,31 @@ export function TradeForm({ onTradingTokenChange }) {
                         </label>
                         <select
                             value={marginToken}
-                            onChange={(e) => setMarginToken(e.target.value)}
-                            disabled={isV4}
+                            onChange={(e) => {
+                                const val = e.target.value
+                                setMarginToken(val)
+                                // On V4 the margin currency drives direction:
+                                // USDC margin = LONG, base-token margin = SHORT.
+                                if (isV4) setIsShort(val !== "USDC")
+                            }}
                             className="input-field bg-black/40"
                         >
-                            {SUPPORTED_TOKENS_LIST.map((t) => (
-                                <option key={t.key} value={t.key}>
-                                    {t.name}
-                                </option>
-                            ))}
+                            {isV4
+                                ? [
+                                      { key: "USDC", name: "USDC" },
+                                      ...(tradingToken !== "USDC"
+                                          ? [{ key: tradingToken, name: tradingToken }]
+                                          : []),
+                                  ].map((t) => (
+                                      <option key={t.key} value={t.key}>
+                                          {t.name}
+                                      </option>
+                                  ))
+                                : SUPPORTED_TOKENS_LIST.map((t) => (
+                                      <option key={t.key} value={t.key}>
+                                          {t.name}
+                                      </option>
+                                  ))}
                         </select>
                     </div>
                     <div>
@@ -534,10 +572,12 @@ export function TradeForm({ onTradingTokenChange }) {
                                 setTradingToken(e.target.value);
                                 if (onTradingTokenChange) onTradingTokenChange(e.target.value);
                             }}
-                            disabled={isV4}
                             className="input-field bg-black/40"
                         >
-                            {SUPPORTED_TOKENS_LIST.map((t) => (
+                            {(isV4
+                                ? SUPPORTED_TOKENS_LIST.filter((t) => t.key !== "USDC")
+                                : SUPPORTED_TOKENS_LIST
+                            ).map((t) => (
                                 <option key={t.key} value={t.key}>
                                     {t.name}
                                 </option>

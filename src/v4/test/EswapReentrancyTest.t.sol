@@ -46,6 +46,8 @@ contract EswapReentrancyTest is BaseV4Test {
         // trader (the mock's take() is a no-op, so the recovered tokens never reach the hook).
         // The position opened with zeroForOne=true is a SHORT, so the debt currency is currency0.
         token0.mint(address(hook), 300 ether);
+        // Collateral-currency (token1) leg of the unwind swap: 290 * 9950 / 10000.
+        token1.mint(address(hook), 288.55 ether);
     }
 
     function test_NonReentrant_ClosePosition() public {

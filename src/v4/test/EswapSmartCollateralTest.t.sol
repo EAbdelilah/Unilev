@@ -44,14 +44,15 @@ contract EswapSmartCollateralTest is BaseV4Test {
         assertEq(borrow, 400 ether); // 100 * (5-1)
         assertEq(lev, 5);
         assertFalse(isLong);
-        assertEq(tickLower, -60);
-        assertEq(tickUpper, 60);
+        // Single-sided band below price holding token1 (SHORT collateral).
+        assertEq(tickLower, -600);
+        assertEq(tickUpper, 0);
         assertTrue(liquidity > 0);
 
         // Verify manager call
         (,int24 callTickLower, int24 callTickUpper, int128 callLiquidityDelta) = manager.modifyLiquidityCalls(0);
-        assertEq(callTickLower, -60);
-        assertEq(callTickUpper, 60);
+        assertEq(callTickLower, -600);
+        assertEq(callTickUpper, 0);
         assertTrue(callLiquidityDelta > 0);
     }
 
@@ -99,13 +100,17 @@ contract EswapSmartCollateralTest is BaseV4Test {
         uint256 takeBefore = manager.takeCount();
         uint256 settleBefore = manager.settleCount();
         token0.mint(address(hook), 500 ether); // Mint enough tokens to cover both solver payout and netting
-        token1.mint(address(hook), 100 ether);
+        // The close's unwind swap leaves a transient debt in the COLLATERAL
+        // currency (token1). Claims from the removal take cover 100 ether;
+        // the remainder must be physically available for the settle fallback.
+        token1.mint(address(hook), 500 ether);
         hook.closePosition(key, address(this), address(0), 0);
 
         // 3 takes: 2 from the positive liquidity-delta netting + 1 unwind-swap take.
-        // 1 settle: the explicit debt repayment (no negative liquidity delta to settle).
+        // 1 settle: the collateral-leg fallback (partial claims) covers the old
+        // explicit debt-repayment settle.
         assertEq(manager.takeCount(), takeBefore + 3, "2 liquidity-delta takes + 1 unwind-swap take");
-        assertEq(manager.settleCount(), settleBefore + 1, "only the debt repayment settle");
+        assertEq(manager.settleCount(), settleBefore + 1, "collateral-leg fallback settle");
     }
 
     function test_RehypothecationYield_PaidToSolverOnClose() public {
@@ -191,6 +196,9 @@ contract EswapSmartCollateralTest is BaseV4Test {
         manager.setNextModifyLiquidityDelta(int128(300 ether), 0);
         // Fund the hook for the unwind-swap payout (mock take() is a no-op).
         token0.mint(address(hook), 500 ether);
+        // The unwind swap's transient COLLATERAL-currency (token1) debt: no PM
+        // claims exist in direct-call mode, so physical tokens must cover it.
+        token1.mint(address(hook), 477.6 ether);
 
         uint256 solverToken0Before = token0.balanceOf(solver);
         uint256 solverToken1Before = token1.balanceOf(solver);

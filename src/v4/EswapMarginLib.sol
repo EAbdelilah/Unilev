@@ -18,7 +18,6 @@ interface IPriceFeedLib {
  *         bytecode size below the EIP-170 24,576-byte deployment limit.
  */
 library EswapMarginLib {
-
     error TwapNotConfigured();
     error TwapManipulated();
 
@@ -43,11 +42,11 @@ library EswapMarginLib {
         return reduction < 12000 ? 12000 - reduction : 10000;
     }
 
-    function isLiquidatable(
-        uint256 collateralValueUsd,
-        uint256 borrowedValueUsd,
-        uint8 leverage
-    ) public pure returns (bool) {
+    function isLiquidatable(uint256 collateralValueUsd, uint256 borrowedValueUsd, uint8 leverage)
+        public
+        pure
+        returns (bool)
+    {
         if (collateralValueUsd == 0 && borrowedValueUsd == 0) return false;
         uint256 threshold = liquidationThresholdBps(leverage);
         return collateralValueUsd * 10000 < borrowedValueUsd * threshold;
@@ -72,15 +71,13 @@ library EswapMarginLib {
             return;
         }
 
+        // Oracle convention: getTwapPrice returns USD_18dec per WHOLE token
+        // (getAmountInUsd normalizes RAW amounts by the token's decimals).
         uint256 twapRatio18 = (twap0 * 1e18) / twap1;
 
         if (sqrtPriceX96 == 0) return;
 
-        uint256 spotRatio18 = FullMath.mulDiv(
-            uint256(sqrtPriceX96) * 1e18,
-            uint256(sqrtPriceX96),
-            1 << 192
-        );
+        uint256 spotRatio18 = FullMath.mulDiv(uint256(sqrtPriceX96) * 1e18, uint256(sqrtPriceX96), 1 << 192);
         if (spotRatio18 == 0) revert TwapManipulated();
 
         uint8 d0 = decimals0 == 0 ? 18 : decimals0;
@@ -136,13 +133,11 @@ library EswapMarginLib {
         return a >= b ? a - b : 0;
     }
 
-    function computeLiquidity(
-        uint160 sqrtPriceX96,
-        int24 tickLower,
-        int24 tickUpper,
-        uint256 amount,
-        bool useAmount0
-    ) public pure returns (uint128) {
+    function computeLiquidity(uint160 sqrtPriceX96, int24 tickLower, int24 tickUpper, uint256 amount, bool useAmount0)
+        public
+        pure
+        returns (uint128)
+    {
         return LiquidityAmounts.getLiquidityForAmount(
             sqrtPriceX96,
             TickMath.getSqrtRatioAtTick(tickLower),

@@ -1,7 +1,7 @@
 (globalThis.TURBOPACK || (globalThis.TURBOPACK = [])).push([typeof document === "object" ? document.currentScript : undefined,
 "[project]/dashboard/src/config/supported_tokens.json (json)", ((__turbopack_context__) => {
 
-__turbopack_context__.v({"137":{"WBTC":"0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6","WETH":"0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619","USDC":"0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359","DAI":"0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063","WPOL":"0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270","wrapper":"0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270"},"130":{"WBTC":"0x0555e30da8f98308edb960aa94c0db47230d2b9c","WETH":"0x4200000000000000000000000000000000000006","USDC":"0x078D782b760474a361dDA0AF3839290b0EF57AD6"},"1301":{"WBTC":"0x0555e30da8f98308edb960aa94c0db47230d2b9c","WETH":"0x4200000000000000000000000000000000000006","USDC":"0x31d0220469e10c4e71834a79b1f276d740d3768f"}});}),
+__turbopack_context__.v({"137":{"WBTC":"0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6","WETH":"0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619","USDC":"0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359","DAI":"0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063","WPOL":"0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270","wrapper":"0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270"},"130":{"WBTC":"0x927B51f251480a681271180DA4de28D44EC4AfB8","WETH":"0x4200000000000000000000000000000000000006","USDC":"0x078D782b760474a361dDA0AF3839290b0EF57AD6"},"1301":{"WBTC":"0x0555e30da8f98308edb960aa94c0db47230d2b9c","WETH":"0x4200000000000000000000000000000000000006","USDC":"0x31d0220469e10c4e71834a79b1f276d740d3768f"}});}),
 "[project]/dashboard/src/hooks/useReadProvider.js [app-client] (ecmascript)", ((__turbopack_context__) => {
 "use strict";
 
@@ -19,7 +19,7 @@ function useReadProvider() {
     _s();
     return (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useMemo"])({
         "useReadProvider.useMemo": ()=>{
-            const rpcUrl = ("TURBOPACK compile-time value", "https://unichain-mainnet.g.alchemy.com/v2/MShMmpJbY-27CEbyan4Ac") || ("TURBOPACK compile-time value", "https://polygon-mainnet.g.alchemy.com/v2/MShMmpJbY-27CEbyan4Ac");
+            const rpcUrl = ("TURBOPACK compile-time value", "https://unichain-mainnet.g.alchemy.com/v2/oT1vfY4yefQFB7Czqenvb") || ("TURBOPACK compile-time value", "https://polygon-mainnet.g.alchemy.com/v2/MShMmpJbY-27CEbyan4Ac");
             if ("TURBOPACK compile-time falsy", 0) //TURBOPACK unreachable
             ;
             return new __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$ethers$2f$lib$2e$esm$2f$ethers$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__$2a$__as__ethers$3e$__["ethers"].JsonRpcProvider(rpcUrl);
@@ -59,7 +59,7 @@ var _s = __turbopack_context__.k.signature();
 ;
 const FALLBACK_CHAIN = "1301";
 const POOL_FEE = 3000;
-const STANDARD_POOL_FEE = 500; // 0.05% — deepest WETH/USDC pool on Unichain Mainnet
+const STANDARD_POOL_FEE = 500; // 0.05% — deepest standard (no-hook) pool for the pair on Unichain
 const TICK_SPACING = 60;
 function sortCurrencies(c0, c1) {
     return c0.toLowerCase() < c1.toLowerCase() ? [
@@ -69,6 +69,27 @@ function sortCurrencies(c0, c1) {
         c1,
         c0
     ];
+}
+const TOKEN_DECIMALS = {
+    WBTC: 8,
+    WETH: 18,
+    USDC: 6
+};
+function poolIdFor(base, quote, hookAddress) {
+    const [c0, c1] = sortCurrencies(base, quote);
+    return __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$ethers$2f$lib$2e$esm$2f$ethers$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__$2a$__as__ethers$3e$__["ethers"].keccak256(__TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$ethers$2f$lib$2e$esm$2f$ethers$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__$2a$__as__ethers$3e$__["ethers"].AbiCoder.defaultAbiCoder().encode([
+        "address",
+        "address",
+        "uint24",
+        "int24",
+        "address"
+    ], [
+        c0,
+        c1,
+        POOL_FEE,
+        TICK_SPACING,
+        hookAddress
+    ]));
 }
 function useV4Position() {
     _s();
@@ -83,32 +104,54 @@ function useV4Position() {
     ]);
     const WETH_ADDR = tokens.WETH || "0x4200000000000000000000000000000000000006";
     const USDC_ADDR = tokens.USDC || "0x078D782b760474a361dDA0AF3839290b0EF57AD6";
+    const WBTC_ADDR = tokens.WBTC || "0x927B51f251480a681271180DA4de28D44EC4AfB8";
     const ADDRESSES = {
-        V4_ROUTER: __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$build$2f$polyfills$2f$process$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"].env.NEXT_PUBLIC_V4_ROUTER_ADDRESS || "",
-        V4_HOOK: __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$build$2f$polyfills$2f$process$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"].env.NEXT_PUBLIC_V4_HOOK_ADDRESS || "",
-        V4_PRICEFEED: __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$build$2f$polyfills$2f$process$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"].env.NEXT_PUBLIC_V4_PRICEFEED_ADDRESS || ("TURBOPACK compile-time value", "0x015c3722683b54fff1491a92bfd9c72ca3c84cc4") || ""
+        V4_ROUTER: ("TURBOPACK compile-time value", "0x508fd750a750b00e30e6f620805574d9b7fda05d") || "",
+        V4_HOOK: ("TURBOPACK compile-time value", "0x6337fca822066240064daff387e61653aeec90c8") || "",
+        V4_SOLVER: ("TURBOPACK compile-time value", "0x0f8BEC665E1eEbf0433FEDA67181B06E10710614") || "",
+        V4_PRICEFEED: ("TURBOPACK compile-time value", "0x256364f4a65def8c41c0d2b05166ae814a601f1d") || ("TURBOPACK compile-time value", "0x015c3722683b54fff1491a92bfd9c72ca3c84cc4") || ""
     };
-    const SUPPORTED_TOKENS_LIST = (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useMemo"])({
-        "useV4Position.useMemo[SUPPORTED_TOKENS_LIST]": ()=>{
-            const list = [];
-            if ("TURBOPACK compile-time truthy", 1) list.push({
+    // Authorized hook pools (base token quoted in USDC). Each pool is keyed by the
+    // "trading asset": WETH → USDC/WETH pool, WBTC → WBTC/USDC pool.
+    const V4_POOLS = (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useMemo"])({
+        "useV4Position.useMemo[V4_POOLS]": ()=>{
+            const pools = [];
+            if ("TURBOPACK compile-time truthy", 1) pools.push({
                 key: "WETH",
-                name: "WETH",
-                address: WETH_ADDR
+                base: WETH_ADDR,
+                quote: USDC_ADDR
             });
-            if ("TURBOPACK compile-time truthy", 1) list.push({
-                key: "USDC",
-                name: "USDC",
-                address: USDC_ADDR
+            if ("TURBOPACK compile-time truthy", 1) pools.push({
+                key: "WBTC",
+                base: WBTC_ADDR,
+                quote: USDC_ADDR
             });
-            return list;
+            return pools;
         }
-    }["useV4Position.useMemo[SUPPORTED_TOKENS_LIST]"], [
+    }["useV4Position.useMemo[V4_POOLS]"], [
         WETH_ADDR,
+        WBTC_ADDR,
         USDC_ADDR
     ]);
-    function buildPoolKey(hookAddress) {
-        const [currency0, currency1] = sortCurrencies(WETH_ADDR, USDC_ADDR);
+    const SUPPORTED_TOKENS_LIST = (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useMemo"])({
+        "useV4Position.useMemo[SUPPORTED_TOKENS_LIST]": ()=>V4_POOLS.map({
+                "useV4Position.useMemo[SUPPORTED_TOKENS_LIST]": (p)=>({
+                        key: p.key,
+                        name: p.key,
+                        address: p.base
+                    })
+            }["useV4Position.useMemo[SUPPORTED_TOKENS_LIST]"])
+    }["useV4Position.useMemo[SUPPORTED_TOKENS_LIST]"], [
+        V4_POOLS
+    ]);
+    function poolFor(key) {
+        return V4_POOLS.find((p)=>p.key === key) || V4_POOLS[0] || null;
+    }
+    // Hook-enabled pool where leverage accounting (flash borrow + position
+    // registration) and the physical swap both happen. Currencies are sorted
+    // by address so the key matches the deployed/authorized pool exactly.
+    function buildPoolKeyFor({ base, quote }, hookAddress) {
+        const [currency0, currency1] = sortCurrencies(base, quote);
         return {
             currency0,
             currency1,
@@ -118,9 +161,9 @@ function useV4Position() {
         };
     }
     // Standard (physical execution) pool: same currency ordering as the hook pool,
-    // $0 fees, no hook. The router executes the leveraged physical swap here.
-    function buildStandardPoolKey() {
-        const [currency0, currency1] = sortCurrencies(WETH_ADDR, USDC_ADDR);
+    // $0 fee tier is not used on-chain — 0.05% standard pool for the pair, no hook.
+    function buildStandardPoolKeyFor({ base, quote }) {
+        const [currency0, currency1] = sortCurrencies(base, quote);
         return {
             currency0,
             currency1,
@@ -128,22 +171,6 @@ function useV4Position() {
             tickSpacing: TICK_SPACING,
             hooks: __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$ethers$2f$lib$2e$esm$2f$ethers$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__$2a$__as__ethers$3e$__["ethers"].ZeroAddress
         };
-    }
-    function computePoolId(hookAddress) {
-        const [c0, c1] = sortCurrencies(WETH_ADDR, USDC_ADDR);
-        return __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$ethers$2f$lib$2e$esm$2f$ethers$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__$2a$__as__ethers$3e$__["ethers"].keccak256(__TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$ethers$2f$lib$2e$esm$2f$ethers$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__$2a$__as__ethers$3e$__["ethers"].AbiCoder.defaultAbiCoder().encode([
-            "address",
-            "address",
-            "uint24",
-            "int24",
-            "address"
-        ], [
-            c0,
-            c1,
-            POOL_FEE,
-            TICK_SPACING,
-            hookAddress
-        ]));
     }
     const getSigner = (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useCallback"])({
         "useV4Position.useCallback[getSigner]": async ()=>{
@@ -153,15 +180,18 @@ function useV4Position() {
     }["useV4Position.useCallback[getSigner]"], [
         walletClient
     ]);
-    // Builds the router.swap() params. WETH is the pool's base token (set via
-    // hook.setBaseCurrency), so a LONG buys WETH and a SHORT sells WETH:
-    //   LONG  → zeroForOne = !wethIsCurrency0   (Unichain: sell USDC, buy WETH)
-    //   SHORT → zeroForOne =  wethIsCurrency0   (Unichain: sell WETH, buy USDC)
+    // Builds router.swap() params for `tradingKey` (WETH or WBTC). Each pool's
+    // base currency is the "trading asset" (set via hook.setBaseCurrency), so:
+    //   LONG  → sell quote (USDC), buy base   → zeroForOne = baseIsCurrency0 ? false : true
+    //   SHORT → sell base, buy quote          → zeroForOne = baseIsCurrency0 ? true  : false
+    // The solver settles the borrowed leg (required for leverage > 1).
     const buildSwapParams = (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useCallback"])({
-        "useV4Position.useCallback[buildSwapParams]": (isShort, amount, leverage, hookAddress)=>{
-            const key = buildPoolKey(hookAddress);
-            const wethIsCurrency0 = WETH_ADDR.toLowerCase() === key.currency0.toLowerCase();
-            const zeroForOne = isShort ? wethIsCurrency0 : !wethIsCurrency0;
+        "useV4Position.useCallback[buildSwapParams]": (isShort, tradingKey, amount, leverage, hookAddress)=>{
+            const pool = poolFor(tradingKey);
+            const key = buildPoolKeyFor(pool, hookAddress);
+            const baseIsCurrency0 = pool.base.toLowerCase() === key.currency0.toLowerCase();
+            const zeroForOne = isShort ? baseIsCurrency0 : !baseIsCurrency0;
+            const solver = ADDRESSES.V4_SOLVER || address;
             const hookData = __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$ethers$2f$lib$2e$esm$2f$ethers$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__$2a$__as__ethers$3e$__["ethers"].AbiCoder.defaultAbiCoder().encode([
                 "bool",
                 "uint8",
@@ -173,37 +203,40 @@ function useV4Position() {
             ]);
             return {
                 key,
-                standardPoolKey: buildStandardPoolKey(),
+                standardPoolKey: buildStandardPoolKeyFor(pool),
                 zeroForOne,
                 amountSpecified: -amount,
                 leverage,
+                solver,
                 hookData
             };
         }
     }["useV4Position.useCallback[buildSwapParams]"], [
-        WETH_ADDR,
+        V4_POOLS,
         address,
-        buildStandardPoolKey
+        ADDRESSES.V4_SOLVER
     ]);
     const openV4Position = (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useCallback"])({
-        "useV4Position.useCallback[openV4Position]": async (isShort, amount, leverage)=>{
+        "useV4Position.useCallback[openV4Position]": async (isShort, amount, leverage, tradingKey = "WETH")=>{
             if (!ADDRESSES.V4_ROUTER) throw new Error("V4 Router address not configured");
             const signer = await getSigner();
             if (!signer) throw new Error("Wallet not connected");
             const router = new __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$ethers$2f$lib$2e$esm$2f$ethers$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__$2a$__as__ethers$3e$__["ethers"].Contract(ADDRESSES.V4_ROUTER, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$src$2f$abis$2f$EswapRouter$2e$json__$28$json$29$__["default"].abi, signer);
-            const params = buildSwapParams(isShort, amount, leverage, ADDRESSES.V4_HOOK);
+            const params = buildSwapParams(isShort, tradingKey, amount, leverage, ADDRESSES.V4_HOOK);
             return await router.swap(params);
         }
     }["useV4Position.useCallback[openV4Position]"], [
         getSigner,
-        buildSwapParams
+        buildSwapParams,
+        ADDRESSES.V4_ROUTER,
+        ADDRESSES.V4_HOOK
     ]);
     const simulateV4Position = (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useCallback"])({
-        "useV4Position.useCallback[simulateV4Position]": async (isShort, amount, leverage)=>{
+        "useV4Position.useCallback[simulateV4Position]": async (isShort, amount, leverage, tradingKey = "WETH")=>{
             const signer = await getSigner();
             if (!signer) throw new Error("Wallet not connected");
             const router = new __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$ethers$2f$lib$2e$esm$2f$ethers$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__$2a$__as__ethers$3e$__["ethers"].Contract(ADDRESSES.V4_ROUTER, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$src$2f$abis$2f$EswapRouter$2e$json__$28$json$29$__["default"].abi, signer);
-            const params = buildSwapParams(isShort, amount, leverage, ADDRESSES.V4_HOOK);
+            const params = buildSwapParams(isShort, tradingKey, amount, leverage, ADDRESSES.V4_HOOK);
             try {
                 await router.swap.staticCall(params);
                 return {
@@ -218,7 +251,9 @@ function useV4Position() {
         }
     }["useV4Position.useCallback[simulateV4Position]"], [
         getSigner,
-        buildSwapParams
+        buildSwapParams,
+        ADDRESSES.V4_ROUTER,
+        ADDRESSES.V4_HOOK
     ]);
     const getAmountInUsd = (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useCallback"])({
         "useV4Position.useCallback[getAmountInUsd]": async (token, amount)=>{
@@ -231,91 +266,127 @@ function useV4Position() {
             }
         }
     }["useV4Position.useCallback[getAmountInUsd]"], [
-        readProvider
+        readProvider,
+        ADDRESSES.V4_PRICEFEED
     ]);
-    // Human "USDC per WETH" price from the hook's last recorded sqrtPriceX96.
-    async function computeUsdcPerWeth(hook, poolId) {
+    // Human "USDC per base" price for display, straight from the Chainlink oracle
+    // (18-decimal USD price per token) — works for every pool regardless of
+    // currency ordering/decimals.
+    async function computeUsdPerBase(hook, pool) {
         try {
-            const sqrt = await hook.lastOraclePrice(poolId);
-            if (!sqrt || sqrt === 0n) return "0";
-            const raw = sqrt * sqrt / (1n << 192n);
-            if (raw === 0n) return "0";
-            const scaled = BigInt(10) ** 30n / raw;
-            return __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$ethers$2f$lib$2e$esm$2f$ethers$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__$2a$__as__ethers$3e$__["ethers"].formatUnits(scaled, 18);
+            const twap = await hook.priceFeed().then(async (feedAddr)=>{
+                const feed = new __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$ethers$2f$lib$2e$esm$2f$ethers$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__$2a$__as__ethers$3e$__["ethers"].Contract(feedAddr, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$src$2f$abis$2f$PriceFeed$2e$json__$28$json$29$__["default"].abi, readProvider);
+                return feed.getTwapPrice(pool.base);
+            });
+            if (!twap || twap === 0n) return "0";
+            return __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$ethers$2f$lib$2e$esm$2f$ethers$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__$2a$__as__ethers$3e$__["ethers"].formatUnits(twap, 18);
         } catch  {
             return "0";
         }
     }
     const getPositionsCount = (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useCallback"])({
-        "useV4Position.useCallback[getPositionsCount]": async ()=>{
+        "useV4Position.useCallback[getPositionsCount]": async (poolKey)=>{
             if (!readProvider || !ADDRESSES.V4_HOOK || !address) return 0n;
             const hook = new __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$ethers$2f$lib$2e$esm$2f$ethers$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__$2a$__as__ethers$3e$__["ethers"].Contract(ADDRESSES.V4_HOOK, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$src$2f$abis$2f$EswapMarginHook$2e$json__$28$json$29$__["default"].abi, readProvider);
-            try {
-                const poolId = computePoolId(ADDRESSES.V4_HOOK);
-                const pos = await hook.positions(poolId, address);
-                return pos.collateralAmount > 0n ? 1n : 0n;
-            } catch  {
-                return 0n;
+            const countPool = {
+                "useV4Position.useCallback[getPositionsCount].countPool": async (pool)=>{
+                    try {
+                        const poolId = poolIdFor(pool.base, pool.quote, ADDRESSES.V4_HOOK);
+                        const pos = await hook.positions(poolId, address);
+                        return pos.collateralAmount > 0n ? 1n : 0n;
+                    } catch  {
+                        return 0n;
+                    }
+                }
+            }["useV4Position.useCallback[getPositionsCount].countPool"];
+            if (poolKey) {
+                const pool = poolFor(poolKey);
+                return pool ? countPool(pool) : 0n;
             }
+            let total = 0n;
+            for (const pool of V4_POOLS)total += await countPool(pool);
+            return total;
         }
     }["useV4Position.useCallback[getPositionsCount]"], [
         readProvider,
-        address
+        address,
+        V4_POOLS,
+        ADDRESSES.V4_HOOK
     ]);
     const getPositionDetails = (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useCallback"])({
-        "useV4Position.useCallback[getPositionDetails]": async (id, userAddress)=>{
+        "useV4Position.useCallback[getPositionDetails]": async (id, userAddress, poolKey)=>{
             const trader = userAddress || address;
             if (!readProvider || !ADDRESSES.V4_HOOK || !trader) return null;
             const hook = new __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$ethers$2f$lib$2e$esm$2f$ethers$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__$2a$__as__ethers$3e$__["ethers"].Contract(ADDRESSES.V4_HOOK, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$src$2f$abis$2f$EswapMarginHook$2e$json__$28$json$29$__["default"].abi, readProvider);
-            try {
-                const poolId = computePoolId(ADDRESSES.V4_HOOK);
-                const pos = await hook.positions(poolId, trader);
-                if (pos.collateralAmount === 0n) return null;
-                // isLong is anchored to the pool's base token (WETH via setBaseCurrency),
-                // so a LONG holds WETH collateral and a SHORT holds USDC.
-                const isLong = pos.isLong;
-                const collateralSymbol = isLong ? "WETH" : "USDC";
-                const collateralDecimals = collateralSymbol === "USDC" ? 6 : 18;
-                const quoteSymbol = collateralSymbol === "WETH" ? "USDC" : "WETH";
-                const currentPrice = await computeUsdcPerWeth(hook, poolId);
-                return {
-                    id: "V4-" + trader.slice(2, 6),
-                    owner: pos.trader,
-                    collateral: pos.collateralAmount,
-                    borrowed: pos.borrowedAmount,
-                    leverage: pos.leverage.toString(),
-                    isShort: !isLong,
-                    state: "ACTIVE",
-                    size: __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$ethers$2f$lib$2e$esm$2f$ethers$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__$2a$__as__ethers$3e$__["ethers"].formatUnits(pos.collateralAmount, collateralDecimals),
-                    sizeUsd: "0.00",
-                    pnl: "0",
-                    pnlUsd: "0.00",
-                    pnlIsPositive: true,
-                    entryPrice: currentPrice,
-                    currentPrice,
-                    baseSymbol: collateralSymbol,
-                    quoteSymbol
-                };
-            } catch  {
-                return null;
+            const readPool = {
+                "useV4Position.useCallback[getPositionDetails].readPool": async (pool)=>{
+                    try {
+                        const poolId = poolIdFor(pool.base, pool.quote, ADDRESSES.V4_HOOK);
+                        const pos = await hook.positions(poolId, trader);
+                        if (pos.collateralAmount === 0n) return null;
+                        // isLong is anchored to the pool's base currency, so a LONG
+                        // holds base collateral (WETH/WBTC) and a SHORT holds quote (USDC).
+                        const collateralKey = pos.isLong ? pool.key : "USDC";
+                        const collateralDecimals = TOKEN_DECIMALS[collateralKey] ?? 18;
+                        const currentPrice = await computeUsdPerBase(hook, pool);
+                        return {
+                            id: `V4-${pool.key}-${trader.slice(2, 6)}`,
+                            owner: pos.trader,
+                            collateral: pos.collateralAmount,
+                            borrowed: pos.borrowedAmount,
+                            leverage: pos.leverage.toString(),
+                            isShort: !pos.isLong,
+                            state: "ACTIVE",
+                            size: __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$ethers$2f$lib$2e$esm$2f$ethers$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__$2a$__as__ethers$3e$__["ethers"].formatUnits(pos.collateralAmount, collateralDecimals),
+                            sizeUsd: "0.00",
+                            pnl: "0",
+                            pnlUsd: "0.00",
+                            pnlIsPositive: true,
+                            entryPrice: currentPrice,
+                            currentPrice,
+                            baseSymbol: pool.key,
+                            quoteSymbol: "USDC"
+                        };
+                    } catch  {
+                        return null;
+                    }
+                }
+            }["useV4Position.useCallback[getPositionDetails].readPool"];
+            if (poolKey) {
+                const pool = poolFor(poolKey);
+                return pool ? readPool(pool) : null;
             }
+            for (const pool of V4_POOLS){
+                const result = await readPool(pool);
+                if (result) return result;
+            }
+            return null;
         }
     }["useV4Position.useCallback[getPositionDetails]"], [
         readProvider,
-        address
+        address,
+        V4_POOLS,
+        ADDRESSES.V4_HOOK
     ]);
     const closePosition = (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useCallback"])({
         "useV4Position.useCallback[closePosition]": async (id)=>{
             if (!id || !id.startsWith("V4-")) return null;
+            const parts = id.split("-");
+            const poolKey = parts.length >= 3 ? parts[1] : "WETH";
+            const pool = poolFor(poolKey);
+            if (!pool) return null;
             const signer = await getSigner();
             if (!signer) throw new Error("Wallet not connected");
             if (!ADDRESSES.V4_ROUTER) throw new Error("V4 Router address not configured");
             const router = new __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$ethers$2f$lib$2e$esm$2f$ethers$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__$2a$__as__ethers$3e$__["ethers"].Contract(ADDRESSES.V4_ROUTER, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$src$2f$abis$2f$EswapRouter$2e$json__$28$json$29$__["default"].abi, signer);
-            return await router.closePosition(ADDRESSES.V4_HOOK, buildPoolKey(ADDRESSES.V4_HOOK), address, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$ethers$2f$lib$2e$esm$2f$ethers$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__$2a$__as__ethers$3e$__["ethers"].ZeroAddress, 0);
+            return await router.closePosition(ADDRESSES.V4_HOOK, buildPoolKeyFor(pool, ADDRESSES.V4_HOOK), address, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$ethers$2f$lib$2e$esm$2f$ethers$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__$2a$__as__ethers$3e$__["ethers"].ZeroAddress, 0);
         }
     }["useV4Position.useCallback[closePosition]"], [
         getSigner,
-        address
+        address,
+        V4_POOLS,
+        ADDRESSES.V4_ROUTER,
+        ADDRESSES.V4_HOOK
     ]);
     return {
         openV4Position,
@@ -328,10 +399,11 @@ function useV4Position() {
         tokens,
         WETH_ADDR,
         USDC_ADDR,
+        V4_POOLS,
         SUPPORTED_TOKENS_LIST
     };
 }
-_s(useV4Position, "RLfc0kPygB0gD86bXFB6gJOsFC4=", false, function() {
+_s(useV4Position, "yJ25CflVZh3TR+8Wj9oYInJjFiM=", false, function() {
     return [
         __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$wagmi$2f$dist$2f$esm$2f$hooks$2f$useConnection$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__useConnection__as__useAccount$3e$__["useAccount"],
         __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$wagmi$2f$dist$2f$esm$2f$hooks$2f$useWalletClient$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useWalletClient"],
@@ -398,9 +470,10 @@ const ENV_ADDRESSES = {
     POOL_FACTORY: ("TURBOPACK compile-time value", "0x7afef9fe18e08cad3e1c4f5b090bd1bdb26f9dc9"),
     FEEMANAGER_ADDRESS: ("TURBOPACK compile-time value", "0xb581d265e43b2a8d872f3113651ed627bdbd952d"),
     WRAPPER: ("TURBOPACK compile-time value", "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270"),
-    V4_ROUTER: __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$build$2f$polyfills$2f$process$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"].env.NEXT_PUBLIC_V4_ROUTER_ADDRESS || "",
-    V4_HOOK: __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$build$2f$polyfills$2f$process$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"].env.NEXT_PUBLIC_V4_HOOK_ADDRESS || "",
-    V4_PRICEFEED: __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$build$2f$polyfills$2f$process$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"].env.NEXT_PUBLIC_V4_PRICEFEED_ADDRESS || ("TURBOPACK compile-time value", "0x015c3722683b54fff1491a92bfd9c72ca3c84cc4") || ""
+    V4_ROUTER: ("TURBOPACK compile-time value", "0x508fd750a750b00e30e6f620805574d9b7fda05d") || "",
+    V4_HOOK: ("TURBOPACK compile-time value", "0x6337fca822066240064daff387e61653aeec90c8") || "",
+    V4_SOLVER: ("TURBOPACK compile-time value", "0x0f8BEC665E1eEbf0433FEDA67181B06E10710614") || "",
+    V4_PRICEFEED: ("TURBOPACK compile-time value", "0x256364f4a65def8c41c0d2b05166ae814a601f1d") || ("TURBOPACK compile-time value", "0x015c3722683b54fff1491a92bfd9c72ca3c84cc4") || ""
 };
 function useDeFi() {
     _s();
@@ -449,7 +522,7 @@ function useDeFi() {
                 "useDeFi.useEffect.initProvider": async ()=>{
                     const hasMetaMask = ("TURBOPACK compile-time value", "object") !== "undefined" && !!window.ethereum;
                     setIsMetaMaskInstalled(hasMetaMask);
-                    const rpc = !isPolygon ? ("TURBOPACK compile-time value", "https://unichain-mainnet.g.alchemy.com/v2/MShMmpJbY-27CEbyan4Ac") || ("TURBOPACK compile-time value", "https://polygon-mainnet.g.alchemy.com/v2/MShMmpJbY-27CEbyan4Ac") : ("TURBOPACK compile-time value", "https://polygon-mainnet.g.alchemy.com/v2/MShMmpJbY-27CEbyan4Ac");
+                    const rpc = !isPolygon ? ("TURBOPACK compile-time value", "https://unichain-mainnet.g.alchemy.com/v2/oT1vfY4yefQFB7Czqenvb") || ("TURBOPACK compile-time value", "https://polygon-mainnet.g.alchemy.com/v2/MShMmpJbY-27CEbyan4Ac") : ("TURBOPACK compile-time value", "https://polygon-mainnet.g.alchemy.com/v2/MShMmpJbY-27CEbyan4Ac");
                     // Priority: chain-appropriate RPC_URL if configured
                     if (rpc) {
                         const provider = new __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$ethers$2f$lib$2e$esm$2f$ethers$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__$2a$__as__ethers$3e$__["ethers"].JsonRpcProvider(rpc);
@@ -496,7 +569,7 @@ function useDeFi() {
                     const priceFeedAddress = isPolygon ? ADDRESSES.PRICEFEEDL1 : ADDRESSES.V4_PRICEFEED || ADDRESSES.PRICEFEEDL1;
                     const priceFeed = new __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$ethers$2f$lib$2e$esm$2f$ethers$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__$2a$__as__ethers$3e$__["ethers"].Contract(priceFeedAddress, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$src$2f$abis$2f$PriceFeedL1$2e$json__$28$json$29$__["default"].abi, readProvider);
                     const usdValueBigInt = await priceFeed.getAmountInUsd(tokenAddress, balance);
-                    usdValue = parseFloat(__TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$ethers$2f$lib$2e$esm$2f$ethers$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__$2a$__as__ethers$3e$__["ethers"].formatUnits(usdValueBigInt, 18)).toFixed(2);
+                    usdValue = parseFloat(__TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$ethers$2f$lib$2e$esm$2f$ethers$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__$2a$__as__ethers$3e$__["ethers"].formatUnits(usdValueBigInt, isPolygon ? 18 : decimals)).toFixed(2);
                 } catch  {
                 // Price feed not available for this token — show balance without USD value
                 }
@@ -632,6 +705,16 @@ function useDeFi() {
     }["useDeFi.useCallback[approveToken]"], [
         getSigner
     ]);
+    const sendTokens = (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useCallback"])({
+        "useDeFi.useCallback[sendTokens]": async (tokenAddress, to, amount)=>{
+            const signer = await getSigner();
+            if (!signer) throw new Error("Wallet not connected");
+            const contract = new __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$ethers$2f$lib$2e$esm$2f$ethers$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__$2a$__as__ethers$3e$__["ethers"].Contract(tokenAddress, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$src$2f$abis$2f$ERC20$2e$json__$28$json$29$__["default"].abi, signer);
+            return await contract.transfer(to, amount);
+        }
+    }["useDeFi.useCallback[sendTokens]"], [
+        getSigner
+    ]);
     const simulateOpenPosition = (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useCallback"])({
         "useDeFi.useCallback[simulateOpenPosition]": async (token0, token1, isShort, amount, leverage)=>{
             const signer = await getSigner();
@@ -737,9 +820,9 @@ function useDeFi() {
         getSigner
     ]);
     const closePosition = (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useCallback"])({
-        "useDeFi.useCallback[closePosition]": async (posId)=>{
+        "useDeFi.useCallback[closePosition]": async (posId, poolKey)=>{
             if (!isPolygon) {
-                return v4.closePosition(posId);
+                return v4.closePosition(posId, poolKey);
             }
             const signer = await getSigner();
             if (!signer) throw new Error("Wallet not connected");
@@ -756,9 +839,9 @@ function useDeFi() {
         ADDRESSES
     ]);
     const getPositionDetails = (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useCallback"])({
-        "useDeFi.useCallback[getPositionDetails]": async (posId, userAddress)=>{
+        "useDeFi.useCallback[getPositionDetails]": async (posId, userAddress, poolKey)=>{
             if (!isPolygon) {
-                return v4.getPositionDetails(posId, userAddress);
+                return v4.getPositionDetails(posId, userAddress, poolKey);
             }
             if (!readProvider || !ADDRESSES.POSITIONS || ADDRESSES.POSITIONS === __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$ethers$2f$lib$2e$esm$2f$ethers$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__$2a$__as__ethers$3e$__["ethers"].ZeroAddress) return null;
             try {
@@ -893,9 +976,9 @@ function useDeFi() {
         readProvider
     ]);
     const getPositionsCount = (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useCallback"])({
-        "useDeFi.useCallback[getPositionsCount]": async ()=>{
+        "useDeFi.useCallback[getPositionsCount]": async (poolKey)=>{
             if (!isPolygon) {
-                return v4.getPositionsCount();
+                return v4.getPositionsCount(poolKey);
             }
             if (!readProvider || !ADDRESSES.POSITIONS || ADDRESSES.POSITIONS === __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$ethers$2f$lib$2e$esm$2f$ethers$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__$2a$__as__ethers$3e$__["ethers"].ZeroAddress) return 0n;
             try {
@@ -1176,6 +1259,7 @@ function useDeFi() {
         getNativeBalance,
         getAllowance,
         approveToken,
+        sendTokens,
         ADDRESSES,
         SUPPORTED_TOKENS_LIST,
         isMetaMaskInstalled,
@@ -1184,7 +1268,7 @@ function useDeFi() {
         chainId
     };
 }
-_s(useDeFi, "AGo2m9cVfxwd3QyzJzYWhBaf3yM=", false, function() {
+_s(useDeFi, "wtHt5RGxis67oGp0wVTEk/ovXCA=", false, function() {
     return [
         __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$wagmi$2f$dist$2f$esm$2f$hooks$2f$useConnection$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__useConnection__as__useAccount$3e$__["useAccount"],
         __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$wagmi$2f$dist$2f$esm$2f$hooks$2f$useWalletClient$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useWalletClient"],
@@ -1398,6 +1482,7 @@ var __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$src$2f$componen
 var __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$src$2f$components$2f$AdminToggle$2e$jsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/dashboard/src/components/AdminToggle.jsx [app-client] (ecmascript)");
 var __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$src$2f$components$2f$LiveChart$2e$jsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/dashboard/src/components/LiveChart.jsx [app-client] (ecmascript)");
 var __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$src$2f$contexts$2f$AdminContext$2e$jsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/dashboard/src/contexts/AdminContext.jsx [app-client] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$wagmi$2f$dist$2f$esm$2f$hooks$2f$useConnection$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__useConnection__as__useAccount$3e$__ = __turbopack_context__.i("[project]/dashboard/node_modules/wagmi/dist/esm/hooks/useConnection.js [app-client] (ecmascript) <export useConnection as useAccount>");
 var __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$client$2f$app$2d$dir$2f$link$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/dashboard/node_modules/next/dist/client/app-dir/link.js [app-client] (ecmascript)");
 var __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/dashboard/node_modules/next/dist/compiled/react/index.js [app-client] (ecmascript)");
 var __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/dashboard/node_modules/next/dist/compiled/react/jsx-runtime.js [app-client] (ecmascript)");
@@ -1413,9 +1498,11 @@ var _s = __turbopack_context__.k.signature();
 ;
 ;
 ;
+;
 function Home() {
     _s();
     const { isAdmin } = (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$src$2f$contexts$2f$AdminContext$2e$jsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useAdmin"])();
+    const { chainId } = (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$wagmi$2f$dist$2f$esm$2f$hooks$2f$useConnection$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__useConnection__as__useAccount$3e$__["useAccount"])();
     const [activeChartToken, setActiveChartToken] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])("WETH");
     return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxs"])("main", {
         className: "min-h-screen p-6 text-white max-w-[1600px] mx-auto",
@@ -1472,7 +1559,9 @@ function Home() {
                         className: "lg:col-span-2 w-full space-y-6",
                         children: [
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsx"])(__TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$src$2f$components$2f$LiveChart$2e$jsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__["LiveChart"], {
-                                tokenKey: activeChartToken
+                                tokenKey: activeChartToken,
+                                chainId: chainId,
+                                onTokenChange: setActiveChartToken
                             }),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsx"])(__TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$src$2f$components$2f$PositionsList$2e$jsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__["PositionsList"], {})
                         ]
@@ -1491,9 +1580,10 @@ function Home() {
         ]
     });
 }
-_s(Home, "zUvZtZHa251vOcoxur+hpA1g1L4=", false, function() {
+_s(Home, "zzDZDq76e/BgAu8N9/26WVmenVc=", false, function() {
     return [
-        __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$src$2f$contexts$2f$AdminContext$2e$jsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useAdmin"]
+        __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$src$2f$contexts$2f$AdminContext$2e$jsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useAdmin"],
+        __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$wagmi$2f$dist$2f$esm$2f$hooks$2f$useConnection$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__useConnection__as__useAccount$3e$__["useAccount"]
     ];
 });
 _c = Home;

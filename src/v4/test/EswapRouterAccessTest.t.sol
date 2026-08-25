@@ -67,8 +67,9 @@ contract EswapRouterAccessTest is BaseV4Test {
         (address trader, uint256 collateral, , , , , , , ) = hook.positions(key.toId(), address(this));
         assertEq(trader, address(0), "position should be liquidated");
         assertEq(collateral, 0);
-        // [FIX V4] the liquidation reward goes to the keeper (router.liquidate caller), not the insurance fund
-        assertGt(token0.balanceOf(keeper), 0, "liquidator reward should go to the keeper");
+        // Keeper earns NOTHING: nobody profits from a trader's penalty.
+        assertEq(token0.balanceOf(keeper), 0, "keeper must not profit from penalties");
+        assertGt(hook.insuranceFund(key.currency0), 0, "recovery carve-out routed to insurance fund");
     }
 
     function test_Close_PropagatesHookRevert() public {
@@ -97,7 +98,9 @@ contract EswapRouterAccessTest is BaseV4Test {
         router.rebalance(address(hook), key, trader);
 
         (,,,,,,int24 newTickLower, int24 newTickUpper,) = hook.positions(key.toId(), trader);
-        assertEq(newTickLower, 120);
-        assertEq(newTickUpper, 240);
+        // SHORT collateral (token1): single-sided band BELOW the new price.
+        // Tick 200, spacing 60 -> floor grid 180 -> [180 - 600, 180].
+        assertEq(newTickLower, -420);
+        assertEq(newTickUpper, 180);
     }
 }

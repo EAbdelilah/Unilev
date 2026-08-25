@@ -8,7 +8,7 @@ import { formatTokenAmount } from "../utils/format"
 
 export function PositionsList() {
     const { isConnected, address } = useAccount()
-    const { getPositionsCount, getPositionDetails, closePosition } = useDeFi()
+    const { getPositionsCount, getPositionDetails, closePosition, isV4, SUPPORTED_TOKENS_LIST } = useDeFi()
     const { isAdmin } = useAdmin()
 
     const [activeTab, setActiveTab] = useState("my") // 'my' | 'global'
@@ -26,17 +26,33 @@ export function PositionsList() {
     const fetchPositions = useCallback(async () => {
         setLoading(true)
         try {
-            const count = await getPositionsCount()
+            let results = []
 
-            const maxId = Number(count)
+            if (isV4) {
+                // V4: check every authorized hook pool (WETH, WBTC).
+                const pools = SUPPORTED_TOKENS_LIST.filter((t) => t.key !== "USDC")
+                const perPool = await Promise.all(
+                    pools.map(async (p) => {
+                        const count = Number(await getPositionsCount(p.key))
+                        const ids = Array.from({ length: count }, (_, i) => i + 1)
+                        const details = await Promise.all(
+                            ids.map((i) => getPositionDetails(i, address, p.key))
+                        )
+                        return details
+                    })
+                )
+                results = perPool.flat()
+            } else {
+                const count = await getPositionsCount()
+                const maxId = Number(count)
 
-            // Fetch position details
-            const promises = []
-            for (let i = 1; i < maxId; i++) {
-                promises.push(getPositionDetails(i, address))
+                // Fetch position details
+                const promises = []
+                for (let i = 1; i < maxId; i++) {
+                    promises.push(getPositionDetails(i, address))
+                }
+                results = await Promise.all(promises)
             }
-
-            const results = await Promise.all(promises)
 
             // Filter out nulls (burned/closed)
             const activePositions = results.filter((p) => p !== null && p.state !== "NONE")
@@ -48,7 +64,7 @@ export function PositionsList() {
         } finally {
             setLoading(false)
         }
-    }, [getPositionsCount, getPositionDetails, address])
+    }, [getPositionsCount, getPositionDetails, address, isV4, SUPPORTED_TOKENS_LIST])
 
     useEffect(() => {
         fetchPositions()

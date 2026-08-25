@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { ConnectButton } from '@/components/ConnectButton';
 import { ProtocolBalances } from '@/components/ProtocolBalances';
 import { LiquidityPoolManager } from '@/components/LiquidityPoolManager';
+import { SolverFunding } from '@/components/SolverFunding';
 import { AdminToggle } from '@/components/AdminToggle';
 import { useAdmin } from '@/contexts/AdminContext';
 import Link from 'next/link';
@@ -49,8 +50,9 @@ export default function PoolsPage() {
             {/* Dashboard Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
 
-                {/* Left Column: Manage Liquidity */}
+                {/* Left Column: Manage Liquidity + Fund Solver */}
                 <div className="space-y-6 w-full">
+                    <SolverFunding />
                     <LiquidityPoolManager
                         selectedTokenKey={selectedPoolToken}
                     />

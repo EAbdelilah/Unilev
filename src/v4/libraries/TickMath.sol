@@ -24,7 +24,9 @@ library TickMath {
         uint256 priceQ128 = _pow(ONE_0001_Q128, absTick);
 
         if (negative) {
-            priceQ128 = (ONE_Q128 * ONE_Q128) / priceQ128;
+            // 2^256 / priceQ128 via 512-bit-safe mulDiv: ONE_Q128^2 overflows
+            // uint256, so the naive product panics for ANY negative tick.
+            priceQ128 = _mulDiv(ONE_Q128, ONE_Q128, priceQ128);
         }
 
         // sqrtPriceX96 = sqrt(price) * 2^96

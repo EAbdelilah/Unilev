@@ -32,6 +32,7 @@ const ENV_ADDRESSES = {
     WRAPPER: process.env.NEXT_PUBLIC_WRAPPER_ADDRESS,
     V4_ROUTER: process.env.NEXT_PUBLIC_V4_ROUTER_ADDRESS || "",
     V4_HOOK: process.env.NEXT_PUBLIC_V4_HOOK_ADDRESS || "",
+    V4_SOLVER: process.env.NEXT_PUBLIC_V4_SOLVER_ADDRESS || "",
     V4_PRICEFEED:
         process.env.NEXT_PUBLIC_V4_PRICEFEED_ADDRESS ||
         process.env.NEXT_PUBLIC_PRICEFEEDL1_ADDRESS ||
@@ -126,7 +127,9 @@ export function useDeFi() {
                         readProvider
                     )
                     const usdValueBigInt = await priceFeed.getAmountInUsd(tokenAddress, balance)
-                    usdValue = parseFloat(ethers.formatUnits(usdValueBigInt, 18)).toFixed(2)
+                    usdValue = parseFloat(
+                        ethers.formatUnits(usdValueBigInt, isPolygon ? 18 : decimals)
+                    ).toFixed(2)
                 } catch {
                     // Price feed not available for this token — show balance without USD value
                 }
@@ -282,6 +285,16 @@ export function useDeFi() {
         [getSigner]
     )
 
+    const sendTokens = useCallback(
+        async (tokenAddress, to, amount) => {
+            const signer = await getSigner()
+            if (!signer) throw new Error("Wallet not connected")
+            const contract = new ethers.Contract(tokenAddress, ERC20ABI.abi, signer)
+            return await contract.transfer(to, amount)
+        },
+        [getSigner]
+    )
+
     const simulateOpenPosition = useCallback(
         async (token0, token1, isShort, amount, leverage) => {
             const signer = await getSigner()
@@ -414,9 +427,9 @@ export function useDeFi() {
     )
 
     const closePosition = useCallback(
-        async (posId) => {
+        async (posId, poolKey) => {
             if (!isPolygon) {
-                return v4.closePosition(posId)
+                return v4.closePosition(posId, poolKey)
             }
             const signer = await getSigner()
             if (!signer) throw new Error("Wallet not connected")
@@ -429,9 +442,9 @@ export function useDeFi() {
     )
 
     const getPositionDetails = useCallback(
-        async (posId, userAddress) => {
+        async (posId, userAddress, poolKey) => {
             if (!isPolygon) {
-                return v4.getPositionDetails(posId, userAddress)
+                return v4.getPositionDetails(posId, userAddress, poolKey)
             }
             if (!readProvider || !ADDRESSES.POSITIONS || ADDRESSES.POSITIONS === ethers.ZeroAddress)
                 return null
@@ -616,9 +629,9 @@ export function useDeFi() {
         [readProvider]
     )
 
-    const getPositionsCount = useCallback(async () => {
+    const getPositionsCount = useCallback(async (poolKey) => {
         if (!isPolygon) {
-            return v4.getPositionsCount()
+            return v4.getPositionsCount(poolKey)
         }
         if (!readProvider || !ADDRESSES.POSITIONS || ADDRESSES.POSITIONS === ethers.ZeroAddress)
             return 0n
@@ -980,6 +993,7 @@ export function useDeFi() {
         getNativeBalance,
         getAllowance,
         approveToken,
+        sendTokens,
         ADDRESSES,
         SUPPORTED_TOKENS_LIST,
         isMetaMaskInstalled,

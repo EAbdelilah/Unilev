@@ -84,8 +84,11 @@ contract EswapLiquidationKeeperTest is BaseV4Test {
         (address trader, uint256 collateral, , , , , , , ) = hook.positions(key.toId(), address(this));
         assertEq(trader, address(0), "position should be liquidated");
         assertEq(collateral, 0);
-        // [FIX V4] the liquidation reward goes to the keeper, not the insurance fund
-        assertGt(token0.balanceOf(address(keeper)), 0, "liquidator reward should go to the keeper");
+        // Keeper earns NOTHING: nobody profits from a trader's penalty.
+        assertEq(token0.balanceOf(address(keeper)), 0, "keeper must not profit from penalties");
+        assertEq(token0.balanceOf(address(automation)), 0, "automation must not profit from penalties");
+        // Recovered 30, repaid the 20 borrow → surplus 10 → 3% = 0.3 ether to insurance
+        assertEq(hook.insuranceFund(key.currency0), 0.3 ether, "3% recovery routed to insurance fund");
     }
 
     function test_Keeper_CheckData_OffChainCandidates() public {

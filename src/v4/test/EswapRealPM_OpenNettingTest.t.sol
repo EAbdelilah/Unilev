@@ -176,6 +176,31 @@ contract EswapRealPM_OpenNettingTest is Test {
         assertGt(collateral, 0);
     }
 
+    /// @dev Bridge/intent executor flow: a third party relays swapFor() and the
+    ///      position is owned by `trader`, with margin pulled from `trader`
+    ///      (router allowance), not from the executor.
+    function test_RealPM_ExecutorSwapFor_RecordsTraderPosition() public {
+        bytes memory hookData = abi.encode(true, uint8(2), trader);
+        EswapRouter.SwapParams memory params = EswapRouter.SwapParams({
+            key: hookLocalKey,
+            standardPoolKey: standardLocalKey,
+            zeroForOne: true,
+            amountSpecified: -int256(MARGIN),
+            leverage: 2,
+            solver: solver,
+            hookData: hookData
+        });
+        address executor = makeAddr("executor");
+        vm.prank(executor);
+        router.swapFor(params, trader);
+        (address posTrader, uint256 collateral, uint256 borrowed, , , , , , ) =
+            realHook.positions(hookLocalKey.toId(), trader);
+        assertEq(posTrader, trader, "position owned by trader, not executor");
+        assertEq(borrowed, BORROW);
+        assertGt(collateral, 0);
+        assertEq(token0.balanceOf(executor), 0, "executor funds untouched");
+    }
+
     /// @dev Simulates the exact multi-pool open callback (with valid price limits)
     ///      and proves the real PoolManager reverts CurrencyNotSettled because the
     ///      router never nets its standard-pool input leg nor takes the hook-pool

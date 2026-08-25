@@ -31,8 +31,9 @@ contract EswapRebalanceTest is BaseV4Test {
         hook.rebalancePosition(key, trader);
 
         (,,,,,,int24 newTickLower, int24 newTickUpper,) = hook.positions(key.toId(), trader);
-        // Center around 200 (tickSpacing 60): 180 - 60 = 120, 180 + 60 = 240
-        assertEq(newTickLower, 120);
-        assertEq(newTickUpper, 240);
+        // SHORT collateral (token1): single-sided band BELOW the new price.
+        // Tick 200, spacing 60 -> floor grid 180 -> [180 - 600, 180].
+        assertEq(newTickLower, -420);
+        assertEq(newTickUpper, 180);
     }
 }

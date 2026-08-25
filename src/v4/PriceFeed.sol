@@ -2,12 +2,17 @@
 pragma solidity ^0.8.24;
 
 import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
+import {FullMath} from "@uniswap/v4-core/src/libraries/FullMath.sol";
 
 interface ISequencerUptimeFeed {
     function latestRoundData()
         external
         view
         returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound);
+}
+
+interface IERC20Decimals {
+    function decimals() external view returns (uint8);
 }
 
 /**
@@ -125,13 +130,16 @@ contract PriceFeed {
     // ─── External view ────────────────────────────────────────────────────────
 
     /**
-     * @notice Returns the USD value of `amount` tokens (18-decimal result).
+     * @notice Returns the USD value (18-decimal) of `amount` RAW token units.
      * @dev Used by EswapMarginHook.isLiquidatable() and closePosition().
+     *      Normalizes by the TOKEN's decimals (mirrors src/PriceFeedL1.sol), so
+     *      cross-decimal pairs (e.g. WETH 18 / USDC 6) are valued correctly:
+     *      USD = amount_raw * price18 / 10**tokenDecimals.
      */
     function getAmountInUsd(address token, uint256 amount) external view returns (uint256) {
         uint256 price18 = _getValidatedPrice(token);
         if (price18 == 0) return 0;
-        return (amount * price18) / 1e18;
+        return FullMath.mulDiv(amount, price18, 10 ** IERC20Decimals(token).decimals());
     }
 
     /**

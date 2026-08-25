@@ -171,7 +171,11 @@ contract PoolManagerMock is IPoolManager {
 
     function clear(Currency, uint256) external override {}
 
-    function take(Currency, address, uint256) external virtual override {
+    function take(Currency currency, address to, uint256 amount) external virtual override {
+        // Faithful to V4 flash accounting: taking credits the recipient with
+        // PM-backed value (real PM moves ERC20 out; claim-style crediting keeps
+        // the mint/burn accounting loop closed identically for the hook).
+        balances[to][uint256(uint160(Currency.unwrap(currency)))] += amount;
         takeCount++;
     }
 

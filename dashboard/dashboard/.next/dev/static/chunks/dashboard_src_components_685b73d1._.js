@@ -314,7 +314,10 @@ function TradeForm({ onTradingTokenChange }) {
                         const marginAddr = ADDRESSES[marginToken];
                         const amountBig = __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$ethers$2f$lib$2e$esm$2f$ethers$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__$2a$__as__ethers$3e$__["ethers"].parseUnits(amount.toString(), balanceData.decimals);
                         const usdBig = await getAmountInUsd(marginAddr, amountBig);
-                        setUsdValue(parseFloat(__TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$ethers$2f$lib$2e$esm$2f$ethers$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__$2a$__as__ethers$3e$__["ethers"].formatUnits(usdBig, 18)).toFixed(2));
+                        // V4 PriceFeed returns USD scaled by the token's own decimals
+                        // (getAmountInUsd = amount * price18 / 1e18); the V3 L1 feed
+                        // normalises to 18 decimals instead.
+                        setUsdValue(parseFloat(__TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$ethers$2f$lib$2e$esm$2f$ethers$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__$2a$__as__ethers$3e$__["ethers"].formatUnits(usdBig, isV4 ? balanceData.decimals : 18)).toFixed(2));
                     } catch (err) {
                         console.error("Error fetching USD value:", err);
                     }
@@ -379,21 +382,30 @@ function TradeForm({ onTradingTokenChange }) {
         "TradeForm.useEffect": ()=>{
             // Setup initial default selected tokens if not set properly (e.g if 'USDC/WBTC' don't exist in config)
             if (SUPPORTED_TOKENS_LIST.length > 0) {
-                if (!SUPPORTED_TOKENS_LIST.find({
-                    "TradeForm.useEffect": (t)=>t.key === marginToken
-                }["TradeForm.useEffect"])) {
+                // On V4 the trading asset must be a pool base token (WETH/WBTC), never USDC.
+                const validTrading = isV4 ? SUPPORTED_TOKENS_LIST.filter({
+                    "TradeForm.useEffect": (t)=>t.key !== "USDC"
+                }["TradeForm.useEffect"]) : SUPPORTED_TOKENS_LIST;
+                const isValidMargin = SUPPORTED_TOKENS_LIST.find({
+                    "TradeForm.useEffect.isValidMargin": (t)=>t.key === marginToken
+                }["TradeForm.useEffect.isValidMargin"]);
+                const isValidTrading = validTrading.length > 0 && validTrading.find({
+                    "TradeForm.useEffect": (t)=>t.key === tradingToken
+                }["TradeForm.useEffect"]);
+                if (!isValidMargin && !isV4) {
                     setMarginToken(SUPPORTED_TOKENS_LIST[0].key);
                 }
-                if (!SUPPORTED_TOKENS_LIST.find({
-                    "TradeForm.useEffect": (t)=>t.key === tradingToken
-                }["TradeForm.useEffect"])) {
-                    const initialAsset = SUPPORTED_TOKENS_LIST[Math.min(1, SUPPORTED_TOKENS_LIST.length - 1)].key;
-                    setTradingToken(initialAsset);
-                    if (onTradingTokenChange) onTradingTokenChange(initialAsset);
+                if (!isValidTrading) {
+                    const initialAsset = validTrading[Math.min(1, validTrading.length - 1)]?.key;
+                    if (initialAsset) {
+                        setTradingToken(initialAsset);
+                        if (onTradingTokenChange) onTradingTokenChange(initialAsset);
+                    }
                 }
             }
         }
     }["TradeForm.useEffect"], [
+        isV4,
         isConnected,
         isCorrectNetwork,
         marginToken,
@@ -402,19 +414,18 @@ function TradeForm({ onTradingTokenChange }) {
         ADDRESSES,
         SUPPORTED_TOKENS_LIST
     ]);
-    // V4 only trades the WETH/USDC pair; the margin token is set by direction
-    // (LONG supplies USDC, SHORT supplies WETH) and the asset is always WETH.
+    // V4 trades the authorized hook pools (WETH → USDC/WETH, WBTC → WBTC/USDC).
+    // The margin (input) currency is fully determined by direction + pair:
+    // LONG sells the USDC quote, SHORT sells the base token (WETH or WBTC).
     (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useEffect"])({
         "TradeForm.useEffect": ()=>{
             if (!isV4) return;
-            setMarginToken(isShort ? "WETH" : "USDC");
-            setTradingToken("WETH");
-            if (onTradingTokenChange) onTradingTokenChange("WETH");
+            setMarginToken(isShort ? tradingToken : "USDC");
         }
     }["TradeForm.useEffect"], [
         isV4,
         isShort,
-        onTradingTokenChange
+        tradingToken
     ]);
     // Calculate required borrow when amount/leverage changes using contract logic
     (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useEffect"])({
@@ -543,14 +554,17 @@ function TradeForm({ onTradingTokenChange }) {
             if (levInt > 5) {
                 throw new Error("Maximum allowed leverage is 5x.");
             }
-            // Validation 2: Minimum USD amount ($1)
+            // Validation 2: Minimum USD size.
+            // V4 feed scale = token decimals (USDC → 1e6 per $, WETH → 1e18);
+            // the deployed hook enforces a ~$0.10 collateral floor, so V4 uses
+            // $0.10. Polygon V3 uses the 18-decimal feed + classic $1 rule.
+            const minUsdScale = isV4 ? 10n ** BigInt(balanceData.decimals) / 10n : 10n ** 18n;
             // Only enforce when price feed returns a valid value —
             // if getAmountInUsd returns 0n due to a feed error, skip this check
             // and let the contract validate instead.
             const usdBig = await getAmountInUsd(marginAddr, amountBig);
-            if (usdBig > 0n && usdBig < 1000000000000000000n) {
-                // 1e18
-                throw new Error("Minimum position size is $1 USD.");
+            if (usdBig > 0n && usdBig < minUsdScale) {
+                throw new Error(isV4 ? "Minimum position size is $0.10 USD." : "Minimum position size is $1 USD.");
             }
             if (isShort && isHalalArbunMode) {
                 setStatus("🕋 Locking spot price & booking price-guarantee (Ujrah)...");
@@ -570,8 +584,8 @@ function TradeForm({ onTradingTokenChange }) {
                 let tx;
                 if (isV4) {
                     // V4: amount is the margin (input) token supplied by the trader —
-                    // USDC for a LONG, WETH for a SHORT.
-                    tx = await openV4Position(isShort, amountBig, parseInt(leverage));
+                    // USDC for a LONG, the base token (WETH/WBTC) for a SHORT.
+                    tx = await openV4Position(isShort, amountBig, parseInt(leverage), tradingToken);
                 } else {
                     tx = await openPosition(marginAddr, tradingAddr, isShort, amountBig, parseInt(leverage));
                 }
@@ -627,7 +641,7 @@ function TradeForm({ onTradingTokenChange }) {
                 setSimulating(false);
                 return;
             } else if (isV4) {
-                result = await simulateV4Position(isShort, amountBig, parseInt(leverage));
+                result = await simulateV4Position(isShort, amountBig, parseInt(leverage), tradingToken);
             } else {
                 result = await simulateOpenPosition(marginAddr, tradingAddr, isShort, amountBig, parseInt(leverage));
             }
@@ -768,10 +782,29 @@ function TradeForm({ onTradingTokenChange }) {
                                     }),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsx"])("select", {
                                         value: marginToken,
-                                        onChange: (e)=>setMarginToken(e.target.value),
-                                        disabled: isV4,
+                                        onChange: (e)=>{
+                                            const val = e.target.value;
+                                            setMarginToken(val);
+                                            // On V4 the margin currency drives direction:
+                                            // USDC margin = LONG, base-token margin = SHORT.
+                                            if (isV4) setIsShort(val !== "USDC");
+                                        },
                                         className: "input-field bg-black/40",
-                                        children: SUPPORTED_TOKENS_LIST.map((t)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsx"])("option", {
+                                        children: isV4 ? [
+                                            {
+                                                key: "USDC",
+                                                name: "USDC"
+                                            },
+                                            ...tradingToken !== "USDC" ? [
+                                                {
+                                                    key: tradingToken,
+                                                    name: tradingToken
+                                                }
+                                            ] : []
+                                        ].map((t)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsx"])("option", {
+                                                value: t.key,
+                                                children: t.name
+                                            }, t.key)) : SUPPORTED_TOKENS_LIST.map((t)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsx"])("option", {
                                                 value: t.key,
                                                 children: t.name
                                             }, t.key))
@@ -790,9 +823,8 @@ function TradeForm({ onTradingTokenChange }) {
                                             setTradingToken(e.target.value);
                                             if (onTradingTokenChange) onTradingTokenChange(e.target.value);
                                         },
-                                        disabled: isV4,
                                         className: "input-field bg-black/40",
-                                        children: SUPPORTED_TOKENS_LIST.map((t)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsx"])("option", {
+                                        children: (isV4 ? SUPPORTED_TOKENS_LIST.filter((t)=>t.key !== "USDC") : SUPPORTED_TOKENS_LIST).map((t)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsx"])("option", {
                                                 value: t.key,
                                                 children: t.name
                                             }, t.key))
@@ -1099,7 +1131,7 @@ var _s = __turbopack_context__.k.signature(), _s1 = __turbopack_context__.k.sign
 function PositionsList() {
     _s();
     const { isConnected, address } = (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$wagmi$2f$dist$2f$esm$2f$hooks$2f$useConnection$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__useConnection__as__useAccount$3e$__["useAccount"])();
-    const { getPositionsCount, getPositionDetails, closePosition } = (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$src$2f$hooks$2f$useDeFi$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useDeFi"])();
+    const { getPositionsCount, getPositionDetails, closePosition, isV4, SUPPORTED_TOKENS_LIST } = (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$src$2f$hooks$2f$useDeFi$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useDeFi"])();
     const { isAdmin } = (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$src$2f$contexts$2f$AdminContext$2e$jsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useAdmin"])();
     const [activeTab, setActiveTab] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])("my"); // 'my' | 'global'
     const [positions, setPositions] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])([]);
@@ -1120,14 +1152,37 @@ function PositionsList() {
         "PositionsList.useCallback[fetchPositions]": async ()=>{
             setLoading(true);
             try {
-                const count = await getPositionsCount();
-                const maxId = Number(count);
-                // Fetch position details
-                const promises = [];
-                for(let i = 1; i < maxId; i++){
-                    promises.push(getPositionDetails(i, address));
+                let results = [];
+                if (isV4) {
+                    // V4: check every authorized hook pool (WETH, WBTC).
+                    const pools = SUPPORTED_TOKENS_LIST.filter({
+                        "PositionsList.useCallback[fetchPositions].pools": (t)=>t.key !== "USDC"
+                    }["PositionsList.useCallback[fetchPositions].pools"]);
+                    const perPool = await Promise.all(pools.map({
+                        "PositionsList.useCallback[fetchPositions]": async (p)=>{
+                            const count = Number(await getPositionsCount(p.key));
+                            const ids = Array.from({
+                                length: count
+                            }, {
+                                "PositionsList.useCallback[fetchPositions].ids": (_, i)=>i + 1
+                            }["PositionsList.useCallback[fetchPositions].ids"]);
+                            const details = await Promise.all(ids.map({
+                                "PositionsList.useCallback[fetchPositions]": (i)=>getPositionDetails(i, address, p.key)
+                            }["PositionsList.useCallback[fetchPositions]"]));
+                            return details;
+                        }
+                    }["PositionsList.useCallback[fetchPositions]"]));
+                    results = perPool.flat();
+                } else {
+                    const count = await getPositionsCount();
+                    const maxId = Number(count);
+                    // Fetch position details
+                    const promises = [];
+                    for(let i = 1; i < maxId; i++){
+                        promises.push(getPositionDetails(i, address));
+                    }
+                    results = await Promise.all(promises);
                 }
-                const results = await Promise.all(promises);
                 // Filter out nulls (burned/closed)
                 const activePositions = results.filter({
                     "PositionsList.useCallback[fetchPositions].activePositions": (p)=>p !== null && p.state !== "NONE"
@@ -1143,7 +1198,9 @@ function PositionsList() {
     }["PositionsList.useCallback[fetchPositions]"], [
         getPositionsCount,
         getPositionDetails,
-        address
+        address,
+        isV4,
+        SUPPORTED_TOKENS_LIST
     ]);
     (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useEffect"])({
         "PositionsList.useEffect": ()=>{
@@ -1217,7 +1274,7 @@ function PositionsList() {
         ]
     });
 }
-_s(PositionsList, "A3N4QAyVnQSY61daVgroLGVLZTA=", false, function() {
+_s(PositionsList, "f2bdl/hDOEOBZhWTWB7aybVKnMw=", false, function() {
     return [
         __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$wagmi$2f$dist$2f$esm$2f$hooks$2f$useConnection$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__useConnection__as__useAccount$3e$__["useAccount"],
         __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$src$2f$hooks$2f$useDeFi$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useDeFi"],
@@ -1402,12 +1459,67 @@ __turbopack_context__.s([
     ()=>LiveChart
 ]);
 var __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/dashboard/node_modules/next/dist/compiled/react/index.js [app-client] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$clsx$2f$dist$2f$clsx$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/dashboard/node_modules/clsx/dist/clsx.mjs [app-client] (ecmascript)");
 var __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/dashboard/node_modules/next/dist/compiled/react/jsx-runtime.js [app-client] (ecmascript)");
+var _s = __turbopack_context__.k.signature();
 "use client";
 ;
 ;
-function LiveChart({ tokenKey }) {
-    const chartToken = tokenKey || "ETH";
+;
+const UNICHAIN_ID = 130;
+const UNICHAIN_SEPOLIA_ID = 1301;
+const POLYGON_ID = 137;
+// Canonical DexScreener pair pages (deepest liquidity, fetched live from the
+// DexScreener API) per network. Fractional/native Unichain v4 pool ids are
+// 66-hex and fully supported by DexScreener.
+const PAIR_CONFIG = {
+    WETH: {
+        label: "WETH/USDC",
+        [UNICHAIN_ID]: "0x8927058918e3CFf6F55EfE45A58db1be1F069E49",
+        [UNICHAIN_SEPOLIA_ID]: "0x8927058918e3CFf6F55EfE45A58db1be1F069E49",
+        [POLYGON_ID]: "0x853Ee4b2A13f8a742d64C8F088bE7bA2131f670d"
+    },
+    WBTC: {
+        label: "WBTC/USDC",
+        [UNICHAIN_ID]: "0xbd0f3a7cf4cf5f48ebe850474c8c0012fa5fe893ab811a8b8743a52b83aa8939",
+        [UNICHAIN_SEPOLIA_ID]: "0xbd0f3a7cf4cf5f48ebe850474c8c0012fa5fe893ab811a8b8743a52b83aa8939",
+        [POLYGON_ID]: "0xeEF1A9507B3D505f0062f2be9453981255b503c8"
+    }
+};
+function networkFor(chainId) {
+    if (chainId === POLYGON_ID) return "polygon";
+    return "unichain";
+}
+function pairFor(tokenKey, chainId) {
+    const cfg = PAIR_CONFIG[tokenKey] || {
+        label: `${tokenKey}/USDC`,
+        [UNICHAIN_ID]: "",
+        [UNICHAIN_SEPOLIA_ID]: "",
+        [POLYGON_ID]: ""
+    };
+    const pairAddress = cfg[chainId] || cfg[UNICHAIN_ID];
+    return {
+        label: cfg.label,
+        pairAddress
+    };
+}
+function LiveChart({ tokenKey = "WETH", chainId, onTokenChange }) {
+    _s();
+    const network = networkFor(chainId);
+    const { label, pairAddress } = pairFor(tokenKey, chainId);
+    const [loaded, setLoaded] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])(false);
+    const params = new URLSearchParams({
+        embed: "1",
+        theme: "dark",
+        chartTheme: "dark",
+        chartType: "usd",
+        interval: "15",
+        trades: "0",
+        info: "0",
+        chartLeftToolbar: "0"
+    });
+    const embedSrc = `https://dexscreener.com/${network}/${pairAddress}?${params}`;
+    const openUrl = `https://dexscreener.com/${network}/${pairAddress}`;
     return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxs"])("div", {
         className: "glass-panel w-full overflow-hidden flex flex-col mt-6",
         children: [
@@ -1417,34 +1529,89 @@ function LiveChart({ tokenKey }) {
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxs"])("h3", {
                         className: "text-sm font-bold text-gray-300 uppercase tracking-wider",
                         children: [
-                            chartToken,
-                            " Price Chart (Unichain)"
+                            label,
+                            " Price Chart (",
+                            network,
+                            ")"
                         ]
                     }),
-                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsx"])("span", {
-                        className: "text-[10px] font-bold text-green-400 bg-green-500/10 border border-green-500/20 rounded px-2 py-1",
-                        children: "LIVE FEED"
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxs"])("div", {
+                        className: "flex items-center gap-2",
+                        children: [
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsx"])("a", {
+                                href: openUrl,
+                                target: "_blank",
+                                rel: "noopener noreferrer",
+                                className: "text-[10px] text-gray-400 hover:text-white underline underline-offset-2",
+                                children: "Open \u2197"
+                            }),
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsx"])("span", {
+                                className: "text-[10px] font-bold text-green-400 bg-green-500/10 border border-green-500/20 rounded px-2 py-1",
+                                children: "LIVE FEED"
+                            })
+                        ]
                     })
                 ]
             }),
-            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsx"])("div", {
-                className: "w-full",
+            onTokenChange && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsx"])("div", {
+                className: "flex gap-2 px-4 py-2 border-b border-white/5 bg-black/10",
+                children: Object.keys(PAIR_CONFIG).map((key)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsx"])("button", {
+                        type: "button",
+                        onClick: ()=>onTokenChange(key),
+                        className: (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$clsx$2f$dist$2f$clsx$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"])("text-xs font-bold px-3 py-1.5 rounded border transition-all uppercase tracking-wider", tokenKey === key ? "bg-cyan-500/10 border-cyan-500/40 text-cyan-400" : "bg-black/40 border-white/10 text-gray-400 hover:text-white hover:border-white/25"),
+                        children: PAIR_CONFIG[key].label
+                    }, key))
+            }),
+            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxs"])("div", {
+                className: "relative w-full",
                 style: {
-                    height: "400px"
+                    height: "440px"
                 },
-                children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsx"])("iframe", {
-                    src: `https://dexscreener.com/unichain?q=${chartToken}&embed=1&theme=dark&trades=0&info=0`,
-                    style: {
-                        width: "100%",
-                        height: "100%",
-                        border: "none"
-                    },
-                    title: "DexScreener Live Chart"
-                })
+                children: [
+                    !loaded && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsx"])("div", {
+                        className: "absolute inset-0 z-0 grid place-items-center bg-[#0b0e14]",
+                        children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxs"])("div", {
+                            className: "flex flex-col items-center gap-2",
+                            children: [
+                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsx"])("div", {
+                                    className: "w-6 h-6 border-2 border-cyan-500/30 border-t-cyan-400 rounded-full animate-spin"
+                                }),
+                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxs"])("span", {
+                                    className: "text-[11px] text-gray-500 font-mono",
+                                    children: [
+                                        "Loading ",
+                                        label,
+                                        " chart\u2026"
+                                    ]
+                                }),
+                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsx"])("a", {
+                                    href: openUrl,
+                                    target: "_blank",
+                                    rel: "noopener noreferrer",
+                                    className: "text-[11px] text-cyan-400 hover:underline underline-offset-2",
+                                    children: "Open chart on DexScreener \u2197"
+                                })
+                            ]
+                        })
+                    }),
+                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsx"])("iframe", {
+                        src: embedSrc,
+                        onLoad: ()=>setLoaded(true),
+                        style: {
+                            width: "100%",
+                            height: "100%",
+                            border: "none",
+                            position: "relative",
+                            zIndex: 1
+                        },
+                        title: "DexScreener Live Chart"
+                    })
+                ]
             })
         ]
     });
 }
+_s(LiveChart, "5HkI/FtSFoHY/ZszUPbNWJy51d0=");
 _c = LiveChart;
 var _c;
 __turbopack_context__.k.register(_c, "LiveChart");

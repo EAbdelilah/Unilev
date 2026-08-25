@@ -28,6 +28,9 @@ contract EswapPositionLifecycleTest is BaseV4Test {
         // SHORT debt is currency0 (token0): the solvent close repays the borrowed amount
         // and transfers the surplus to the trader in token0 (mock take() is a no-op).
         token0.mint(address(hook), 35 ether);
+        // The close's unwind swap leaves a transient debt in the COLLATERAL
+        // currency (token1): fund it physically (no PM claims in direct mode).
+        token1.mint(address(hook), 27.86 ether);
 
         // Claim is populated for the bought currency (currency1 for zeroForOne=true)
         uint256 claimId = uint256(uint160(address(token1)));
@@ -76,6 +79,9 @@ contract EswapPositionLifecycleTest is BaseV4Test {
         uint256 insuranceBefore = hook.insuranceFund(key.currency0);
         assertEq(insuranceBefore, 100 ether);
 
+        // Collateral-currency (token1) leg of the unwind swap: physical funding
+        token1.mint(address(hook), 9.95 ether);
+
         uint256 settleBefore = manager.settleCount();
 
         // Underwater close: the mock unwind swap recovers only 96% of the collateral,
@@ -122,6 +128,8 @@ contract EswapPositionLifecycleTest is BaseV4Test {
 
         // Fund the hook with the debt currency (token0 for a SHORT) for the surplus transfer (mock take() is a no-op).
         token0.mint(address(hook), 50 ether);
+        // Collateral-currency (token1) leg of the unwind swap: physical funding.
+        token1.mint(address(hook), 47.76 ether);
 
         (, uint256 collateral, uint256 borrowed, , , , , , ) = hook.positions(key.toId(), address(this));
         uint256 received = (collateral * 96) / 100; // mock swap recovers 96% of the collateral
