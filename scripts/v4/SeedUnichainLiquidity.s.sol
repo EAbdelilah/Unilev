@@ -140,7 +140,7 @@ contract SeedUnichainLiquidity is Script {
         }
 
         // --- Insurance fund (pulls tokens from deployer via safeTransferFrom) ---
-        EswapMarginHook hook = EswapMarginHook(hookAddr);
+        EswapMarginHook hook = EswapMarginHook(payable(hookAddr));
         if (insWeth > 0) {
             IERC20(WETH).approve(hookAddr, type(uint256).max);
             hook.seedInsuranceFund(Currency.wrap(WETH), insWeth);

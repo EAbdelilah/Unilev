@@ -35,8 +35,13 @@ contract ForkPriceFeedMock is IPriceFeed {
     mapping(address => uint256) public prices;
     mapping(address => uint8) public decimalsOf;
 
-    function setPrice(address token, uint256 price) external { prices[token] = price; }
-    function setDecimals(address token, uint8 d) external { decimalsOf[token] = d; }
+    function setPrice(address token, uint256 price) external {
+        prices[token] = price;
+    }
+
+    function setDecimals(address token, uint8 d) external {
+        decimalsOf[token] = d;
+    }
 
     function getAmountInUsd(address token, uint256 amount) external view override returns (uint256) {
         uint256 p = prices[token] > 0 ? prices[token] : 1e18;
@@ -177,11 +182,9 @@ contract EswapMainnetV4LiquidationForkTest is Test {
         address hookAddr = address(uint160(HIGH_FLAGS | LOW_FLAGS));
         priceFeed = new ForkPriceFeedMock();
         deployCodeTo(
-            "EswapMarginHook.sol:EswapMarginHook",
-            abi.encode(address(pm), address(priceFeed), address(this)),
-            hookAddr
+            "EswapMarginHook.sol:EswapMarginHook", abi.encode(address(pm), address(priceFeed), address(this)), hookAddr
         );
-        hook = EswapMarginHook(hookAddr);
+        hook = EswapMarginHook(payable(hookAddr));
         router = new EswapRouter(IPoolManager(address(pm)));
         hook.setRouterAndMinCollateralUsd(address(router), 0);
 
@@ -193,11 +196,7 @@ contract EswapMainnetV4LiquidationForkTest is Test {
             hooks: RealIHooks(hookAddr)
         });
         hookLocalKey = PoolKey({
-            currency0: Currency.wrap(quote),
-            currency1: Currency.wrap(base),
-            fee: 3000,
-            tickSpacing: 60,
-            hooks: hookAddr
+            currency0: Currency.wrap(quote), currency1: Currency.wrap(base), fee: 3000, tickSpacing: 60, hooks: hookAddr
         });
 
         (uint160 hpSqrtP,,,) = _slot0(hookRealKey);
@@ -308,7 +307,7 @@ contract EswapMainnetV4LiquidationForkTest is Test {
         vm.prank(trader);
         router.swapMultiPool(params);
 
-        (, collateral, borrowed, , , , tl, tu, liq) = hook.positions(hookLocalKey.toId(), trader);
+        (, collateral, borrowed,,,, tl, tu, liq) = hook.positions(hookLocalKey.toId(), trader);
         assertGt(collateral, 0, "collateral recorded");
         assertGt(liq, 0, "LP band deployed");
     }
@@ -324,7 +323,9 @@ contract EswapMainnetV4LiquidationForkTest is Test {
     }
 
     function _positionFields()
-        internal view returns (address owner, uint256 coll, uint256 borr, int24 tl, int24 tu, uint128 lq)
+        internal
+        view
+        returns (address owner, uint256 coll, uint256 borr, int24 tl, int24 tu, uint128 lq)
     {
         address o;
         uint256 c;
@@ -332,7 +333,7 @@ contract EswapMainnetV4LiquidationForkTest is Test {
         int24 lo;
         int24 up;
         uint128 q;
-        (o, c, b, , , , lo, up, q) = hook.positions(hookLocalKey.toId(), trader);
+        (o, c, b,,,, lo, up, q) = hook.positions(hookLocalKey.toId(), trader);
         return (o, c, b, lo, up, q);
     }
 
@@ -369,11 +370,15 @@ contract EswapMainnetV4LiquidationForkTest is Test {
 
         // Proceeds: real venue beats the crashed-oracle expectation; guard held.
         assertGt(received, minOutUsed, "slippage guard must have passed");
-        assertApproxEqAbs(received, liveExpectedOut, liveExpectedOut * 3 / 100 + 1000, "proceeds near LIVE-price expectation");
+        assertApproxEqAbs(
+            received, liveExpectedOut, liveExpectedOut * 3 / 100 + 1000, "proceeds near LIVE-price expectation"
+        );
 
         // Insurance carve-out == exactly floor(3% of the post-solver surplus),
         // matching the hook's integer truncation.
-        assertEq(insuranceGot, FullMath.mulDiv(traderGot + insuranceGot, 300, 10000), "insurance carve-out == 3% of surplus");
+        assertEq(
+            insuranceGot, FullMath.mulDiv(traderGot + insuranceGot, 300, 10000), "insurance carve-out == 3% of surplus"
+        );
         assertGt(traderGot, 0, "trader residual positive");
 
         // No unbounded token residue in the hook. Residue observed on live
@@ -438,7 +443,7 @@ contract EswapMainnetV4LiquidationForkTest is Test {
         vm.expectRevert();
         router.liquidate(address(hook), hookLocalKey, trader, type(uint256).max);
 
-        (address owner,, , , , uint128 lqAfterFail) = _positionFields();
+        (address owner,,,,, uint128 lqAfterFail) = _positionFields();
         assertEq(owner, trader, "failed attempt must not damage the position");
         assertGt(lqAfterFail, 0, "band intact after failed attempt");
         assertGt(_liveBandLiquidity(tl, tu), 0, "live LP intact after failed attempt");
@@ -449,14 +454,25 @@ contract EswapMainnetV4LiquidationForkTest is Test {
         router.liquidate(address(hook), hookLocalKey, trader, minOut);
 
         _assertLiquidatedCleanly(
-            borrowed, tl, tu,
-            solverQuoteBefore, traderQuoteBefore, insuranceBefore,
-            hookWethBefore, hookUsdcBefore,
-            minOut, liveExpectedOut,
+            borrowed,
+            tl,
+            tu,
+            solverQuoteBefore,
+            traderQuoteBefore,
+            insuranceBefore,
+            hookWethBefore,
+            hookUsdcBefore,
+            minOut,
+            liveExpectedOut,
             collateral / 100
         );
 
-        console2.log("scenario A received(trader+solver+ins):", RealIERC20(quote).balanceOf(trader) - traderQuoteBefore + (RealIERC20(quote).balanceOf(solver) - solverQuoteBefore) + (hook.insuranceFund(Currency.wrap(quote)) - insuranceBefore));
+        console2.log(
+            "scenario A received(trader+solver+ins):",
+            RealIERC20(quote).balanceOf(trader) - traderQuoteBefore
+                + (RealIERC20(quote).balanceOf(solver) - solverQuoteBefore)
+                + (hook.insuranceFund(Currency.wrap(quote)) - insuranceBefore)
+        );
     }
 
     /// @notice SCENARIO B: genuine adverse REAL-price move â€” WETH sold into
@@ -523,10 +539,16 @@ contract EswapMainnetV4LiquidationForkTest is Test {
         router.liquidate(address(hook), hookLocalKey, trader, minOut);
 
         _assertLiquidatedCleanly(
-            borrowed, tl, tu,
-            solverQuoteBefore, traderQuoteBefore, insuranceBefore,
-            hookWethBefore, hookUsdcBefore,
-            minOut, liveExpectedOut,
+            borrowed,
+            tl,
+            tu,
+            solverQuoteBefore,
+            traderQuoteBefore,
+            insuranceBefore,
+            hookWethBefore,
+            hookUsdcBefore,
+            minOut,
+            liveExpectedOut,
             collateral / 100
         );
     }
@@ -537,9 +559,13 @@ contract EswapMainnetV4LiquidationForkTest is Test {
     ///      _bandConsumed. Every push swap carries a sqrtPriceLimit parked at
     ///      the `maxConsumedBps` point, so overshoot is structurally
     ///      impossible regardless of pool-depth estimation error.
-    function _pushDownToConsumption(int24 tl, int24 tu, uint256 minConsumedBps, uint256 maxConsumedBps, uint256 maxQuoteRaw)
-        internal
-    {
+    function _pushDownToConsumption(
+        int24 tl,
+        int24 tu,
+        uint256 minConsumedBps,
+        uint256 maxConsumedBps,
+        uint256 maxQuoteRaw
+    ) internal {
         int24 width = tu - tl;
         uint160 sqrtLimit;
         if (maxConsumedBps >= 10000) {
@@ -600,7 +626,7 @@ contract EswapMainnetV4LiquidationForkTest is Test {
         assertTrue(_inBandConsumedPct(tl, tu, tickMid) < 300, "stage 1 stays sub-trigger");
         vm.prank(keeper);
         router.rebalance(address(hook), hookLocalKey, trader);
-        (,,,,, , int24 loA, int24 upA, uint128 lqA) = hook.positions(hookLocalKey.toId(), trader);
+        (,,,,,, int24 loA, int24 upA, uint128 lqA) = hook.positions(hookLocalKey.toId(), trader);
         assertEq(loA, tl, "sub-trigger rebalance leaves ticks");
         assertEq(upA, tu, "sub-trigger rebalance leaves ticks");
         assertEq(lqA, liq0, "sub-trigger rebalance leaves LP stake");
@@ -613,7 +639,7 @@ contract EswapMainnetV4LiquidationForkTest is Test {
         vm.prank(keeper);
         router.rebalance(address(hook), hookLocalKey, trader);
 
-        (address owner2, uint256 coll2, uint256 borr2,,, , int24 lo2, int24 up2, uint128 lq2) =
+        (address owner2, uint256 coll2, uint256 borr2,,,, int24 lo2, int24 up2, uint128 lq2) =
             hook.positions(hookLocalKey.toId(), trader);
         assertEq(owner2, trader, "position survives rebalance");
         assertEq(borr2, borrowed, "rebalance never deleverages");
@@ -641,10 +667,16 @@ contract EswapMainnetV4LiquidationForkTest is Test {
         router.liquidate(address(hook), hookLocalKey, trader, minOut);
 
         _assertLiquidatedCleanly(
-            borr2, lo2, up2,
-            solverQuoteBefore, traderQuoteBefore, insuranceBefore,
-            hookWethBefore, hookUsdcBefore,
-            minOut, liveExpectedOut,
+            borr2,
+            lo2,
+            up2,
+            solverQuoteBefore,
+            traderQuoteBefore,
+            insuranceBefore,
+            hookWethBefore,
+            hookUsdcBefore,
+            minOut,
+            liveExpectedOut,
             coll2 / 100
         );
     }
@@ -685,19 +717,11 @@ contract EswapMainnetV4LiquidationForkTest is Test {
         if (sellBase) {
             // Sell BASE (currency1) for QUOTE on the hookless deep venue:
             // zeroForOne=false, exact-input, full-range limit.
-            delta = pm.swap(
-                deepRealKey(),
-                RealIPoolManager.SwapParams(false, -int256(amountIn), MAX_SQRT_LIMIT),
-                ""
-            );
+            delta = pm.swap(deepRealKey(), RealIPoolManager.SwapParams(false, -int256(amountIn), MAX_SQRT_LIMIT), "");
         } else {
             // Buy BASE with QUOTE: zeroForOne=true (drives tick DOWN), price
             // hard-capped at sqrtLimit so probes can never overshoot.
-            delta = pm.swap(
-                deepRealKey(),
-                RealIPoolManager.SwapParams(true, -int256(amountIn), sqrtLimit),
-                ""
-            );
+            delta = pm.swap(deepRealKey(), RealIPoolManager.SwapParams(true, -int256(amountIn), sqrtLimit), "");
         }
         // Collect whichever side came OUT.
         if (delta.amount0() > 0) {
@@ -709,9 +733,8 @@ contract EswapMainnetV4LiquidationForkTest is Test {
         // Pay the input legs: sync + transfer + settle.
         if (delta.amount0() < 0) {
             pm.sync(deepRealKey().currency0);
-            RealIERC20(RealCurrency.unwrap(deepRealKey().currency0)).transfer(
-                address(pm), uint256(uint128(-delta.amount0()))
-            );
+            RealIERC20(RealCurrency.unwrap(deepRealKey().currency0))
+                .transfer(address(pm), uint256(uint128(-delta.amount0())));
             pm.settle();
         }
         if (delta.amount1() < 0) {

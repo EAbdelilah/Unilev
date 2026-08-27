@@ -139,7 +139,7 @@ contract DeployUnichain is Script {
 
         // Deploy the hook with the LINKED creation code via assembly CREATE2 so the
         // resulting address matches the computed CREATE2 address above.
-        address hookAddr;
+        address payable hookAddr;
         assembly {
             hookAddr := create2(0, add(initCode, 32), mload(initCode), salt)
         }
@@ -211,24 +211,24 @@ contract DeployUnichain is Script {
         hook.setAuthorizedPool(poolId, true);
         hook.setBaseCurrency(poolId, Currency.wrap(WETH));
 
-        // --- Initialize Pool 2: WBTC / USDC ---
-        // WBTC (0x0555..) sorts below USDC (0x078D..) so WBTC is currency0, USDC is currency1.
+        // --- Initialize Pool 2: USDC / WBTC ---
+        // On Unichain: USDC (0x078D..) sorts below WBTC (0x927B..) so USDC is currency0, WBTC is currency1.
         PoolKey memory wbtcKey = PoolKey({
-            currency0: Currency.wrap(WBTC),
-            currency1: Currency.wrap(USDC),
+            currency0: Currency.wrap(USDC),
+            currency1: Currency.wrap(WBTC),
             fee: 3000,
             tickSpacing: 60,
             hooks: address(hook)
         });
 
-        // Price ratio = USDC per WBTC = ~$60,000 USD (converted from ~55,811.68 EUR).
-        // Raw units ratio = 60000 * 1e6 / 1e8 = 600.
-        // Tick is log_1.0001(600) = 63972. Multiples of 60 tick spacing = 63960.
-        uint160 wbtcPriceX96 = TickMath.getSqrtRatioAtTick(63960);
+        // 1 WBTC ≈ $95,000 USDC. currency0=USDC(6 dec), currency1=WBTC(8 dec).
+        // V4 price = token1_raw/token0_raw = 1e8 / 95000e6 = 0.0010526
+        // tick = ln(0.0010526) / ln(1.0001) ≈ -68568 → nearest 60-spacing = -68580
+        uint160 wbtcPriceX96 = TickMath.getSqrtRatioAtTick(-68580);
         pm.initialize(
             RealPoolKey({
-                currency0: RealCurrency.wrap(WBTC),
-                currency1: RealCurrency.wrap(USDC),
+                currency0: RealCurrency.wrap(USDC),
+                currency1: RealCurrency.wrap(WBTC),
                 fee: 3000,
                 tickSpacing: 60,
                 hooks: IHooks(address(hook))

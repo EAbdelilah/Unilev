@@ -53,7 +53,7 @@ contract EswapLiquidationKeeper is Ownable {
     error NoLiquidatablePositions();
 
     constructor(address _hook, address _router) Ownable(msg.sender) {
-        hook = EswapMarginHook(_hook);
+        hook = EswapMarginHook(payable(_hook));
         router = EswapRouter(_router);
     }
 
@@ -105,12 +105,19 @@ contract EswapLiquidationKeeper is Ownable {
     // ─── Oracle-derived minAmountOut ───────────────────────────────────────────
 
     function _position(PoolKey memory key, address trader) internal view returns (EswapMarginHook.Position memory pos) {
-        (address traderAddr, uint256 collateral, uint256 borrowed, uint8 leverage, bool isLong,
-         uint160 liqSqrtPrice, int24 tickLower, int24 tickUpper, uint128 liquidity) =
-            hook.positions(key.toId(), trader);
+        (
+            address traderAddr,
+            uint256 collateral,
+            uint256 borrowed,
+            uint8 leverage,
+            bool isLong,
+            uint160 liqSqrtPrice,
+            int24 tickLower,
+            int24 tickUpper,
+            uint128 liquidity
+        ) = hook.positions(key.toId(), trader);
         pos = EswapMarginHook.Position(
-            traderAddr, collateral, borrowed, leverage, isLong,
-            liqSqrtPrice, tickLower, tickUpper, liquidity
+            traderAddr, collateral, borrowed, leverage, isLong, liqSqrtPrice, tickLower, tickUpper, liquidity
         );
     }
 
@@ -236,11 +243,7 @@ contract EswapLiquidationKeeper is Ownable {
 
     error PositionNotLiquidatable();
 
-    function _liquidateBatch(
-        PoolKey[] memory keys,
-        address[] memory traders,
-        uint256[] memory minOuts
-    ) internal {
+    function _liquidateBatch(PoolKey[] memory keys, address[] memory traders, uint256[] memory minOuts) internal {
         for (uint256 i = 0; i < keys.length; i++) {
             _tryLiquidate(keys[i], traders[i], minOuts[i]);
         }

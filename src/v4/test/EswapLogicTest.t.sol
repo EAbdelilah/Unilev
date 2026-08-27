@@ -21,7 +21,13 @@ contract EswapLogicTest is BaseV4Test {
         hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, margin, 0), data);
 
         vm.startPrank(address(manager));
-        hook.afterSwap(address(this), key, IPoolManager.SwapParams(true, -10 ether, 0), BalanceDeltaLibrary.toBalanceDelta(-10 ether, 9.5 ether), data);
+        hook.afterSwap(
+            address(this),
+            key,
+            IPoolManager.SwapParams(true, -10 ether, 0),
+            BalanceDeltaLibrary.toBalanceDelta(-10 ether, 9.5 ether),
+            data
+        );
         vm.stopPrank();
 
         (address trader, uint256 collateral, uint256 borrow, uint8 lev,,,,,) = hook.positions(key.toId(), address(this));
@@ -41,7 +47,13 @@ contract EswapLogicTest is BaseV4Test {
         hook.beforeSwap(address(this), key, IPoolManager.SwapParams(false, margin, 0), data);
 
         vm.startPrank(address(manager));
-        hook.afterSwap(address(this), key, IPoolManager.SwapParams(false, -50 ether, 0), BalanceDeltaLibrary.toBalanceDelta(48 ether, -50 ether), data);
+        hook.afterSwap(
+            address(this),
+            key,
+            IPoolManager.SwapParams(false, -50 ether, 0),
+            BalanceDeltaLibrary.toBalanceDelta(48 ether, -50 ether),
+            data
+        );
         vm.stopPrank();
 
         (address trader, uint256 collateral, uint256 borrow, uint8 lev,,,,,) = hook.positions(key.toId(), address(this));

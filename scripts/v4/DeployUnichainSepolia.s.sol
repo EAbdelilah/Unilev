@@ -111,7 +111,7 @@ contract DeployUnichainSepolia is Script {
         require(found, "Could not mine hook salt");
 
         // 4. Deploy hook (TWAP-only oracle, no Chainlink dependency) with LINKED bytecode
-        address hookAddr;
+        address payable hookAddr;
         assembly {
             hookAddr := create2(0, add(initCode, 32), mload(initCode), salt)
         }

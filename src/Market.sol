@@ -25,12 +25,7 @@ contract Market is IMarket, Ownable, Pausable {
     LiquidityPoolFactory private immutable LIQUIDITY_POOL_FACTORY;
     PriceFeedL1 private immutable PRICE_FEED;
 
-    constructor(
-        address _positions,
-        address _liquidityPoolFactory,
-        address _priceFeed,
-        address _owner
-    ) Ownable(_owner) {
+    constructor(address _positions, address _liquidityPoolFactory, address _priceFeed, address _owner) Ownable(_owner) {
         POSITIONS = Positions(_positions);
         LIQUIDITY_POOL_FACTORY = LiquidityPoolFactory(_liquidityPoolFactory);
         PRICE_FEED = PriceFeedL1(_priceFeed);
@@ -47,26 +42,9 @@ contract Market is IMarket, Ownable, Pausable {
         uint256 _stopLossPrice
     ) external whenNotPaused {
         uint256 posId = POSITIONS.openLongPosition(
-            msg.sender,
-            _token0,
-            _token1,
-            _fee,
-            _leverage,
-            _amount,
-            _limitPrice,
-            _stopLossPrice
+            msg.sender, _token0, _token1, _fee, _leverage, _amount, _limitPrice, _stopLossPrice
         );
-        emit PositionOpened(
-            posId,
-            msg.sender,
-            _token0,
-            _token1,
-            _amount,
-            false,
-            _leverage,
-            _limitPrice,
-            _stopLossPrice
-        );
+        emit PositionOpened(posId, msg.sender, _token0, _token1, _amount, false, _leverage, _limitPrice, _stopLossPrice);
     }
 
     function openShortPosition(
@@ -79,26 +57,9 @@ contract Market is IMarket, Ownable, Pausable {
         uint256 _stopLossPrice
     ) external whenNotPaused {
         uint256 posId = POSITIONS.openShortPosition(
-            msg.sender,
-            _token0,
-            _token1,
-            _fee,
-            _leverage,
-            _amount,
-            _limitPrice,
-            _stopLossPrice
+            msg.sender, _token0, _token1, _fee, _leverage, _amount, _limitPrice, _stopLossPrice
         );
-        emit PositionOpened(
-            posId,
-            msg.sender,
-            _token0,
-            _token1,
-            _amount,
-            true,
-            _leverage,
-            _limitPrice,
-            _stopLossPrice
-        );
+        emit PositionOpened(posId, msg.sender, _token0, _token1, _amount, true, _leverage, _limitPrice, _stopLossPrice);
     }
 
     function closePosition(uint256 _posId) external whenNotPaused {
@@ -115,9 +76,7 @@ contract Market is IMarket, Ownable, Pausable {
         return POSITIONS.getTraderPositions(_traderAdd);
     }
 
-    function getPositionParams(
-        uint256 _posId
-    )
+    function getPositionParams(uint256 _posId)
         external
         view
         returns (
@@ -160,40 +119,28 @@ contract Market is IMarket, Ownable, Pausable {
     )
         external
         view
-        returns (
-            uint256 liquidationFloor,
-            uint256 totalBorrow,
-            address borrowToken,
-            address liquidityPoolToken
-        )
+        returns (uint256 liquidationFloor, uint256 totalBorrow, address borrowToken, address liquidityPoolToken)
     {
         // Get base token decimals
         uint8 baseDecimals = IERC20Metadata(_baseToken).decimals();
         uint256 baseDecimalsPow = 10 ** baseDecimals;
 
         // Build calculation params
-        PositionLogic.PositionOpeningCalcParams memory params = PositionLogic
-            .PositionOpeningCalcParams({
-                price: _price,
-                leverage: _leverage,
-                baseCollateralAmount: _baseCollateralAmount,
-                baseDecimals: baseDecimals,
-                baseDecimalsPow: baseDecimalsPow,
-                isShort: _isShort,
-                baseToken: _baseToken,
-                quoteToken: _quoteToken
-            });
+        PositionLogic.PositionOpeningCalcParams memory params = PositionLogic.PositionOpeningCalcParams({
+            price: _price,
+            leverage: _leverage,
+            baseCollateralAmount: _baseCollateralAmount,
+            baseDecimals: baseDecimals,
+            baseDecimalsPow: baseDecimalsPow,
+            isShort: _isShort,
+            baseToken: _baseToken,
+            quoteToken: _quoteToken
+        });
 
         // Calculate position opening parameters
-        PositionLogic.PositionOpeningCalcResult memory result = PositionLogic
-            .calculatePositionOpening(params);
+        PositionLogic.PositionOpeningCalcResult memory result = PositionLogic.calculatePositionOpening(params);
 
-        return (
-            result.liquidationFloor,
-            result.totalBorrow,
-            result.borrowToken,
-            result.liquidityPoolToken
-        );
+        return (result.liquidationFloor, result.totalBorrow, result.borrowToken, result.liquidityPoolToken);
     }
 
     // --------------- Liquidator/Keeper Zone ----------------
@@ -246,10 +193,12 @@ contract Market is IMarket, Ownable, Pausable {
         POSITIONS.setSlippageTolerance(_newTolerance);
     }
 
-    function initializeTokens(
-        address[] calldata _tokens,
-        address[] calldata _priceFeeds
-    ) external onlyOwner whenNotPaused returns (address[] memory) {
+    function initializeTokens(address[] calldata _tokens, address[] calldata _priceFeeds)
+        external
+        onlyOwner
+        whenNotPaused
+        returns (address[] memory)
+    {
         uint256 len = _tokens.length;
         require(len == _priceFeeds.length, "Token and PriceFeed arrays must have same length");
 

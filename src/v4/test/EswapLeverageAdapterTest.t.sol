@@ -32,7 +32,7 @@ contract EswapLeverageAdapterTest is BaseV4Test {
 
         address hookAddress = address(uint160((1 << 159) | (1 << 158) | (1 << 153) | (1 << 152) | (1 << 148)));
         deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(manager, priceFeed, address(this)), hookAddress);
-        hook = EswapMarginHook(hookAddress);
+        hook = EswapMarginHook(payable(hookAddress));
 
         router = new EswapRouter(manager);
         adapter = new EswapLeverageAdapter(router);
@@ -58,6 +58,7 @@ contract EswapLeverageAdapterTest is BaseV4Test {
 
         solver = makeAddr("solver");
         user = makeAddr("user");
+        router.setSolverWhitelist(solver, true);
 
         token0.mint(user, 100 ether);
         token0.mint(solver, 100 ether);

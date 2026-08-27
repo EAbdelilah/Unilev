@@ -54,17 +54,17 @@ contract EswapHybridArbunTest is BaseV4Test {
         hook.beforeSwap(address(this), key, IPoolManager.SwapParams(false, int128(uint128(marginAmount)), 0), hookData);
 
         vm.prank(address(manager));
-        hook.afterSwap(address(this), key, IPoolManager.SwapParams(false, totalSize, 0), BalanceDeltaLibrary.toBalanceDelta(-totalSize, -bought), hookData);
+        hook.afterSwap(
+            address(this),
+            key,
+            IPoolManager.SwapParams(false, totalSize, 0),
+            BalanceDeltaLibrary.toBalanceDelta(-totalSize, -bought),
+            hookData
+        );
 
         // Verify position was opened
-        (
-            address posTrader,
-            uint256 collateral,
-            uint256 borrow,
-            uint8 posLev,
-            bool isLong,
-            ,,,
-        ) = hook.positions(key.toId(), trader);
+        (address posTrader, uint256 collateral, uint256 borrow, uint8 posLev, bool isLong,,,,) =
+            hook.positions(key.toId(), trader);
 
         assertEq(posTrader, trader, "Trader mismatch");
         assertGt(collateral, 0, "Collateral should be positive");

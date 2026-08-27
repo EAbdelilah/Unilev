@@ -29,7 +29,7 @@ contract EswapLiquidationKeeperTest is BaseV4Test {
 
         address hookAddress = address(uint160((1 << 159) | (1 << 158) | (1 << 153) | (1 << 152) | (1 << 148)));
         deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(manager, priceFeed, address(this)), hookAddress);
-        hook = EswapMarginHook(hookAddress);
+        hook = EswapMarginHook(payable(hookAddress));
 
         router = new EswapRouter(manager);
         keeper = new EswapLiquidationKeeper(address(hook), address(router));
@@ -44,6 +44,7 @@ contract EswapLiquidationKeeperTest is BaseV4Test {
 
         hook.setRouterAndMinCollateralUsd(address(router), 0);
         hook.setAuthorizedPool(key.toId(), true);
+        manager.setSlot0(key.toId(), 79228162514264337593543950336, 0);
     }
 
     function _openShort() internal {
@@ -52,7 +53,17 @@ contract EswapLiquidationKeeperTest is BaseV4Test {
         vm.prank(address(manager));
         hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -10 ether, 0), data);
         vm.prank(address(manager));
-        hook.afterSwap(address(this), key, IPoolManager.SwapParams(true, -30 ether, 0), BalanceDeltaLibrary.toBalanceDelta(-30 ether, 28 ether), data);
+        hook.afterSwap(
+            address(this),
+            key,
+            IPoolManager.SwapParams(true, -30 ether, 0),
+            BalanceDeltaLibrary.toBalanceDelta(-30 ether, 28 ether),
+            data
+        );
+        // Simulate Router minting ERC-6909 collateral claims to the hook (real V4 unlock flow).
+        // boughtAmount = 28 ether (delta.amount1()), positionCollateral = 28 - reserve.
+        // Need 2× positionCollateral for _settleTransientDebt + _settle burns.
+        manager.mint(address(hook), uint256(uint160(address(token1))), 28 ether * 2);
     }
 
     function _makeLiquidatable() internal {
@@ -64,7 +75,7 @@ contract EswapLiquidationKeeperTest is BaseV4Test {
         // Fund the hook so the unwind's surplus transfer can settle (mock take() is a no-op).
         token0.mint(address(hook), 50 ether);
         token1.mint(address(hook), 50 ether);
-        
+
         // Mock the liquidation swap to return 30 ether of token0 (debt currency) to satisfy the receivedAmount > totalPayout check
         manager.setNextSwapDelta(30 ether, -28 ether);
     }
@@ -81,7 +92,7 @@ contract EswapLiquidationKeeperTest is BaseV4Test {
         vm.prank(automation);
         keeper.performUpkeep(performData);
 
-        (address trader, uint256 collateral, , , , , , , ) = hook.positions(key.toId(), address(this));
+        (address trader, uint256 collateral,,,,,,,) = hook.positions(key.toId(), address(this));
         assertEq(trader, address(0), "position should be liquidated");
         assertEq(collateral, 0);
         // Keeper earns NOTHING: nobody profits from a trader's penalty.
@@ -120,7 +131,7 @@ contract EswapLiquidationKeeperTest is BaseV4Test {
         uint256 count = keeper.liquidateAll();
         assertEq(count, 1);
 
-        (address trader, uint256 collateral, , , , , , , ) = hook.positions(key.toId(), address(this));
+        (address trader, uint256 collateral,,,,,,,) = hook.positions(key.toId(), address(this));
         assertEq(trader, address(0));
         assertEq(collateral, 0);
     }

@@ -15,6 +15,7 @@ contract ERC20MockJIT is ERC20 {
     constructor(string memory name, string memory symbol) ERC20(name, symbol) {
         _mint(msg.sender, 1_000_000 ether);
     }
+
     function mint(address to, uint256 amount) external {
         _mint(to, amount);
     }
@@ -24,6 +25,7 @@ contract PriceFeedMockJIT is IPriceFeed {
     function getAmountInUsd(address, uint256 amount) external pure override returns (uint256) {
         return amount;
     }
+
     function getTwapPrice(address) external pure override returns (uint256) {
         return 1e18;
     }
@@ -52,7 +54,7 @@ contract EswapJITSpotTest is Test {
         // Deploy hook at a valid hook address
         address hookAddress = address(uint160((1 << 159) | (1 << 158) | (1 << 153) | (1 << 152) | (1 << 148)));
         deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(manager, priceFeed, address(this)), hookAddress);
-        hook = EswapMarginHook(hookAddress);
+        hook = EswapMarginHook(payable(hookAddress));
 
         key = PoolKey({
             currency0: Currency.wrap(address(token0)),
@@ -65,6 +67,7 @@ contract EswapJITSpotTest is Test {
         router = new EswapRouter(manager);
         hook.setRouterAndMinCollateralUsd(address(router), 0);
         hook.setAuthorizedPool(key.toId(), true);
+        router.setJitApprovedSwapper(swapper, true);
 
         // Fund swapper with token0 (input)
         token0.mint(swapper, 1000 ether);
@@ -87,8 +90,8 @@ contract EswapJITSpotTest is Test {
 
         uint256 swapperTok0Before = token0.balanceOf(swapper);
         uint256 swapperTok1Before = token1.balanceOf(swapper);
-        uint256 solverTok0Before  = token0.balanceOf(solver);
-        uint256 solverTok1Before  = token1.balanceOf(solver);
+        uint256 solverTok0Before = token0.balanceOf(solver);
+        uint256 solverTok1Before = token1.balanceOf(solver);
 
         EswapRouter.JITSpotParams memory params = EswapRouter.JITSpotParams({
             key: key,
@@ -105,8 +108,8 @@ contract EswapJITSpotTest is Test {
 
         uint256 swapperTok0After = token0.balanceOf(swapper);
         uint256 swapperTok1After = token1.balanceOf(swapper);
-        uint256 solverTok0After  = token0.balanceOf(solver);
-        uint256 solverTok1After  = token1.balanceOf(solver);
+        uint256 solverTok0After = token0.balanceOf(solver);
+        uint256 solverTok1After = token1.balanceOf(solver);
 
         // Swapper paid amountIn token0 and received amountOut token1
         assertEq(swapperTok0Before - swapperTok0After, amountIn, "Swapper should lose input");

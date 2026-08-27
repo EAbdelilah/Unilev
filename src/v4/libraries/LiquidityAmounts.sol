@@ -12,21 +12,21 @@ library LiquidityAmounts {
         return TickMath.getSqrtRatioAtTick(tick);
     }
 
-    function getLiquidityForAmount0(
-        uint160 sqrtRatioAX96,
-        uint160 sqrtRatioBX96,
-        uint256 amount0
-    ) internal pure returns (uint128 liquidity) {
+    function getLiquidityForAmount0(uint160 sqrtRatioAX96, uint160 sqrtRatioBX96, uint256 amount0)
+        internal
+        pure
+        returns (uint128 liquidity)
+    {
         if (sqrtRatioAX96 > sqrtRatioBX96) (sqrtRatioAX96, sqrtRatioBX96) = (sqrtRatioBX96, sqrtRatioAX96);
         uint256 intermediate = (uint256(sqrtRatioAX96) * sqrtRatioBX96) / (1 << 96);
         liquidity = uint128((amount0 * intermediate) / (sqrtRatioBX96 - sqrtRatioAX96));
     }
 
-    function getLiquidityForAmount1(
-        uint160 sqrtRatioAX96,
-        uint160 sqrtRatioBX96,
-        uint256 amount1
-    ) internal pure returns (uint128 liquidity) {
+    function getLiquidityForAmount1(uint160 sqrtRatioAX96, uint160 sqrtRatioBX96, uint256 amount1)
+        internal
+        pure
+        returns (uint128 liquidity)
+    {
         if (sqrtRatioAX96 > sqrtRatioBX96) (sqrtRatioAX96, sqrtRatioBX96) = (sqrtRatioBX96, sqrtRatioAX96);
         liquidity = uint128((amount1 << 96) / (sqrtRatioBX96 - sqrtRatioAX96));
     }

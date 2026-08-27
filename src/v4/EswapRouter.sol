@@ -6,6 +6,7 @@ import {PoolKey} from "./types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "./types/PoolId.sol";
 import {Currency} from "./types/Currency.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol"; // [FIX L-2]
 import {BalanceDelta, BalanceDeltaLibrary} from "./types/BalanceDelta.sol";
 import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
@@ -53,11 +54,23 @@ interface IEswapHook {
  *        5. Registers the on-chain SolverDebt guaranteeing solver repayment.
  *      All (account, currency) transient deltas net to zero before unlock exits.
  */
-contract EswapRouter is Ownable2Step { // [FIX L-2]
+contract EswapRouter is
+    Ownable2Step // [FIX L-2]
+{
     using PoolIdLibrary for PoolKey;
     using BalanceDeltaLibrary for BalanceDelta;
+    using SafeERC20 for IERC20;
 
     IPoolManager public immutable manager;
+
+    // H-3: Solver whitelist — only registered solvers can be used
+    mapping(address => bool) public registeredSolvers;
+
+    // M-2: ERC-7683 nonce consumption
+    mapping(bytes32 => bool) public filledOrders;
+
+    // H-4: JIT swapper opt-in — swappers must approve JIT spot swaps
+    mapping(address => bool) public jitApprovedSwappers;
 
     struct CrossChainOrder {
         address settlementContract;
@@ -98,7 +111,16 @@ contract EswapRouter is Ownable2Step { // [FIX L-2]
 
     bytes32 public immutable DOMAIN_SEPARATOR;
 
-    enum CallType { SWAP, CLOSE, LIQUIDATE, REBALANCE, ATOMIC_MARGIN, JIT_SPOT, ARBUN_DELIVERY, MULTI_POOL_SWAP }
+    enum CallType {
+        SWAP,
+        CLOSE,
+        LIQUIDATE,
+        REBALANCE,
+        ATOMIC_MARGIN,
+        JIT_SPOT,
+        ARBUN_DELIVERY,
+        MULTI_POOL_SWAP
+    }
 
     struct AtomicMarginParams {
         PoolKey key;
@@ -131,6 +153,19 @@ contract EswapRouter is Ownable2Step { // [FIX L-2]
             )
         );
     }
+
+    // --- Admin (Router owner = deployer / multisig) ---
+
+    function setSolverWhitelist(address solver, bool approved) external onlyOwner {
+        registeredSolvers[solver] = approved;
+    }
+
+    function setJitApprovedSwapper(address swapper, bool approved) external onlyOwner {
+        jitApprovedSwappers[swapper] = approved;
+    }
+
+    // M-11: Event for failed collateral deployment
+    event DeployCollateralFailed(address indexed hook, address indexed trader, bytes reason);
 
     struct SwapParams {
         // Hook-enabled pool where leverage accounting (flash borrow + position
@@ -225,15 +260,14 @@ contract EswapRouter is Ownable2Step { // [FIX L-2]
         require(order.originChainId == block.chainid, "Invalid origin chain");
         require(block.timestamp <= order.initiateDeadline, "Initiate deadline passed");
 
-        bytes32 digest = keccak256(
-            abi.encodePacked(
-                "\x19\x01",
-                DOMAIN_SEPARATOR,
-                hashOrder(order)
-            )
-        );
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, hashOrder(order)));
         address swapper = _recoverSigner(digest, signature);
         require(swapper == order.swapper && swapper != address(0), "Invalid signature");
+
+        // M-2 FIX: Consume order nonce to prevent replay
+        bytes32 orderHash = keccak256(abi.encode(digest));
+        require(!filledOrders[orderHash], "Order already filled");
+        filledOrders[orderHash] = true;
 
         (
             PoolKey memory key,
@@ -269,15 +303,13 @@ contract EswapRouter is Ownable2Step { // [FIX L-2]
      * @notice ERC-7683 Order Resolution Interface.
      * Decodes the cross-chain order's custom parameters for solvers/aggregators to inspect inputs/outputs.
      */
-    function resolve(CrossChainOrder calldata order, bytes calldata) external view returns (ResolvedCrossChainOrder memory resolved) {
-        (
-            PoolKey memory key,
-            ,
-            bool zeroForOne,
-            int256 amountSpecified,
-            uint8 leverage,
-            ,
-        ) = abi.decode(order.orderData, (PoolKey, PoolKey, bool, int256, uint8, address, bytes));
+    function resolve(CrossChainOrder calldata order, bytes calldata)
+        external
+        view
+        returns (ResolvedCrossChainOrder memory resolved)
+    {
+        (PoolKey memory key,, bool zeroForOne, int256 amountSpecified, uint8 leverage,,) =
+            abi.decode(order.orderData, (PoolKey, PoolKey, bool, int256, uint8, address, bytes));
 
         resolved.settlementContract = order.settlementContract;
         resolved.swapper = order.swapper;
@@ -289,18 +321,12 @@ contract EswapRouter is Ownable2Step { // [FIX L-2]
         resolved.swapperInputs = new Input[](1);
         address inputToken = zeroForOne ? Currency.unwrap(key.currency0) : Currency.unwrap(key.currency1);
         uint256 marginAmount = uint256(amountSpecified < 0 ? -amountSpecified : amountSpecified);
-        resolved.swapperInputs[0] = Input({
-            token: inputToken,
-            amount: marginAmount
-        });
+        resolved.swapperInputs[0] = Input({token: inputToken, amount: marginAmount});
 
         resolved.swapperOutputs = new Output[](1);
         address outputToken = zeroForOne ? Currency.unwrap(key.currency1) : Currency.unwrap(key.currency0);
         resolved.swapperOutputs[0] = Output({
-            token: outputToken,
-            amount: marginAmount * leverage,
-            chainId: order.originChainId,
-            recipient: order.swapper
+            token: outputToken, amount: marginAmount * leverage, chainId: order.originChainId, recipient: order.swapper
         });
     }
 
@@ -321,25 +347,30 @@ contract EswapRouter is Ownable2Step { // [FIX L-2]
             (, SwapParams memory params, address trader) = abi.decode(data, (CallType, SwapParams, address));
             return _multiPoolSwapCallback(params, trader);
         } else if (callType == CallType.CLOSE) {
-            (, address hook, PoolKey memory key, address trader, address solver, uint256 minAmountOut) = abi.decode(data, (CallType, address, PoolKey, address, address, uint256));
+            (, address hook, PoolKey memory key, address trader, address solver, uint256 minAmountOut) =
+                abi.decode(data, (CallType, address, PoolKey, address, address, uint256));
             _closeCallback(hook, key, trader, solver, minAmountOut);
             return "";
         } else if (callType == CallType.LIQUIDATE) {
-            (, address hook, PoolKey memory key, address trader, uint256 minAmountOut, address liquidator) = abi.decode(data, (CallType, address, PoolKey, address, uint256, address));
+            (, address hook, PoolKey memory key, address trader, uint256 minAmountOut, address liquidator) =
+                abi.decode(data, (CallType, address, PoolKey, address, uint256, address));
             IEswapHook(hook).executeLiquidation(key, trader, minAmountOut, liquidator);
             return "";
         } else if (callType == CallType.REBALANCE) {
-            (, address hook, PoolKey memory key, address trader) = abi.decode(data, (CallType, address, PoolKey, address));
+            (, address hook, PoolKey memory key, address trader) =
+                abi.decode(data, (CallType, address, PoolKey, address));
             IEswapHook(hook).rebalancePosition(key, trader);
             return "";
         } else if (callType == CallType.ATOMIC_MARGIN) {
-            (, AtomicMarginParams memory params, address trader) = abi.decode(data, (CallType, AtomicMarginParams, address));
+            (, AtomicMarginParams memory params, address trader) =
+                abi.decode(data, (CallType, AtomicMarginParams, address));
             return _atomicMarginCallback(params, trader);
         } else if (callType == CallType.JIT_SPOT) {
             (, JITSpotParams memory params) = abi.decode(data, (CallType, JITSpotParams));
             return _jitSpotCallback(params);
         } else if (callType == CallType.ARBUN_DELIVERY) {
-            (, address hook, PoolKey memory key, address trader) = abi.decode(data, (CallType, address, PoolKey, address));
+            (, address hook, PoolKey memory key, address trader) =
+                abi.decode(data, (CallType, address, PoolKey, address));
             IEswapHook(hook).executeArbunDelivery(key, trader);
             return "";
         }
@@ -355,12 +386,14 @@ contract EswapRouter is Ownable2Step { // [FIX L-2]
 
         // 2. First leg: swap borrowed input token to output token on high-liquidity standard pool
         manager.sync(input);
-        IERC20(Currency.unwrap(input)).transfer(address(manager), params.borrowAmount);
+        IERC20(Currency.unwrap(input)).safeTransfer(address(manager), params.borrowAmount);
         manager.settle();
 
         BalanceDelta deltaPhysical = manager.swap(
             params.standardPoolKey,
-            IPoolManager.SwapParams(params.zeroForOne, -int256(params.borrowAmount), EswapMarginLib.sqrtPriceLimit(params.zeroForOne)),
+            IPoolManager.SwapParams(
+                params.zeroForOne, -int256(params.borrowAmount), EswapMarginLib.sqrtPriceLimit(params.zeroForOne)
+            ),
             ""
         );
 
@@ -373,15 +406,16 @@ contract EswapRouter is Ownable2Step { // [FIX L-2]
         // 3. Second leg: swap output token back to input token on hook pool
         bool oppositeZeroForOne = !params.zeroForOne;
         manager.sync(output);
-        IERC20(Currency.unwrap(output)).transfer(address(manager), receivedOutputAmount);
+        IERC20(Currency.unwrap(output)).safeTransfer(address(manager), receivedOutputAmount);
         manager.settle();
 
-        // Pass non-margin hookData to EswapMarginHook to skip persistent margin position updates
-        bytes memory hookData = abi.encode(false, uint8(1), trader);
+        // Pass empty hookData to EswapMarginHook — second leg is a standard spot swap, no accounting
         BalanceDelta deltaHook = manager.swap(
             params.key,
-            IPoolManager.SwapParams(oppositeZeroForOne, -int256(receivedOutputAmount), EswapMarginLib.sqrtPriceLimit(oppositeZeroForOne)),
-            hookData
+            IPoolManager.SwapParams(
+                oppositeZeroForOne, -int256(receivedOutputAmount), EswapMarginLib.sqrtPriceLimit(oppositeZeroForOne)
+            ),
+            ""
         );
 
         int128 receivedInputDelta = oppositeZeroForOne ? deltaHook.amount1() : deltaHook.amount0();
@@ -396,18 +430,21 @@ contract EswapRouter is Ownable2Step { // [FIX L-2]
 
         // 5. Settle original borrow delta to PoolManager
         manager.sync(input);
-        IERC20(Currency.unwrap(input)).transfer(address(manager), params.borrowAmount);
+        IERC20(Currency.unwrap(input)).safeTransfer(address(manager), params.borrowAmount);
         manager.settle();
 
         // 6. Pay profit to trader with 0 capital used
         if (profit > 0) {
-            IERC20(Currency.unwrap(input)).transfer(trader, profit);
+            IERC20(Currency.unwrap(input)).safeTransfer(trader, profit);
         }
 
         return abi.encode(profit);
     }
 
     function _jitSpotCallback(JITSpotParams memory params) internal returns (bytes memory) {
+        // H-4 FIX: Require swapper to be JIT-approved
+        require(jitApprovedSwappers[params.swapper], "Swapper not JIT-approved");
+
         Currency input = params.zeroForOne ? params.key.currency0 : params.key.currency1;
         Currency output = params.zeroForOne ? params.key.currency1 : params.key.currency0;
 
@@ -415,32 +452,34 @@ contract EswapRouter is Ownable2Step { // [FIX L-2]
         require(params.solverOutput >= params.minSolverOutput, "JIT: solver output below minimum acceptable");
 
         bytes memory hookData = abi.encode(false, params.solver, params.solverOutput);
-        
+
         // 1. Execute swap on the Hook pool. The Hook's beforeSwap will absorb the delta.
         manager.swap(
             params.key,
-            IPoolManager.SwapParams(params.zeroForOne, params.amountSpecified, EswapMarginLib.sqrtPriceLimit(params.zeroForOne)),
+            IPoolManager.SwapParams(
+                params.zeroForOne, params.amountSpecified, EswapMarginLib.sqrtPriceLimit(params.zeroForOne)
+            ),
             hookData
         );
-        
+
         uint256 inputAmount = uint256(params.amountSpecified < 0 ? -params.amountSpecified : params.amountSpecified);
-        
+
         // 2. Swapper pays the input tokens to the Manager (Settles Router's input debt)
         manager.sync(input);
-        IERC20(Currency.unwrap(input)).transferFrom(params.swapper, address(manager), inputAmount);
+        IERC20(Currency.unwrap(input)).safeTransferFrom(params.swapper, address(manager), inputAmount);
         manager.settle();
-        
+
         // 3. Solver pays the output tokens to the Manager FOR the Hook
         manager.sync(output);
-        IERC20(Currency.unwrap(output)).transferFrom(params.solver, address(manager), params.solverOutput);
+        IERC20(Currency.unwrap(output)).safeTransferFrom(params.solver, address(manager), params.solverOutput);
         manager.settleFor(address(params.key.hooks));
-        
+
         // 4. Router takes the output tokens and sends them to the Swapper
         manager.take(output, params.swapper, params.solverOutput);
-        
+
         // 5. Hook takes the input tokens and sends them to the Solver
         IEswapHook(address(params.key.hooks)).clearJITDelta(input, params.solver, inputAmount);
-        
+
         return "";
     }
 
@@ -458,10 +497,24 @@ contract EswapRouter is Ownable2Step { // [FIX L-2]
      *      sqrtPriceLimitX96 ([FIX V1]); the real Pool library rejects 0.
      */
     function _swapCallback(SwapParams memory params, address trader) internal returns (bytes memory) {
-        uint256 marginAmount = uint256(int256(params.amountSpecified < 0 ? -params.amountSpecified : params.amountSpecified));
+        uint256 marginAmount =
+            uint256(int256(params.amountSpecified < 0 ? -params.amountSpecified : params.amountSpecified));
         uint256 borrowAmount = marginAmount * uint256(params.leverage - 1);
         if (params.leverage > 1) {
             require(params.solver != address(0), "Solver required for leverage");
+        }
+
+        // C-2 FIX: Validate that hookData trader matches the trader parameter
+        if (params.hookData.length > 0) {
+            (bool isMargin,, address hookDataTrader) = abi.decode(params.hookData, (bool, uint8, address));
+            if (isMargin) {
+                require(hookDataTrader == trader, "hookData trader mismatch");
+            }
+        }
+
+        // H-3 FIX: Validate solver is whitelisted
+        if (params.leverage > 1) {
+            require(registeredSolvers[params.solver], "Solver not whitelisted");
         }
 
         Currency input = params.zeroForOne ? params.key.currency0 : params.key.currency1;
@@ -471,7 +524,9 @@ contract EswapRouter is Ownable2Step { // [FIX L-2]
         // records the position in afterSwap.
         BalanceDelta delta = manager.swap(
             params.key,
-            IPoolManager.SwapParams(params.zeroForOne, params.amountSpecified, EswapMarginLib.sqrtPriceLimit(params.zeroForOne)),
+            IPoolManager.SwapParams(
+                params.zeroForOne, params.amountSpecified, EswapMarginLib.sqrtPriceLimit(params.zeroForOne)
+            ),
             params.hookData
         );
 
@@ -482,7 +537,7 @@ contract EswapRouter is Ownable2Step { // [FIX L-2]
         // Settle the trader's margin (router's -margin delta from the swap)
         if (marginAmount > 0) {
             manager.sync(input);
-            IERC20(Currency.unwrap(input)).transferFrom(trader, address(manager), marginAmount);
+            IERC20(Currency.unwrap(input)).safeTransferFrom(trader, address(manager), marginAmount);
             manager.settle();
         }
 
@@ -495,7 +550,7 @@ contract EswapRouter is Ownable2Step { // [FIX L-2]
         // settleFor(hook) zeroes.
         if (borrowAmount > 0) {
             manager.sync(input);
-            IERC20(Currency.unwrap(input)).transferFrom(params.solver, address(manager), borrowAmount);
+            IERC20(Currency.unwrap(input)).safeTransferFrom(params.solver, address(manager), borrowAmount);
             manager.settleFor(address(params.key.hooks));
         }
 
@@ -506,9 +561,11 @@ contract EswapRouter is Ownable2Step { // [FIX L-2]
         }
 
         if (params.hookData.length > 0) {
-            (bool isMargin, , ) = abi.decode(params.hookData, (bool, uint8, address));
+            (bool isMargin,,) = abi.decode(params.hookData, (bool, uint8, address));
             if (isMargin) {
-                try IEswapHook(params.key.hooks).deployCollateral(params.key, trader) {} catch {}
+                try IEswapHook(params.key.hooks).deployCollateral(params.key, trader) {} catch (bytes memory reason) {
+                    emit DeployCollateralFailed(params.key.hooks, trader, reason);
+                }
             }
         }
 
@@ -530,16 +587,18 @@ contract EswapRouter is Ownable2Step { // [FIX L-2]
      *      BOTH input legs are funded and the FULL output is minted as a claim.
      */
     function _multiPoolSwapCallback(SwapParams memory params, address trader) internal returns (bytes memory) {
-        uint256 marginAmount = uint256(int256(params.amountSpecified < 0 ? -params.amountSpecified : params.amountSpecified));
+        uint256 marginAmount =
+            uint256(int256(params.amountSpecified < 0 ? -params.amountSpecified : params.amountSpecified));
         uint256 borrowAmount = marginAmount * uint256(params.leverage - 1);
         if (params.leverage > 1) {
             require(params.solver != address(0), "Solver required for leverage");
+            require(registeredSolvers[params.solver], "Solver not whitelisted");
         }
 
         // The deep-fill venue must trade the exact same token pair as the hook pool.
         require(
-            Currency.unwrap(params.standardPoolKey.currency0) == Currency.unwrap(params.key.currency0) &&
-                Currency.unwrap(params.standardPoolKey.currency1) == Currency.unwrap(params.key.currency1),
+            Currency.unwrap(params.standardPoolKey.currency0) == Currency.unwrap(params.key.currency0)
+                && Currency.unwrap(params.standardPoolKey.currency1) == Currency.unwrap(params.key.currency1),
             "Standard pool currency mismatch"
         );
 
@@ -550,7 +609,9 @@ contract EswapRouter is Ownable2Step { // [FIX L-2]
         // 1. Physical fill on the standard pool for margin + borrow.
         BalanceDelta stdDelta = manager.swap(
             params.standardPoolKey,
-            IPoolManager.SwapParams(params.zeroForOne, -int256(notional), EswapMarginLib.sqrtPriceLimit(params.zeroForOne)),
+            IPoolManager.SwapParams(
+                params.zeroForOne, -int256(notional), EswapMarginLib.sqrtPriceLimit(params.zeroForOne)
+            ),
             ""
         );
         int128 outputDelta = params.zeroForOne ? stdDelta.amount1() : stdDelta.amount0();
@@ -560,20 +621,19 @@ contract EswapRouter is Ownable2Step { // [FIX L-2]
         // 2. Fund both input legs against the router's transient deltas.
         if (marginAmount > 0) {
             manager.sync(input);
-            IERC20(Currency.unwrap(input)).transferFrom(trader, address(manager), marginAmount);
+            IERC20(Currency.unwrap(input)).safeTransferFrom(trader, address(manager), marginAmount);
             manager.settle();
         }
         if (borrowAmount > 0) {
             manager.sync(input);
-            IERC20(Currency.unwrap(input)).transferFrom(params.solver, address(manager), borrowAmount);
+            IERC20(Currency.unwrap(input)).safeTransferFrom(params.solver, address(manager), borrowAmount);
             manager.settle();
         }
 
         // 3. Hook validates the open (leverage/collateral/OI caps/TWAP breaker)
         //    and records position accounting — no AMM fill involved.
-        IEswapHook(params.key.hooks).registerMarginOpen(
-            params.key, trader, params.leverage, marginAmount, borrowAmount, output, outputAmount
-        );
+        IEswapHook(params.key.hooks)
+            .registerMarginOpen(params.key, trader, params.leverage, marginAmount, borrowAmount, output, outputAmount);
 
         // 4. Collateral custody: full output minted as an ERC-6909 claim held by
         //    the hook (mirrors single-pool mode, including the protocol-fee share).
@@ -585,9 +645,11 @@ contract EswapRouter is Ownable2Step { // [FIX L-2]
         }
 
         if (params.hookData.length > 0) {
-            (bool isMargin, , ) = abi.decode(params.hookData, (bool, uint8, address));
+            (bool isMargin,,) = abi.decode(params.hookData, (bool, uint8, address));
             if (isMargin) {
-                try IEswapHook(params.key.hooks).deployCollateral(params.key, trader) {} catch {}
+                try IEswapHook(params.key.hooks).deployCollateral(params.key, trader) {} catch (bytes memory reason) {
+                    emit DeployCollateralFailed(params.key.hooks, trader, reason);
+                }
             }
         }
 
@@ -616,7 +678,9 @@ contract EswapRouter is Ownable2Step { // [FIX L-2]
         manager.unlock(abi.encode(CallType.REBALANCE, hook, key, trader));
     }
 
-    function closePosition(address hook, PoolKey calldata key, address trader, address solver, uint256 minAmountOut) external {
+    function closePosition(address hook, PoolKey calldata key, address trader, address solver, uint256 minAmountOut)
+        external
+    {
         // [FIX C-1] Only the trader themselves can close their own position
         require(msg.sender == trader, "EswapRouter: only the trader can close their own position");
         manager.unlock(abi.encode(CallType.CLOSE, hook, key, trader, solver, minAmountOut));
@@ -626,7 +690,9 @@ contract EswapRouter is Ownable2Step { // [FIX L-2]
         manager.unlock(abi.encode(CallType.ARBUN_DELIVERY, hook, key, trader));
     }
 
-    function _closeCallback(address hook, PoolKey memory key, address trader, address solver, uint256 minAmountOut) internal {
+    function _closeCallback(address hook, PoolKey memory key, address trader, address solver, uint256 minAmountOut)
+        internal
+    {
         IEswapHook(hook).closePosition(key, trader, solver, minAmountOut);
     }
 
@@ -636,12 +702,11 @@ contract EswapRouter is Ownable2Step { // [FIX L-2]
      *      EXECUTION venue: the deep standard pool when one is registered for this
      *      pair (multi-pool mode), else the hook pool itself.
      */
-    function quoteExactInput(
-        PoolKey calldata key,
-        bool zeroForOne,
-        int128 amountSpecified,
-        uint8 leverage
-    ) external view returns (int128 amountOut) {
+    function quoteExactInput(PoolKey calldata key, bool zeroForOne, int128 amountSpecified, uint8 leverage)
+        external
+        view
+        returns (int128 amountOut)
+    {
         if (leverage == 0 || leverage > 20 || amountSpecified == 0) return 0; // [FIX L-3] Raised cap from 5 to 20 to match protocol max
         int128 absAmount = amountSpecified < 0 ? -amountSpecified : amountSpecified;
         uint128 leveragedAmount = uint128(absAmount) * uint128(leverage);
@@ -649,17 +714,20 @@ contract EswapRouter is Ownable2Step { // [FIX L-2]
         // Prefer the standard (deep-fill) pool's price: in multi-pool mode that is
         // where the physical swap executes, so quoting it keeps parity.
         PoolKey memory execKey = key;
-        try IEswapHook(key.hooks).standardPoolKeys(key.toId()) returns (Currency sc0, Currency sc1, uint24 sf, int24 sts, address sh) {
+        try IEswapHook(key.hooks).standardPoolKeys(key.toId()) returns (
+            Currency sc0, Currency sc1, uint24 sf, int24 sts, address sh
+        ) {
             if (Currency.unwrap(sc0) != address(0)) {
                 execKey = PoolKey({currency0: sc0, currency1: sc1, fee: sf, tickSpacing: sts, hooks: sh});
             }
         } catch {}
 
         // Fetch slot0 price of the execution pool
-        (uint160 sqrtPriceX96, , , ) = StateLibrary.getSlot0(RealIPoolManager(address(manager)), RealPoolId.wrap(PoolId.unwrap(execKey.toId())));
+        (uint160 sqrtPriceX96,,,) =
+            StateLibrary.getSlot0(RealIPoolManager(address(manager)), RealPoolId.wrap(PoolId.unwrap(execKey.toId())));
         if (sqrtPriceX96 == 0) {
-            // Fallback to 1:1 if uninitialized or custom mock
-            return int128(uint128(leveragedAmount));
+            // M-3 FIX: Revert instead of returning misleading 1:1 for uninitialized pools
+            revert("Pool not initialized");
         }
 
         uint256 output;

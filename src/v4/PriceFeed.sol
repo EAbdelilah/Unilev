@@ -29,10 +29,10 @@ interface IERC20Decimals {
  *      All prices are normalised to 18 decimals internally, regardless of feed decimals.
  */
 contract PriceFeed {
-    mapping(address => address) public priceFeeds;   // token → Chainlink AggregatorV3
-    mapping(address => int256)  public minAnswers;   // circuit-breaker floor (raw feed units)
-    mapping(address => int256)  public maxAnswers;   // circuit-breaker ceiling (raw feed units)
-    mapping(address => uint8)   public feedDecimals; // decimals of each feed answer
+    mapping(address => address) public priceFeeds; // token → Chainlink AggregatorV3
+    mapping(address => int256) public minAnswers; // circuit-breaker floor (raw feed units)
+    mapping(address => int256) public maxAnswers; // circuit-breaker ceiling (raw feed units)
+    mapping(address => uint8) public feedDecimals; // decimals of each feed answer
     address public owner;
     address public sequencerUptimeFeed;
 
@@ -41,7 +41,7 @@ contract PriceFeed {
     // update on a many-hour cadence (observed gaps of 2-20 h), so the 1 h
     // threshold made every read revert StalePrice. 24 h is the minimum window
     // that keeps getAmountInUsd/getTwapPrice usable on Unichain today.
-    uint256 public constant MAX_ORACLE_AGE    = 86400; // 24 h staleness threshold
+    uint256 public constant MAX_ORACLE_AGE = 86400; // 24 h staleness threshold
 
     error SequencerDown();
     error GracePeriodNotMet();
@@ -74,13 +74,13 @@ contract PriceFeed {
      * @param decimals_ Decimals of the feed answer (8 for most USD feeds)
      */
     function setPriceFeed(address token, address feed, uint8 decimals_) external onlyOwner {
-        priceFeeds[token]    = feed;
-        feedDecimals[token]  = decimals_ == 0 ? 8 : decimals_;
+        priceFeeds[token] = feed;
+        feedDecimals[token] = decimals_ == 0 ? 8 : decimals_;
     }
 
     /// @notice Legacy 2-param overload – assumes 8-decimal USD feed.
     function setPriceFeed(address token, address feed) external onlyOwner {
-        priceFeeds[token]   = feed;
+        priceFeeds[token] = feed;
         feedDecimals[token] = 8;
     }
 
@@ -99,8 +99,7 @@ contract PriceFeed {
     function _getValidatedPrice(address token) internal view returns (uint256 price18) {
         // L2 sequencer uptime check (skipped if feed not configured yet)
         if (sequencerUptimeFeed != address(0)) {
-            (, int256 seqAnswer, uint256 startedAt, , ) =
-                ISequencerUptimeFeed(sequencerUptimeFeed).latestRoundData();
+            (, int256 seqAnswer, uint256 startedAt,,) = ISequencerUptimeFeed(sequencerUptimeFeed).latestRoundData();
             // answer == 1 → sequencer is DOWN
             if (seqAnswer == 1) revert SequencerDown();
             if (block.timestamp - startedAt < GRACE_PERIOD_TIME) revert GracePeriodNotMet();
@@ -109,7 +108,7 @@ contract PriceFeed {
         address feed = priceFeeds[token];
         if (feed == address(0)) return 0; // feed not registered → caller skips
 
-        (, int256 price, , uint256 updatedAt, ) = AggregatorV3Interface(feed).latestRoundData();
+        (, int256 price,, uint256 updatedAt,) = AggregatorV3Interface(feed).latestRoundData();
         require(price > 0, "PriceFeed: non-positive price");
 
         if (block.timestamp > updatedAt && block.timestamp - updatedAt > MAX_ORACLE_AGE) {
@@ -122,9 +121,7 @@ contract PriceFeed {
         // Normalise to 18 decimals
         uint8 dec = feedDecimals[token];
         if (dec == 0) dec = 8; // safe default
-        price18 = dec <= 18
-            ? uint256(price) * (10 ** (18 - dec))
-            : uint256(price) / (10 ** (dec - 18));
+        price18 = dec <= 18 ? uint256(price) * (10 ** (18 - dec)) : uint256(price) / (10 ** (dec - 18));
     }
 
     // ─── External view ────────────────────────────────────────────────────────

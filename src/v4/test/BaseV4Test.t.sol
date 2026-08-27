@@ -23,7 +23,11 @@ contract ERC20Mock is ERC20 {
 
 contract PriceFeedMock is IPriceFeed {
     mapping(address => uint256) public prices;
-    function setPrice(address token, uint256 price) external { prices[token] = price; }
+
+    function setPrice(address token, uint256 price) external {
+        prices[token] = price;
+    }
+
     function getAmountInUsd(address token, uint256 amount) external view override returns (uint256) {
         return (amount * (prices[token] > 0 ? prices[token] : 1e18)) / 1e18;
     }
@@ -54,7 +58,7 @@ contract BaseV4Test is Test {
 
         address hookAddress = address(uint160((1 << 159) | (1 << 158) | (1 << 153) | (1 << 152) | (1 << 148)));
         deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(manager, priceFeed, address(this)), hookAddress);
-        hook = EswapMarginHook(hookAddress);
+        hook = EswapMarginHook(payable(hookAddress));
 
         key = PoolKey({
             currency0: Currency.wrap(address(token0)),
@@ -66,5 +70,7 @@ contract BaseV4Test is Test {
 
         hook.setRouterAndMinCollateralUsd(address(this), 0);
         hook.setAuthorizedPool(key.toId(), true);
+        // Initialize slot0 so sqrtPriceX96 is non-zero (prevents TwapManipulated revert in checkTwap)
+        manager.setSlot0(key.toId(), 79228162514264337593543950336, 0);
     }
 }

@@ -8,9 +8,6 @@ contract Utils is Test {
     using stdStorage for StdStorage;
 
     function writeTokenBalance(address who, address token, uint256 amt) public {
-        stdstore.target(token).sig(IERC20(token).balanceOf.selector).with_key(who).checked_write(
-            amt
-        );
+        stdstore.target(token).sig(IERC20(token).balanceOf.selector).with_key(who).checked_write(amt);
     }
-
 }

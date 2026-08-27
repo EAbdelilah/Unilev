@@ -19,9 +19,7 @@ contract LeveragedTradeLong is TestSetup {
         assertEq(amount, IERC20(usdc).balanceOf(alice));
         assertEq(0, IERC20(usdc).balanceOf(address(positions)));
 
-        uint256 usdcBalanceBefore = IERC20(usdc).balanceOf(
-            address(liquidityPoolFactory.getTokenToLiquidityPools(usdc))
-        );
+        uint256 usdcBalanceBefore = IERC20(usdc).balanceOf(address(liquidityPoolFactory.getTokenToLiquidityPools(usdc)));
         console.log("USDC balance in lbPool BEFORE open: ", usdcBalanceBefore);
 
         vm.startPrank(alice);
@@ -31,9 +29,7 @@ contract LeveragedTradeLong is TestSetup {
 
         assertEq(0, IERC20(usdc).balanceOf(alice));
 
-        uint256 usdcBalanceAfter = IERC20(usdc).balanceOf(
-            address(liquidityPoolFactory.getTokenToLiquidityPools(usdc))
-        );
+        uint256 usdcBalanceAfter = IERC20(usdc).balanceOf(address(liquidityPoolFactory.getTokenToLiquidityPools(usdc)));
         assertLt(usdcBalanceAfter, usdcBalanceBefore);
 
         uint256 wbtcBalance = IERC20(wbtc).balanceOf(address(positions));
@@ -45,9 +41,7 @@ contract LeveragedTradeLong is TestSetup {
         assertEq(1, posAlice[0]);
         assertEq(alice, positions.ownerOf(posAlice[0]));
 
-        (, , , , bool isShort_, uint8 leverage_, , , , , ) = positions.getPositionParams(
-            posAlice[0]
-        );
+        (,,,, bool isShort_, uint8 leverage_,,,,,) = positions.getPositionParams(posAlice[0]);
         assertEq(isShort_, false);
         assertEq(leverage_, 5);
 
@@ -57,9 +51,8 @@ contract LeveragedTradeLong is TestSetup {
         assertGt(IERC20(usdc).balanceOf(alice), 0);
         assertEq(0, IERC20(wbtc).balanceOf(address(positions)));
 
-        uint256 usdcBalanceAfterClose = IERC20(usdc).balanceOf(
-            address(liquidityPoolFactory.getTokenToLiquidityPools(usdc))
-        );
+        uint256 usdcBalanceAfterClose =
+            IERC20(usdc).balanceOf(address(liquidityPoolFactory.getTokenToLiquidityPools(usdc)));
         console.log("USDC balance in lbPool AFTER close: ", usdcBalanceAfterClose);
     }
 }

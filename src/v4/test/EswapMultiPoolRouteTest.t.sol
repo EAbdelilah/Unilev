@@ -35,7 +35,7 @@ contract EswapMultiPoolRouteTest is BaseV4Test {
 
         address hookAddress = address(uint160((1 << 159) | (1 << 158) | (1 << 153) | (1 << 152) | (1 << 148)));
         deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(manager, priceFeed, address(this)), hookAddress);
-        hook = EswapMarginHook(hookAddress);
+        hook = EswapMarginHook(payable(hookAddress));
 
         router = new EswapRouter(manager);
 
@@ -49,16 +49,12 @@ contract EswapMultiPoolRouteTest is BaseV4Test {
 
         // Standard (physical execution) pool: same currency ordering, $0 fees,
         // NO hook. This is where the real token exchange happens.
-        standardPoolKey = PoolKey({
-            currency0: key.currency0,
-            currency1: key.currency1,
-            fee: 0,
-            tickSpacing: 60,
-            hooks: address(0)
-        });
+        standardPoolKey =
+            PoolKey({currency0: key.currency0, currency1: key.currency1, fee: 0, tickSpacing: 60, hooks: address(0)});
 
         hook.setRouterAndMinCollateralUsd(address(router), 0);
         hook.setAuthorizedPool(key.toId(), true);
+        router.setSolverWhitelist(address(0x123), true);
 
         // Both pools initialized at a 1:1 price. The hook pool is intentionally
         // UNSEEDED (no liquidity/reserves); the standard pool is seeded.
@@ -72,7 +68,9 @@ contract EswapMultiPoolRouteTest is BaseV4Test {
 
     /// @dev Simulates the hook invocation the real PoolManager performs inside
     ///      manager.swap (the mock does not route swaps to hooks).
-    function _primeHookPosition(address trader, bool zeroForOne, uint256 margin, uint8 leverage, int128 output) internal {
+    function _primeHookPosition(address trader, bool zeroForOne, uint256 margin, uint8 leverage, int128 output)
+        internal
+    {
         bytes memory data = abi.encode(true, leverage, trader);
         vm.prank(address(manager));
         hook.beforeSwap(address(this), key, IPoolManager.SwapParams(zeroForOne, -int128(uint128(margin)), 0), data);
@@ -101,7 +99,7 @@ contract EswapMultiPoolRouteTest is BaseV4Test {
     /// @dev Reconstructs the PoolKey recorded by a mock swap call from the
     ///      public getter and returns its pool id.
     function _swapCallPoolId(uint256 i) internal view returns (PoolId) {
-        (PoolKey memory k, , , ) = manager.swapCalls(i);
+        (PoolKey memory k,,,) = manager.swapCalls(i);
         return k.toId();
     }
 
@@ -141,7 +139,7 @@ contract EswapMultiPoolRouteTest is BaseV4Test {
         vm.stopPrank();
 
         // Position opened on the UNSEEDED hook pool with the expected accounting.
-        (address posTrader, uint256 collateral, uint256 borrowed, uint8 posLeverage, , , , , uint128 liquidity) =
+        (address posTrader, uint256 collateral, uint256 borrowed, uint8 posLeverage,,,,, uint128 liquidity) =
             hook.positions(key.toId(), trader);
         assertEq(posTrader, trader);
         assertEq(posLeverage, leverage);
@@ -155,7 +153,7 @@ contract EswapMultiPoolRouteTest is BaseV4Test {
         // deltas and reverted CurrencyNotSettled on the real PoolManager).
         assertEq(manager.swapCallsLength(), 1, "router must perform exactly one swap");
         assertEq(PoolId.unwrap(_swapCallPoolId(0)), PoolId.unwrap(key.toId()), "the swap must land on the hook pool");
-        (, , int128 swapAmount, bytes memory swapHookData) = manager.swapCalls(0);
+        (,, int128 swapAmount, bytes memory swapHookData) = manager.swapCalls(0);
         assertEq(swapAmount, -int128(uint128(margin)));
         assertGt(swapHookData.length, 0, "hook pool swap must carry hookData");
     }
@@ -196,7 +194,7 @@ contract EswapMultiPoolRouteTest is BaseV4Test {
         router.swap(params);
         vm.stopPrank();
 
-        (address posTrader, uint256 collateral, uint256 borrowed, , bool isLong, , , , uint128 liquidity) =
+        (address posTrader, uint256 collateral, uint256 borrowed,, bool isLong,,,, uint128 liquidity) =
             hook.positions(key.toId(), trader);
         assertEq(posTrader, trader);
         assertTrue(isLong, "base currency unset -> currency0 buy must be a LONG");
@@ -207,7 +205,7 @@ contract EswapMultiPoolRouteTest is BaseV4Test {
         // [FIX V2] Single-pool execution: exactly ONE swap on the hook pool.
         assertEq(manager.swapCallsLength(), 1, "router must perform exactly one swap");
         assertEq(PoolId.unwrap(_swapCallPoolId(0)), PoolId.unwrap(key.toId()));
-        (, , int128 swapAmount, bytes memory swapHookData) = manager.swapCalls(0);
+        (,, int128 swapAmount, bytes memory swapHookData) = manager.swapCalls(0);
         assertEq(swapAmount, -int128(uint128(margin)));
         assertGt(swapHookData.length, 0);
     }
@@ -250,7 +248,7 @@ contract EswapMultiPoolRouteTest is BaseV4Test {
         vm.stopPrank();
 
         // Verify position details
-        (address posTrader, uint256 collateral, uint256 borrowed, uint8 posLeverage, , , , , uint128 liquidity) =
+        (address posTrader, uint256 collateral, uint256 borrowed, uint8 posLeverage,,,,, uint128 liquidity) =
             hook.positions(key.toId(), trader);
         assertEq(posTrader, trader);
         assertEq(posLeverage, leverage);
@@ -291,7 +289,7 @@ contract EswapMultiPoolRouteTest is BaseV4Test {
         vm.stopPrank();
 
         // Verify position is cleared
-        (posTrader, collateral, borrowed, , , , , , ) = hook.positions(key.toId(), trader);
+        (posTrader, collateral, borrowed,,,,,,) = hook.positions(key.toId(), trader);
         assertEq(posTrader, address(0));
         assertEq(collateral, 0);
         assertEq(borrowed, 0);

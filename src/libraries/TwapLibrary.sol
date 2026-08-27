@@ -33,18 +33,15 @@ library TwapLibrary {
     /// @param isToken0Base         True → price = token1 per token0 (base = token0)
     ///                             False → price = token0 per token1 (base = token1, invert)
     /// @return price18             Price with 18 decimals
-    function tickToPrice(
-        int24 arithmeticMeanTick,
-        uint8 token0Decimals,
-        uint8 token1Decimals,
-        bool isToken0Base
-    ) internal pure returns (uint256 price18) {
+    function tickToPrice(int24 arithmeticMeanTick, uint8 token0Decimals, uint8 token1Decimals, bool isToken0Base)
+        internal
+        pure
+        returns (uint256 price18)
+    {
         // price (token1 per token0) = 1.0001^tick
         // We compute this via fast exponentiation in Q128 fixed-point.
         bool negative = arithmeticMeanTick < 0;
-        uint256 absTick = negative
-            ? uint256(uint24(-arithmeticMeanTick))
-            : uint256(uint24(arithmeticMeanTick));
+        uint256 absTick = negative ? uint256(uint24(-arithmeticMeanTick)) : uint256(uint24(arithmeticMeanTick));
 
         // Fast power: result = 1.0001^absTick in Q128
         uint256 result = _pow(ONE_0001_Q128, absTick);

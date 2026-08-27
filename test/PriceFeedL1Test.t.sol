@@ -7,13 +7,21 @@ import {PriceFeedL1} from "../src/PriceFeedL1.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract TestToken18 is ERC20("Test18", "TST18") {
-    function mint(address to, uint256 amount) external { _mint(to, amount); }
+    function mint(address to, uint256 amount) external {
+        _mint(to, amount);
+    }
 }
 
 contract TestToken6 is ERC20("Test6", "TST6") {
     uint8 private _decimals = 6;
-    function decimals() public view override returns (uint8) { return _decimals; }
-    function mint(address to, uint256 amount) external { _mint(to, amount); }
+
+    function decimals() public view override returns (uint8) {
+        return _decimals;
+    }
+
+    function mint(address to, uint256 amount) external {
+        _mint(to, amount);
+    }
 }
 
 contract PriceFeedL1Test is Test {
@@ -51,31 +59,23 @@ contract PriceFeedL1Test is Test {
 
     function test_InvalidPrice_Zero_Reverts() public {
         mockFeed.updateAnswer(0);
-        vm.expectRevert(
-            abi.encodeWithSignature("PriceFeedL1__INVALID_PRICE(address,int256)", address(token18), 0)
-        );
+        vm.expectRevert(abi.encodeWithSignature("PriceFeedL1__INVALID_PRICE(address,int256)", address(token18), 0));
         priceFeed.getTokenLatestPriceInUsd(address(token18));
     }
 
     function test_InvalidPrice_Negative_Reverts() public {
         mockFeed.updateAnswer(-100);
-        vm.expectRevert(
-            abi.encodeWithSignature("PriceFeedL1__INVALID_PRICE(address,int256)", address(token18), -100)
-        );
+        vm.expectRevert(abi.encodeWithSignature("PriceFeedL1__INVALID_PRICE(address,int256)", address(token18), -100));
         priceFeed.getTokenLatestPriceInUsd(address(token18));
     }
 
     function test_UnsupportedToken_Reverts() public {
-        vm.expectRevert(
-            abi.encodeWithSignature("PriceFeedL1__TOKEN_NOT_SUPPORTED(address)", address(0xDEAD))
-        );
+        vm.expectRevert(abi.encodeWithSignature("PriceFeedL1__TOKEN_NOT_SUPPORTED(address)", address(0xDEAD)));
         priceFeed.getTokenLatestPriceInUsd(address(0xDEAD));
     }
 
     function test_ZeroAddressFeed_Reverts() public {
-        vm.expectRevert(
-            abi.encodeWithSignature("PriceFeedL1__INVALID_PRICE_FEED(address)", address(0))
-        );
+        vm.expectRevert(abi.encodeWithSignature("PriceFeedL1__INVALID_PRICE_FEED(address)", address(0)));
         priceFeed.addPriceFeed(address(token18), address(0));
     }
 
@@ -85,8 +85,6 @@ contract PriceFeedL1Test is Test {
         uint256 price = priceFeed.getTokenLatestPriceInUsd(address(token18));
         assertEq(price, 2000e18);
     }
-
-
 
     function test_OnlyOwnerCanSetStaleness() public {
         vm.prank(address(0xBAD));

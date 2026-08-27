@@ -23,7 +23,13 @@ contract EswapLiquidationTest is BaseV4Test {
         hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -10 ether, 0), data);
 
         vm.prank(address(manager));
-        hook.afterSwap(address(this), key, IPoolManager.SwapParams(true, -50 ether, 0), BalanceDeltaLibrary.toBalanceDelta(-50 ether, 48 ether), data);
+        hook.afterSwap(
+            address(this),
+            key,
+            IPoolManager.SwapParams(true, -50 ether, 0),
+            BalanceDeltaLibrary.toBalanceDelta(-50 ether, 48 ether),
+            data
+        );
 
         // Verify initial price saved
         assertGt(hook.lastOraclePrice(key.toId()), 0);

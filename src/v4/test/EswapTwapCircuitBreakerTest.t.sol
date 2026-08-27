@@ -70,7 +70,7 @@ contract EswapTwapCircuitBreakerTest is Test {
 
         address hookAddress = address(uint160((1 << 159) | (1 << 158) | (1 << 153) | (1 << 152) | (1 << 148)));
         deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(manager, priceFeed, address(this)), hookAddress);
-        hook = EswapMarginHook(hookAddress);
+        hook = EswapMarginHook(payable(hookAddress));
         hook.setRouterAndMinCollateralUsd(address(this), 0);
 
         key = PoolKey({

@@ -21,9 +21,9 @@ contract ReentrancyAttacker {
         attackAttempted = true;
         try target.closePosition(key, address(this), address(0), 0) {} catch {}
         try target.beforeSwap(
-            address(this), key, IPoolManager.SwapParams(true, -100 ether, 0),
-            abi.encode(true, uint8(3), address(this))
-        ) {} catch {}
+            address(this), key, IPoolManager.SwapParams(true, -100 ether, 0), abi.encode(true, uint8(3), address(this))
+        ) {}
+            catch {}
         return "";
     }
 
@@ -40,7 +40,17 @@ contract EswapReentrancyTest is BaseV4Test {
         vm.prank(address(manager));
         hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -100 ether, 0), data);
         vm.prank(address(manager));
-        hook.afterSwap(address(this), key, IPoolManager.SwapParams(true, -300 ether, 0), BalanceDeltaLibrary.toBalanceDelta(300 ether, 290 ether), data);
+        hook.afterSwap(
+            address(this),
+            key,
+            IPoolManager.SwapParams(true, -300 ether, 0),
+            BalanceDeltaLibrary.toBalanceDelta(300 ether, 290 ether),
+            data
+        );
+
+        // Simulate Router minting ERC-6909 collateral claims (2× for _settleTransientDebt + _settle).
+        // positionCollateral = 290 - 1.45 (50 bps) = 288.55
+        manager.mint(address(hook), uint256(uint160(address(token1))), 578 ether);
 
         // Fund the hook with the debt currency so the close can transfer the surplus to the
         // trader (the mock's take() is a no-op, so the recovered tokens never reach the hook).

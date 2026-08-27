@@ -32,11 +32,22 @@ contract EswapSmartCollateralTest is BaseV4Test {
             data
         );
         vm.stopPrank();
+        // Simulate Router minting ERC-6909 collateral claims to the hook
+        manager.mint(address(hook), uint256(uint160(address(token1))), 480 ether);
 
         hook.deployCollateral(key, address(this));
 
         // Verify position recording
-        (address trader, uint256 collateral, uint256 borrow, uint8 lev, bool isLong,, int24 tickLower, int24 tickUpper, uint128 liquidity) = hook.positions(key.toId(), address(this));
+        (
+            address trader,
+            uint256 collateral,
+            uint256 borrow,
+            uint8 lev,
+            bool isLong,,
+            int24 tickLower,
+            int24 tickUpper,
+            uint128 liquidity
+        ) = hook.positions(key.toId(), address(this));
 
         assertEq(trader, address(this));
         // positionCollateral = 480 ether * 9950/10000 (0.5% fee deducted)
@@ -50,7 +61,7 @@ contract EswapSmartCollateralTest is BaseV4Test {
         assertTrue(liquidity > 0);
 
         // Verify manager call
-        (,int24 callTickLower, int24 callTickUpper, int128 callLiquidityDelta) = manager.modifyLiquidityCalls(0);
+        (, int24 callTickLower, int24 callTickUpper, int128 callLiquidityDelta) = manager.modifyLiquidityCalls(0);
         assertEq(callTickLower, -600);
         assertEq(callTickUpper, 0);
         assertTrue(callLiquidityDelta > 0);
@@ -62,8 +73,16 @@ contract EswapSmartCollateralTest is BaseV4Test {
 
         vm.startPrank(address(manager));
         hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -100 ether, 0), data);
-        hook.afterSwap(address(this), key, IPoolManager.SwapParams(true, -500 ether, 0), BalanceDeltaLibrary.toBalanceDelta(-500 ether, 480 ether), data);
+        hook.afterSwap(
+            address(this),
+            key,
+            IPoolManager.SwapParams(true, -500 ether, 0),
+            BalanceDeltaLibrary.toBalanceDelta(-500 ether, 480 ether),
+            data
+        );
         vm.stopPrank();
+        // Simulate Router minting ERC-6909 collateral claims to the hook
+        manager.mint(address(hook), uint256(uint160(address(token1))), 480 ether);
 
         // Real V4 returns a negative delta when adding liquidity (the hook must provide
         // tokens). The mock returns 0 by default, which used to mask the missing settle.
@@ -87,8 +106,17 @@ contract EswapSmartCollateralTest is BaseV4Test {
 
         vm.startPrank(address(manager));
         hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -100 ether, 0), data);
-        hook.afterSwap(address(this), key, IPoolManager.SwapParams(true, -500 ether, 0), BalanceDeltaLibrary.toBalanceDelta(-500 ether, 480 ether), data);
+        hook.afterSwap(
+            address(this),
+            key,
+            IPoolManager.SwapParams(true, -500 ether, 0),
+            BalanceDeltaLibrary.toBalanceDelta(-500 ether, 480 ether),
+            data
+        );
         vm.stopPrank();
+        // Simulate Router minting ERC-6909 collateral claims to the hook
+        // Double: _settleTransientDebt + _settle each burn up to collateralAmount
+        manager.mint(address(hook), uint256(uint160(address(token1))), 480 ether * 2);
 
         hook.deployCollateral(key, address(this));
 
@@ -121,8 +149,17 @@ contract EswapSmartCollateralTest is BaseV4Test {
 
         vm.startPrank(address(manager));
         hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -100 ether, 0), data);
-        hook.afterSwap(address(this), key, IPoolManager.SwapParams(true, -500 ether, 0), BalanceDeltaLibrary.toBalanceDelta(-500 ether, 480 ether), data);
+        hook.afterSwap(
+            address(this),
+            key,
+            IPoolManager.SwapParams(true, -500 ether, 0),
+            BalanceDeltaLibrary.toBalanceDelta(-500 ether, 480 ether),
+            data
+        );
         vm.stopPrank();
+        // Simulate Router minting ERC-6909 collateral claims to the hook
+        // Double: _settleTransientDebt + _settle each burn up to collateralAmount
+        manager.mint(address(hook), uint256(uint160(address(token1))), 480 ether * 2);
 
         uint256 collateralAmount = (480 ether * 9950) / 10000; // 477.6 ether
 
@@ -158,8 +195,16 @@ contract EswapSmartCollateralTest is BaseV4Test {
 
         vm.startPrank(address(manager));
         hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -100 ether, 0), data);
-        hook.afterSwap(address(this), key, IPoolManager.SwapParams(true, -100 ether, 0), BalanceDeltaLibrary.toBalanceDelta(-100 ether, 99.9 ether), data);
+        hook.afterSwap(
+            address(this),
+            key,
+            IPoolManager.SwapParams(true, -100 ether, 0),
+            BalanceDeltaLibrary.toBalanceDelta(-100 ether, 99.9 ether),
+            data
+        );
         vm.stopPrank();
+        // Double: _settleTransientDebt + _settle each burn up to collateralAmount
+        manager.mint(address(hook), uint256(uint160(address(token1))), 99.9 ether * 2);
 
         uint256 collateralAmount = (99.9 ether * 9950) / 10000;
         hook.deployCollateral(key, address(this));
@@ -186,8 +231,16 @@ contract EswapSmartCollateralTest is BaseV4Test {
 
         vm.startPrank(address(manager));
         hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -100 ether, 0), data);
-        hook.afterSwap(address(this), key, IPoolManager.SwapParams(true, -500 ether, 0), BalanceDeltaLibrary.toBalanceDelta(-500 ether, 480 ether), data);
+        hook.afterSwap(
+            address(this),
+            key,
+            IPoolManager.SwapParams(true, -500 ether, 0),
+            BalanceDeltaLibrary.toBalanceDelta(-500 ether, 480 ether),
+            data
+        );
         vm.stopPrank();
+        // Double: _settleTransientDebt + _settle each burn up to collateralAmount
+        manager.mint(address(hook), uint256(uint160(address(token1))), 480 ether * 2);
 
         hook.registerSolverDebt(key.toId(), address(this), solver, 400 ether);
         hook.deployCollateral(key, address(this));
@@ -208,7 +261,11 @@ contract EswapSmartCollateralTest is BaseV4Test {
         // The other-currency recovered principal (300 ether token0) is the
         // TRADER's collateral that came back in the wrong currency. [FIX V3] the
         // solver must receive ONLY its principal back via _settle, not this surplus.
-        assertEq(token0.balanceOf(solver) - solverToken0Before, 400 ether, "solver gets principal only, no other-currency leak");
+        assertEq(
+            token0.balanceOf(solver) - solverToken0Before,
+            400 ether,
+            "solver gets principal only, no other-currency leak"
+        );
         // No collateral surplus exists, so no collateral-currency yield either.
         assertEq(token1.balanceOf(solver) - solverToken1Before, 0, "no collateral yield when out of range");
     }

@@ -23,9 +23,9 @@ contract MockUniswapV3Helper is Utils {
     PriceFeedL1 public immutable PRICE_FEED;
 
     // Uniswap V3 fee tiers (in hundredths of a bip, i.e., 1e6 = 100%)
-    uint24 public constant FEE_TIER_0_05 = 500;     // 0.05%
-    uint24 public constant FEE_TIER_0_3 = 3000;     // 0.3%
-    uint24 public constant FEE_TIER_1 = 10000;      // 1%
+    uint24 public constant FEE_TIER_0_05 = 500; // 0.05%
+    uint24 public constant FEE_TIER_0_3 = 3000; // 0.3%
+    uint24 public constant FEE_TIER_1 = 10000; // 1%
 
     // Optional override for amount out to skip slippage issues in exact target testing
     uint256 public nextExactAmountOut;

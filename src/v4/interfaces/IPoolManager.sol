@@ -27,11 +27,9 @@ interface IPoolManager {
 
     function unlock(bytes calldata data) external returns (bytes memory);
     function initialize(PoolKey memory key, uint160 sqrtPriceX96) external returns (int24 tick);
-    function modifyLiquidity(
-        PoolKey memory key,
-        ModifyLiquidityParams memory params,
-        bytes calldata hookData
-    ) external returns (BalanceDelta callerDelta, BalanceDelta feesAccrued);
+    function modifyLiquidity(PoolKey memory key, ModifyLiquidityParams memory params, bytes calldata hookData)
+        external
+        returns (BalanceDelta callerDelta, BalanceDelta feesAccrued);
     function swap(PoolKey memory key, SwapParams memory params, bytes calldata hookData)
         external
         returns (BalanceDelta swapDelta);

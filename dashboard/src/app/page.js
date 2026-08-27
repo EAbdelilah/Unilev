@@ -50,6 +50,18 @@ export default function Home() {
                     >
                         Earn (Pools)
                     </Link>
+                    <Link
+                        href="/adapter"
+                        className="text-xs bg-cyan-500/10 hover:bg-cyan-500/20 px-3 py-1.5 rounded border border-cyan-500/20 text-cyan-400 transition-all uppercase tracking-widest font-bold"
+                    >
+                        Adapter
+                    </Link>
+                    <Link
+                        href="/settlement"
+                        className="text-xs bg-emerald-500/10 hover:bg-emerald-500/20 px-3 py-1.5 rounded border border-emerald-500/20 text-emerald-400 transition-all uppercase tracking-widest font-bold"
+                    >
+                        Settlement
+                    </Link>
                     <ConnectButton />
                 </div>
             </header>

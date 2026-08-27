@@ -27,12 +27,8 @@ contract EswapRealPoolManagerLifecycleTest is EswapV4CoreProofTest {
         PoolModifyLiquidityTest lq = new PoolModifyLiquidityTest(realManager);
         token0.approve(address(lq), type(uint256).max);
         token1.approve(address(lq), type(uint256).max);
-        RealIPoolManager.ModifyLiquidityParams memory lp = RealIPoolManager.ModifyLiquidityParams({
-            tickLower: -60,
-            tickUpper: 60,
-            liquidityDelta: 1e21,
-            salt: 0
-        });
+        RealIPoolManager.ModifyLiquidityParams memory lp =
+            RealIPoolManager.ModifyLiquidityParams({tickLower: -60, tickUpper: 60, liquidityDelta: 1e21, salt: 0});
         lq.modifyLiquidity(realKey, lp, "");
 
         PoolSwapTest swapper = new PoolSwapTest(realManager);
@@ -42,16 +38,15 @@ contract EswapRealPoolManagerLifecycleTest is EswapV4CoreProofTest {
         swapper.swap(
             realKey,
             RealIPoolManager.SwapParams({
-                zeroForOne: true,
-                amountSpecified: -1 ether,
-                sqrtPriceLimitX96: MIN_SQRT_RATIO + 1
+                zeroForOne: true, amountSpecified: -1 ether, sqrtPriceLimitX96: MIN_SQRT_RATIO + 1
             }),
             PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
             ""
         );
 
         // Verify slot0 is read from the real PoolManager slot0 and updated on the hook
-        (uint160 postPrice, , , ) = StateLibrary.getSlot0(RealIPoolManager(address(realManager)), RealPoolId.wrap(PoolId.unwrap(poolId)));
+        (uint160 postPrice,,,) =
+            StateLibrary.getSlot0(RealIPoolManager(address(realManager)), RealPoolId.wrap(PoolId.unwrap(poolId)));
         assertEq(realHook.lastOraclePrice(poolId), postPrice);
     }
 

@@ -14,9 +14,17 @@ contract ChainlinkFeedMock is AggregatorV3Interface {
         updatedAt = _updatedAt;
     }
 
-    function decimals() external pure returns (uint8) { return 8; }
-    function description() external pure returns (string memory) { return "Mock Feed"; }
-    function version() external pure returns (uint256) { return 1; }
+    function decimals() external pure returns (uint8) {
+        return 8;
+    }
+
+    function description() external pure returns (string memory) {
+        return "Mock Feed";
+    }
+
+    function version() external pure returns (uint256) {
+        return 1;
+    }
 
     function getRoundData(uint80) external view returns (uint80, int256, uint256, uint256, uint80) {
         return (1, price, updatedAt, updatedAt, 1);

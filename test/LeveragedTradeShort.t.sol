@@ -19,9 +19,7 @@ contract LeveragedTradeShort is TestSetup {
         assertEq(amount, IERC20(usdc).balanceOf(alice));
         assertEq(0, IERC20(usdc).balanceOf(address(positions)));
 
-        uint256 wbtcBalanceBefore = IERC20(wbtc).balanceOf(
-            address(liquidityPoolFactory.getTokenToLiquidityPools(wbtc))
-        );
+        uint256 wbtcBalanceBefore = IERC20(wbtc).balanceOf(address(liquidityPoolFactory.getTokenToLiquidityPools(wbtc)));
         console.log("WBTC balance in lbPool BEFORE open: ", wbtcBalanceBefore);
 
         vm.startPrank(alice);
@@ -31,9 +29,7 @@ contract LeveragedTradeShort is TestSetup {
 
         assertEq(0, IERC20(usdc).balanceOf(alice));
 
-        uint256 wbtcBalanceAfter = IERC20(wbtc).balanceOf(
-            address(liquidityPoolFactory.getTokenToLiquidityPools(wbtc))
-        );
+        uint256 wbtcBalanceAfter = IERC20(wbtc).balanceOf(address(liquidityPoolFactory.getTokenToLiquidityPools(wbtc)));
         assertLt(wbtcBalanceAfter, wbtcBalanceBefore);
 
         uint256 usdcBalance = IERC20(usdc).balanceOf(address(positions));
@@ -45,9 +41,7 @@ contract LeveragedTradeShort is TestSetup {
         assertEq(1, posAlice[0]);
         assertEq(alice, positions.ownerOf(posAlice[0]));
 
-        (, , , , bool isShort_, uint8 leverage_, , , , , ) = positions.getPositionParams(
-            posAlice[0]
-        );
+        (,,,, bool isShort_, uint8 leverage_,,,,,) = positions.getPositionParams(posAlice[0]);
         assertEq(isShort_, true);
         assertEq(leverage_, 5);
 
@@ -57,9 +51,8 @@ contract LeveragedTradeShort is TestSetup {
         assertGt(IERC20(usdc).balanceOf(alice), 0);
         assertEq(0, IERC20(usdc).balanceOf(address(positions)));
 
-        uint256 wbtcBalanceAfterClose = IERC20(wbtc).balanceOf(
-            address(liquidityPoolFactory.getTokenToLiquidityPools(wbtc))
-        );
+        uint256 wbtcBalanceAfterClose =
+            IERC20(wbtc).balanceOf(address(liquidityPoolFactory.getTokenToLiquidityPools(wbtc)));
         console.log("WBTC balance in lbPool AFTER close: ", wbtcBalanceAfterClose);
     }
 }

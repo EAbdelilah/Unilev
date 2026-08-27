@@ -60,17 +60,27 @@ contract EswapTradingScenariosTest is BaseV4Test {
         // Neutral 1:1 prices so TWAP circuit breaker stays quiet
         priceFeed.setPrice(address(token0), 1e18);
         priceFeed.setPrice(address(token1), 1e18);
-        manager.setSlot0(key.toId(), SQRT_PRICE_1_1, 0);
 
         bytes memory data = abi.encode(true, lev, trader);
         int128 totalSize = -int128(uint128(marginEth * lev));
-        int128 bought    =  int128(uint128((marginEth * lev * 96) / 100)); // 4% slippage
+        int128 bought = int128(uint128((marginEth * lev * 96) / 100)); // 4% slippage
 
         vm.prank(address(manager));
         hook.beforeSwap(address(this), key, IPoolManager.SwapParams(false, int128(uint128(marginEth)), 0), data);
 
         vm.prank(address(manager));
-        hook.afterSwap(address(this), key, IPoolManager.SwapParams(false, totalSize, 0), BalanceDeltaLibrary.toBalanceDelta(-totalSize, -bought), data);
+        hook.afterSwap(
+            address(this),
+            key,
+            IPoolManager.SwapParams(false, totalSize, 0),
+            BalanceDeltaLibrary.toBalanceDelta(-totalSize, -bought),
+            data
+        );
+        // Simulate Router minting ERC-6909 collateral claims to the hook (real V4 unlock flow).
+        // The actual boughtAmount from the swap delta is marginEth*lev (not the96% estimate),
+        // and positionCollateral = boughtAmount - reserve. We need 2× positionCollateral,
+        // so marginEth*lev*2 is always sufficient.
+        manager.mint(address(hook), uint256(uint160(address(token0))), uint256(marginEth * lev) * 2);
     }
 
     /**
@@ -88,17 +98,27 @@ contract EswapTradingScenariosTest is BaseV4Test {
         // Neutral 1:1 prices so TWAP circuit breaker stays quiet
         priceFeed.setPrice(address(token0), 1e18);
         priceFeed.setPrice(address(token1), 1e18);
-        manager.setSlot0(key.toId(), SQRT_PRICE_1_1, 0);
 
         bytes memory data = abi.encode(true, lev, trader);
         int128 totalSize = -int128(uint128(marginEth * lev));
-        int128 bought    =  int128(uint128((marginEth * lev * 96) / 100));
+        int128 bought = int128(uint128((marginEth * lev * 96) / 100));
 
         vm.prank(address(manager));
         hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, int128(uint128(marginEth)), 0), data);
 
         vm.prank(address(manager));
-        hook.afterSwap(address(this), key, IPoolManager.SwapParams(true, totalSize, 0), BalanceDeltaLibrary.toBalanceDelta(-bought, -totalSize), data);
+        hook.afterSwap(
+            address(this),
+            key,
+            IPoolManager.SwapParams(true, totalSize, 0),
+            BalanceDeltaLibrary.toBalanceDelta(-bought, -totalSize),
+            data
+        );
+        // Simulate Router minting ERC-6909 collateral claims to the hook (real V4 unlock flow).
+        // The actual boughtAmount from the swap delta is marginEth*lev (not the96% estimate),
+        // and positionCollateral = boughtAmount - reserve. We need 2× positionCollateral,
+        // so marginEth*lev*2 is always sufficient.
+        manager.mint(address(hook), uint256(uint160(address(token1))), uint256(marginEth * lev) * 2);
     }
 
     /// @dev Simulate a liquidation (seeds hook with tokens, sets swap delta, executes)
@@ -119,8 +139,8 @@ contract EswapTradingScenariosTest is BaseV4Test {
     /// @dev Assert position is fully zeroed out after close/liquidation
     function _assertPositionGone(address trader) internal view {
         (address t, uint256 col,,,,,,,) = hook.positions(key.toId(), trader);
-        assertEq(t,   address(0), "trader not zeroed");
-        assertEq(col, 0,          "collateral not zeroed");
+        assertEq(t, address(0), "trader not zeroed");
+        assertEq(col, 0, "collateral not zeroed");
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -149,9 +169,9 @@ contract EswapTradingScenariosTest is BaseV4Test {
         priceFeed.setPrice(address(token1), 1e18);
 
         (, uint256 collateral, uint256 borrow, uint8 lev, bool isLong,,,,) = hook.positions(key.toId(), address(this));
-        assertTrue(isLong,     "should be long");
-        assertEq(lev,    1,    "leverage should be 1");
-        assertEq(borrow, 0,    "1x has no borrow");
+        assertTrue(isLong, "should be long");
+        assertEq(lev, 1, "leverage should be 1");
+        assertEq(borrow, 0, "1x has no borrow");
         assertTrue(collateral > 0, "collateral recorded");
 
         // With 1x leverage, no borrow → never liquidatable regardless of price
@@ -613,22 +633,21 @@ contract EswapTradingScenariosTest is BaseV4Test {
 
     // ─── Helper: build a Position struct from on-chain state ──────────────────
 
-    function _buildPos(
-        uint256 collateral,
-        uint256 borrow,
-        uint8 lev,
-        bool isLong
-    ) internal pure returns (EswapMarginHook.Position memory) {
+    function _buildPos(uint256 collateral, uint256 borrow, uint8 lev, bool isLong)
+        internal
+        pure
+        returns (EswapMarginHook.Position memory)
+    {
         return EswapMarginHook.Position({
-            trader:              address(0), // unused in isLiquidatable
-            collateralAmount:    collateral,
-            borrowedAmount:      borrow,
-            leverage:            lev,
-            isLong:              isLong,
-            liquidationSqrtPrice:0,
-            tickLower:           -60,
-            tickUpper:            60,
-            liquidity:            0
+            trader: address(0), // unused in isLiquidatable
+            collateralAmount: collateral,
+            borrowedAmount: borrow,
+            leverage: lev,
+            isLong: isLong,
+            liquidationSqrtPrice: 0,
+            tickLower: -60,
+            tickUpper: 60,
+            liquidity: 0
         });
     }
 }

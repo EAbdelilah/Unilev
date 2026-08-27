@@ -11,6 +11,7 @@ import {BalanceDeltaLibrary} from "../types/BalanceDelta.sol";
 
 contract EswapE2ETest is BaseV4Test {
     using PoolIdLibrary for PoolKey;
+
     function test_EndToEnd_MarginTrade_Success() public {
         uint8 leverage = 5;
         int128 margin = -100 ether;
@@ -25,14 +26,20 @@ contract EswapE2ETest is BaseV4Test {
 
         // 3. AfterSwap Trigger
         vm.startPrank(address(manager));
-        hook.afterSwap(address(this), key, IPoolManager.SwapParams(true, -500 ether, 0), BalanceDeltaLibrary.toBalanceDelta(-500 ether, 480 ether), data);
+        hook.afterSwap(
+            address(this),
+            key,
+            IPoolManager.SwapParams(true, -500 ether, 0),
+            BalanceDeltaLibrary.toBalanceDelta(-500 ether, 480 ether),
+            data
+        );
         vm.stopPrank();
 
         // 4. Deploy Collateral (Called by Router/this)
         hook.deployCollateral(key, address(this));
 
         // 5. Verify Position
-        (address trader, uint256 collateral, , , , , , , uint128 liq) = hook.positions(key.toId(), address(this));
+        (address trader, uint256 collateral,,,,,,, uint128 liq) = hook.positions(key.toId(), address(this));
         assertEq(trader, address(this));
         // positionCollateral = 480 ether * 9950/10000 (0.5% fee deducted)
         assertEq(collateral, (480 ether * 9950) / 10000);

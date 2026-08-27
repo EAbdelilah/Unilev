@@ -33,11 +33,11 @@ contract ArbunPutOption {
         address trader;
         address underlyingToken; // e.g., WETH
         address collateralToken; // e.g., USDC
-        uint256 downpayment;     // Non-refundable Arbun deposit
-        uint256 quantity;        // Quantity of underlying asset to sell (e.g., 1 ether)
-        uint256 lockedPrice;     // Strike price normalized to 18 decimals (WETH/USD price)
-        uint256 expiration;      // Expiration timestamp
-        uint256 ujrahFee;        // One-time administrative booking fee (Riba-free)
+        uint256 downpayment; // Non-refundable Arbun deposit
+        uint256 quantity; // Quantity of underlying asset to sell (e.g., 1 ether)
+        uint256 lockedPrice; // Strike price normalized to 18 decimals (WETH/USD price)
+        uint256 expiration; // Expiration timestamp
+        uint256 ujrahFee; // One-time administrative booking fee (Riba-free)
         bool isActive;
         bool exercised;
         bool canceled;
@@ -72,18 +72,10 @@ contract ArbunPutOption {
     );
 
     event OptionExercised(
-        uint256 indexed id,
-        address indexed trader,
-        uint256 quantityDelivered,
-        uint256 strikePayout,
-        uint256 netProfit
+        uint256 indexed id, address indexed trader, uint256 quantityDelivered, uint256 strikePayout, uint256 netProfit
     );
 
-    event OptionCanceled(
-        uint256 indexed id,
-        address indexed trader,
-        uint256 forfeitedDownpayment
-    );
+    event OptionCanceled(uint256 indexed id, address indexed trader, uint256 forfeitedDownpayment);
 
     event TakafulFundSeeded(address indexed token, uint256 amount);
     event UjrahFeesWithdrawn(address indexed token, address indexed recipient, uint256 amount);
@@ -120,12 +112,10 @@ contract ArbunPutOption {
      * @param quantity The quantity of underlying asset (e.g., 1 WETH)
      * @param duration Duration of the price guarantee service in seconds
      */
-    function openHalalShort(
-        address underlyingToken,
-        address collateralToken,
-        uint256 quantity,
-        uint256 duration
-    ) external returns (uint256 optionId) {
+    function openHalalShort(address underlyingToken, address collateralToken, uint256 quantity, uint256 duration)
+        external
+        returns (uint256 optionId)
+    {
         require(underlyingToken != address(0), "Invalid underlying");
         require(collateralToken != address(0), "Invalid collateral");
         require(quantity > 0, "Quantity must be greater than zero");
@@ -203,7 +193,10 @@ contract ArbunPutOption {
         uint256 currentSpotValue = (opt.quantity * currentPrice) / 1e18;
 
         // Net profit calculation = locked value - spot value - downpayment
-        require(notionalCollateralValue > currentSpotValue + opt.downpayment, "Exercise yields no net profit after downpayment");
+        require(
+            notionalCollateralValue > currentSpotValue + opt.downpayment,
+            "Exercise yields no net profit after downpayment"
+        );
         uint256 netProfit = notionalCollateralValue - currentSpotValue - opt.downpayment;
 
         // 1. Establish Physical Possession: Trader transfers the underlying asset to the contract

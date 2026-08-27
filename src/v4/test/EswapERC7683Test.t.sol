@@ -29,7 +29,7 @@ contract EswapERC7683Test is BaseV4Test {
 
         address hookAddress = address(uint160((1 << 159) | (1 << 158) | (1 << 153) | (1 << 152) | (1 << 148)));
         deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(manager, priceFeed, address(this)), hookAddress);
-        hook = EswapMarginHook(hookAddress);
+        hook = EswapMarginHook(payable(hookAddress));
 
         router = new EswapRouter(manager);
 
@@ -41,16 +41,12 @@ contract EswapERC7683Test is BaseV4Test {
             hooks: address(hook)
         });
 
-        standardPoolKey = PoolKey({
-            currency0: key.currency0,
-            currency1: key.currency1,
-            fee: 0,
-            tickSpacing: 60,
-            hooks: address(0)
-        });
+        standardPoolKey =
+            PoolKey({currency0: key.currency0, currency1: key.currency1, fee: 0, tickSpacing: 60, hooks: address(0)});
 
         hook.setRouterAndMinCollateralUsd(address(router), 0);
         hook.setAuthorizedPool(key.toId(), true);
+        router.setSolverWhitelist(address(0x123), true);
 
         manager.setSlot0(key.toId(), 1 << 96, 0);
         manager.setSlot0(standardPoolKey.toId(), 1 << 96, 0);
@@ -120,13 +116,7 @@ contract EswapERC7683Test is BaseV4Test {
 
         // 1. Calculate EIP-712 Signature
         bytes32 orderHash = router.hashOrder(order);
-        bytes32 digest = keccak256(
-            abi.encodePacked(
-                "\x19\x01",
-                router.DOMAIN_SEPARATOR(),
-                orderHash
-            )
-        );
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", router.DOMAIN_SEPARATOR(), orderHash));
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(traderPrivateKey, digest);
         bytes memory signature = abi.encodePacked(r, s, v);
@@ -159,7 +149,7 @@ contract EswapERC7683Test is BaseV4Test {
         router.initiate(order, signature, "");
 
         // 3. Verify on-chain position created successfully for trader with correct parameters
-        (address posTrader, uint256 collateral, uint256 borrowed, uint8 posLeverage, , , , , uint128 liquidity) =
+        (address posTrader, uint256 collateral, uint256 borrowed, uint8 posLeverage,,,,, uint128 liquidity) =
             hook.positions(key.toId(), trader);
 
         assertEq(posTrader, trader);

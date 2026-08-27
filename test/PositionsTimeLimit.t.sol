@@ -35,21 +35,13 @@ contract PositionsTimeLimitTest is TestSetupMock {
         vm.warp(block.timestamp + 29 days);
         vm.roll(block.number + (29 days / 2 seconds) - 100); // Not enough blocks to expire
         PositionState state = positions.getPositionState(posId);
-        assertEq(
-            uint256(state),
-            uint256(PositionState.ACTIVE),
-            "State should be ACTIVE before 30 days"
-        );
+        assertEq(uint256(state), uint256(PositionState.ACTIVE), "State should be ACTIVE before 30 days");
 
         // 4. Check State after time limit (e.g. 30 days + 1 second and enough blocks)
         vm.warp(block.timestamp + 1 days + 1);
         vm.roll(block.number + (1 days / 2 seconds) + 100 + 1); // Add extra 100+1 blocks to ensure expiration
         state = positions.getPositionState(posId);
-        assertEq(
-            uint256(state),
-            uint256(PositionState.EXPIRED),
-            "State should be EXPIRED after 30 days"
-        );
+        assertEq(uint256(state), uint256(PositionState.EXPIRED), "State should be EXPIRED after 30 days");
 
         // 5. Liquidate
         vm.startPrank(deployer); // Liquidator
@@ -103,19 +95,11 @@ contract PositionsTimeLimitTest is TestSetupMock {
 
         // Alice: State 6
         PositionState stateAlice = positions.getPositionState(posIdAlice);
-        assertEq(
-            uint256(stateAlice),
-            uint256(PositionState.EXPIRED),
-            "Alice should be expired (1 day limit)"
-        );
+        assertEq(uint256(stateAlice), uint256(PositionState.EXPIRED), "Alice should be expired (1 day limit)");
 
         // Bob: State 2 (using default 30 days)
         PositionState stateBob = positions.getPositionState(posIdBob);
-        assertEq(
-            uint256(stateBob),
-            uint256(PositionState.ACTIVE),
-            "Bob should still be active (default 30 days)"
-        );
+        assertEq(uint256(stateBob), uint256(PositionState.ACTIVE), "Bob should still be active (default 30 days)");
 
         // 4. Liquidate Alice
         vm.startPrank(deployer);

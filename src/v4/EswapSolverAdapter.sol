@@ -16,9 +16,8 @@ contract EswapSolverAdapter {
     using PoolIdLibrary for PoolKey;
 
     bytes32 public immutable DOMAIN_SEPARATOR;
-    bytes32 public constant INTENT_TYPEHASH = keccak256(
-        "MarginIntent(address trader,uint8 leverage,uint256 amount,uint256 nonce,uint256 deadline)"
-    );
+    bytes32 public constant INTENT_TYPEHASH =
+        keccak256("MarginIntent(address trader,uint8 leverage,uint256 amount,uint256 nonce,uint256 deadline)");
     bytes32 public constant SPOT_INTENT_TYPEHASH = keccak256(
         "SpotIntent(address swapper,int256 amountSpecified,uint256 minAmountOut,uint256 nonce,uint256 deadline)"
     );
@@ -64,14 +63,7 @@ contract EswapSolverAdapter {
         if (intent.nonce != nonces[intent.trader]) revert NonceInvalid();
 
         bytes32 structHash = keccak256(
-            abi.encode(
-                INTENT_TYPEHASH,
-                intent.trader,
-                intent.leverage,
-                intent.amount,
-                intent.nonce,
-                intent.deadline
-            )
+            abi.encode(INTENT_TYPEHASH, intent.trader, intent.leverage, intent.amount, intent.nonce, intent.deadline)
         );
 
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, structHash));
@@ -116,13 +108,13 @@ contract EswapSolverAdapter {
     }
 
     function registerSolverDebt(PoolKey calldata key, address trader, address solver, uint256 principal) external {
-        IEswapMarginHook(hook).registerSolverDebt(key.toId(), trader, solver, principal);
+        IEswapMarginHook(payable(hook)).registerSolverDebt(key.toId(), trader, solver, principal);
     }
 
-    function batchOpenPositions(
-        MarginIntent[] calldata intents,
-        bytes[] calldata signatures
-    ) external returns (uint256 count) {
+    function batchOpenPositions(MarginIntent[] calldata intents, bytes[] calldata signatures)
+        external
+        returns (uint256 count)
+    {
         require(intents.length == signatures.length, "Length mismatch");
         for (uint256 i = 0; i < intents.length; i++) {
             // Inline the intent processing to avoid internal call issues
@@ -133,12 +125,7 @@ contract EswapSolverAdapter {
 
             bytes32 structHash = keccak256(
                 abi.encode(
-                    INTENT_TYPEHASH,
-                    intent.trader,
-                    intent.leverage,
-                    intent.amount,
-                    intent.nonce,
-                    intent.deadline
+                    INTENT_TYPEHASH, intent.trader, intent.leverage, intent.amount, intent.nonce, intent.deadline
                 )
             );
             bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, structHash));

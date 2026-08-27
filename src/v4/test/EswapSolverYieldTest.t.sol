@@ -61,7 +61,7 @@ contract EswapSolverYieldTest is Test {
 
         address hookAddress = address(uint160((1 << 159) | (1 << 158) | (1 << 153) | (1 << 152) | (1 << 148)));
         deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(manager, priceFeed, address(this)), hookAddress);
-        hook = EswapMarginHook(hookAddress);
+        hook = EswapMarginHook(payable(hookAddress));
 
         key = PoolKey({
             currency0: Currency.wrap(address(token0)),
@@ -110,7 +110,7 @@ contract EswapSolverYieldTest is Test {
 
     function test_Rebalance_RoutesYieldSurplusToSolver() public {
         _open(trader, 100 ether, 3); // bought 300 TK1 -> collateral 298.5 TK1
-        (, uint256 collateralRecorded, uint256 borrowed, , , , , , ) = hook.positions(key.toId(), trader);
+        (, uint256 collateralRecorded, uint256 borrowed,,,,,,) = hook.positions(key.toId(), trader);
         assertEq(collateralRecorded, 298.5 ether, "50bps fee shaves collateral");
         assertGt(borrowed, 0);
 
@@ -131,13 +131,13 @@ contract EswapSolverYieldTest is Test {
 
         assertEq(token1.balanceOf(solver), solverBefore + yieldSurplus, "solver earns rehypothecated fees");
         // Recorded collateral is untouched by the payout.
-        (, uint256 collateralAfter, , , , , , , ) = hook.positions(key.toId(), trader);
+        (, uint256 collateralAfter,,,,,,,) = hook.positions(key.toId(), trader);
         assertEq(collateralAfter, collateralRecorded, "principal stays with the position");
     }
 
     function test_Rebalance_YieldFallsBackToTraderWithoutSolver() public {
         _open(trader, 100 ether, 3);
-        (, uint256 collateralRecorded, , , , , , , ) = hook.positions(key.toId(), trader);
+        (, uint256 collateralRecorded,,,,,,,) = hook.positions(key.toId(), trader);
         assertTrue(hook.positionSolver(key.toId(), trader) == address(0));
 
         _deployBand();
@@ -155,7 +155,7 @@ contract EswapSolverYieldTest is Test {
 
     function test_Rebalance_NoSurplus_NoPayout() public {
         _open(trader, 100 ether, 3);
-        (, uint256 collateralRecorded, uint256 borrowed, , , , , , ) = hook.positions(key.toId(), trader);
+        (, uint256 collateralRecorded, uint256 borrowed,,,,,,) = hook.positions(key.toId(), trader);
         hook.registerSolverDebt(key.toId(), trader, solver, borrowed);
 
         _deployBand();
@@ -170,7 +170,7 @@ contract EswapSolverYieldTest is Test {
         hook.rebalancePosition(key, trader);
 
         assertEq(token1.balanceOf(solver), solverBefore, "no yield when recovery is below principal");
-        (,,,,,,, , uint128 liqAfter) = hook.positions(key.toId(), trader);
+        (,,,,,,,, uint128 liqAfter) = hook.positions(key.toId(), trader);
         assertGt(liqAfter, 0, "band still re-deploys on the capped principal");
     }
 }

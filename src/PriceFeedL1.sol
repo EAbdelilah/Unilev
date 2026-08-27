@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import {
-    AggregatorV3Interface
-} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
+import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {IUniswapV3Pool} from "./interfaces/IUniswapV3.sol";
@@ -26,7 +24,9 @@ error PriceFeedL1__INVALID_PRICE_FEED(address feed);
 error PriceFeedL1__SEQUENCER_DOWN();
 error PriceFeedL1__SEQUENCER_GRACE_PERIOD_NOT_OVER(uint256 secondsSinceUp, uint256 gracePeriod);
 // [TWAP] TWAP deviation circuit breaker
-error PriceFeedL1__TWAP_DEVIATION_TOO_HIGH(address token, uint256 chainlinkPrice, uint256 twapPrice, uint256 deviationBps);
+error PriceFeedL1__TWAP_DEVIATION_TOO_HIGH(
+    address token, uint256 chainlinkPrice, uint256 twapPrice, uint256 deviationBps
+);
 
 contract PriceFeedL1 is Ownable {
     // ─── Chainlink ─────────────────────────────────────────────────────────────
@@ -158,10 +158,8 @@ contract PriceFeedL1 is Ownable {
      * @notice Returns the latest price of a token pair.
      */
     function getPairLatestPrice(address _token0, address _token1) public view returns (uint256) {
-        return
-            (getTokenLatestPriceInUsd(_token0) *
-                (10 ** uint256(IERC20Metadata(_token1).decimals()))) /
-            getTokenLatestPriceInUsd(_token1);
+        return (getTokenLatestPriceInUsd(_token0) * (10 ** uint256(IERC20Metadata(_token1).decimals())))
+            / getTokenLatestPriceInUsd(_token1);
     }
 
     /**
@@ -183,8 +181,7 @@ contract PriceFeedL1 is Ownable {
         if (address(priceFeed) == address(0)) {
             revert PriceFeedL1__TOKEN_NOT_SUPPORTED(_token);
         }
-        (uint80 roundId, int256 price, , uint256 updatedAt, uint80 answeredInRound) = priceFeed
-            .latestRoundData();
+        (uint80 roundId, int256 price,, uint256 updatedAt, uint80 answeredInRound) = priceFeed.latestRoundData();
 
         if (price <= 0) {
             revert PriceFeedL1__INVALID_PRICE(_token, price);
@@ -219,9 +216,8 @@ contract PriceFeedL1 is Ownable {
         }
 
         uint8 decimals = priceFeed.decimals();
-        uint256 chainlinkPrice = decimals <= 18
-            ? uint256(price) * 10 ** (18 - decimals)
-            : uint256(price) / 10 ** (decimals - 18);
+        uint256 chainlinkPrice =
+            decimals <= 18 ? uint256(price) * 10 ** (18 - decimals) : uint256(price) / 10 ** (decimals - 18);
 
         // 4. Uniswap V3 TWAP deviation check
         _checkTwapDeviation(_token, chainlinkPrice);
@@ -242,8 +238,8 @@ contract PriceFeedL1 is Ownable {
      * @notice Returns true if both tokens have Chainlink USD feeds registered.
      */
     function isPairSupported(address _token0, address _token1) public view returns (bool) {
-        return address(tokenToPriceFeedUsd[_token0]) != address(0) &&
-               address(tokenToPriceFeedUsd[_token1]) != address(0);
+        return
+            address(tokenToPriceFeedUsd[_token0]) != address(0) && address(tokenToPriceFeedUsd[_token1]) != address(0);
     }
 
     /**
@@ -267,7 +263,7 @@ contract PriceFeedL1 is Ownable {
         AggregatorV3Interface feed = sequencerUptimeFeed;
         if (address(feed) == address(0)) return;
 
-        (, int256 answer, uint256 startedAt, , ) = feed.latestRoundData();
+        (, int256 answer, uint256 startedAt,,) = feed.latestRoundData();
 
         if (answer != 0) {
             revert PriceFeedL1__SEQUENCER_DOWN();
@@ -363,7 +359,7 @@ contract PriceFeedL1 is Ownable {
             AggregatorV3Interface intermediateFeed = tokenToPriceFeedUsd[cfg.intermediateToken];
             if (address(intermediateFeed) == address(0)) return 0; // intermediate not registered
 
-            (, int256 intermediatePrice, , , ) = intermediateFeed.latestRoundData();
+            (, int256 intermediatePrice,,,) = intermediateFeed.latestRoundData();
             if (intermediatePrice <= 0) return 0;
 
             uint8 intDecimals = intermediateFeed.decimals();

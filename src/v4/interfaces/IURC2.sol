@@ -16,11 +16,5 @@ interface IURC2 {
      * @param amount1 The delta of token1.
      * @param hookFee The fee collected by the hook.
      */
-    event HookSwap(
-        PoolId indexed poolId,
-        address indexed sender,
-        int128 amount0,
-        int128 amount1,
-        uint256 hookFee
-    );
+    event HookSwap(PoolId indexed poolId, address indexed sender, int128 amount0, int128 amount1, uint256 hookFee);
 }

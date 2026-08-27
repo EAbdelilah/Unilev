@@ -19,14 +19,12 @@ contract LiquidityPoolFactory is Ownable {
      * @param _asset address of the ERC20 token
      * @return address of the new liquidity pool
      */
-    function createLiquidityPool(
-        address _asset,
-        address positions
-    ) external onlyOwner returns (address) {
+    function createLiquidityPool(address _asset, address positions) external onlyOwner returns (address) {
         address cachedLiquidityPools = tokenToLiquidityPools[_asset];
 
-        if (cachedLiquidityPools != address(0))
+        if (cachedLiquidityPools != address(0)) {
             revert LiquidityPoolFactory__POOL_ALREADY_EXIST(cachedLiquidityPools);
+        }
 
         IERC20Metadata token = IERC20Metadata(_asset);
         string memory name = string.concat("UniswapMaxLP-", token.name());

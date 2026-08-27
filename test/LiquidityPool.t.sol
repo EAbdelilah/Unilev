@@ -12,9 +12,7 @@ contract LiquidityPoolTest is TestSetup {
 
     function setUp() public override {
         super.setUp();
-        pool = LiquidityPool(
-            liquidityPoolFactory.getTokenToLiquidityPools(conf.supportedTokens[0].token)
-        );
+        pool = LiquidityPool(liquidityPoolFactory.getTokenToLiquidityPools(conf.supportedTokens[0].token));
         asset = IERC20(conf.supportedTokens[0].token);
 
         // Ensure bob deposits 10e8 for initial pool liquidity
@@ -38,11 +36,7 @@ contract LiquidityPoolTest is TestSetup {
         // Check shares received
         // Since it's 1:1 initially
         assertEq(shares, depositAmount, "Shares should equal deposit amount initially");
-        assertEq(
-            balanceBefore - balanceAfter,
-            depositAmount,
-            "User balance should decrease by deposit amount"
-        );
+        assertEq(balanceBefore - balanceAfter, depositAmount, "User balance should decrease by deposit amount");
 
         // Check user balance
         assertEq(pool.balanceOf(alice), shares, "User should have shares");
@@ -65,16 +59,8 @@ contract LiquidityPoolTest is TestSetup {
         uint256 balanceAfter = asset.balanceOf(alice);
 
         assertEq(sharesBurned, withdrawAmount, "Shares burned should equal withdraw amount");
-        assertEq(
-            balanceAfter - balanceBefore,
-            withdrawAmount,
-            "User balance should increase by withdraw amount"
-        );
-        assertEq(
-            pool.balanceOf(alice),
-            depositAmount - sharesBurned,
-            "User should have remaining shares"
-        );
+        assertEq(balanceAfter - balanceBefore, withdrawAmount, "User balance should increase by withdraw amount");
+        assertEq(pool.balanceOf(alice), depositAmount - sharesBurned, "User should have remaining shares");
 
         vm.stopPrank();
     }
@@ -104,11 +90,7 @@ contract LiquidityPoolTest is TestSetup {
         uint256 balanceAfter = asset.balanceOf(alice);
 
         assertEq(assetsReceived, redeemShares, "Assets received should equal shares redeemed");
-        assertEq(
-            balanceAfter - balanceBefore,
-            assetsReceived,
-            "User balance should increase by assets received"
-        );
+        assertEq(balanceAfter - balanceBefore, assetsReceived, "User balance should increase by assets received");
         assertEq(pool.balanceOf(alice), shares - redeemShares, "User should have remaining shares");
         vm.stopPrank();
     }
@@ -134,16 +116,8 @@ contract LiquidityPoolTest is TestSetup {
         uint256 balanceAfter = asset.balanceOf(positionsAddr);
 
         assertEq(pool.getBorrowedFund(), borrowAmount, "Borrowed funds should increase");
-        assertEq(
-            balanceAfter - balanceBefore,
-            borrowAmount,
-            "Positions contract should receive borrowed funds"
-        );
-        assertEq(
-            pool.totalAssets(),
-            pool.rawTotalAsset() + borrowAmount,
-            "Total assets should include borrowed funds"
-        );
+        assertEq(balanceAfter - balanceBefore, borrowAmount, "Positions contract should receive borrowed funds");
+        assertEq(pool.totalAssets(), pool.rawTotalAsset() + borrowAmount, "Total assets should include borrowed funds");
         vm.stopPrank();
     }
 
@@ -182,11 +156,7 @@ contract LiquidityPoolTest is TestSetup {
         uint256 balanceAfter = asset.balanceOf(positionsAddr);
 
         assertEq(pool.getBorrowedFund(), 0, "Borrowed funds should be zero after full refund");
-        assertEq(
-            balanceBefore - balanceAfter,
-            borrowAmount,
-            "Positions balance should decrease by refunded amount"
-        );
+        assertEq(balanceBefore - balanceAfter, borrowAmount, "Positions balance should decrease by refunded amount");
         vm.stopPrank();
     }
 

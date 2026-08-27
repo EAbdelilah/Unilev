@@ -27,8 +27,14 @@ contract EswapEdgeCaseTest is BaseV4Test {
         vm.prank(address(manager));
         hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -100 ether, 0), data);
         vm.prank(address(manager));
-        hook.afterSwap(address(this), key, IPoolManager.SwapParams(true, -200 ether, 0), BalanceDeltaLibrary.toBalanceDelta(200 ether, 190 ether), data);
-        (, uint256 c, , uint8 l, , , , , ) = hook.positions(key.toId(), address(this));
+        hook.afterSwap(
+            address(this),
+            key,
+            IPoolManager.SwapParams(true, -200 ether, 0),
+            BalanceDeltaLibrary.toBalanceDelta(200 ether, 190 ether),
+            data
+        );
+        (, uint256 c,, uint8 l,,,,,) = hook.positions(key.toId(), address(this));
         assertTrue(c > 0);
         assertEq(l, 1);
     }
@@ -63,8 +69,14 @@ contract EswapEdgeCaseTest is BaseV4Test {
         vm.prank(address(manager));
         hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -250000, 0), data);
         vm.prank(address(manager));
-        hook.afterSwap(address(this), key, IPoolManager.SwapParams(true, -250000, 0), BalanceDeltaLibrary.toBalanceDelta(250000, 240000), data);
-        (, uint256 c, , uint8 l, , , , , ) = hook.positions(key.toId(), address(this));
+        hook.afterSwap(
+            address(this),
+            key,
+            IPoolManager.SwapParams(true, -250000, 0),
+            BalanceDeltaLibrary.toBalanceDelta(250000, 240000),
+            data
+        );
+        (, uint256 c,, uint8 l,,,,,) = hook.positions(key.toId(), address(this));
         assertTrue(c > 0);
         assertEq(l, 1);
     }

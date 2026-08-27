@@ -26,8 +26,8 @@ contract FeeManager is Ownable {
     mapping(address => uint64) public customLifeBlocks;
 
     // [FIX M-6] Maximum fee caps to prevent a compromised owner from draining funds
-    uint128 public constant MAX_TREASURE_FEE = 1000;        // 10% maximum protocol fee
-    uint128 public constant MAX_LIQUIDATION_REWARD = 1000;  // 10% maximum liquidation reward
+    uint128 public constant MAX_TREASURE_FEE = 1000; // 10% maximum protocol fee
+    uint128 public constant MAX_LIQUIDATION_REWARD = 1000; // 10% maximum liquidation reward
 
     // [FIX INFO-2] Minimum position lifetime to prevent the owner from setting 0,
     // which would instantly expire every newly opened position and enable griefing.
@@ -43,10 +43,7 @@ contract FeeManager is Ownable {
     event DefaultPositionLifeTimeUpdated(uint64 newLifeTime);
     event DefaultPositionLifeBlocksUpdated(uint64 newLifeBlocks);
 
-    constructor(
-        uint128 _defaultTreasureFee,
-        uint128 _defaultLiquidationReward
-    ) Ownable(msg.sender) {
+    constructor(uint128 _defaultTreasureFee, uint128 _defaultLiquidationReward) Ownable(msg.sender) {
         defaultTreasureFee = _defaultTreasureFee;
         defaultLiquidationReward = _defaultLiquidationReward;
     }
@@ -57,19 +54,12 @@ contract FeeManager is Ownable {
      * @param _treasureFee The custom treasure fee
      * @param _liquidationReward The custom liquidation reward
      */
-    function setCustomFees(
-        address _trader,
-        uint128 _treasureFee,
-        uint128 _liquidationReward
-    ) external onlyOwner {
+    function setCustomFees(address _trader, uint128 _treasureFee, uint128 _liquidationReward) external onlyOwner {
         // [FIX M-6] Enforce fee caps so a compromised owner key cannot set 100% fees
         require(_treasureFee <= MAX_TREASURE_FEE, "FeeManager: treasureFee exceeds max 10%");
         require(_liquidationReward <= MAX_LIQUIDATION_REWARD, "FeeManager: liquidationReward exceeds max 10%");
-        customFees[_trader] = FeeParams({
-            treasureFee: _treasureFee,
-            liquidationReward: _liquidationReward,
-            isCustom: true
-        });
+        customFees[_trader] =
+            FeeParams({treasureFee: _treasureFee, liquidationReward: _liquidationReward, isCustom: true});
         emit CustomFeeSet(_trader, _treasureFee, _liquidationReward);
     }
 
@@ -102,10 +92,7 @@ contract FeeManager is Ownable {
      */
     function setDefaultPositionLifeTime(uint64 _defaultPositionLifeTime) external onlyOwner {
         // [FIX INFO-2] Enforce minimum: 0 would instantly expire all new positions
-        require(
-            _defaultPositionLifeTime >= MIN_POSITION_LIFETIME,
-            "FeeManager: lifetime below minimum (1 hour)"
-        );
+        require(_defaultPositionLifeTime >= MIN_POSITION_LIFETIME, "FeeManager: lifetime below minimum (1 hour)");
         defaultPositionLifeTime = _defaultPositionLifeTime;
         emit DefaultPositionLifeTimeUpdated(_defaultPositionLifeTime);
     }
@@ -117,10 +104,7 @@ contract FeeManager is Ownable {
      */
     function setCustomPositionLifeTime(address _trader, uint64 _lifeTime) external onlyOwner {
         // [FIX INFO-2] Enforce minimum to prevent instant-expiry griefing
-        require(
-            _lifeTime >= MIN_POSITION_LIFETIME,
-            "FeeManager: lifetime below minimum (1 hour)"
-        );
+        require(_lifeTime >= MIN_POSITION_LIFETIME, "FeeManager: lifetime below minimum (1 hour)");
         customLifeTimes[_trader] = _lifeTime;
     }
 
@@ -163,8 +147,7 @@ contract FeeManager is Ownable {
     function setDefaultPositionLifeBlocks(uint64 _defaultPositionLifeBlocks) external onlyOwner {
         // [FIX INFO-2] Enforce minimum block lifetime
         require(
-            _defaultPositionLifeBlocks >= MIN_POSITION_LIFE_BLOCKS,
-            "FeeManager: block lifetime below minimum (~1 hour)"
+            _defaultPositionLifeBlocks >= MIN_POSITION_LIFE_BLOCKS, "FeeManager: block lifetime below minimum (~1 hour)"
         );
         defaultPositionLifeBlocks = _defaultPositionLifeBlocks;
         emit DefaultPositionLifeBlocksUpdated(_defaultPositionLifeBlocks);
@@ -177,10 +160,7 @@ contract FeeManager is Ownable {
      */
     function setCustomPositionLifeBlocks(address _trader, uint64 _lifeBlocks) external onlyOwner {
         // [FIX INFO-2] Enforce minimum block lifetime
-        require(
-            _lifeBlocks >= MIN_POSITION_LIFE_BLOCKS,
-            "FeeManager: block lifetime below minimum (~1 hour)"
-        );
+        require(_lifeBlocks >= MIN_POSITION_LIFE_BLOCKS, "FeeManager: block lifetime below minimum (~1 hour)");
         customLifeBlocks[_trader] = _lifeBlocks;
     }
 
@@ -198,9 +178,7 @@ contract FeeManager is Ownable {
      * @return treasureFee The applicable treasure fee
      * @return liquidationReward The applicable liquidation reward
      */
-    function getFees(
-        address _trader
-    ) external view returns (uint128 treasureFee, uint128 liquidationReward) {
+    function getFees(address _trader) external view returns (uint128 treasureFee, uint128 liquidationReward) {
         if (customFees[_trader].isCustom) {
             return (customFees[_trader].treasureFee, customFees[_trader].liquidationReward);
         }

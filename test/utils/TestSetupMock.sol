@@ -14,14 +14,15 @@ import {FeeManager} from "../../src/FeeManager.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
-import {ERC20Mock} from "@chainlink/contracts/src/v0.8/vendor/openzeppelin-solidity/v4.8.3/contracts/mocks/ERC20Mock.sol";
+import {
+    ERC20Mock
+} from "@chainlink/contracts/src/v0.8/vendor/openzeppelin-solidity/v4.8.3/contracts/mocks/ERC20Mock.sol";
 
 import "forge-std/Test.sol";
 import {HelperConfig} from "../../scripts/HelperConfig.sol";
 import {Utils} from "./Utils.sol";
 
 contract TestSetupMock is Test, HelperConfig, Utils {
-
     // Target PNL values to be tested
     uint256 constant TARGET_PNL_1_USDC = 1e6;
     uint256 constant TARGET_PNL_10_USDC = 10e6;
@@ -84,12 +85,7 @@ contract TestSetupMock is Test, HelperConfig, Utils {
             conf.treasure,
             address(feeManager)
         );
-        market = new Market(
-            address(positions),
-            address(liquidityPoolFactory),
-            address(priceFeedL1),
-            deployer
-        );
+        market = new Market(address(positions), address(liquidityPoolFactory), address(priceFeedL1), deployer);
 
         /// configurations
         // Set a longer staleness threshold for mock testing (365 days for time limit tests)
@@ -120,7 +116,7 @@ contract TestSetupMock is Test, HelperConfig, Utils {
         market.initializeTokens(tokens, priceFeeds);
 
         mockV3AggregatorEthUsd = MockV3Aggregator(mockV3AggregatorBySymbol["WETH"]);
-        mockV3AggregatorWbtcUsd= MockV3Aggregator(mockV3AggregatorBySymbol["WBTC"]);
+        mockV3AggregatorWbtcUsd = MockV3Aggregator(mockV3AggregatorBySymbol["WBTC"]);
         mockV3AggregatorUsdcUsd = MockV3Aggregator(mockV3AggregatorBySymbol["USDC"]);
 
         vm.stopPrank();
@@ -128,9 +124,7 @@ contract TestSetupMock is Test, HelperConfig, Utils {
 
     function depositLiquidity(address token, uint256 amount) internal {
         vm.startPrank(bob);
-        LiquidityPool liquidityPool = LiquidityPool(
-            liquidityPoolFactory.getTokenToLiquidityPools(token)
-        );
+        LiquidityPool liquidityPool = LiquidityPool(liquidityPoolFactory.getTokenToLiquidityPools(token));
         writeTokenBalance(bob, token, amount);
         IERC20(token).approve(address(liquidityPool), amount);
         liquidityPool.deposit(amount, bob);

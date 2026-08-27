@@ -119,7 +119,7 @@ contract EswapMainnetV4ForkTest is Test {
                 tickSpacing: spacings[i],
                 hooks: RealIHooks(address(0))
             });
-            (uint160 sqrtP, int24 tick, , ) = StateLibrary.getSlot0(pm, k.toId());
+            (uint160 sqrtP, int24 tick,,) = StateLibrary.getSlot0(pm, k.toId());
             if (sqrtP == 0) continue;
             uint128 liq = StateLibrary.getLiquidity(pm, k.toId());
             console2.log("candidate fee:", fees[i]);
@@ -149,11 +149,9 @@ contract EswapMainnetV4ForkTest is Test {
         address hookAddr = address(uint160(HIGH_FLAGS | LOW_FLAGS));
         priceFeed = new PriceFeedMock();
         deployCodeTo(
-            "EswapMarginHook.sol:EswapMarginHook",
-            abi.encode(address(pm), address(priceFeed), address(this)),
-            hookAddr
+            "EswapMarginHook.sol:EswapMarginHook", abi.encode(address(pm), address(priceFeed), address(this)), hookAddr
         );
-        hook = EswapMarginHook(hookAddr);
+        hook = EswapMarginHook(payable(hookAddr));
         router = new EswapRouter(IPoolManager(address(pm)));
         hook.setRouterAndMinCollateralUsd(address(router), 0);
 
@@ -165,18 +163,14 @@ contract EswapMainnetV4ForkTest is Test {
             hooks: RealIHooks(hookAddr)
         });
         hookLocalKey = PoolKey({
-            currency0: Currency.wrap(quote),
-            currency1: Currency.wrap(base),
-            fee: 3000,
-            tickSpacing: 60,
-            hooks: hookAddr
+            currency0: Currency.wrap(quote), currency1: Currency.wrap(base), fee: 3000, tickSpacing: 60, hooks: hookAddr
         });
 
         // The accounting-rail hook pool must trade at the DEEP venue's price —
         // initializing it anywhere else (e.g. 1:1) would trip the V4-spot vs
         // oracle TWAP circuit breaker, since the oracle tracks the venue.
-        (uint160 hpSqrtP, , , ) = StateLibrary.getSlot0(pm, hookRealKey.toId());
-        (uint160 deepSqrtP, , , ) = StateLibrary.getSlot0(pm, RealPoolId.wrap(PoolId.unwrap(standardLocalKey.toId())));
+        (uint160 hpSqrtP,,,) = StateLibrary.getSlot0(pm, hookRealKey.toId());
+        (uint160 deepSqrtP,,,) = StateLibrary.getSlot0(pm, RealPoolId.wrap(PoolId.unwrap(standardLocalKey.toId())));
         if (hpSqrtP == 0) {
             pm.initialize(hookRealKey, deepSqrtP);
         }
@@ -243,9 +237,7 @@ contract EswapMainnetV4ForkTest is Test {
     ///      human = 10^(dB - dQ) * 2^192 / sqrtP^2.
     ///      (Sanity: fee500/ts60 WETH pool with sqrtP=1.758e33 gives ~2030e18.)
     function _humanPriceBaseInQuote18() internal view returns (uint256) {
-        (uint160 sqrtP, , , ) = StateLibrary.getSlot0(
-            pm, RealPoolId.wrap(PoolId.unwrap(standardLocalKey.toId()))
-        );
+        (uint160 sqrtP,,,) = StateLibrary.getSlot0(pm, RealPoolId.wrap(PoolId.unwrap(standardLocalKey.toId())));
         require(sqrtP > 0, "deep pool uninitialized");
         uint8 dQ = _tokenDecimals(quote);
         uint8 dB = _tokenDecimals(base);
@@ -272,7 +264,7 @@ contract EswapMainnetV4ForkTest is Test {
         if (!rpcAvailable) return;
 
         RealPoolId deepId = RealPoolId.wrap(PoolId.unwrap(standardLocalKey.toId()));
-        (uint160 pBefore, , , ) = StateLibrary.getSlot0(pm, deepId);
+        (uint160 pBefore,,,) = StateLibrary.getSlot0(pm, deepId);
         uint256 solverBefore = RealIERC20(quote).balanceOf(solver);
 
         uint8 dQ = _tokenDecimals(quote);
@@ -294,13 +286,19 @@ contract EswapMainnetV4ForkTest is Test {
         router.swapMultiPool(params);
 
         // 1. Physical fill moved the REAL deep pool's price.
-        (uint160 pAfter, , , ) = StateLibrary.getSlot0(pm, deepId);
+        (uint160 pAfter,,,) = StateLibrary.getSlot0(pm, deepId);
         assertNotEq(pAfter, pBefore, "physical fill must move the live deep pool");
 
         // 2. Position recorded; LP staked in the SAME deep pool.
         (
-            address posTrader, uint256 collateral, uint256 borrowed, uint8 lev, bool isLong,
-            , int24 tl, int24 tu, uint128 liq
+            address posTrader,
+            uint256 collateral,
+            uint256 borrowed,
+            uint8 lev,
+            bool isLong,,
+            int24 tl,
+            int24 tu,
+            uint128 liq
         ) = hook.positions(hookLocalKey.toId(), trader);
         assertEq(posTrader, trader, "position recorded");
         assertGt(collateral, 0, "collateral recorded");
@@ -311,19 +309,14 @@ contract EswapMainnetV4ForkTest is Test {
         assertGt(liq, 0, "collateral deployed as single-sided LP");
 
         bytes32 posKey = keccak256(abi.encodePacked(address(hook), tl, tu, bytes32(0)));
-        assertGt(
-            StateLibrary.getPositionLiquidity(pm, deepId, posKey),
-            0,
-            "LP minted into the LIVE deep pool"
-        );
+        assertGt(StateLibrary.getPositionLiquidity(pm, deepId, posKey), 0, "LP minted into the LIVE deep pool");
 
         // 3. Clean close on the live singleton (revert-free == fully netted).
         uint256 traderBefore = RealIERC20(quote).balanceOf(trader);
         vm.prank(trader);
         router.closePosition(address(hook), hookLocalKey, trader, solver, 0);
 
-        (address cleared, uint256 collAfter, , , , , , , uint128 liqAfter) =
-            hook.positions(hookLocalKey.toId(), trader);
+        (address cleared, uint256 collAfter,,,,,,, uint128 liqAfter) = hook.positions(hookLocalKey.toId(), trader);
         assertEq(cleared, address(0), "position cleared");
         assertEq(collAfter, 0, "collateral cleared");
         assertEq(liqAfter, 0, "LP stake closed");

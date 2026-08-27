@@ -100,7 +100,7 @@ contract AddPair is Script {
 
         // 2. Register everything the protocol needs for the pair — single tx:
         //    authorization + standard pool key + base currency + token decimals.
-        EswapMarginHook hook = EswapMarginHook(hookAddr);
+        EswapMarginHook hook = EswapMarginHook(payable(hookAddr));
         hook.registerTradingPair(key, standardKey, Currency.wrap(baseToken), dec0, dec1);
         console.log("registerTradingPair done");
 

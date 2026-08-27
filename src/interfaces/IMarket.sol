@@ -35,9 +35,7 @@ interface IMarket {
 
     function getTraderPositions(address _traderAdd) external view returns (uint256[] memory);
 
-    function getPositionParams(
-        uint256 _posId
-    )
+    function getPositionParams(uint256 _posId)
         external
         view
         returns (
@@ -77,12 +75,7 @@ interface IMarket {
     )
         external
         view
-        returns (
-            uint256 liquidationFloor,
-            uint256 totalBorrow,
-            address borrowToken,
-            address liquidityPoolToken
-        );
+        returns (uint256 liquidationFloor, uint256 totalBorrow, address borrowToken, address liquidityPoolToken);
 
     // --------------- Liquidator/Keeper Zone ---------------
 
@@ -117,16 +110,8 @@ interface IMarket {
     );
     event PositionClosed(uint256 indexed posId, address indexed trader);
     event PositionEdited(uint256 indexed posId, address indexed trader, uint256 newStopLossPrice);
-    event LiquidityAdded(
-        address indexed poolAdd,
-        address indexed liquidityProvider,
-        uint256 assets
-    );
-    event LiquidityRemoved(
-        address indexed poolAdd,
-        address indexed liquidityProvider,
-        uint256 shares
-    );
+    event LiquidityAdded(address indexed poolAdd, address indexed liquidityProvider, uint256 assets);
+    event LiquidityRemoved(address indexed poolAdd, address indexed liquidityProvider, uint256 shares);
     event PositionLiquidated(uint256 indexed posId, address indexed liquidator);
     event LiquidityPoolCreated(address indexed poolAdd, address sender);
     event PriceFeedAdded(address token, address priceFeed);

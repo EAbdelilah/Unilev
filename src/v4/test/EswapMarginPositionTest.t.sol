@@ -14,12 +14,8 @@ contract EswapMarginPositionTest is BaseV4Test {
         bytes memory data = abi.encode(true, leverage, address(this));
 
         vm.prank(address(manager));
-        (bytes4 selector, BeforeSwapDelta delta, ) = hook.beforeSwap(
-            address(this),
-            key,
-            IPoolManager.SwapParams(true, marginAmount, 0),
-            data
-        );
+        (bytes4 selector, BeforeSwapDelta delta,) =
+            hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, marginAmount, 0), data);
 
         assertEq(selector, IHooks.beforeSwap.selector);
 
@@ -34,7 +30,7 @@ contract EswapMarginPositionTest is BaseV4Test {
         bytes memory data = abi.encode(true, leverage, address(this));
 
         vm.prank(address(manager));
-        (bytes4 selector, BeforeSwapDelta delta, ) = hook.beforeSwap(
+        (bytes4 selector, BeforeSwapDelta delta,) = hook.beforeSwap(
             address(this),
             key,
             IPoolManager.SwapParams(false, marginAmount, 0), // zeroForOne = false for short (selling currency1)
@@ -57,12 +53,8 @@ contract EswapMarginPositionTest is BaseV4Test {
         bytes memory data = ""; // No margin data
 
         vm.prank(address(manager));
-        (bytes4 selector, BeforeSwapDelta delta, ) = hook.beforeSwap(
-            address(this),
-            key,
-            IPoolManager.SwapParams(true, amount, 0),
-            data
-        );
+        (bytes4 selector, BeforeSwapDelta delta,) =
+            hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, amount, 0), data);
 
         assertEq(selector, IHooks.beforeSwap.selector);
         assertEq(BeforeSwapDelta.unwrap(delta), 0);

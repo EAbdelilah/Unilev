@@ -22,7 +22,13 @@ contract EswapRebalanceTest is BaseV4Test {
         hook.beforeSwap(address(0), key, IPoolManager.SwapParams(true, -1 ether, 0), data);
 
         vm.prank(address(manager));
-        hook.afterSwap(address(0), key, IPoolManager.SwapParams(true, -1 ether, 0), BalanceDeltaLibrary.toBalanceDelta(1 ether, 1 ether), data);
+        hook.afterSwap(
+            address(0),
+            key,
+            IPoolManager.SwapParams(true, -1 ether, 0),
+            BalanceDeltaLibrary.toBalanceDelta(1 ether, 1 ether),
+            data
+        );
 
         // 2. Price moves out of range (Tick 0 -> Tick 200)
         manager.setSlot0(key.toId(), 2 << 96, 200);
@@ -30,7 +36,7 @@ contract EswapRebalanceTest is BaseV4Test {
         // 3. Trigger rebalance
         hook.rebalancePosition(key, trader);
 
-        (,,,,,,int24 newTickLower, int24 newTickUpper,) = hook.positions(key.toId(), trader);
+        (,,,,,, int24 newTickLower, int24 newTickUpper,) = hook.positions(key.toId(), trader);
         // SHORT collateral (token1): single-sided band BELOW the new price.
         // Tick 200, spacing 60 -> floor grid 180 -> [180 - 600, 180].
         assertEq(newTickLower, -420);

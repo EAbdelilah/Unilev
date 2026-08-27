@@ -38,20 +38,18 @@ contract PositionLogicOpeningTest is Test {
         uint8 leverage = 2;
         uint256 price = PRICE_1e8;
 
-        PositionLogic.PositionOpeningCalcParams memory params = PositionLogic
-            .PositionOpeningCalcParams({
-                price: price,
-                leverage: leverage,
-                baseCollateralAmount: collateral,
-                baseDecimals: DECIMALS_6,
-                baseDecimalsPow: DECIMALS_POW_6,
-                isShort: false,
-                baseToken: BASE_TOKEN,
-                quoteToken: QUOTE_TOKEN
-            });
+        PositionLogic.PositionOpeningCalcParams memory params = PositionLogic.PositionOpeningCalcParams({
+            price: price,
+            leverage: leverage,
+            baseCollateralAmount: collateral,
+            baseDecimals: DECIMALS_6,
+            baseDecimalsPow: DECIMALS_POW_6,
+            isShort: false,
+            baseToken: BASE_TOKEN,
+            quoteToken: QUOTE_TOKEN
+        });
 
-        PositionLogic.PositionOpeningCalcResult memory result = PositionLogic
-            .calculatePositionOpening(params);
+        PositionLogic.PositionOpeningCalcResult memory result = PositionLogic.calculatePositionOpening(params);
 
         // Expected liquidationFloor = price - price/leverage = 100,000 - 50,000 = 50,000
         uint256 expectedLiquidationFloor = price - (price * 10000) / (uint256(leverage) * 10000);
@@ -72,20 +70,18 @@ contract PositionLogicOpeningTest is Test {
         uint8 leverage = 3;
         uint256 price = PRICE_1e8;
 
-        PositionLogic.PositionOpeningCalcParams memory params = PositionLogic
-            .PositionOpeningCalcParams({
-                price: price,
-                leverage: leverage,
-                baseCollateralAmount: collateral,
-                baseDecimals: DECIMALS_6,
-                baseDecimalsPow: DECIMALS_POW_6,
-                isShort: false,
-                baseToken: BASE_TOKEN,
-                quoteToken: QUOTE_TOKEN
-            });
+        PositionLogic.PositionOpeningCalcParams memory params = PositionLogic.PositionOpeningCalcParams({
+            price: price,
+            leverage: leverage,
+            baseCollateralAmount: collateral,
+            baseDecimals: DECIMALS_6,
+            baseDecimalsPow: DECIMALS_POW_6,
+            isShort: false,
+            baseToken: BASE_TOKEN,
+            quoteToken: QUOTE_TOKEN
+        });
 
-        PositionLogic.PositionOpeningCalcResult memory result = PositionLogic
-            .calculatePositionOpening(params);
+        PositionLogic.PositionOpeningCalcResult memory result = PositionLogic.calculatePositionOpening(params);
 
         // Expected liquidationFloor = price - price/3 = 100,000 - 33,333.33 = 66,666.67
         uint256 expectedLiquidationFloor = price - (price * 10000) / (uint256(leverage) * 10000);
@@ -104,20 +100,18 @@ contract PositionLogicOpeningTest is Test {
         uint8 leverage = 5;
         uint256 price = PRICE_1e8;
 
-        PositionLogic.PositionOpeningCalcParams memory params = PositionLogic
-            .PositionOpeningCalcParams({
-                price: price,
-                leverage: leverage,
-                baseCollateralAmount: collateral,
-                baseDecimals: DECIMALS_6,
-                baseDecimalsPow: DECIMALS_POW_6,
-                isShort: false,
-                baseToken: BASE_TOKEN,
-                quoteToken: QUOTE_TOKEN
-            });
+        PositionLogic.PositionOpeningCalcParams memory params = PositionLogic.PositionOpeningCalcParams({
+            price: price,
+            leverage: leverage,
+            baseCollateralAmount: collateral,
+            baseDecimals: DECIMALS_6,
+            baseDecimalsPow: DECIMALS_POW_6,
+            isShort: false,
+            baseToken: BASE_TOKEN,
+            quoteToken: QUOTE_TOKEN
+        });
 
-        PositionLogic.PositionOpeningCalcResult memory result = PositionLogic
-            .calculatePositionOpening(params);
+        PositionLogic.PositionOpeningCalcResult memory result = PositionLogic.calculatePositionOpening(params);
 
         // Expected liquidationFloor = price - price/5 = 100,000 - 20,000 = 80,000
         uint256 expectedLiquidationFloor = price - (price * 10000) / (uint256(leverage) * 10000);
@@ -133,20 +127,18 @@ contract PositionLogicOpeningTest is Test {
         uint8 leverage = 2;
         uint256 price = PRICE_1e8;
 
-        PositionLogic.PositionOpeningCalcParams memory params = PositionLogic
-            .PositionOpeningCalcParams({
-                price: price,
-                leverage: leverage,
-                baseCollateralAmount: collateral,
-                baseDecimals: DECIMALS_18,
-                baseDecimalsPow: DECIMALS_POW_18,
-                isShort: false,
-                baseToken: BASE_TOKEN,
-                quoteToken: QUOTE_TOKEN
-            });
+        PositionLogic.PositionOpeningCalcParams memory params = PositionLogic.PositionOpeningCalcParams({
+            price: price,
+            leverage: leverage,
+            baseCollateralAmount: collateral,
+            baseDecimals: DECIMALS_18,
+            baseDecimalsPow: DECIMALS_POW_18,
+            isShort: false,
+            baseToken: BASE_TOKEN,
+            quoteToken: QUOTE_TOKEN
+        });
 
-        PositionLogic.PositionOpeningCalcResult memory result = PositionLogic
-            .calculatePositionOpening(params);
+        PositionLogic.PositionOpeningCalcResult memory result = PositionLogic.calculatePositionOpening(params);
 
         uint256 expectedLiquidationFloor = price - (price * 10000) / (uint256(leverage) * 10000);
         assertEq(result.liquidationFloor, expectedLiquidationFloor, "Liquidation floor incorrect for 18 decimals");
@@ -165,24 +157,24 @@ contract PositionLogicOpeningTest is Test {
         uint8 leverage = 2;
         uint256 price = PRICE_1e8;
 
-        PositionLogic.PositionOpeningCalcParams memory params = PositionLogic
-            .PositionOpeningCalcParams({
-                price: price,
-                leverage: leverage,
-                baseCollateralAmount: collateral,
-                baseDecimals: DECIMALS_6,
-                baseDecimalsPow: DECIMALS_POW_6,
-                isShort: true,
-                baseToken: BASE_TOKEN,
-                quoteToken: QUOTE_TOKEN
-            });
+        PositionLogic.PositionOpeningCalcParams memory params = PositionLogic.PositionOpeningCalcParams({
+            price: price,
+            leverage: leverage,
+            baseCollateralAmount: collateral,
+            baseDecimals: DECIMALS_6,
+            baseDecimalsPow: DECIMALS_POW_6,
+            isShort: true,
+            baseToken: BASE_TOKEN,
+            quoteToken: QUOTE_TOKEN
+        });
 
-        PositionLogic.PositionOpeningCalcResult memory result = PositionLogic
-            .calculatePositionOpening(params);
+        PositionLogic.PositionOpeningCalcResult memory result = PositionLogic.calculatePositionOpening(params);
 
         // Expected liquidationFloor = price + price/leverage = 100,000 + 50,000 = 150,000
         uint256 expectedLiquidationFloor = price + (price * 10000) / (uint256(leverage) * 10000);
-        assertEq(result.liquidationFloor, expectedLiquidationFloor, "Liquidation floor calculation incorrect for short 2x");
+        assertEq(
+            result.liquidationFloor, expectedLiquidationFloor, "Liquidation floor calculation incorrect for short 2x"
+        );
 
         // Expected totalBorrow = collateral * leverage * baseDecimalsPow / price
         // = 100e6 * 2 * 1e6 / 100,000e8
@@ -199,24 +191,24 @@ contract PositionLogicOpeningTest is Test {
         uint8 leverage = 3;
         uint256 price = PRICE_1e8;
 
-        PositionLogic.PositionOpeningCalcParams memory params = PositionLogic
-            .PositionOpeningCalcParams({
-                price: price,
-                leverage: leverage,
-                baseCollateralAmount: collateral,
-                baseDecimals: DECIMALS_6,
-                baseDecimalsPow: DECIMALS_POW_6,
-                isShort: true,
-                baseToken: BASE_TOKEN,
-                quoteToken: QUOTE_TOKEN
-            });
+        PositionLogic.PositionOpeningCalcParams memory params = PositionLogic.PositionOpeningCalcParams({
+            price: price,
+            leverage: leverage,
+            baseCollateralAmount: collateral,
+            baseDecimals: DECIMALS_6,
+            baseDecimalsPow: DECIMALS_POW_6,
+            isShort: true,
+            baseToken: BASE_TOKEN,
+            quoteToken: QUOTE_TOKEN
+        });
 
-        PositionLogic.PositionOpeningCalcResult memory result = PositionLogic
-            .calculatePositionOpening(params);
+        PositionLogic.PositionOpeningCalcResult memory result = PositionLogic.calculatePositionOpening(params);
 
         // Expected liquidationFloor = price + price/3 = 100,000 + 33,333.33 = 133,333.33
         uint256 expectedLiquidationFloor = price + (price * 10000) / (uint256(leverage) * 10000);
-        assertEq(result.liquidationFloor, expectedLiquidationFloor, "Liquidation floor calculation incorrect for short 3x");
+        assertEq(
+            result.liquidationFloor, expectedLiquidationFloor, "Liquidation floor calculation incorrect for short 3x"
+        );
 
         // Expected totalBorrow = collateral * leverage * baseDecimalsPow / price
         uint256 expectedBorrow = (uint256(collateral) * DECIMALS_POW_6 * leverage) / price;
@@ -231,24 +223,24 @@ contract PositionLogicOpeningTest is Test {
         uint8 leverage = 5;
         uint256 price = PRICE_1e8;
 
-        PositionLogic.PositionOpeningCalcParams memory params = PositionLogic
-            .PositionOpeningCalcParams({
-                price: price,
-                leverage: leverage,
-                baseCollateralAmount: collateral,
-                baseDecimals: DECIMALS_6,
-                baseDecimalsPow: DECIMALS_POW_6,
-                isShort: true,
-                baseToken: BASE_TOKEN,
-                quoteToken: QUOTE_TOKEN
-            });
+        PositionLogic.PositionOpeningCalcParams memory params = PositionLogic.PositionOpeningCalcParams({
+            price: price,
+            leverage: leverage,
+            baseCollateralAmount: collateral,
+            baseDecimals: DECIMALS_6,
+            baseDecimalsPow: DECIMALS_POW_6,
+            isShort: true,
+            baseToken: BASE_TOKEN,
+            quoteToken: QUOTE_TOKEN
+        });
 
-        PositionLogic.PositionOpeningCalcResult memory result = PositionLogic
-            .calculatePositionOpening(params);
+        PositionLogic.PositionOpeningCalcResult memory result = PositionLogic.calculatePositionOpening(params);
 
         // Expected liquidationFloor = price + price/5 = 100,000 + 20,000 = 120,000
         uint256 expectedLiquidationFloor = price + (price * 10000) / (uint256(leverage) * 10000);
-        assertEq(result.liquidationFloor, expectedLiquidationFloor, "Liquidation floor calculation incorrect for short 5x");
+        assertEq(
+            result.liquidationFloor, expectedLiquidationFloor, "Liquidation floor calculation incorrect for short 5x"
+        );
 
         uint256 expectedBorrow = (uint256(collateral) * DECIMALS_POW_6 * leverage) / price;
         assertEq(result.totalBorrow, expectedBorrow, "Total borrow calculation incorrect for short 5x");
@@ -259,20 +251,18 @@ contract PositionLogicOpeningTest is Test {
         uint8 leverage = 2;
         uint256 price = PRICE_1e8;
 
-        PositionLogic.PositionOpeningCalcParams memory params = PositionLogic
-            .PositionOpeningCalcParams({
-                price: price,
-                leverage: leverage,
-                baseCollateralAmount: collateral,
-                baseDecimals: DECIMALS_18,
-                baseDecimalsPow: DECIMALS_POW_18,
-                isShort: true,
-                baseToken: BASE_TOKEN,
-                quoteToken: QUOTE_TOKEN
-            });
+        PositionLogic.PositionOpeningCalcParams memory params = PositionLogic.PositionOpeningCalcParams({
+            price: price,
+            leverage: leverage,
+            baseCollateralAmount: collateral,
+            baseDecimals: DECIMALS_18,
+            baseDecimalsPow: DECIMALS_POW_18,
+            isShort: true,
+            baseToken: BASE_TOKEN,
+            quoteToken: QUOTE_TOKEN
+        });
 
-        PositionLogic.PositionOpeningCalcResult memory result = PositionLogic
-            .calculatePositionOpening(params);
+        PositionLogic.PositionOpeningCalcResult memory result = PositionLogic.calculatePositionOpening(params);
 
         uint256 expectedLiquidationFloor = price + (price * 10000) / (uint256(leverage) * 10000);
         assertEq(result.liquidationFloor, expectedLiquidationFloor, "Liquidation floor incorrect for short 18 decimals");
@@ -291,20 +281,18 @@ contract PositionLogicOpeningTest is Test {
         uint8 leverage = 2;
         uint256 price = PRICE_1e8;
 
-        PositionLogic.PositionOpeningCalcParams memory params = PositionLogic
-            .PositionOpeningCalcParams({
-                price: price,
-                leverage: leverage,
-                baseCollateralAmount: collateral,
-                baseDecimals: DECIMALS_6,
-                baseDecimalsPow: DECIMALS_POW_6,
-                isShort: false,
-                baseToken: BASE_TOKEN,
-                quoteToken: QUOTE_TOKEN
-            });
+        PositionLogic.PositionOpeningCalcParams memory params = PositionLogic.PositionOpeningCalcParams({
+            price: price,
+            leverage: leverage,
+            baseCollateralAmount: collateral,
+            baseDecimals: DECIMALS_6,
+            baseDecimalsPow: DECIMALS_POW_6,
+            isShort: false,
+            baseToken: BASE_TOKEN,
+            quoteToken: QUOTE_TOKEN
+        });
 
-        PositionLogic.PositionOpeningCalcResult memory result = PositionLogic
-            .calculatePositionOpening(params);
+        PositionLogic.PositionOpeningCalcResult memory result = PositionLogic.calculatePositionOpening(params);
 
         // Liquidation floor should still be calculated correctly
         uint256 expectedLiquidationFloor = price - (price * 10000) / (uint256(leverage) * 10000);
@@ -321,20 +309,18 @@ contract PositionLogicOpeningTest is Test {
         uint8 leverage = 2;
         uint256 price = PRICE_1e8;
 
-        PositionLogic.PositionOpeningCalcParams memory params = PositionLogic
-            .PositionOpeningCalcParams({
-                price: price,
-                leverage: leverage,
-                baseCollateralAmount: collateral,
-                baseDecimals: DECIMALS_6,
-                baseDecimalsPow: DECIMALS_POW_6,
-                isShort: false,
-                baseToken: BASE_TOKEN,
-                quoteToken: QUOTE_TOKEN
-            });
+        PositionLogic.PositionOpeningCalcParams memory params = PositionLogic.PositionOpeningCalcParams({
+            price: price,
+            leverage: leverage,
+            baseCollateralAmount: collateral,
+            baseDecimals: DECIMALS_6,
+            baseDecimalsPow: DECIMALS_POW_6,
+            isShort: false,
+            baseToken: BASE_TOKEN,
+            quoteToken: QUOTE_TOKEN
+        });
 
-        PositionLogic.PositionOpeningCalcResult memory result = PositionLogic
-            .calculatePositionOpening(params);
+        PositionLogic.PositionOpeningCalcResult memory result = PositionLogic.calculatePositionOpening(params);
 
         uint256 expectedBorrow = (uint256(collateral) * (leverage - 1) * price) / DECIMALS_POW_6;
         assertEq(result.totalBorrow, expectedBorrow, "Borrow incorrect for large collateral");
@@ -348,56 +334,12 @@ contract PositionLogicOpeningTest is Test {
         prices[2] = 50000e8; // $50,000
         prices[3] = 100000e8; // $100,000
 
-        for (uint i = 0; i < prices.length; i++) {
+        for (uint256 i = 0; i < prices.length; i++) {
             uint256 price = prices[i];
 
             // Long test
-            PositionLogic.PositionOpeningCalcParams memory longParams = PositionLogic
-                .PositionOpeningCalcParams({
-                    price: price,
-                    leverage: 2,
-                    baseCollateralAmount: 100e6,
-                    baseDecimals: DECIMALS_6,
-                    baseDecimalsPow: DECIMALS_POW_6,
-                    isShort: false,
-                    baseToken: BASE_TOKEN,
-                    quoteToken: QUOTE_TOKEN
-                });
-
-            PositionLogic.PositionOpeningCalcResult memory longResult = PositionLogic
-                .calculatePositionOpening(longParams);
-
-            uint256 expectedLongBreakEven = price - (price * 10000) / 20000;
-            assertEq(longResult.liquidationFloor, expectedLongBreakEven, "Long break-even incorrect for different price");
-
-            // Short test
-            PositionLogic.PositionOpeningCalcParams memory shortParams = PositionLogic
-                .PositionOpeningCalcParams({
-                    price: price,
-                    leverage: 2,
-                    baseCollateralAmount: 100e6,
-                    baseDecimals: DECIMALS_6,
-                    baseDecimalsPow: DECIMALS_POW_6,
-                    isShort: true,
-                    baseToken: BASE_TOKEN,
-                    quoteToken: QUOTE_TOKEN
-                });
-
-            PositionLogic.PositionOpeningCalcResult memory shortResult = PositionLogic
-                .calculatePositionOpening(shortParams);
-
-            uint256 expectedShortBreakEven = price + (price * 10000) / 20000;
-            assertEq(shortResult.liquidationFloor, expectedShortBreakEven, "Short break-even incorrect for different price");
-        }
-    }
-
-    function test_BorrowTokenAssignment() public pure {
-        // Test that borrowToken and liquidityPoolToken are assigned correctly
-
-        // Long: should borrow quote token
-        PositionLogic.PositionOpeningCalcParams memory longParams = PositionLogic
-            .PositionOpeningCalcParams({
-                price: PRICE_1e8,
+            PositionLogic.PositionOpeningCalcParams memory longParams = PositionLogic.PositionOpeningCalcParams({
+                price: price,
                 leverage: 2,
                 baseCollateralAmount: 100e6,
                 baseDecimals: DECIMALS_6,
@@ -407,16 +349,17 @@ contract PositionLogicOpeningTest is Test {
                 quoteToken: QUOTE_TOKEN
             });
 
-        PositionLogic.PositionOpeningCalcResult memory longResult = PositionLogic
-            .calculatePositionOpening(longParams);
+            PositionLogic.PositionOpeningCalcResult memory longResult =
+                PositionLogic.calculatePositionOpening(longParams);
 
-        assertEq(longResult.borrowToken, QUOTE_TOKEN, "Long borrowToken should be quoteToken");
-        assertEq(longResult.liquidityPoolToken, QUOTE_TOKEN, "Long liquidityPoolToken should be quoteToken");
+            uint256 expectedLongBreakEven = price - (price * 10000) / 20000;
+            assertEq(
+                longResult.liquidationFloor, expectedLongBreakEven, "Long break-even incorrect for different price"
+            );
 
-        // Short: should borrow base token
-        PositionLogic.PositionOpeningCalcParams memory shortParams = PositionLogic
-            .PositionOpeningCalcParams({
-                price: PRICE_1e8,
+            // Short test
+            PositionLogic.PositionOpeningCalcParams memory shortParams = PositionLogic.PositionOpeningCalcParams({
+                price: price,
                 leverage: 2,
                 baseCollateralAmount: 100e6,
                 baseDecimals: DECIMALS_6,
@@ -426,8 +369,49 @@ contract PositionLogicOpeningTest is Test {
                 quoteToken: QUOTE_TOKEN
             });
 
-        PositionLogic.PositionOpeningCalcResult memory shortResult = PositionLogic
-            .calculatePositionOpening(shortParams);
+            PositionLogic.PositionOpeningCalcResult memory shortResult =
+                PositionLogic.calculatePositionOpening(shortParams);
+
+            uint256 expectedShortBreakEven = price + (price * 10000) / 20000;
+            assertEq(
+                shortResult.liquidationFloor, expectedShortBreakEven, "Short break-even incorrect for different price"
+            );
+        }
+    }
+
+    function test_BorrowTokenAssignment() public pure {
+        // Test that borrowToken and liquidityPoolToken are assigned correctly
+
+        // Long: should borrow quote token
+        PositionLogic.PositionOpeningCalcParams memory longParams = PositionLogic.PositionOpeningCalcParams({
+            price: PRICE_1e8,
+            leverage: 2,
+            baseCollateralAmount: 100e6,
+            baseDecimals: DECIMALS_6,
+            baseDecimalsPow: DECIMALS_POW_6,
+            isShort: false,
+            baseToken: BASE_TOKEN,
+            quoteToken: QUOTE_TOKEN
+        });
+
+        PositionLogic.PositionOpeningCalcResult memory longResult = PositionLogic.calculatePositionOpening(longParams);
+
+        assertEq(longResult.borrowToken, QUOTE_TOKEN, "Long borrowToken should be quoteToken");
+        assertEq(longResult.liquidityPoolToken, QUOTE_TOKEN, "Long liquidityPoolToken should be quoteToken");
+
+        // Short: should borrow base token
+        PositionLogic.PositionOpeningCalcParams memory shortParams = PositionLogic.PositionOpeningCalcParams({
+            price: PRICE_1e8,
+            leverage: 2,
+            baseCollateralAmount: 100e6,
+            baseDecimals: DECIMALS_6,
+            baseDecimalsPow: DECIMALS_POW_6,
+            isShort: true,
+            baseToken: BASE_TOKEN,
+            quoteToken: QUOTE_TOKEN
+        });
+
+        PositionLogic.PositionOpeningCalcResult memory shortResult = PositionLogic.calculatePositionOpening(shortParams);
 
         assertEq(shortResult.borrowToken, BASE_TOKEN, "Short borrowToken should be baseToken");
         assertEq(shortResult.liquidityPoolToken, BASE_TOKEN, "Short liquidityPoolToken should be baseToken");
@@ -437,39 +421,37 @@ contract PositionLogicOpeningTest is Test {
         // Test all valid leverage levels (2-5)
         for (uint8 leverage = 2; leverage <= 5; leverage++) {
             // Long
-            PositionLogic.PositionOpeningCalcParams memory longParams = PositionLogic
-                .PositionOpeningCalcParams({
-                    price: PRICE_1e8,
-                    leverage: leverage,
-                    baseCollateralAmount: 100e6,
-                    baseDecimals: DECIMALS_6,
-                    baseDecimalsPow: DECIMALS_POW_6,
-                    isShort: false,
-                    baseToken: BASE_TOKEN,
-                    quoteToken: QUOTE_TOKEN
-                });
+            PositionLogic.PositionOpeningCalcParams memory longParams = PositionLogic.PositionOpeningCalcParams({
+                price: PRICE_1e8,
+                leverage: leverage,
+                baseCollateralAmount: 100e6,
+                baseDecimals: DECIMALS_6,
+                baseDecimalsPow: DECIMALS_POW_6,
+                isShort: false,
+                baseToken: BASE_TOKEN,
+                quoteToken: QUOTE_TOKEN
+            });
 
-            PositionLogic.PositionOpeningCalcResult memory longResult = PositionLogic
-                .calculatePositionOpening(longParams);
+            PositionLogic.PositionOpeningCalcResult memory longResult =
+                PositionLogic.calculatePositionOpening(longParams);
 
             uint256 expectedLongBreakEven = PRICE_1e8 - (PRICE_1e8 * 10000) / (uint256(leverage) * 10000);
             assertEq(longResult.liquidationFloor, expectedLongBreakEven, "Long break-even incorrect");
 
             // Short
-            PositionLogic.PositionOpeningCalcParams memory shortParams = PositionLogic
-                .PositionOpeningCalcParams({
-                    price: PRICE_1e8,
-                    leverage: leverage,
-                    baseCollateralAmount: 100e6,
-                    baseDecimals: DECIMALS_6,
-                    baseDecimalsPow: DECIMALS_POW_6,
-                    isShort: true,
-                    baseToken: BASE_TOKEN,
-                    quoteToken: QUOTE_TOKEN
-                });
+            PositionLogic.PositionOpeningCalcParams memory shortParams = PositionLogic.PositionOpeningCalcParams({
+                price: PRICE_1e8,
+                leverage: leverage,
+                baseCollateralAmount: 100e6,
+                baseDecimals: DECIMALS_6,
+                baseDecimalsPow: DECIMALS_POW_6,
+                isShort: true,
+                baseToken: BASE_TOKEN,
+                quoteToken: QUOTE_TOKEN
+            });
 
-            PositionLogic.PositionOpeningCalcResult memory shortResult = PositionLogic
-                .calculatePositionOpening(shortParams);
+            PositionLogic.PositionOpeningCalcResult memory shortResult =
+                PositionLogic.calculatePositionOpening(shortParams);
 
             uint256 expectedShortBreakEven = PRICE_1e8 + (PRICE_1e8 * 10000) / (uint256(leverage) * 10000);
             assertEq(shortResult.liquidationFloor, expectedShortBreakEven, "Short break-even incorrect");
@@ -489,40 +471,36 @@ contract PositionLogicOpeningTest is Test {
         uint128 collateral = 100e6;
 
         // Test 2x leverage
-        PositionLogic.PositionOpeningCalcParams memory params2x = PositionLogic
-            .PositionOpeningCalcParams({
-                price: price,
-                leverage: 2,
-                baseCollateralAmount: collateral,
-                baseDecimals: DECIMALS_6,
-                baseDecimalsPow: DECIMALS_POW_6,
-                isShort: false,
-                baseToken: BASE_TOKEN,
-                quoteToken: QUOTE_TOKEN
-            });
+        PositionLogic.PositionOpeningCalcParams memory params2x = PositionLogic.PositionOpeningCalcParams({
+            price: price,
+            leverage: 2,
+            baseCollateralAmount: collateral,
+            baseDecimals: DECIMALS_6,
+            baseDecimalsPow: DECIMALS_POW_6,
+            isShort: false,
+            baseToken: BASE_TOKEN,
+            quoteToken: QUOTE_TOKEN
+        });
 
-        PositionLogic.PositionOpeningCalcResult memory result2x = PositionLogic
-            .calculatePositionOpening(params2x);
+        PositionLogic.PositionOpeningCalcResult memory result2x = PositionLogic.calculatePositionOpening(params2x);
 
         // 2x leverage: 50% price drop = liquidation floor
         // Liquidation floor = 100,000 - 50,000 = 50,000
         assertEq(result2x.liquidationFloor, 50_000e8, "2x long liquidation floor should be 50% of price");
 
         // Test 4x leverage
-        PositionLogic.PositionOpeningCalcParams memory params4x = PositionLogic
-            .PositionOpeningCalcParams({
-                price: price,
-                leverage: 4,
-                baseCollateralAmount: collateral,
-                baseDecimals: DECIMALS_6,
-                baseDecimalsPow: DECIMALS_POW_6,
-                isShort: false,
-                baseToken: BASE_TOKEN,
-                quoteToken: QUOTE_TOKEN
-            });
+        PositionLogic.PositionOpeningCalcParams memory params4x = PositionLogic.PositionOpeningCalcParams({
+            price: price,
+            leverage: 4,
+            baseCollateralAmount: collateral,
+            baseDecimals: DECIMALS_6,
+            baseDecimalsPow: DECIMALS_POW_6,
+            isShort: false,
+            baseToken: BASE_TOKEN,
+            quoteToken: QUOTE_TOKEN
+        });
 
-        PositionLogic.PositionOpeningCalcResult memory result4x = PositionLogic
-            .calculatePositionOpening(params4x);
+        PositionLogic.PositionOpeningCalcResult memory result4x = PositionLogic.calculatePositionOpening(params4x);
 
         // 4x leverage: 25% price drop = liquidation floor
         // Liquidation floor = 100,000 - 25,000 = 75,000
@@ -538,40 +516,36 @@ contract PositionLogicOpeningTest is Test {
         uint128 collateral = 100e6;
 
         // Test 2x leverage
-        PositionLogic.PositionOpeningCalcParams memory params2x = PositionLogic
-            .PositionOpeningCalcParams({
-                price: price,
-                leverage: 2,
-                baseCollateralAmount: collateral,
-                baseDecimals: DECIMALS_6,
-                baseDecimalsPow: DECIMALS_POW_6,
-                isShort: true,
-                baseToken: BASE_TOKEN,
-                quoteToken: QUOTE_TOKEN
-            });
+        PositionLogic.PositionOpeningCalcParams memory params2x = PositionLogic.PositionOpeningCalcParams({
+            price: price,
+            leverage: 2,
+            baseCollateralAmount: collateral,
+            baseDecimals: DECIMALS_6,
+            baseDecimalsPow: DECIMALS_POW_6,
+            isShort: true,
+            baseToken: BASE_TOKEN,
+            quoteToken: QUOTE_TOKEN
+        });
 
-        PositionLogic.PositionOpeningCalcResult memory result2x = PositionLogic
-            .calculatePositionOpening(params2x);
+        PositionLogic.PositionOpeningCalcResult memory result2x = PositionLogic.calculatePositionOpening(params2x);
 
         // 2x leverage: 50% price increase = liquidation floor
         // Liquidation floor = 100,000 + 50,000 = 150,000
         assertEq(result2x.liquidationFloor, 150_000e8, "2x short liquidation floor should be 150% of price");
 
         // Test 4x leverage
-        PositionLogic.PositionOpeningCalcParams memory params4x = PositionLogic
-            .PositionOpeningCalcParams({
-                price: price,
-                leverage: 4,
-                baseCollateralAmount: collateral,
-                baseDecimals: DECIMALS_6,
-                baseDecimalsPow: DECIMALS_POW_6,
-                isShort: true,
-                baseToken: BASE_TOKEN,
-                quoteToken: QUOTE_TOKEN
-            });
+        PositionLogic.PositionOpeningCalcParams memory params4x = PositionLogic.PositionOpeningCalcParams({
+            price: price,
+            leverage: 4,
+            baseCollateralAmount: collateral,
+            baseDecimals: DECIMALS_6,
+            baseDecimalsPow: DECIMALS_POW_6,
+            isShort: true,
+            baseToken: BASE_TOKEN,
+            quoteToken: QUOTE_TOKEN
+        });
 
-        PositionLogic.PositionOpeningCalcResult memory result4x = PositionLogic
-            .calculatePositionOpening(params4x);
+        PositionLogic.PositionOpeningCalcResult memory result4x = PositionLogic.calculatePositionOpening(params4x);
 
         // 4x leverage: 25% price increase = liquidation floor
         // Liquidation floor = 100,000 + 25,000 = 125,000
@@ -587,20 +561,18 @@ contract PositionLogicOpeningTest is Test {
         uint128 collateral = 1e18; // 1 WETH as collateral
         uint8 leverage = 2;
 
-        PositionLogic.PositionOpeningCalcParams memory params = PositionLogic
-            .PositionOpeningCalcParams({
-                price: price,
-                leverage: leverage,
-                baseCollateralAmount: collateral,
-                baseDecimals: DECIMALS_18,
-                baseDecimalsPow: DECIMALS_POW_18,
-                isShort: false,
-                baseToken: BASE_TOKEN,
-                quoteToken: QUOTE_TOKEN
-            });
+        PositionLogic.PositionOpeningCalcParams memory params = PositionLogic.PositionOpeningCalcParams({
+            price: price,
+            leverage: leverage,
+            baseCollateralAmount: collateral,
+            baseDecimals: DECIMALS_18,
+            baseDecimalsPow: DECIMALS_POW_18,
+            isShort: false,
+            baseToken: BASE_TOKEN,
+            quoteToken: QUOTE_TOKEN
+        });
 
-        PositionLogic.PositionOpeningCalcResult memory result = PositionLogic
-            .calculatePositionOpening(params);
+        PositionLogic.PositionOpeningCalcResult memory result = PositionLogic.calculatePositionOpening(params);
 
         // Expected: 1e18 * 1 * 100_000e8 / 1e18 = 100_000e8
         uint256 expectedBorrow = (uint256(collateral) * (leverage - 1) * price) / DECIMALS_POW_18;
@@ -616,20 +588,18 @@ contract PositionLogicOpeningTest is Test {
         uint128 collateral = 100_000e6; // 100,000 USDC as collateral
         uint8 leverage = 2;
 
-        PositionLogic.PositionOpeningCalcParams memory params = PositionLogic
-            .PositionOpeningCalcParams({
-                price: price,
-                leverage: leverage,
-                baseCollateralAmount: collateral,
-                baseDecimals: DECIMALS_6,
-                baseDecimalsPow: DECIMALS_POW_6,
-                isShort: true,
-                baseToken: BASE_TOKEN,
-                quoteToken: QUOTE_TOKEN
-            });
+        PositionLogic.PositionOpeningCalcParams memory params = PositionLogic.PositionOpeningCalcParams({
+            price: price,
+            leverage: leverage,
+            baseCollateralAmount: collateral,
+            baseDecimals: DECIMALS_6,
+            baseDecimalsPow: DECIMALS_POW_6,
+            isShort: true,
+            baseToken: BASE_TOKEN,
+            quoteToken: QUOTE_TOKEN
+        });
 
-        PositionLogic.PositionOpeningCalcResult memory result = PositionLogic
-            .calculatePositionOpening(params);
+        PositionLogic.PositionOpeningCalcResult memory result = PositionLogic.calculatePositionOpening(params);
 
         // Expected: 100_000e6 * 2 * 1e6 / 100_000e8 = 2e6 (2 base tokens with 6 decimals)
         uint256 expectedBorrow = (uint256(collateral) * DECIMALS_POW_6 * leverage) / price;

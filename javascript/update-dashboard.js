@@ -35,6 +35,10 @@ const envVars = [
     { key: 'V4_KEEPER_ADDRESS', target: 'NEXT_PUBLIC_V4_KEEPER_ADDRESS' },
     { key: 'V4_ADAPTER_ADDRESS', target: 'NEXT_PUBLIC_V4_ADAPTER_ADDRESS' },
     { key: 'V4_PRICEFEED_ADDRESS', target: 'NEXT_PUBLIC_V4_PRICEFEED_ADDRESS' },
+    { key: 'V4_SOLVER_ADDRESS', target: 'NEXT_PUBLIC_V4_SOLVER_ADDRESS' },
+    { key: 'V4_QUOTER_ADDRESS', target: 'NEXT_PUBLIC_V4_QUOTER_ADDRESS' },
+    { key: 'V4_SETTLEMENT_ADDRESS', target: 'NEXT_PUBLIC_V4_SETTLEMENT_ADDRESS' },
+    { key: 'V4_TIMELOCK_ADDRESS', target: 'NEXT_PUBLIC_V4_TIMELOCK_ADDRESS' },
 ];
 
 let envContent = '';
@@ -68,7 +72,11 @@ const abis = [
     'UniswapV3Helper',
     'EswapRouter',
     'EswapMarginHook',
-    'PriceFeed'
+    'PriceFeed',
+    'EswapLeverageAdapter',
+    'EswapLeverageQuoter',
+    'EswapSettlement',
+    'EswapTimelock',
 ];
 
 abis.forEach(contractName => {

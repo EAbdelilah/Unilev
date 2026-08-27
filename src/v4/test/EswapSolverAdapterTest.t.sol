@@ -5,6 +5,8 @@ import {BaseV4Test} from "./BaseV4Test.t.sol";
 import {EswapSolverAdapter} from "../EswapSolverAdapter.sol";
 import {PoolKey} from "../types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "../types/PoolId.sol";
+import {IPoolManager} from "../interfaces/IPoolManager.sol";
+import {BalanceDeltaLibrary} from "../types/BalanceDelta.sol";
 
 contract EswapSolverAdapterTest is BaseV4Test {
     using PoolIdLibrary for PoolKey;
@@ -23,12 +25,7 @@ contract EswapSolverAdapterTest is BaseV4Test {
     function _signIntent(EswapSolverAdapter.MarginIntent memory intent) internal view returns (bytes memory) {
         bytes32 structHash = keccak256(
             abi.encode(
-                adapter.INTENT_TYPEHASH(),
-                intent.trader,
-                intent.leverage,
-                intent.amount,
-                intent.nonce,
-                intent.deadline
+                adapter.INTENT_TYPEHASH(), intent.trader, intent.leverage, intent.amount, intent.nonce, intent.deadline
             )
         );
 
@@ -39,11 +36,7 @@ contract EswapSolverAdapterTest is BaseV4Test {
 
     function test_ValidSignature_SubmitsSuccessfully() public {
         EswapSolverAdapter.MarginIntent memory intent = EswapSolverAdapter.MarginIntent({
-            trader: traderAddress,
-            leverage: 3,
-            amount: 1 ether,
-            nonce: 0,
-            deadline: block.timestamp + 1000
+            trader: traderAddress, leverage: 3, amount: 1 ether, nonce: 0, deadline: block.timestamp + 1000
         });
 
         bytes memory sig = _signIntent(intent);
@@ -54,11 +47,7 @@ contract EswapSolverAdapterTest is BaseV4Test {
 
     function test_InvalidSignature_Reverts() public {
         EswapSolverAdapter.MarginIntent memory intent = EswapSolverAdapter.MarginIntent({
-            trader: traderAddress,
-            leverage: 3,
-            amount: 1 ether,
-            nonce: 0,
-            deadline: block.timestamp + 1000
+            trader: traderAddress, leverage: 3, amount: 1 ether, nonce: 0, deadline: block.timestamp + 1000
         });
 
         bytes memory sig = new bytes(65); // Invalid sig (all zeros)
@@ -68,11 +57,7 @@ contract EswapSolverAdapterTest is BaseV4Test {
 
     function test_ExpiredDeadline_Reverts() public {
         EswapSolverAdapter.MarginIntent memory intent = EswapSolverAdapter.MarginIntent({
-            trader: traderAddress,
-            leverage: 3,
-            amount: 1 ether,
-            nonce: 0,
-            deadline: block.timestamp - 1
+            trader: traderAddress, leverage: 3, amount: 1 ether, nonce: 0, deadline: block.timestamp - 1
         });
 
         bytes memory sig = _signIntent(intent);
@@ -82,11 +67,7 @@ contract EswapSolverAdapterTest is BaseV4Test {
 
     function test_InvalidNonce_Reverts() public {
         EswapSolverAdapter.MarginIntent memory intent = EswapSolverAdapter.MarginIntent({
-            trader: traderAddress,
-            leverage: 3,
-            amount: 1 ether,
-            nonce: 99,
-            deadline: block.timestamp + 1000
+            trader: traderAddress, leverage: 3, amount: 1 ether, nonce: 99, deadline: block.timestamp + 1000
         });
 
         bytes memory sig = _signIntent(intent);
@@ -95,11 +76,25 @@ contract EswapSolverAdapterTest is BaseV4Test {
     }
 
     function test_SolverDebt_RegisteredAtomically() public {
+        // Must open a position first so borrowedAmount > 0 (M-7 fix requires principal <= borrowedAmount)
+        bytes memory data = abi.encode(true, uint8(3), traderAddress);
+        vm.prank(address(manager));
+        hook.beforeSwap(traderAddress, key, IPoolManager.SwapParams(true, -1 ether, 0), data);
+        vm.prank(address(manager));
+        hook.afterSwap(
+            traderAddress,
+            key,
+            IPoolManager.SwapParams(true, -3 ether, 0),
+            BalanceDeltaLibrary.toBalanceDelta(-3 ether, 2.88 ether),
+            data
+        );
+        manager.mint(address(hook), uint256(uint160(address(token1))), 2.88 ether);
+
         address solver = address(0x5011);
-        adapter.registerSolverDebt(key, traderAddress, solver, 10 ether);
+        adapter.registerSolverDebt(key, traderAddress, solver, 2 ether);
         (address solverOut, uint256 principal,) = hook.solverDebts(key.toId(), traderAddress, solver);
         assertEq(solverOut, solver);
-        assertEq(principal, 10 ether);
+        assertEq(principal, 2 ether);
     }
 
     function _signSpotIntent(EswapSolverAdapter.SpotIntent memory intent) internal view returns (bytes memory) {
@@ -140,11 +135,7 @@ contract EswapSolverAdapterTest is BaseV4Test {
 
         for (uint256 i = 0; i < 3; i++) {
             intents[i] = EswapSolverAdapter.MarginIntent({
-                trader: traderAddress,
-                leverage: 2,
-                amount: 1 ether,
-                nonce: i,
-                deadline: block.timestamp + 1000
+                trader: traderAddress, leverage: 2, amount: 1 ether, nonce: i, deadline: block.timestamp + 1000
             });
             sigs[i] = _signIntent(intents[i]);
         }

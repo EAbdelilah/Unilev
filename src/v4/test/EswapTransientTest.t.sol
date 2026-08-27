@@ -21,7 +21,13 @@ contract EswapTransientTest is BaseV4Test {
         hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -1 ether, 0), data);
 
         vm.prank(address(manager));
-        hook.afterSwap(address(this), key, IPoolManager.SwapParams(true, -2 ether, 0), BalanceDeltaLibrary.toBalanceDelta(-2 ether, 1.9 ether), data);
+        hook.afterSwap(
+            address(this),
+            key,
+            IPoolManager.SwapParams(true, -2 ether, 0),
+            BalanceDeltaLibrary.toBalanceDelta(-2 ether, 1.9 ether),
+            data
+        );
 
         assertEq(hook.getTransientLockState(), 0);
     }
@@ -32,7 +38,13 @@ contract EswapTransientTest is BaseV4Test {
         hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -1 ether, 0), data);
 
         vm.prank(address(manager));
-        hook.afterSwap(address(this), key, IPoolManager.SwapParams(true, -4 ether, 0), BalanceDeltaLibrary.toBalanceDelta(-4 ether, 3.8 ether), data);
+        hook.afterSwap(
+            address(this),
+            key,
+            IPoolManager.SwapParams(true, -4 ether, 0),
+            BalanceDeltaLibrary.toBalanceDelta(-4 ether, 3.8 ether),
+            data
+        );
 
         assertEq(hook.getTransientLockState(), 0);
     }

@@ -30,8 +30,8 @@ contract EswapSolvencyTest is BaseV4Test {
         // isLong=false (zeroForOne=true), collateral=token1, borrow=token0
         EswapMarginHook.Position memory pos = EswapMarginHook.Position({
             trader: address(this),
-            collateralAmount: 200 ether,  // $200 token0
-            borrowedAmount: 100 ether,    // $100 token1
+            collateralAmount: 200 ether, // $200 token0
+            borrowedAmount: 100 ether, // $100 token1
             leverage: 2,
             isLong: false,
             liquidationSqrtPrice: 0,
@@ -51,7 +51,7 @@ contract EswapSolvencyTest is BaseV4Test {
         EswapMarginHook.Position memory pos = EswapMarginHook.Position({
             trader: address(this),
             collateralAmount: 100 ether, // value=$50
-            borrowedAmount: 80 ether,    // value=$80
+            borrowedAmount: 80 ether, // value=$80
             leverage: 5,
             isLong: false,
             liquidationSqrtPrice: 0,
@@ -68,15 +68,22 @@ contract EswapSolvencyTest is BaseV4Test {
         // Open at neutral 1:1 prices so TWAP circuit breaker doesn't fire
         priceFeed.setPrice(address(token0), 1e18);
         priceFeed.setPrice(address(token1), 1e18);
-        // Also sync PoolManager spot to 1:1 (sqrtPriceX96 = Q96)
-        manager.setSlot0(key.toId(), 79228162514264337593543950336, 0);
 
         // zeroForOne=true => isLong=false; collateral=token1, borrow=token0
         bytes memory data = abi.encode(true, uint8(5), address(this));
         vm.prank(address(manager));
         hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -1 ether, 0), data);
         vm.prank(address(manager));
-        hook.afterSwap(address(this), key, IPoolManager.SwapParams(true, -5 ether, 0), BalanceDeltaLibrary.toBalanceDelta(-5 ether, 4.8 ether), data);
+        hook.afterSwap(
+            address(this),
+            key,
+            IPoolManager.SwapParams(true, -5 ether, 0),
+            BalanceDeltaLibrary.toBalanceDelta(-5 ether, 4.8 ether),
+            data
+        );
+        // Simulate Router minting ERC-6909 collateral claims to the hook (real V4 unlock flow)
+        // Double amount: _settleTransientDebt burns up to collateralAmount, then _settle burns again
+        manager.mint(address(hook), uint256(uint160(address(token1))), 4.8 ether * 2);
     }
 
     function test_Liquidation_InsuranceSplit_ExactAmounts() public {
@@ -111,7 +118,9 @@ contract EswapSolvencyTest is BaseV4Test {
         assertEq(collateral, 0);
         // Nobody profits from a penalty: the liquidator earns 0; the trader receives
         // the surplus minus the insurance carve-out (1 - 0.03 = 0.97 ether).
-        assertEq(token0.balanceOf(address(this)) - traderBalBefore, 0.97 ether, "trader receives surplus minus carve-out");
+        assertEq(
+            token0.balanceOf(address(this)) - traderBalBefore, 0.97 ether, "trader receives surplus minus carve-out"
+        );
         assertEq(hook.insuranceFund(key.currency0), 0.03 ether, "reward routed to the insurance fund");
 
         // No phantom ERC-6909 claim or collateral aggregate should remain after liquidation

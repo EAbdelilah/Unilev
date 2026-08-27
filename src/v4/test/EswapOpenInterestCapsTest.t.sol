@@ -32,7 +32,7 @@ contract EswapOpenInterestCapsTest is BaseV4Test {
 
         address hookAddress = address(uint160((1 << 159) | (1 << 158) | (1 << 153) | (1 << 152) | (1 << 148)));
         deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(manager, priceFeed, address(this)), hookAddress);
-        hook = EswapMarginHook(hookAddress);
+        hook = EswapMarginHook(payable(hookAddress));
 
         key = PoolKey({
             currency0: Currency.wrap(address(token0)),
@@ -44,6 +44,8 @@ contract EswapOpenInterestCapsTest is BaseV4Test {
 
         hook.setRouterAndMinCollateralUsd(address(new EswapRouter(manager)), 0);
         hook.setAuthorizedPool(key.toId(), true);
+        // Initialize slot0 so sqrtPriceX96 is non-zero (prevents TwapManipulated revert)
+        manager.setSlot0(key.toId(), 79228162514264337593543950336, 0);
     }
 
     /// @dev Direct open through beforeSwap + afterSwap (mock manager), exact
@@ -70,7 +72,7 @@ contract EswapOpenInterestCapsTest is BaseV4Test {
     }
 
     function test_Caps_InactiveBelowTvlFloor() public view {
-        (bool active, , , , ) = hook.openInterestCapacity();
+        (bool active,,,,) = hook.openInterestCapacity();
         assertFalse(active, "caps must be off below the TVL floor");
         assertEq(hook.maxOpenBorrowRaw(key.currency0), 0, "0 means uncapped, not empty");
     }
@@ -147,13 +149,13 @@ contract EswapOpenInterestCapsTest is BaseV4Test {
 
         _open(traderA, 20_000 ether, 2); // TVL 39.8k (fee-shaved), OI 20k
 
-        (, , , uint256 maxSingle, uint256 remaining) = hook.openInterestCapacity();
+        (,,, uint256 maxSingle, uint256 remaining) = hook.openInterestCapacity();
         assertEq(maxSingle, 3_980 ether, "10% of TVL");
         assertEq(remaining, (39_800 ether * 6000) / 10000 - 20_000 ether);
 
         // Consumes part of the headroom...
         _open(traderB, 2_000 ether, 2); // TVL 43.78k, OI 22k
-        (, , , maxSingle, remaining) = hook.openInterestCapacity();
+        (,,, maxSingle, remaining) = hook.openInterestCapacity();
         assertEq(maxSingle, 4_378 ether);
         assertEq(remaining, (43_780 ether * 6000) / 10000 - 22_000 ether);
 
@@ -186,7 +188,7 @@ contract EswapOpenInterestCapsTest is BaseV4Test {
         _open(traderA, 20_000 ether, 2); // TVL 39.8k, OI 20k -> single 3.98k, remaining ~7.86k
 
         uint256 capRaw = hook.maxOpenBorrowRaw(key.currency0);
-        (, , , uint256 maxSingle, uint256 remaining) = hook.openInterestCapacity();
+        (,,, uint256 maxSingle, uint256 remaining) = hook.openInterestCapacity();
         assertEq(capRaw, maxSingle < remaining ? maxSingle : remaining, "raw == min(single, remaining)");
         assertEq(capRaw, 3_980 ether);
 
@@ -194,7 +196,7 @@ contract EswapOpenInterestCapsTest is BaseV4Test {
         address probe = makeAddr("oiProbe");
         (bool fits,) = hook.quoteOpenFit(key, probe, key.currency0, 2, capRaw, capRaw);
         assertTrue(fits, "boundary borrow fits");
-        (fits, ) = hook.quoteOpenFit(key, probe, key.currency0, 2, capRaw + 1 ether, capRaw + 1 ether);
+        (fits,) = hook.quoteOpenFit(key, probe, key.currency0, 2, capRaw + 1 ether, capRaw + 1 ether);
         assertFalse(fits, "one unit over the advertised cap does not fit");
 
         // Executional check: opening AT the advertised capacity succeeds.
@@ -223,7 +225,7 @@ contract EswapOpenInterestCapsTest is BaseV4Test {
 
     function test_OneX_ExemptFromCaps() public {
         _open(traderA, 51_000 ether, 3);
-        (bool active, , , , ) = hook.openInterestCapacity();
+        (bool active,,,,) = hook.openInterestCapacity();
         assertTrue(active);
 
         // 1x => zero borrow, no OI: any margin size passes regardless of caps.

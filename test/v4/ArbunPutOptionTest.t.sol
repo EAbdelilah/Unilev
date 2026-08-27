@@ -93,12 +93,7 @@ contract ArbunPutOptionTest is Test {
         vm.startPrank(trader);
         usdc.approve(address(optionContract), totalCollect);
 
-        uint256 optionId = optionContract.openHalalShort(
-            address(weth),
-            address(usdc),
-            1 ether,
-            1 days
-        );
+        uint256 optionId = optionContract.openHalalShort(address(weth), address(usdc), 1 ether, 1 days);
         vm.stopPrank();
 
         assertEq(optionId, 1);
@@ -143,12 +138,7 @@ contract ArbunPutOptionTest is Test {
 
         vm.startPrank(trader);
         usdc.approve(address(optionContract), totalCollect);
-        uint256 optionId = optionContract.openHalalShort(
-            address(weth),
-            address(usdc),
-            1 ether,
-            1 days
-        );
+        uint256 optionId = optionContract.openHalalShort(address(weth), address(usdc), 1 ether, 1 days);
         vm.stopPrank();
 
         // 2. Seed the collaborative Takaful Mutual Fund to ensure solvency for payouts
@@ -189,7 +179,9 @@ contract ArbunPutOptionTest is Test {
         // Verify Contract balances
         assertEq(weth.balanceOf(address(optionContract)), 1 ether, "Contract holds the physically delivered WETH");
         // Takaful Fund provided: strike payout ($3000) - downpayment ($300) = $2700.
-        assertEq(optionContract.takafulFund(address(usdc)), seedAmt - 2700 ether, "Takaful fund deducted correctly by $2,700");
+        assertEq(
+            optionContract.takafulFund(address(usdc)), seedAmt - 2700 ether, "Takaful fund deducted correctly by $2,700"
+        );
     }
 
     function test_CancelHalalShort_Success() public {
@@ -200,12 +192,7 @@ contract ArbunPutOptionTest is Test {
 
         vm.startPrank(trader);
         usdc.approve(address(optionContract), totalCollect);
-        uint256 optionId = optionContract.openHalalShort(
-            address(weth),
-            address(usdc),
-            1 ether,
-            1 days
-        );
+        uint256 optionId = optionContract.openHalalShort(address(weth), address(usdc), 1 ether, 1 days);
 
         // Price rises or trader decides to cancel (Halal Loss scenario)
         // Under Shariah Arbun law, trader forfeits the non-refundable downpayment
@@ -229,12 +216,7 @@ contract ArbunPutOptionTest is Test {
 
         vm.startPrank(trader);
         usdc.approve(address(optionContract), totalCollect);
-        uint256 optionId = optionContract.openHalalShort(
-            address(weth),
-            address(usdc),
-            1 ether,
-            1 days
-        );
+        uint256 optionId = optionContract.openHalalShort(address(weth), address(usdc), 1 ether, 1 days);
         vm.stopPrank();
 
         // Try to cancel by someone else before expiration -> should fail

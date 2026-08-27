@@ -20,19 +20,15 @@ interface IURC4 {
     /**
      * @notice Provides an indicative quote for a swap through the hook's custom accounting.
      */
-    function getIndicativeQuote(
-        PoolKey calldata key,
-        bool zeroForOne,
-        int128 amountSpecified,
-        bytes calldata data
-    ) external view returns (IndicativeQuote memory quote);
+    function getIndicativeQuote(PoolKey calldata key, bool zeroForOne, int128 amountSpecified, bytes calldata data)
+        external
+        view
+        returns (IndicativeQuote memory quote);
 
     /**
      * @notice Allows solvers to compute the exact routing path by simulating a swap to a target price.
      */
-    function swapToPrice(
-        PoolKey calldata key,
-        uint160 targetSqrtPriceX96,
-        bytes calldata data
-    ) external returns (int128 delta0, int128 delta1);
+    function swapToPrice(PoolKey calldata key, uint160 targetSqrtPriceX96, bytes calldata data)
+        external
+        returns (int128 delta0, int128 delta1);
 }

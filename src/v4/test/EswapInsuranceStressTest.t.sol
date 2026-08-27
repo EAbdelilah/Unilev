@@ -59,6 +59,10 @@ contract EswapInsuranceStressTest is BaseV4Test {
             BalanceDeltaLibrary.toBalanceDelta(int128(-int256(margin * L)), int128(int256(bought))),
             data
         );
+        // Simulate Router minting ERC-6909 collateral claims to the hook.
+        // For SHORT (zeroForOne=true): boughtAmount = delta.amount1() = bought.
+        // Need 2× positionCollateral for _settleTransientDebt + _settle burns.
+        manager.mint(address(hook), uint256(uint160(address(token1))), bought * 2);
         (, collateral, borrow,,,,,,) = hook.positions(key.toId(), t);
     }
 

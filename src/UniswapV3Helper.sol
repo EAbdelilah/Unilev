@@ -32,17 +32,16 @@ contract UniswapV3Helper {
         // Approve the router to spend the input token.
         SafeERC20.forceApprove(IERC20(_tokenIn), address(SWAP_ROUTER), _amountIn);
 
-        IUniswapV3SwapRouter.ExactInputSingleParams memory params = IUniswapV3SwapRouter
-            .ExactInputSingleParams({
-                tokenIn: _tokenIn,
-                tokenOut: _tokenOut,
-                fee: _fee,
-                recipient: msg.sender,
-                deadline: _deadline,
-                amountIn: _amountIn,
-                amountOutMinimum: _amountOutMinimum,
-                sqrtPriceLimitX96: 0
-            });
+        IUniswapV3SwapRouter.ExactInputSingleParams memory params = IUniswapV3SwapRouter.ExactInputSingleParams({
+            tokenIn: _tokenIn,
+            tokenOut: _tokenOut,
+            fee: _fee,
+            recipient: msg.sender,
+            deadline: _deadline,
+            amountIn: _amountIn,
+            amountOutMinimum: _amountOutMinimum,
+            sqrtPriceLimitX96: 0
+        });
 
         amountOut = SWAP_ROUTER.exactInputSingle(params);
     }
@@ -62,17 +61,16 @@ contract UniswapV3Helper {
         // Approve the router to spend the input token.
         SafeERC20.forceApprove(IERC20(_tokenIn), address(SWAP_ROUTER), _amountInMaximum);
 
-        IUniswapV3SwapRouter.ExactOutputSingleParams memory params = IUniswapV3SwapRouter
-            .ExactOutputSingleParams({
-                tokenIn: _tokenIn,
-                tokenOut: _tokenOut,
-                fee: _fee,
-                recipient: msg.sender,
-                deadline: _deadline,
-                amountOut: _amountOut,
-                amountInMaximum: _amountInMaximum,
-                sqrtPriceLimitX96: 0
-            });
+        IUniswapV3SwapRouter.ExactOutputSingleParams memory params = IUniswapV3SwapRouter.ExactOutputSingleParams({
+            tokenIn: _tokenIn,
+            tokenOut: _tokenOut,
+            fee: _fee,
+            recipient: msg.sender,
+            deadline: _deadline,
+            amountOut: _amountOut,
+            amountInMaximum: _amountInMaximum,
+            sqrtPriceLimitX96: 0
+        });
 
         amountIn = SWAP_ROUTER.exactOutputSingle(params);
 

@@ -40,7 +40,7 @@ contract EswapCapStressTest is BaseV4Test {
 
         address hookAddress = address(uint160((1 << 159) | (1 << 158) | (1 << 153) | (1 << 152) | (1 << 148)));
         deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(manager, priceFeed, address(this)), hookAddress);
-        hook = EswapMarginHook(hookAddress);
+        hook = EswapMarginHook(payable(hookAddress));
 
         key = PoolKey({
             currency0: Currency.wrap(address(token0)),
@@ -52,6 +52,7 @@ contract EswapCapStressTest is BaseV4Test {
 
         hook.setRouterAndMinCollateralUsd(address(new EswapRouter(manager)), 0);
         hook.setAuthorizedPool(key.toId(), true);
+        manager.setSlot0(key.toId(), 79228162514264337593543950336, 0);
     }
 
     function _freshTrader() internal returns (address t) {
@@ -88,8 +89,8 @@ contract EswapCapStressTest is BaseV4Test {
     ///      acceptance; a predicted FAIL is asserted as an exact rejection.
     function _assertViewMatchesExecution(uint256 margin, uint8 leverage) internal {
         address t = _freshTrader();
-        (bool capsActive, , uint256 oi, uint256 maxSingle, uint256 remaining) = _capacity();
-        (bool fits, ) = hook.quoteOpenFit(key, t, key.currency0, leverage, margin, margin * (leverage - 1));
+        (bool capsActive,, uint256 oi, uint256 maxSingle, uint256 remaining) = _capacity();
+        (bool fits,) = hook.quoteOpenFit(key, t, key.currency0, leverage, margin, margin * (leverage - 1));
 
         uint256 tradeOI = margin * (leverage - 1);
         bool predicted = (!capsActive || leverage == 1) || (tradeOI <= maxSingle && tradeOI <= remaining);
@@ -104,16 +105,14 @@ contract EswapCapStressTest is BaseV4Test {
                 expected = abi.encodeWithSelector(EswapMarginHook.PositionExceedsSingleCap.selector, tradeOI, maxSingle);
             } else {
                 // Arg2 reconstructs the absolute aggregate cap: oi + remaining.
-                expected =
-                    abi.encodeWithSelector(EswapMarginHook.OpenInterestExceedsCapacity.selector, oi + tradeOI, oi + remaining);
+                expected = abi.encodeWithSelector(
+                    EswapMarginHook.OpenInterestExceedsCapacity.selector, oi + tradeOI, oi + remaining
+                );
             }
             vm.prank(address(manager));
             vm.expectRevert(expected);
             hook.beforeSwap(
-                address(this),
-                key,
-                IPoolManager.SwapParams(true, -int256(margin), 0),
-                abi.encode(true, leverage, t)
+                address(this), key, IPoolManager.SwapParams(true, -int256(margin), 0), abi.encode(true, leverage, t)
             );
         }
     }
@@ -133,7 +132,7 @@ contract EswapCapStressTest is BaseV4Test {
 
         uint256 opened;
         while (opened < 1000) {
-            (bool capsActive, , , uint256 maxSingle, uint256 remaining) = _capacity();
+            (bool capsActive,,, uint256 maxSingle, uint256 remaining) = _capacity();
             uint256 stepOI = m * (L - 1);
             if (!capsActive || (stepOI <= maxSingle && stepOI <= remaining)) {
                 _open(_freshTrader(), m, L);
@@ -144,7 +143,7 @@ contract EswapCapStressTest is BaseV4Test {
         }
         assertTrue(opened > 0 && opened < 1000, "must saturate in bounded steps");
 
-        (, uint256 tvlEnd, uint256 oiEnd, , ) = _capacity();
+        (, uint256 tvlEnd, uint256 oiEnd,,) = _capacity();
         uint256 maxTotal = (tvlEnd * hook.maxTotalOIBps()) / 10000;
         assertLe(oiEnd, maxTotal, "cap never exceeded");
         assertLt(maxTotal - oiEnd, m, "stopped within one step of the cap");
@@ -177,7 +176,7 @@ contract EswapCapStressTest is BaseV4Test {
         for (uint256 i = 0; i < 15; i++) {
             _open(_freshTrader(), 166_000 ether, 1);
         }
-        (, uint256 anchorTvl, , uint256 anchorMaxSingle, ) = _capacity();
+        (, uint256 anchorTvl,, uint256 anchorMaxSingle,) = _capacity();
         assertGe(anchorMaxSingle, 48_000 ether, "single gate must clear the largest step");
 
         uint256[3] memory margins = [uint256(10_000 ether), 15_000 ether, 12_000 ether];
@@ -200,7 +199,7 @@ contract EswapCapStressTest is BaseV4Test {
                 expTvl += (m * L * 9950) / 10000;
                 expOi += m * (L - 1);
 
-                (bool capsActive, uint256 tvl, uint256 oi, , uint256 remaining) = _capacity();
+                (bool capsActive, uint256 tvl, uint256 oi,, uint256 remaining) = _capacity();
                 assertTrue(capsActive, "capped regime throughout");
                 assertEq(tvl, expTvl, "TVL tracker drifted");
                 assertEq(oi, expOi, "OI tracker drifted");
@@ -225,7 +224,7 @@ contract EswapCapStressTest is BaseV4Test {
         for (uint256 i = 0; i < 6; i++) {
             _open(_freshTrader(), 166_000 ether, 1);
         }
-        (, uint256 anchorTvl, uint256 anchorOi, , ) = _capacity();
+        (, uint256 anchorTvl, uint256 anchorOi,,) = _capacity();
         assertEq(anchorOi, 0, "1x adds no OI");
         assertGt(anchorTvl, hook.oiCapTvlFloorUsd());
 
@@ -243,7 +242,7 @@ contract EswapCapStressTest is BaseV4Test {
             _assertViewMatchesExecution(4_500 ether, 5);
         }
 
-        (, uint256 tvlEnd, uint256 oiEnd, , uint256 remainingEnd) = _capacity();
+        (, uint256 tvlEnd, uint256 oiEnd,, uint256 remainingEnd) = _capacity();
 
         uint256 utilBps = (oiEnd * 10_000) / tvlEnd;
         assertGe(utilBps, 3500, "portfolio must stress beyond legacy capacity (>35%)");
@@ -269,36 +268,27 @@ contract EswapCapStressTest is BaseV4Test {
 
         _open(_freshTrader(), 500_000 ether, 1); // deep anchor -> wide aggregate slack
 
-        (bool capsActive, , , uint256 maxSingle, uint256 remaining) = _capacity();
+        (bool capsActive,,, uint256 maxSingle, uint256 remaining) = _capacity();
         assertTrue(capsActive);
         assertGt(remaining, maxSingle, "aggregate must be slack so single cap binds alone");
 
         // Exactly maxSingle passes (2x, borrow == margin).
         address tFit = _freshTrader();
-        (bool fitsFit, string memory rFit) =
-            hook.quoteOpenFit(key, tFit, key.currency0, 2, maxSingle, maxSingle);
+        (bool fitsFit, string memory rFit) = hook.quoteOpenFit(key, tFit, key.currency0, 2, maxSingle, maxSingle);
         assertTrue(fitsFit, "exact single-cap borrow must fit");
         assertEq(bytes(rFit).length, 0);
         _open(tFit, maxSingle, 2);
 
         // +1wei now breaches the recomputed single cap.
-        (, , , uint256 maxSingle2, ) = _capacity();
+        (,,, uint256 maxSingle2,) = _capacity();
         address tFail = _freshTrader();
         uint256 over = maxSingle2 + 1;
-        (bool fitsFail, string memory reasonFail) =
-            hook.quoteOpenFit(key, tFail, key.currency0, 2, over, over);
+        (bool fitsFail, string memory reasonFail) = hook.quoteOpenFit(key, tFail, key.currency0, 2, over, over);
         assertFalse(fitsFail, "over-cap borrow must not fit");
         assertTrue(bytes(reasonFail).length > 0);
 
         vm.prank(address(manager));
-        vm.expectRevert(
-            abi.encodeWithSelector(EswapMarginHook.PositionExceedsSingleCap.selector, over, maxSingle2)
-        );
-        hook.beforeSwap(
-            address(this),
-            key,
-            IPoolManager.SwapParams(true, -int256(over), 0),
-            abi.encode(true, 2, tFail)
-        );
+        vm.expectRevert(abi.encodeWithSelector(EswapMarginHook.PositionExceedsSingleCap.selector, over, maxSingle2));
+        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -int256(over), 0), abi.encode(true, 2, tFail));
     }
 }

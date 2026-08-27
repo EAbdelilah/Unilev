@@ -27,7 +27,13 @@ contract EswapHardenedTest is BaseV4Test {
 
         vm.startPrank(address(manager));
         hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -100 ether, 0), data);
-        hook.afterSwap(address(this), key, IPoolManager.SwapParams(true, -500 ether, 0), BalanceDeltaLibrary.toBalanceDelta(-500 ether, 480 ether), data);
+        hook.afterSwap(
+            address(this),
+            key,
+            IPoolManager.SwapParams(true, -500 ether, 0),
+            BalanceDeltaLibrary.toBalanceDelta(-500 ether, 480 ether),
+            data
+        );
         vm.stopPrank();
 
         hook.deployCollateral(key, address(this));
@@ -44,7 +50,13 @@ contract EswapHardenedTest is BaseV4Test {
         bytes memory data = abi.encode(true, uint8(5), address(this));
         vm.startPrank(address(manager));
         hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -100 ether, 0), data);
-        hook.afterSwap(address(this), key, IPoolManager.SwapParams(true, -500 ether, 0), BalanceDeltaLibrary.toBalanceDelta(-500 ether, 480 ether), data);
+        hook.afterSwap(
+            address(this),
+            key,
+            IPoolManager.SwapParams(true, -500 ether, 0),
+            BalanceDeltaLibrary.toBalanceDelta(-500 ether, 480 ether),
+            data
+        );
         vm.stopPrank();
 
         uint256 claimId = uint256(uint160(address(token1)));

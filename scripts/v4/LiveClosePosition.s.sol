@@ -45,7 +45,7 @@ contract LiveClosePosition is Script {
         router.closePosition(hookAddr, key, trader, solver, minAmountOut);
         vm.stopBroadcast();
 
-        EswapMarginHook hook = EswapMarginHook(hookAddr);
+        EswapMarginHook hook = EswapMarginHook(payable(hookAddr));
         (address posTrader, uint256 posCollateral, uint256 posBorrow, uint8 posLev, bool isLong, , , , ) =
             hook.positions(key.toId(), trader);
         console.log("after close - posTrader:", posTrader);

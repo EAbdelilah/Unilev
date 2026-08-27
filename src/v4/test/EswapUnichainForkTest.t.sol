@@ -22,13 +22,13 @@ contract EswapUnichainForkTest is Test {
     address constant UNICHAIN_WETH = address(0x4200000000000000000000000000000000000006); // OP-stack WETH
     address constant UNICHAIN_USDC = address(0x078D782b760474a361dDA0AF3839290b0EF57AD6); // Native USDC
     address constant UNICHAIN_V3_POOL_WETH_USDC = address(0x08927058918E3Cff6F5Efe45A58dB1be1f069E49); // Real live V3 Pool
-    
+
     // Core contracts
     PoolManagerMock manager;
     EswapMarginHook hook;
     PriceFeedMock priceFeed;
     PoolKey key;
-    
+
     IERC20 weth = IERC20(UNICHAIN_WETH);
     IERC20 usdc = IERC20(UNICHAIN_USDC);
 
@@ -50,7 +50,7 @@ contract EswapUnichainForkTest is Test {
         // We mock the contracts that are not yet on Unichain or that we control natively
         manager = new PoolManagerMock();
         priceFeed = new PriceFeedMock();
-        
+
         // If the Unichain tokens are not yet deployed on this fork RPC, deploy mocks to their exact addresses
         if (UNICHAIN_WETH.code.length == 0) {
             deployCodeTo("BaseV4Test.t.sol:ERC20Mock", abi.encode("WETH", "WETH"), UNICHAIN_WETH);
@@ -66,15 +66,14 @@ contract EswapUnichainForkTest is Test {
         // Deploy Hook
         address hookAddress = address(uint160((1 << 159) | (1 << 158) | (1 << 153) | (1 << 152) | (1 << 148)));
         deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(manager, priceFeed, address(this)), hookAddress);
-        hook = EswapMarginHook(hookAddress);
+        hook = EswapMarginHook(payable(hookAddress));
 
         hook.setRouterAndMinCollateralUsd(router, 0);
-        
+
         // Setup the V4 Pool using the real Unichain tokens
         // Sort tokens as per Uniswap convention
-        (address token0, address token1) = UNICHAIN_WETH < UNICHAIN_USDC 
-            ? (UNICHAIN_WETH, UNICHAIN_USDC) 
-            : (UNICHAIN_USDC, UNICHAIN_WETH);
+        (address token0, address token1) =
+            UNICHAIN_WETH < UNICHAIN_USDC ? (UNICHAIN_WETH, UNICHAIN_USDC) : (UNICHAIN_USDC, UNICHAIN_WETH);
 
         key = PoolKey({
             currency0: Currency.wrap(token0),
@@ -121,10 +120,10 @@ contract EswapUnichainForkTest is Test {
         if (!rpcAvailable) return;
         // Scenario 3: Attempt to swap with a manipulated V4 spot price.
         // We set the oracle TWAP to 3000, but we forcefully set the V4 pool spot price to 4000 (manipulated)
-        
+
         // Let's assume WETH is token0 for this test logic
         bool isWeth0 = Currency.unwrap(key.currency0) == UNICHAIN_WETH;
-        
+
         // Manipulate spot price significantly (spot shows 4000 USDC/WETH instead of 3000).
         // Decimals-aware sqrtPriceX96 values:
         //   WETH as currency0: raw = 4000e6/1e18 = 4e-9
@@ -134,7 +133,7 @@ contract EswapUnichainForkTest is Test {
 
         // Attempt to open a position. The hook should revert due to V4 Spot vs V3 TWAP deviation
         bytes memory hookData = abi.encode(true, uint8(5), trader);
-        
+
         vm.startPrank(address(manager));
         vm.expectRevert(EswapMarginHook.TwapManipulated.selector);
         hook.beforeSwap(address(this), key, IPoolManager.SwapParams(!isWeth0, -10 ether, 0), hookData);
@@ -144,7 +143,9 @@ contract EswapUnichainForkTest is Test {
     function test_Unichain_OpenProfitableLong() public {
         if (!rpcAvailable) return;
         // Restore correct spot price (3000 USDC per WETH, decimals-aware)
-        uint160 correctSqrtPrice = Currency.unwrap(key.currency0) == UNICHAIN_WETH ? 4339505179874779489431521 : 1446501726624926496477173928747177;
+        uint160 correctSqrtPrice = Currency.unwrap(key.currency0) == UNICHAIN_WETH
+            ? 4339505179874779489431521
+            : 1446501726624926496477173928747177;
         manager.setSlot0(key.toId(), correctSqrtPrice, 0);
 
         // Trader opens 5x Long on WETH (borrows USDC, buys WETH).
@@ -172,19 +173,27 @@ contract EswapUnichainForkTest is Test {
             amount0 = 1666666666666666666;
             amount1 = -5000e18;
         }
-        hook.afterSwap(address(this), key, IPoolManager.SwapParams(zeroForOne, -1000e18, 0), BalanceDeltaLibrary.toBalanceDelta(amount0, amount1), hookData);
+        hook.afterSwap(
+            address(this),
+            key,
+            IPoolManager.SwapParams(zeroForOne, -1000e18, 0),
+            BalanceDeltaLibrary.toBalanceDelta(amount0, amount1),
+            hookData
+        );
         vm.stopPrank();
 
         // Verify position was created, is a LONG (base = WETH), and collateral is WETH
-        ( , , , uint8 leverage, bool isLong, , , , ) = hook.positions(key.toId(), trader);
+        (,,, uint8 leverage, bool isLong,,,,) = hook.positions(key.toId(), trader);
         assertEq(leverage, 5);
         assertTrue(isLong);
-        (Currency collateral, ) = hook.positionCurrencies(key, trader);
+        (Currency collateral,) = hook.positionCurrencies(key, trader);
         assertEq(Currency.unwrap(collateral), UNICHAIN_WETH);
     }
 
     function test_Unichain_HybridArbun_PhysicalDelivery() public {
-        uint160 correctSqrtPrice = Currency.unwrap(key.currency0) == UNICHAIN_WETH ? 4339505179874779489431521 : 1446501726624926496477173928747177;
+        uint160 correctSqrtPrice = Currency.unwrap(key.currency0) == UNICHAIN_WETH
+            ? 4339505179874779489431521
+            : 1446501726624926496477173928747177;
         manager.setSlot0(key.toId(), correctSqrtPrice, 0);
 
         bool zeroForOne = Currency.unwrap(key.currency0) == UNICHAIN_USDC;
@@ -196,7 +205,13 @@ contract EswapUnichainForkTest is Test {
         int128 amount0 = zeroForOne ? int128(-3000e18) : int128(1 ether);
         int128 amount1 = zeroForOne ? int128(1 ether) : int128(-3000e18);
 
-        hook.afterSwap(address(this), key, IPoolManager.SwapParams(zeroForOne, -1000e18, 0), BalanceDeltaLibrary.toBalanceDelta(amount0, amount1), hookData);
+        hook.afterSwap(
+            address(this),
+            key,
+            IPoolManager.SwapParams(zeroForOne, -1000e18, 0),
+            BalanceDeltaLibrary.toBalanceDelta(amount0, amount1),
+            hookData
+        );
         vm.stopPrank();
 
         // Exercise Shariah Arbun Physical Delivery Option on Unichain Fork

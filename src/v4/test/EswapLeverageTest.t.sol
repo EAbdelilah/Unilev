@@ -22,7 +22,13 @@ contract EswapLeverageTest is BaseV4Test {
         hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -1 ether, 0), data);
 
         vm.prank(address(manager));
-        hook.afterSwap(address(this), key, IPoolManager.SwapParams(true, -1 ether, 0), BalanceDeltaLibrary.toBalanceDelta(-1 ether, 0.95 ether), data);
+        hook.afterSwap(
+            address(this),
+            key,
+            IPoolManager.SwapParams(true, -1 ether, 0),
+            BalanceDeltaLibrary.toBalanceDelta(-1 ether, 0.95 ether),
+            data
+        );
 
         (address trader, uint256 collateral, uint256 borrow, uint8 lev,,,,,) = hook.positions(key.toId(), address(this));
         assertEq(trader, address(this));
@@ -37,7 +43,13 @@ contract EswapLeverageTest is BaseV4Test {
         hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -1 ether, 0), data);
 
         vm.prank(address(manager));
-        hook.afterSwap(address(this), key, IPoolManager.SwapParams(true, -2 ether, 0), BalanceDeltaLibrary.toBalanceDelta(-2 ether, 1.9 ether), data);
+        hook.afterSwap(
+            address(this),
+            key,
+            IPoolManager.SwapParams(true, -2 ether, 0),
+            BalanceDeltaLibrary.toBalanceDelta(-2 ether, 1.9 ether),
+            data
+        );
 
         (, uint256 collateral, uint256 borrow, uint8 lev,,,,,) = hook.positions(key.toId(), address(this));
         assertEq(borrow, 1 ether);
@@ -51,7 +63,13 @@ contract EswapLeverageTest is BaseV4Test {
         hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -1 ether, 0), data);
 
         vm.prank(address(manager));
-        hook.afterSwap(address(this), key, IPoolManager.SwapParams(true, -5 ether, 0), BalanceDeltaLibrary.toBalanceDelta(-5 ether, 4.8 ether), data);
+        hook.afterSwap(
+            address(this),
+            key,
+            IPoolManager.SwapParams(true, -5 ether, 0),
+            BalanceDeltaLibrary.toBalanceDelta(-5 ether, 4.8 ether),
+            data
+        );
 
         (, uint256 collateral, uint256 borrow, uint8 lev,,,,,) = hook.positions(key.toId(), address(this));
         assertEq(borrow, 4 ether);
@@ -88,7 +106,13 @@ contract EswapLeverageTest is BaseV4Test {
         hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -1 ether, 0), data);
 
         vm.prank(address(manager));
-        hook.afterSwap(address(this), key, IPoolManager.SwapParams(true, -3 ether, 0), BalanceDeltaLibrary.toBalanceDelta(-3 ether, 2.8 ether), data);
+        hook.afterSwap(
+            address(this),
+            key,
+            IPoolManager.SwapParams(true, -3 ether, 0),
+            BalanceDeltaLibrary.toBalanceDelta(-3 ether, 2.8 ether),
+            data
+        );
 
         uint256 claimId = uint256(uint160(address(token1)));
         manager.mint(address(hook), claimId, 2.8 ether); // Simulate router minting

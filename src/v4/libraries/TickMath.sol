@@ -65,7 +65,8 @@ library TickMath {
 
     function _mulDiv(uint256 a, uint256 b, uint256 denominator) private pure returns (uint256 result) {
         unchecked {
-            uint256 prod0; uint256 prod1;
+            uint256 prod0;
+            uint256 prod1;
             assembly {
                 let mm := mulmod(a, b, not(0))
                 prod0 := mul(a, b)

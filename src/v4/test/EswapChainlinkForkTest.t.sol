@@ -25,15 +25,21 @@ contract SequencerMock {
         startedAt = block.timestamp - 2 hours;
     }
 
-    function setDown() external { answer = 1; }
-    function restart() external { answer = 0; startedAt = block.timestamp; }
-    function mature() external { answer = 0; startedAt = block.timestamp - 2 hours; }
+    function setDown() external {
+        answer = 1;
+    }
 
-    function latestRoundData()
-        external
-        view
-        returns (uint80, int256, uint256, uint256, uint80)
-    {
+    function restart() external {
+        answer = 0;
+        startedAt = block.timestamp;
+    }
+
+    function mature() external {
+        answer = 0;
+        startedAt = block.timestamp - 2 hours;
+    }
+
+    function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80) {
         return (1, answer, startedAt, startedAt, 1);
     }
 }
@@ -138,8 +144,8 @@ contract EswapChainlinkForkTest is Test {
             return;
         }
         if (
-            base.code.length == 0 || quote.code.length == 0 || pmAddr.code.length == 0
-                || baseFeed.code.length == 0 || quoteFeed.code.length == 0
+            base.code.length == 0 || quote.code.length == 0 || pmAddr.code.length == 0 || baseFeed.code.length == 0
+                || quoteFeed.code.length == 0
         ) return;
 
         pm = RealIPoolManager(pmAddr);
@@ -168,7 +174,7 @@ contract EswapChainlinkForkTest is Test {
                 tickSpacing: spacings[i],
                 hooks: IHooks(address(0))
             });
-            (uint160 sqrtP,,, ) = StateLibrary.getSlot0(pm, k.toId());
+            (uint160 sqrtP,,,) = StateLibrary.getSlot0(pm, k.toId());
             if (sqrtP == 0) continue;
             uint128 liq = StateLibrary.getLiquidity(pm, k.toId());
             if (liq > deepest) {
@@ -196,7 +202,7 @@ contract EswapChainlinkForkTest is Test {
 
     /// @dev Live raw feed answer (>0) for a registered token.
     function _rawAnswer(address feed) internal view returns (int256 price, uint256 updatedAt) {
-        (, price, , updatedAt, ) = AggregatorV3Interface(feed).latestRoundData();
+        (, price,, updatedAt,) = AggregatorV3Interface(feed).latestRoundData();
         require(price > 0, "feed returned non-positive");
     }
 
@@ -206,7 +212,7 @@ contract EswapChainlinkForkTest is Test {
 
     /// @dev Human quote-per-base price (18dec) from the discovered deep pool.
     function _humanPriceBaseInQuote18() internal view returns (uint256 hp) {
-        (uint160 sqrtP,,, ) = StateLibrary.getSlot0(pm, _deepId());
+        (uint160 sqrtP,,,) = StateLibrary.getSlot0(pm, _deepId());
         uint8 dQ = _tokenDecimals(quote);
         uint8 dB = _tokenDecimals(base);
         return FullMath.mulDiv((1 << 192) * (10 ** (dB - dQ)), 1e18, uint256(sqrtP) * uint256(sqrtP));
@@ -268,11 +274,7 @@ contract EswapChainlinkForkTest is Test {
         assertEq(priceFeed.getAmountInUsd(base, 10 ** dB), priceB, "whole base unit == price");
 
         // Linearity: two whole units == 2x one whole unit.
-        assertEq(
-            priceFeed.getAmountInUsd(base, 2 * 10 ** dB),
-            2 * priceB,
-            "linear in raw amount"
-        );
+        assertEq(priceFeed.getAmountInUsd(base, 2 * 10 ** dB), 2 * priceB, "linear in raw amount");
     }
 
     /// @dev T4: staleness — warping beyond MAX_ORACLE_AGE reverts StalePrice.

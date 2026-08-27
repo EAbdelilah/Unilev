@@ -12,30 +12,28 @@ import "./utils/TestSetupMock.sol";
  * - 2x leverage: Position size = 2x collateral
  * - 3x leverage: Position size = 3x collateral
  * - For short: profit = price DOWN, loss = price UP
- * 
+ *
  * Price adjustment for each "Position Tokens" pair is defined in each test.
  * Tests verify exact expected PnL and final balance as per requirements table.
  */
 contract LeveragedTradeShortMock is TestSetupMock {
-
     // ===================================================================
     // COLLATERAL AND LEVERAGE CONFIGURATION
     // ===================================================================
-    uint128 constant COLLATERAL_AMOUNT_USDC = 100e6;  // 100 USDC
-    uint128 constant COLLATERAL_AMOUNT_WETH = 1e18;   // 1 WETH
-    uint24 constant FEE_TIER = 3000;                  // 0.3% Uniswap fee tier
-
+    uint128 constant COLLATERAL_AMOUNT_USDC = 100e6; // 100 USDC
+    uint128 constant COLLATERAL_AMOUNT_WETH = 1e18; // 1 WETH
+    uint24 constant FEE_TIER = 3000; // 0.3% Uniswap fee tier
 
     // ===================================================================
     // MINIMUM DELTA/TOLERANCE FOR VALUE VERIFICATION
     // Using minimum tolerance to ensure precise verification
     // These values account for swap fees, protocol fees, and slippage
     // ===================================================================
-    uint256 constant DELTA_USDC = 4e6;   // 3 USDC minimum delta (covers fees)
+    uint256 constant DELTA_USDC = 4e6; // 3 USDC minimum delta (covers fees)
     uint256 constant DELTA_WETH = 0.4e18; // 0.2 WETH minimum delta (covers fees for cross-pair)
 
     function getPositionPnL(uint256 positionId) internal view returns (int256) {
-        (, , , , , , , , , int128 currentPnL, ) = positions.getPositionParams(positionId);
+        (,,,,,,,,, int128 currentPnL,) = positions.getPositionParams(positionId);
         return int256(currentPnL);
     }
 
@@ -93,7 +91,9 @@ contract LeveragedTradeShortMock is TestSetupMock {
         vm.stopPrank();
 
         uint256 finalBalance = IERC20(getUsdcAddress()).balanceOf(alice);
-        assertApproxEqAbs(finalBalance, initialBalance + TARGET_PNL_1_USDC, DELTA_USDC, "Final balance should be 101 USDC");
+        assertApproxEqAbs(
+            finalBalance, initialBalance + TARGET_PNL_1_USDC, DELTA_USDC, "Final balance should be 101 USDC"
+        );
     }
 
     function test_Short_Profit_of_10_USDC() public {
@@ -127,7 +127,12 @@ contract LeveragedTradeShortMock is TestSetupMock {
         market.closePosition(positionId);
         vm.stopPrank();
 
-        assertApproxEqAbs(IERC20(getUsdcAddress()).balanceOf(alice), initialBalance + TARGET_PNL_10_USDC, DELTA_USDC, "Final balance should be 110 USDC");
+        assertApproxEqAbs(
+            IERC20(getUsdcAddress()).balanceOf(alice),
+            initialBalance + TARGET_PNL_10_USDC,
+            DELTA_USDC,
+            "Final balance should be 110 USDC"
+        );
     }
 
     function test_Short_Profit_of_50_USDC() public {
@@ -165,7 +170,12 @@ contract LeveragedTradeShortMock is TestSetupMock {
         market.closePosition(positionId);
         vm.stopPrank();
 
-        assertApproxEqAbs(IERC20(getUsdcAddress()).balanceOf(alice), initialBalance + TARGET_PNL_50_USDC, DELTA_USDC, "Final balance should be 150 USDC");
+        assertApproxEqAbs(
+            IERC20(getUsdcAddress()).balanceOf(alice),
+            initialBalance + TARGET_PNL_50_USDC,
+            DELTA_USDC,
+            "Final balance should be 150 USDC"
+        );
     }
 
     // ===================================================================
@@ -205,7 +215,9 @@ contract LeveragedTradeShortMock is TestSetupMock {
         vm.stopPrank();
 
         uint256 expectedBalance = initialBalance - 1e6;
-        assertApproxEqAbs(IERC20(getUsdcAddress()).balanceOf(alice), expectedBalance, DELTA_USDC, "Final balance should be 99 USDC");
+        assertApproxEqAbs(
+            IERC20(getUsdcAddress()).balanceOf(alice), expectedBalance, DELTA_USDC, "Final balance should be 99 USDC"
+        );
     }
 
     function test_Short_Loss_of_minus_10_USDC() public {
@@ -239,7 +251,12 @@ contract LeveragedTradeShortMock is TestSetupMock {
         market.closePosition(positionId);
         vm.stopPrank();
 
-        assertApproxEqAbs(IERC20(getUsdcAddress()).balanceOf(alice), initialBalance - TARGET_PNL_10_USDC, DELTA_USDC, "Final balance should be 90 USDC");
+        assertApproxEqAbs(
+            IERC20(getUsdcAddress()).balanceOf(alice),
+            initialBalance - TARGET_PNL_10_USDC,
+            DELTA_USDC,
+            "Final balance should be 90 USDC"
+        );
     }
 
     function test_Short_Loss_of_minus_50_USDC() public {
@@ -277,7 +294,12 @@ contract LeveragedTradeShortMock is TestSetupMock {
         market.closePosition(positionId);
         vm.stopPrank();
 
-        assertApproxEqAbs(IERC20(getUsdcAddress()).balanceOf(alice), initialBalance - TARGET_PNL_50_USDC, DELTA_USDC, "Final balance should be 50 USDC");
+        assertApproxEqAbs(
+            IERC20(getUsdcAddress()).balanceOf(alice),
+            initialBalance - TARGET_PNL_50_USDC,
+            DELTA_USDC,
+            "Final balance should be 50 USDC"
+        );
     }
 
     // ===================================================================
@@ -315,7 +337,12 @@ contract LeveragedTradeShortMock is TestSetupMock {
         market.closePosition(positionId);
         vm.stopPrank();
 
-        assertApproxEqAbs(IERC20(getUsdcAddress()).balanceOf(alice), initialBalance + TARGET_PNL_1_USDC, DELTA_USDC, "Final balance should be 101 USDC");
+        assertApproxEqAbs(
+            IERC20(getUsdcAddress()).balanceOf(alice),
+            initialBalance + TARGET_PNL_1_USDC,
+            DELTA_USDC,
+            "Final balance should be 101 USDC"
+        );
     }
 
     function test_Short_Profit_of_10_USDC_3x() public {
@@ -353,7 +380,12 @@ contract LeveragedTradeShortMock is TestSetupMock {
         market.closePosition(positionId);
         vm.stopPrank();
 
-        assertApproxEqAbs(IERC20(getUsdcAddress()).balanceOf(alice), initialBalance + TARGET_PNL_10_USDC, DELTA_USDC, "Final balance should be 110 USDC");
+        assertApproxEqAbs(
+            IERC20(getUsdcAddress()).balanceOf(alice),
+            initialBalance + TARGET_PNL_10_USDC,
+            DELTA_USDC,
+            "Final balance should be 110 USDC"
+        );
     }
 
     function test_Short_Profit_of_50_USDC_3x() public {
@@ -391,7 +423,12 @@ contract LeveragedTradeShortMock is TestSetupMock {
         market.closePosition(positionId);
         vm.stopPrank();
 
-        assertApproxEqAbs(IERC20(getUsdcAddress()).balanceOf(alice), initialBalance + TARGET_PNL_50_USDC, DELTA_USDC, "Final balance should be 150 USDC");
+        assertApproxEqAbs(
+            IERC20(getUsdcAddress()).balanceOf(alice),
+            initialBalance + TARGET_PNL_50_USDC,
+            DELTA_USDC,
+            "Final balance should be 150 USDC"
+        );
     }
 
     // ===================================================================
@@ -429,7 +466,12 @@ contract LeveragedTradeShortMock is TestSetupMock {
         market.closePosition(positionId);
         vm.stopPrank();
 
-        assertApproxEqAbs(IERC20(getUsdcAddress()).balanceOf(alice), initialBalance - TARGET_PNL_1_USDC, DELTA_USDC, "Final balance should be 99 USDC");
+        assertApproxEqAbs(
+            IERC20(getUsdcAddress()).balanceOf(alice),
+            initialBalance - TARGET_PNL_1_USDC,
+            DELTA_USDC,
+            "Final balance should be 99 USDC"
+        );
     }
 
     function test_Short_Loss_of_minus_10_USDC_3x() public {
@@ -467,7 +509,12 @@ contract LeveragedTradeShortMock is TestSetupMock {
         market.closePosition(positionId);
         vm.stopPrank();
 
-        assertApproxEqAbs(IERC20(getUsdcAddress()).balanceOf(alice), initialBalance - TARGET_PNL_10_USDC, DELTA_USDC, "Final balance should be 90 USDC");
+        assertApproxEqAbs(
+            IERC20(getUsdcAddress()).balanceOf(alice),
+            initialBalance - TARGET_PNL_10_USDC,
+            DELTA_USDC,
+            "Final balance should be 90 USDC"
+        );
     }
 
     function test_Short_Loss_of_minus_50_USDC_3x() public {
@@ -505,7 +552,12 @@ contract LeveragedTradeShortMock is TestSetupMock {
         market.closePosition(positionId);
         vm.stopPrank();
 
-        assertApproxEqAbs(IERC20(getUsdcAddress()).balanceOf(alice), initialBalance - TARGET_PNL_50_USDC, DELTA_USDC, "Final balance should be 50 USDC");
+        assertApproxEqAbs(
+            IERC20(getUsdcAddress()).balanceOf(alice),
+            initialBalance - TARGET_PNL_50_USDC,
+            DELTA_USDC,
+            "Final balance should be 50 USDC"
+        );
     }
 
     // ===================================================================
@@ -545,7 +597,12 @@ contract LeveragedTradeShortMock is TestSetupMock {
         market.closePosition(positionId);
         vm.stopPrank();
 
-        assertApproxEqAbs(IERC20(getWethAddress()).balanceOf(alice), initialBalance + TARGET_PNL_0_01_WETH, DELTA_WETH, "Final balance should be 1.01 WETH");
+        assertApproxEqAbs(
+            IERC20(getWethAddress()).balanceOf(alice),
+            initialBalance + TARGET_PNL_0_01_WETH,
+            DELTA_WETH,
+            "Final balance should be 1.01 WETH"
+        );
     }
 
     function test_Short_Profit_of_10_WETH() public {
@@ -583,7 +640,12 @@ contract LeveragedTradeShortMock is TestSetupMock {
         market.closePosition(positionId);
         vm.stopPrank();
 
-        assertApproxEqAbs(IERC20(getWethAddress()).balanceOf(alice), initialBalance + TARGET_PNL_0_1_WETH, DELTA_WETH, "Final balance should be 1.1 WETH");
+        assertApproxEqAbs(
+            IERC20(getWethAddress()).balanceOf(alice),
+            initialBalance + TARGET_PNL_0_1_WETH,
+            DELTA_WETH,
+            "Final balance should be 1.1 WETH"
+        );
     }
 
     function test_Short_Profit_of_50_WETH() public {
@@ -621,7 +683,12 @@ contract LeveragedTradeShortMock is TestSetupMock {
         market.closePosition(positionId);
         vm.stopPrank();
 
-        assertApproxEqAbs(IERC20(getWethAddress()).balanceOf(alice), initialBalance + TARGET_PNL_0_5_WETH, DELTA_WETH, "Final balance should be 1.5 WETH");
+        assertApproxEqAbs(
+            IERC20(getWethAddress()).balanceOf(alice),
+            initialBalance + TARGET_PNL_0_5_WETH,
+            DELTA_WETH,
+            "Final balance should be 1.5 WETH"
+        );
     }
 
     // ===================================================================
@@ -659,7 +726,12 @@ contract LeveragedTradeShortMock is TestSetupMock {
         market.closePosition(positionId);
         vm.stopPrank();
 
-        assertApproxEqAbs(IERC20(getWethAddress()).balanceOf(alice), initialBalance - TARGET_PNL_0_01_WETH, DELTA_WETH, "Final balance should be 0.99 WETH");
+        assertApproxEqAbs(
+            IERC20(getWethAddress()).balanceOf(alice),
+            initialBalance - TARGET_PNL_0_01_WETH,
+            DELTA_WETH,
+            "Final balance should be 0.99 WETH"
+        );
     }
 
     function test_Short_Loss_of_minus_10_WETH() public {
@@ -697,7 +769,12 @@ contract LeveragedTradeShortMock is TestSetupMock {
         market.closePosition(positionId);
         vm.stopPrank();
 
-        assertApproxEqAbs(IERC20(getWethAddress()).balanceOf(alice), initialBalance - TARGET_PNL_0_1_WETH, DELTA_WETH, "Final balance should be 0.9 WETH");
+        assertApproxEqAbs(
+            IERC20(getWethAddress()).balanceOf(alice),
+            initialBalance - TARGET_PNL_0_1_WETH,
+            DELTA_WETH,
+            "Final balance should be 0.9 WETH"
+        );
     }
 
     function test_Short_Loss_of_minus_50_WETH() public {
@@ -735,7 +812,12 @@ contract LeveragedTradeShortMock is TestSetupMock {
         market.closePosition(positionId);
         vm.stopPrank();
 
-        assertApproxEqAbs(IERC20(getWethAddress()).balanceOf(alice), initialBalance - TARGET_PNL_0_5_WETH, DELTA_WETH, "Final balance should be 0.5 WETH");
+        assertApproxEqAbs(
+            IERC20(getWethAddress()).balanceOf(alice),
+            initialBalance - TARGET_PNL_0_5_WETH,
+            DELTA_WETH,
+            "Final balance should be 0.5 WETH"
+        );
     }
 
     // ===================================================================
@@ -773,7 +855,12 @@ contract LeveragedTradeShortMock is TestSetupMock {
         market.closePosition(positionId);
         vm.stopPrank();
 
-        assertApproxEqAbs(IERC20(getWethAddress()).balanceOf(alice), initialBalance + TARGET_PNL_0_01_WETH, DELTA_WETH, "Final balance should be 1.01 WETH");
+        assertApproxEqAbs(
+            IERC20(getWethAddress()).balanceOf(alice),
+            initialBalance + TARGET_PNL_0_01_WETH,
+            DELTA_WETH,
+            "Final balance should be 1.01 WETH"
+        );
     }
 
     function test_Short_Profit_of_10_WETH_3x() public {
@@ -811,7 +898,12 @@ contract LeveragedTradeShortMock is TestSetupMock {
         market.closePosition(positionId);
         vm.stopPrank();
 
-        assertApproxEqAbs(IERC20(getWethAddress()).balanceOf(alice), initialBalance + TARGET_PNL_0_1_WETH, DELTA_WETH, "Final balance should be 1.1 WETH");
+        assertApproxEqAbs(
+            IERC20(getWethAddress()).balanceOf(alice),
+            initialBalance + TARGET_PNL_0_1_WETH,
+            DELTA_WETH,
+            "Final balance should be 1.1 WETH"
+        );
     }
 
     function test_Short_Profit_of_50_WETH_3x() public {
@@ -849,7 +941,12 @@ contract LeveragedTradeShortMock is TestSetupMock {
         market.closePosition(positionId);
         vm.stopPrank();
 
-        assertApproxEqAbs(IERC20(getWethAddress()).balanceOf(alice), initialBalance + TARGET_PNL_0_5_WETH, DELTA_WETH, "Final balance should be 1.5 WETH");
+        assertApproxEqAbs(
+            IERC20(getWethAddress()).balanceOf(alice),
+            initialBalance + TARGET_PNL_0_5_WETH,
+            DELTA_WETH,
+            "Final balance should be 1.5 WETH"
+        );
     }
 
     // ===================================================================
@@ -887,7 +984,12 @@ contract LeveragedTradeShortMock is TestSetupMock {
         market.closePosition(positionId);
         vm.stopPrank();
 
-        assertApproxEqAbs(IERC20(getWethAddress()).balanceOf(alice), initialBalance - TARGET_PNL_0_01_WETH, DELTA_WETH, "Final balance should be 0.99 WETH");
+        assertApproxEqAbs(
+            IERC20(getWethAddress()).balanceOf(alice),
+            initialBalance - TARGET_PNL_0_01_WETH,
+            DELTA_WETH,
+            "Final balance should be 0.99 WETH"
+        );
     }
 
     function test_Short_Loss_of_minus_10_WETH_3x() public {
@@ -925,7 +1027,12 @@ contract LeveragedTradeShortMock is TestSetupMock {
         market.closePosition(positionId);
         vm.stopPrank();
 
-        assertApproxEqAbs(IERC20(getWethAddress()).balanceOf(alice), initialBalance - TARGET_PNL_0_1_WETH, DELTA_WETH, "Final balance should be 0.9 WETH");
+        assertApproxEqAbs(
+            IERC20(getWethAddress()).balanceOf(alice),
+            initialBalance - TARGET_PNL_0_1_WETH,
+            DELTA_WETH,
+            "Final balance should be 0.9 WETH"
+        );
     }
 
     function test_Short_Loss_of_minus_50_WETH_3x() public {
@@ -963,7 +1070,12 @@ contract LeveragedTradeShortMock is TestSetupMock {
         market.closePosition(positionId);
         vm.stopPrank();
 
-        assertApproxEqAbs(IERC20(getWethAddress()).balanceOf(alice), initialBalance - TARGET_PNL_0_5_WETH, DELTA_WETH, "Final balance should be 0.5 WETH");
+        assertApproxEqAbs(
+            IERC20(getWethAddress()).balanceOf(alice),
+            initialBalance - TARGET_PNL_0_5_WETH,
+            DELTA_WETH,
+            "Final balance should be 0.5 WETH"
+        );
     }
 
     function test_Short_WhitelistFees() public {

@@ -24,17 +24,19 @@ contract EswapAtomicMarginTestManager is PoolManagerCallbackMock {
         nextDeltaIndex = 0;
     }
 
-    function swap(
-        PoolKey calldata key,
-        IPoolManager.SwapParams calldata params,
-        bytes calldata hookData
-    ) external override returns (BalanceDelta delta) {
-        swapCalls.push(SwapCall({
-            key: key,
-            zeroForOne: params.zeroForOne,
-            amountSpecified: int128(params.amountSpecified),
-            hookData: hookData
-        }));
+    function swap(PoolKey calldata key, IPoolManager.SwapParams calldata params, bytes calldata hookData)
+        external
+        override
+        returns (BalanceDelta delta)
+    {
+        swapCalls.push(
+            SwapCall({
+                key: key,
+                zeroForOne: params.zeroForOne,
+                amountSpecified: int128(params.amountSpecified),
+                hookData: hookData
+            })
+        );
         if (nextDeltaIndex < nextDeltas.length) {
             delta = nextDeltas[nextDeltaIndex];
             nextDeltaIndex++;
@@ -43,7 +45,7 @@ contract EswapAtomicMarginTestManager is PoolManagerCallbackMock {
 
         uint256 absIn = uint256(int256(params.amountSpecified < 0 ? -params.amountSpecified : params.amountSpecified));
         int128 output = int128(uint128((absIn * 96) / 100));
-        int128 input  = -int128(uint128(absIn));
+        int128 input = -int128(uint128(absIn));
         if (params.zeroForOne) {
             delta = BalanceDeltaLibrary.toBalanceDelta(input, output);
         } else {
@@ -68,8 +70,10 @@ contract EswapAtomicMarginTest is BaseV4Test {
         token1 = new ERC20Mock("Token 1", "TK1");
 
         address hookAddress = address(uint160((1 << 159) | (1 << 158) | (1 << 153) | (1 << 152) | (1 << 148)));
-        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(atomicManager, priceFeed, address(this)), hookAddress);
-        hook = EswapMarginHook(hookAddress);
+        deployCodeTo(
+            "EswapMarginHook.sol:EswapMarginHook", abi.encode(atomicManager, priceFeed, address(this)), hookAddress
+        );
+        hook = EswapMarginHook(payable(hookAddress));
 
         router = new EswapRouter(atomicManager);
 
@@ -81,13 +85,8 @@ contract EswapAtomicMarginTest is BaseV4Test {
             hooks: address(hook)
         });
 
-        standardPoolKey = PoolKey({
-            currency0: key.currency0,
-            currency1: key.currency1,
-            fee: 0,
-            tickSpacing: 60,
-            hooks: address(0)
-        });
+        standardPoolKey =
+            PoolKey({currency0: key.currency0, currency1: key.currency1, fee: 0, tickSpacing: 60, hooks: address(0)});
 
         hook.setRouterAndMinCollateralUsd(address(router), 0);
         hook.setAuthorizedPool(key.toId(), true);
@@ -116,11 +115,7 @@ contract EswapAtomicMarginTest is BaseV4Test {
         token1.mint(address(hook), 1000 ether);
 
         EswapRouter.AtomicMarginParams memory params = EswapRouter.AtomicMarginParams({
-            key: key,
-            standardPoolKey: standardPoolKey,
-            zeroForOne: true,
-            borrowAmount: borrowAmount,
-            minProfit: 1 ether
+            key: key, standardPoolKey: standardPoolKey, zeroForOne: true, borrowAmount: borrowAmount, minProfit: 1 ether
         });
 
         uint256 balanceBefore = token0.balanceOf(trader);
@@ -151,11 +146,7 @@ contract EswapAtomicMarginTest is BaseV4Test {
         token1.mint(address(hook), 1000 ether);
 
         EswapRouter.AtomicMarginParams memory params = EswapRouter.AtomicMarginParams({
-            key: key,
-            standardPoolKey: standardPoolKey,
-            zeroForOne: true,
-            borrowAmount: borrowAmount,
-            minProfit: 5 ether
+            key: key, standardPoolKey: standardPoolKey, zeroForOne: true, borrowAmount: borrowAmount, minProfit: 5 ether
         });
 
         uint256 balanceBefore = token0.balanceOf(trader);

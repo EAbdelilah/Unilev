@@ -66,8 +66,12 @@ contract EswapV4CoreProofTest is BaseV4Test {
         // BEFORE_SWAP=1<<7, AFTER_SWAP=1<<6, BEFORE_SWAP_RETURNS_DELTA=1<<3)
         // that the real PoolManager inspects.
         realHookAddr = address(uint160(HIGH_FLAGS | LOW_FLAGS));
-        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(address(realManager), address(priceFeed), address(this)), realHookAddr);
-        realHook = EswapMarginHook(realHookAddr);
+        deployCodeTo(
+            "EswapMarginHook.sol:EswapMarginHook",
+            abi.encode(address(realManager), address(priceFeed), address(this)),
+            realHookAddr
+        );
+        realHook = EswapMarginHook(payable(realHookAddr));
         realHook.setRouterAndMinCollateralUsd(address(this), 0);
         // Note: RealPoolId must be cast to the local mock PoolId type to call the hook's setAuthorizedPool
         realHook.setAuthorizedPool(_localIdFor(realHookAddr), true);
@@ -138,12 +142,8 @@ contract EswapV4CoreProofTest is BaseV4Test {
         PoolModifyLiquidityTest lq = new PoolModifyLiquidityTest(realManager);
         token0.approve(address(lq), type(uint256).max);
         token1.approve(address(lq), type(uint256).max);
-        RealIPoolManager.ModifyLiquidityParams memory lp = RealIPoolManager.ModifyLiquidityParams({
-            tickLower: -60,
-            tickUpper: 60,
-            liquidityDelta: 1e21,
-            salt: 0
-        });
+        RealIPoolManager.ModifyLiquidityParams memory lp =
+            RealIPoolManager.ModifyLiquidityParams({tickLower: -60, tickUpper: 60, liquidityDelta: 1e21, salt: 0});
         lq.modifyLiquidity(realKey, lp, "");
 
         // Non-margin swap with empty hookData. The real PM calls the hook's
@@ -157,9 +157,7 @@ contract EswapV4CoreProofTest is BaseV4Test {
         RealBalanceDelta rawDelta = swapper.swap(
             realKey,
             RealIPoolManager.SwapParams({
-                zeroForOne: true,
-                amountSpecified: -1 ether,
-                sqrtPriceLimitX96: MIN_SQRT_RATIO + 1
+                zeroForOne: true, amountSpecified: -1 ether, sqrtPriceLimitX96: MIN_SQRT_RATIO + 1
             }),
             PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
             ""
@@ -210,7 +208,7 @@ contract EswapV4CoreProofTest is BaseV4Test {
         (bool ok, bytes memory ret) = address(hook).call(callData);
         assertTrue(ok);
 
-        (bytes4 sel, int256 bsdValue, ) = abi.decode(ret, (bytes4, int256, uint24));
+        (bytes4 sel, int256 bsdValue,) = abi.decode(ret, (bytes4, int256, uint24));
         RealBeforeSwapDelta bsd = RealBeforeSwapDelta.wrap(bsdValue);
         assertEq(sel, IHooks.beforeSwap.selector);
         assertEq(bsd.getSpecifiedDelta(), -400 ether);
@@ -237,7 +235,7 @@ contract EswapV4CoreProofTest is BaseV4Test {
         (ok, ret) = address(hook).call(callData);
         assertTrue(ok);
 
-        (sel, bsdValue, ) = abi.decode(ret, (bytes4, int256, uint24));
+        (sel, bsdValue,) = abi.decode(ret, (bytes4, int256, uint24));
         bsd = RealBeforeSwapDelta.wrap(bsdValue);
         assertEq(sel, IHooks.beforeSwap.selector);
         assertEq(bsd.getSpecifiedDelta(), -100 ether);
@@ -280,7 +278,7 @@ contract EswapV4CoreProofTest is BaseV4Test {
             BalanceDeltaLibrary.toBalanceDelta(-100 ether, 480 ether),
             data
         );
-        (address longTrader, uint256 longCollateral, uint256 longBorrow, , bool longIsLong,,,,) =
+        (address longTrader, uint256 longCollateral, uint256 longBorrow,, bool longIsLong,,,,) =
             hook.positions(key.toId(), address(this));
         assertEq(longTrader, address(this));
         assertTrue(longIsLong);
@@ -300,7 +298,7 @@ contract EswapV4CoreProofTest is BaseV4Test {
             BalanceDeltaLibrary.toBalanceDelta(480 ether, -100 ether),
             shortData
         );
-        (address shortTrader, uint256 shortCollateral, uint256 shortBorrow, , bool shortIsLong,,,,) =
+        (address shortTrader, uint256 shortCollateral, uint256 shortBorrow,, bool shortIsLong,,,,) =
             hook.positions(key.toId(), address(1));
         assertEq(shortTrader, address(1));
         assertFalse(shortIsLong);

@@ -67,11 +67,16 @@ contract EswapRealPM_OpenNettingTest is Test {
         assertLt(uint256(uint160(address(token0))), uint256(uint160(address(token1))));
 
         realHookAddr = address(uint160(HIGH_FLAGS | LOW_FLAGS));
-        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(address(realManager), address(priceFeed), address(this)), realHookAddr);
-        realHook = EswapMarginHook(realHookAddr);
+        deployCodeTo(
+            "EswapMarginHook.sol:EswapMarginHook",
+            abi.encode(address(realManager), address(priceFeed), address(this)),
+            realHookAddr
+        );
+        realHook = EswapMarginHook(payable(realHookAddr));
 
         router = new EswapRouter(IPoolManager(address(realManager)));
         realHook.setRouterAndMinCollateralUsd(address(router), 0);
+        router.setSolverWhitelist(solver, true);
 
         hookRealKey = RealPoolKey({
             currency0: RealCurrency.wrap(address(token0)),
@@ -110,12 +115,8 @@ contract EswapRealPM_OpenNettingTest is Test {
         PoolModifyLiquidityTest lq = new PoolModifyLiquidityTest(realManager);
         token0.approve(address(lq), type(uint256).max);
         token1.approve(address(lq), type(uint256).max);
-        RealIPoolManager.ModifyLiquidityParams memory lp = RealIPoolManager.ModifyLiquidityParams({
-            tickLower: -60,
-            tickUpper: 60,
-            liquidityDelta: 1e23,
-            salt: 0
-        });
+        RealIPoolManager.ModifyLiquidityParams memory lp =
+            RealIPoolManager.ModifyLiquidityParams({tickLower: -60, tickUpper: 60, liquidityDelta: 1e23, salt: 0});
         lq.modifyLiquidity(hookRealKey, lp, "");
         lq.modifyLiquidity(standardRealKey, lp, "");
 
@@ -169,7 +170,7 @@ contract EswapRealPM_OpenNettingTest is Test {
         // (PriceLimitOutOfBounds / CurrencyNotSettled).
         uint160 limit = EswapMarginLib.sqrtPriceLimit(true);
         assertEq(limit, MIN_SQRT + 1, "valid full-range limit used");
-        (address posTrader, uint256 collateral, uint256 borrowed, , , , , , ) =
+        (address posTrader, uint256 collateral, uint256 borrowed,,,,,,) =
             realHook.positions(hookLocalKey.toId(), trader);
         assertEq(posTrader, trader, "position recorded on the real PM");
         assertEq(borrowed, BORROW);
@@ -193,7 +194,7 @@ contract EswapRealPM_OpenNettingTest is Test {
         address executor = makeAddr("executor");
         vm.prank(executor);
         router.swapFor(params, trader);
-        (address posTrader, uint256 collateral, uint256 borrowed, , , , , , ) =
+        (address posTrader, uint256 collateral, uint256 borrowed,,,,,,) =
             realHook.positions(hookLocalKey.toId(), trader);
         assertEq(posTrader, trader, "position owned by trader, not executor");
         assertEq(borrowed, BORROW);
@@ -240,9 +241,7 @@ contract EswapRealPM_OpenNettingTest is Test {
             realManager.settle();
             // (3) physical swap on the standard pool
             BalanceDelta deltaPhysical = realManager.swap(
-                standardRealKey,
-                RealIPoolManager.SwapParams(true, -int256(MARGIN + BORROW), MIN_SQRT + 1),
-                ""
+                standardRealKey, RealIPoolManager.SwapParams(true, -int256(MARGIN + BORROW), MIN_SQRT + 1), ""
             );
             uint256 outputAmount = uint256(int256(deltaPhysical.amount1()));
             // (4) mint collateral claim to the hook

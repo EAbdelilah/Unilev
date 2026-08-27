@@ -87,7 +87,7 @@ contract LiveOpenPosition is Script {
         }
         vm.stopBroadcast();
 
-        EswapMarginHook hook = EswapMarginHook(hookAddr);
+        EswapMarginHook hook = EswapMarginHook(payable(hookAddr));
         (address posTrader, uint256 posCollateral, uint256 posBorrow, uint8 posLev, bool posIsLong, , , , ) =
             hook.positions(key.toId(), trader);
         console.log("trader:", trader);

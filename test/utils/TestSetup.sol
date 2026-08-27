@@ -57,12 +57,7 @@ contract TestSetup is Test, HelperConfig, Utils {
             conf.treasure,
             address(feeManager)
         );
-        market = new Market(
-            address(positions),
-            address(liquidityPoolFactory),
-            address(priceFeedL1),
-            deployer
-        );
+        market = new Market(address(positions), address(liquidityPoolFactory), address(priceFeedL1), deployer);
 
         /// configurations
         // Set a longer staleness threshold for fork testing (7 days to account for mainnet fork age)
@@ -95,9 +90,7 @@ contract TestSetup is Test, HelperConfig, Utils {
 
     function depositLiquidity(address token, uint256 amount) internal {
         vm.startPrank(bob);
-        LiquidityPool liquidityPool = LiquidityPool(
-            liquidityPoolFactory.getTokenToLiquidityPools(token)
-        );
+        LiquidityPool liquidityPool = LiquidityPool(liquidityPoolFactory.getTokenToLiquidityPools(token));
         writeTokenBalance(bob, token, amount);
         IERC20(token).approve(address(liquidityPool), amount);
         liquidityPool.deposit(amount, bob);

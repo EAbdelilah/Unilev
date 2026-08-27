@@ -75,7 +75,7 @@ library EswapMarginLib {
         // (getAmountInUsd normalizes RAW amounts by the token's decimals).
         uint256 twapRatio18 = (twap0 * 1e18) / twap1;
 
-        if (sqrtPriceX96 == 0) return;
+        if (sqrtPriceX96 == 0) revert TwapManipulated();
 
         uint256 spotRatio18 = FullMath.mulDiv(uint256(sqrtPriceX96) * 1e18, uint256(sqrtPriceX96), 1 << 192);
         if (spotRatio18 == 0) revert TwapManipulated();

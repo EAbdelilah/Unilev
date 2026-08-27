@@ -25,14 +25,14 @@ import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interf
 
 contract PriceFeedTwapTest is Test {
     // ── Polygon mainnet addresses ──────────────────────────────────────────────
-    address constant WBTC          = 0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6;
-    address constant WETH          = 0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619;
-    address constant USDC          = 0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359;
+    address constant WBTC = 0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6;
+    address constant WETH = 0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619;
+    address constant USDC = 0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359;
 
     // Chainlink USD feeds on Polygon
-    address constant WBTC_FEED     = 0xDE31F8bFBD8c84b5360CFACCa3539B938dd78ae6;
-    address constant WETH_FEED     = 0xF9680D99D6C9589e2a93a78A04A279e509205945;
-    address constant USDC_FEED     = 0xfE4A8cc5b5B2366C1B58Bea3858e81843581b2F7;
+    address constant WBTC_FEED = 0xDE31F8bFBD8c84b5360CFACCa3539B938dd78ae6;
+    address constant WETH_FEED = 0xF9680D99D6C9589e2a93a78A04A279e509205945;
+    address constant USDC_FEED = 0xfE4A8cc5b5B2366C1B58Bea3858e81843581b2F7;
 
     // Correct Uniswap V3 pools on Polygon mainnet (verified via factory.getPool)
     // WBTC/WETH 0.3% pool — factory.getPool(WBTC, WETH, 3000)
@@ -76,9 +76,9 @@ contract PriceFeedTwapTest is Test {
         priceFeed.setTwapConfig(
             WBTC,
             WBTC_WETH_POOL,
-            WETH,   // intermediate
-            false,  // not USD stablecoin pool
-            1800    // 30-minute window
+            WETH, // intermediate
+            false, // not USD stablecoin pool
+            1800 // 30-minute window
         );
 
         uint256 twapPrice = priceFeed.getTwapPrice(WBTC);
@@ -121,13 +121,7 @@ contract PriceFeedTwapTest is Test {
         vm.mockCall(
             WBTC_FEED,
             abi.encodeWithSelector(AggregatorV3Interface.latestRoundData.selector),
-            abi.encode(
-                uint80(100),
-                int256(manipulatedAnswer),
-                block.timestamp,
-                block.timestamp,
-                uint80(100)
-            )
+            abi.encode(uint80(100), int256(manipulatedAnswer), block.timestamp, block.timestamp, uint80(100))
         );
 
         vm.expectRevert(); // PriceFeedL1__TWAP_DEVIATION_TOO_HIGH
@@ -216,7 +210,7 @@ contract PriceFeedTwapTest is Test {
             WETH,
             WETH_USDC_POOL,
             address(0), // no intermediate token — pool quotes in USD stablecoin
-            true,       // intermediateIsUsd = true
+            true, // intermediateIsUsd = true
             1800
         );
 

@@ -61,10 +61,7 @@ contract PoolManagerMock is IPoolManager {
         // Pack exactly like the real Pool.State.slot0 at mapping slot 0:
         // _pools[id].slot0 lives at keccak256(abi.encode(id, uint256(0))).
         bytes32 packed = bytes32(
-            uint256(sqrtPriceX96)
-                | uint256(int256(tick) << 160)
-                | (uint256(0) << 184)
-                | (uint256(3000) << 200)
+            uint256(sqrtPriceX96) | uint256(int256(tick) << 160) | (uint256(0) << 184) | (uint256(3000) << 200)
         );
         persistentStorage[keccak256(abi.encode(id, uint256(0)))] = packed;
         persistentStorage[keccak256(abi.encodePacked(PoolId.unwrap(id), bytes32(uint256(6))))] = packed;
@@ -96,7 +93,7 @@ contract PoolManagerMock is IPoolManager {
         return balances[owner][id];
     }
 
-    function unlock(bytes calldata) external override virtual returns (bytes memory) {
+    function unlock(bytes calldata) external virtual override returns (bytes memory) {
         return "";
     }
 
@@ -104,17 +101,20 @@ contract PoolManagerMock is IPoolManager {
         return 0;
     }
 
-    function swap(
-        PoolKey calldata key,
-        IPoolManager.SwapParams calldata params,
-        bytes calldata hookData
-    ) external override virtual returns (BalanceDelta delta) {
-        swapCalls.push(SwapCall({
-            key: key,
-            zeroForOne: params.zeroForOne,
-            amountSpecified: int128(params.amountSpecified),
-            hookData: hookData
-        }));
+    function swap(PoolKey calldata key, IPoolManager.SwapParams calldata params, bytes calldata hookData)
+        external
+        virtual
+        override
+        returns (BalanceDelta delta)
+    {
+        swapCalls.push(
+            SwapCall({
+                key: key,
+                zeroForOne: params.zeroForOne,
+                amountSpecified: int128(params.amountSpecified),
+                hookData: hookData
+            })
+        );
         if (hasOverrideSwapDelta) {
             hasOverrideSwapDelta = false; // consume once
             return overrideSwapDelta;
@@ -125,7 +125,7 @@ contract PoolManagerMock is IPoolManager {
         // Use a 1:1 exchange rate with 4% slippage for realistic output.
         uint256 absIn = uint256(int256(params.amountSpecified < 0 ? -params.amountSpecified : params.amountSpecified));
         int128 output = int128(uint128((absIn * 96) / 100));
-        int128 input  = -int128(uint128(absIn));
+        int128 input = -int128(uint128(absIn));
         if (params.zeroForOne) {
             // selling token0 → receiving token1
             delta = BalanceDeltaLibrary.toBalanceDelta(input, output);
@@ -135,17 +135,19 @@ contract PoolManagerMock is IPoolManager {
         }
     }
 
-    function modifyLiquidity(
-        PoolKey calldata key,
-        IPoolManager.ModifyLiquidityParams calldata params,
-        bytes calldata
-    ) external override returns (BalanceDelta delta, BalanceDelta) {
-        modifyLiquidityCalls.push(ModifyLiquidityCall({
-            key: key,
-            tickLower: params.tickLower,
-            tickUpper: params.tickUpper,
-            liquidityDelta: int128(params.liquidityDelta)
-        }));
+    function modifyLiquidity(PoolKey calldata key, IPoolManager.ModifyLiquidityParams calldata params, bytes calldata)
+        external
+        override
+        returns (BalanceDelta delta, BalanceDelta)
+    {
+        modifyLiquidityCalls.push(
+            ModifyLiquidityCall({
+                key: key,
+                tickLower: params.tickLower,
+                tickUpper: params.tickUpper,
+                liquidityDelta: int128(params.liquidityDelta)
+            })
+        );
         if (hasOverrideModifyLiquidityDelta) {
             hasOverrideModifyLiquidityDelta = false; // consume once
             return (overrideModifyLiquidityDelta, BalanceDeltaLibrary.toBalanceDelta(0, 0));

@@ -11,13 +11,7 @@ import {BalanceDeltaLibrary} from "../types/BalanceDelta.sol";
 contract EswapURCTest is BaseV4Test {
     using PoolIdLibrary for PoolKey;
 
-    event HookSwap(
-        PoolId indexed poolId,
-        address indexed sender,
-        int128 amount0,
-        int128 amount1,
-        uint256 hookFee
-    );
+    event HookSwap(PoolId indexed poolId, address indexed sender, int128 amount0, int128 amount1, uint256 hookFee);
 
     function test_URC4_IndicativeQuote() public view {
         int128 margin = -10 ether;
@@ -41,7 +35,13 @@ contract EswapURCTest is BaseV4Test {
 
         vm.prank(address(manager));
         // zeroForOne=true: boughtCurrency=currency1, rawAmount = delta.amount1() = 450
-        hook.afterSwap(address(this), key, IPoolManager.SwapParams(true, -500 ether, 0), BalanceDeltaLibrary.toBalanceDelta(-500 ether, 450 ether), data);
+        hook.afterSwap(
+            address(this),
+            key,
+            IPoolManager.SwapParams(true, -500 ether, 0),
+            BalanceDeltaLibrary.toBalanceDelta(-500 ether, 450 ether),
+            data
+        );
 
         // TVL = totalCollateral[currency1] = 450 (no reserve deducted from totalCollateral)
         assertGt(hook.getHookTVL(key.currency1), 0);
@@ -58,6 +58,12 @@ contract EswapURCTest is BaseV4Test {
         emit HookSwap(key.toId(), address(this), 0, 0, 0);
 
         vm.prank(address(manager));
-        hook.afterSwap(address(this), key, IPoolManager.SwapParams(true, -500 ether, 0), BalanceDeltaLibrary.toBalanceDelta(-500 ether, 450 ether), data);
+        hook.afterSwap(
+            address(this),
+            key,
+            IPoolManager.SwapParams(true, -500 ether, 0),
+            BalanceDeltaLibrary.toBalanceDelta(-500 ether, 450 ether),
+            data
+        );
     }
 }

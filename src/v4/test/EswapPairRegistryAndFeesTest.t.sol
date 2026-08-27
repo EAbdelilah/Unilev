@@ -33,6 +33,8 @@ contract EswapPairRegistryAndFeesTest is BaseV4Test {
             tickSpacing: 60,
             hooks: address(hook)
         });
+        // Initialize slot0 for the new pair (prevents TwapManipulated revert)
+        manager.setSlot0(pairKey.toId(), 79228162514264337593543950336, 0);
     }
 
     // ─── Change: runtime pair registration ────────────────────────────────────
@@ -41,18 +43,15 @@ contract EswapPairRegistryAndFeesTest is BaseV4Test {
         assertFalse(hook.isAuthorizedPool(pairKey.toId()), "pair must start unauthorized");
 
         PoolKey memory standardKey = PoolKey({
-            currency0: pairKey.currency0,
-            currency1: pairKey.currency1,
-            fee: 500,
-            tickSpacing: 10,
-            hooks: address(0)
+            currency0: pairKey.currency0, currency1: pairKey.currency1, fee: 500, tickSpacing: 10, hooks: address(0)
         });
 
         hook.registerTradingPair(pairKey, standardKey, Currency.wrap(address(tokenA)), 18, 18);
 
         assertTrue(hook.isAuthorizedPool(pairKey.toId()), "pair authorized at runtime");
         assertEq(Currency.unwrap(hook.baseCurrency(pairKey.toId())), address(tokenA), "base anchored");
-        (Currency sC0, Currency sC1, uint24 sFee, int24 sSpacing, address sHooks) = hook.standardPoolKeys(pairKey.toId());
+        (Currency sC0, Currency sC1, uint24 sFee, int24 sSpacing, address sHooks) =
+            hook.standardPoolKeys(pairKey.toId());
         assertEq(Currency.unwrap(sC0), address(tokenA), "standard currencies match");
         assertEq(Currency.unwrap(sC1), address(tokenB), "standard currencies match");
         assertEq(sFee, 500, "standard fee pinned");
@@ -77,7 +76,8 @@ contract EswapPairRegistryAndFeesTest is BaseV4Test {
             data
         );
 
-        (address trader, uint256 collateral, uint256 borrow, uint8 leverage,,,,,) = hook.positions(pairKey.toId(), address(this));
+        (address trader, uint256 collateral, uint256 borrow, uint8 leverage,,,,,) =
+            hook.positions(pairKey.toId(), address(this));
         assertEq(trader, address(this), "position opened on the new pair");
         assertGt(collateral, 0);
         assertEq(borrow, 1 ether);
@@ -132,11 +132,7 @@ contract EswapPairRegistryAndFeesTest is BaseV4Test {
         _openShort2x(address(0x1111));
 
         // boughtGross 1.92 ether × 0.5% = 0.0096 ether of protocol fees
-        assertEq(
-            hook.protocolFees(key.currency1),
-            (1.92 ether * 50) / 10000,
-            "default 50 bps charged"
-        );
+        assertEq(hook.protocolFees(key.currency1), (1.92 ether * 50) / 10000, "default 50 bps charged");
     }
 
     function test_ProtocolFee_SpecificAddressGetsSpecificFee() public {
