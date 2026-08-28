@@ -1,24 +1,26 @@
 "use client";
 
 import React, { useState } from "react";
-import clsx from "clsx";
 
 const UNICHAIN_ID = 130;
 const UNICHAIN_SEPOLIA_ID = 1301;
 const POLYGON_ID = 137;
 
-// Canonical DexScreener pair pages (deepest liquidity, fetched live from the
-// DexScreener API) per network. Fractional/native Unichain v4 pool ids are
-// 66-hex and fully supported by DexScreener.
 const PAIR_CONFIG = {
     WETH: {
-        label: "WETH/USDC",
+        label: "ETH/USDC",
+        symbol: "ETH",
+        emoji: "⟠",
+        color: "#a5b4fc",
         [UNICHAIN_ID]: "0x8927058918e3CFf6F55EfE45A58db1be1F069E49",
         [UNICHAIN_SEPOLIA_ID]: "0x8927058918e3CFf6F55EfE45A58db1be1F069E49",
         [POLYGON_ID]: "0x853Ee4b2A13f8a742d64C8F088bE7bA2131f670d",
     },
     WBTC: {
-        label: "WBTC/USDC",
+        label: "BTC/USDC",
+        symbol: "BTC",
+        emoji: "₿",
+        color: "#fde68a",
         [UNICHAIN_ID]: "0xbd0f3a7cf4cf5f48ebe850474c8c0012fa5fe893ab811a8b8743a52b83aa8939",
         [UNICHAIN_SEPOLIA_ID]: "0xbd0f3a7cf4cf5f48ebe850474c8c0012fa5fe893ab811a8b8743a52b83aa8939",
         [POLYGON_ID]: "0xeEF1A9507B3D505f0062f2be9453981255b503c8",
@@ -26,24 +28,18 @@ const PAIR_CONFIG = {
 };
 
 function networkFor(chainId) {
-    if (chainId === POLYGON_ID) return "polygon";
-    return "unichain";
+    return chainId === POLYGON_ID ? "polygon" : "unichain";
 }
 
 function pairFor(tokenKey, chainId) {
-    const cfg = PAIR_CONFIG[tokenKey] || {
-        label: `${tokenKey}/USDC`,
-        [UNICHAIN_ID]: "",
-        [UNICHAIN_SEPOLIA_ID]: "",
-        [POLYGON_ID]: "",
-    };
+    const cfg = PAIR_CONFIG[tokenKey] || PAIR_CONFIG["WETH"];
     const pairAddress = cfg[chainId] || cfg[UNICHAIN_ID];
-    return { label: cfg.label, pairAddress };
+    return { label: cfg.label, symbol: cfg.symbol, emoji: cfg.emoji, color: cfg.color, pairAddress };
 }
 
 export function LiveChart({ tokenKey = "WETH", chainId, onTokenChange }) {
     const network = networkFor(chainId);
-    const { label, pairAddress } = pairFor(tokenKey, chainId);
+    const { label, symbol, emoji, color, pairAddress } = pairFor(tokenKey, chainId);
     const [loaded, setLoaded] = useState(false);
 
     const params = new URLSearchParams({
@@ -58,64 +54,144 @@ export function LiveChart({ tokenKey = "WETH", chainId, onTokenChange }) {
     });
 
     const embedSrc = `https://dexscreener.com/${network}/${pairAddress}?${params}`;
-    const openUrl = `https://dexscreener.com/${network}/${pairAddress}`;
+    const openUrl  = `https://dexscreener.com/${network}/${pairAddress}`;
 
     return (
-        <div className="glass-panel w-full overflow-hidden flex flex-col mt-6">
-            <div className="p-4 border-b border-white/5 flex items-center justify-between bg-black/20">
-                <h3 className="text-sm font-bold text-gray-300 uppercase tracking-wider">
-                    {label} Price Chart ({network})
-                </h3>
-                <div className="flex items-center gap-2">
+        <div className="glass-panel w-full" style={{ overflow: 'hidden' }}>
+            {/* Chart header */}
+            <div style={{
+                padding: '0.875rem 1.25rem',
+                borderBottom: '1px solid rgba(255,255,255,0.06)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                background: 'rgba(0,0,0,0.2)',
+            }}>
+                {/* Pair label */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <div style={{
+                        width: 32, height: 32, borderRadius: '8px',
+                        background: 'rgba(255,255,255,0.06)',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '1rem', color,
+                    }}>
+                        {emoji}
+                    </div>
+                    <div>
+                        <div style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
+                            {label}
+                        </div>
+                        <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                            {network} · 15m
+                        </div>
+                    </div>
+                </div>
+
+                {/* Controls */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    {/* Live badge */}
+                    <div style={{
+                        display: 'flex', alignItems: 'center', gap: '0.35rem',
+                        background: 'rgba(16,185,129,0.1)',
+                        border: '1px solid rgba(16,185,129,0.25)',
+                        borderRadius: '9999px',
+                        padding: '0.25rem 0.65rem',
+                        fontSize: '0.65rem', fontWeight: 700, color: 'var(--green-light)',
+                        letterSpacing: '0.08em', textTransform: 'uppercase',
+                    }}>
+                        <span className="animate-live" style={{
+                            width: 6, height: 6, borderRadius: '50%',
+                            background: 'var(--green)',
+                            boxShadow: '0 0 6px var(--green)',
+                            display: 'inline-block',
+                        }} />
+                        Live
+                    </div>
+
                     <a
                         href={openUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-[10px] text-gray-400 hover:text-white underline underline-offset-2"
+                        style={{
+                            fontSize: '0.7rem', color: 'var(--text-muted)',
+                            textDecoration: 'none',
+                            background: 'rgba(255,255,255,0.05)',
+                            border: '1px solid rgba(255,255,255,0.08)',
+                            borderRadius: '6px',
+                            padding: '0.25rem 0.6rem',
+                            transition: 'all 0.18s',
+                        }}
                     >
-                        Open ↗
+                        ↗ DexScreener
                     </a>
-                    <span className="text-[10px] font-bold text-green-400 bg-green-500/10 border border-green-500/20 rounded px-2 py-1">
-                        LIVE FEED
-                    </span>
                 </div>
             </div>
 
+            {/* Token selector tabs */}
             {onTokenChange && (
-                <div className="flex gap-2 px-4 py-2 border-b border-white/5 bg-black/10">
-                    {Object.keys(PAIR_CONFIG).map((key) => (
-                        <button
-                            key={key}
-                            type="button"
-                            onClick={() => onTokenChange(key)}
-                            className={clsx(
-                                "text-xs font-bold px-3 py-1.5 rounded border transition-all uppercase tracking-wider",
-                                tokenKey === key
-                                    ? "bg-cyan-500/10 border-cyan-500/40 text-cyan-400"
-                                    : "bg-black/40 border-white/10 text-gray-400 hover:text-white hover:border-white/25"
-                            )}
-                        >
-                            {PAIR_CONFIG[key].label}
-                        </button>
-                    ))}
+                <div style={{
+                    display: 'flex',
+                    gap: '0.5rem',
+                    padding: '0.6rem 1.25rem',
+                    borderBottom: '1px solid rgba(255,255,255,0.05)',
+                    background: 'rgba(0,0,0,0.12)',
+                }}>
+                    {Object.keys(PAIR_CONFIG).map((key) => {
+                        const cfg = PAIR_CONFIG[key];
+                        const isActive = tokenKey === key;
+                        return (
+                            <button
+                                key={key}
+                                type="button"
+                                onClick={() => onTokenChange(key)}
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: '0.35rem',
+                                    padding: '0.35rem 0.85rem',
+                                    borderRadius: '8px',
+                                    border: `1px solid ${isActive ? `${cfg.color}55` : 'rgba(255,255,255,0.08)'}`,
+                                    background: isActive ? `${cfg.color}15` : 'transparent',
+                                    color: isActive ? cfg.color : 'var(--text-muted)',
+                                    fontSize: '0.78rem',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    transition: 'all 0.18s',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.05em',
+                                }}
+                            >
+                                <span>{cfg.emoji}</span>
+                                {cfg.label}
+                            </button>
+                        );
+                    })}
                 </div>
             )}
 
-            <div className="relative w-full" style={{ height: "440px" }}>
+            {/* Chart iframe */}
+            <div style={{ position: 'relative', width: '100%', height: 420 }}>
                 {!loaded && (
-                    <div className="absolute inset-0 z-0 grid place-items-center bg-[#0b0e14]">
-                        <div className="flex flex-col items-center gap-2">
-                            <div className="w-6 h-6 border-2 border-cyan-500/30 border-t-cyan-400 rounded-full animate-spin"></div>
-                            <span className="text-[11px] text-gray-500 font-mono">
+                    <div style={{
+                        position: 'absolute', inset: 0, zIndex: 0,
+                        display: 'grid', placeItems: 'center',
+                        background: '#0b0e14',
+                    }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
+                            <div style={{
+                                width: 28, height: 28,
+                                border: '2px solid rgba(6,182,212,0.2)',
+                                borderTopColor: 'var(--cyan)',
+                                borderRadius: '50%',
+                                animation: 'spin 0.8s linear infinite',
+                            }} />
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
                                 Loading {label} chart…
                             </span>
                             <a
-                                href={openUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-[11px] text-cyan-400 hover:underline underline-offset-2"
+                                href={openUrl} target="_blank" rel="noopener noreferrer"
+                                style={{ fontSize: '0.72rem', color: 'var(--cyan-light)', textDecoration: 'none' }}
                             >
-                                Open chart on DexScreener ↗
+                                Open on DexScreener ↗
                             </a>
                         </div>
                     </div>
@@ -123,9 +199,9 @@ export function LiveChart({ tokenKey = "WETH", chainId, onTokenChange }) {
                 <iframe
                     src={embedSrc}
                     onLoad={() => setLoaded(true)}
-                    style={{ width: "100%", height: "100%", border: "none", position: "relative", zIndex: 1 }}
-                    title="DexScreener Live Chart"
-                ></iframe>
+                    style={{ width: '100%', height: '100%', border: 'none', position: 'relative', zIndex: 1 }}
+                    title={`${label} Price Chart`}
+                />
             </div>
         </div>
     );

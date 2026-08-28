@@ -19,7 +19,7 @@ function useReadProvider() {
     _s();
     return (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useMemo"])({
         "useReadProvider.useMemo": ()=>{
-            const rpcUrl = ("TURBOPACK compile-time value", "https://unichain-mainnet.g.alchemy.com/v2/oT1vfY4yefQFB7Czqenvb") || ("TURBOPACK compile-time value", "https://polygon-mainnet.g.alchemy.com/v2/MShMmpJbY-27CEbyan4Ac");
+            const rpcUrl = ("TURBOPACK compile-time value", "https://unichain-mainnet.g.alchemy.com/v2/MShMmpJbY-27CEbyan4Ac") || ("TURBOPACK compile-time value", "https://polygon-mainnet.g.alchemy.com/v2/MShMmpJbY-27CEbyan4Ac");
             if ("TURBOPACK compile-time falsy", 0) //TURBOPACK unreachable
             ;
             return new __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$ethers$2f$lib$2e$esm$2f$ethers$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__$2a$__as__ethers$3e$__["ethers"].JsonRpcProvider(rpcUrl);
@@ -106,10 +106,10 @@ function useV4Position() {
     const USDC_ADDR = tokens.USDC || "0x078D782b760474a361dDA0AF3839290b0EF57AD6";
     const WBTC_ADDR = tokens.WBTC || "0x927B51f251480a681271180DA4de28D44EC4AfB8";
     const ADDRESSES = {
-        V4_ROUTER: ("TURBOPACK compile-time value", "0x508fd750a750b00e30e6f620805574d9b7fda05d") || "",
-        V4_HOOK: ("TURBOPACK compile-time value", "0x6337fca822066240064daff387e61653aeec90c8") || "",
-        V4_SOLVER: ("TURBOPACK compile-time value", "0x0f8BEC665E1eEbf0433FEDA67181B06E10710614") || "",
-        V4_PRICEFEED: ("TURBOPACK compile-time value", "0x256364f4a65def8c41c0d2b05166ae814a601f1d") || ("TURBOPACK compile-time value", "0x015c3722683b54fff1491a92bfd9c72ca3c84cc4") || ""
+        V4_ROUTER: ("TURBOPACK compile-time value", "0x1ED2F145C44F2E28174c7799773Bc27eC9147661") || "",
+        V4_HOOK: ("TURBOPACK compile-time value", "0xF710C66b9351348D9421F95C0103042F80A050C8") || "",
+        V4_SOLVER: ("TURBOPACK compile-time value", "0x518634753C61342298c3E04326056b3Ce596a566") || "",
+        V4_PRICEFEED: ("TURBOPACK compile-time value", "0xD2e8b474d6faB4d879Fe4621192B018B35B79488") || ("TURBOPACK compile-time value", "0x015c3722683b54fff1491a92bfd9c72ca3c84cc4") || ""
     };
     // Authorized hook pools (base token quoted in USDC). Each pool is keyed by the
     // "trading asset": WETH → USDC/WETH pool, WBTC → WBTC/USDC pool.
@@ -470,10 +470,10 @@ const ENV_ADDRESSES = {
     POOL_FACTORY: ("TURBOPACK compile-time value", "0x7afef9fe18e08cad3e1c4f5b090bd1bdb26f9dc9"),
     FEEMANAGER_ADDRESS: ("TURBOPACK compile-time value", "0xb581d265e43b2a8d872f3113651ed627bdbd952d"),
     WRAPPER: ("TURBOPACK compile-time value", "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270"),
-    V4_ROUTER: ("TURBOPACK compile-time value", "0x508fd750a750b00e30e6f620805574d9b7fda05d") || "",
-    V4_HOOK: ("TURBOPACK compile-time value", "0x6337fca822066240064daff387e61653aeec90c8") || "",
-    V4_SOLVER: ("TURBOPACK compile-time value", "0x0f8BEC665E1eEbf0433FEDA67181B06E10710614") || "",
-    V4_PRICEFEED: ("TURBOPACK compile-time value", "0x256364f4a65def8c41c0d2b05166ae814a601f1d") || ("TURBOPACK compile-time value", "0x015c3722683b54fff1491a92bfd9c72ca3c84cc4") || ""
+    V4_ROUTER: ("TURBOPACK compile-time value", "0x1ED2F145C44F2E28174c7799773Bc27eC9147661") || "",
+    V4_HOOK: ("TURBOPACK compile-time value", "0xF710C66b9351348D9421F95C0103042F80A050C8") || "",
+    V4_SOLVER: ("TURBOPACK compile-time value", "0x518634753C61342298c3E04326056b3Ce596a566") || "",
+    V4_PRICEFEED: ("TURBOPACK compile-time value", "0xD2e8b474d6faB4d879Fe4621192B018B35B79488") || ("TURBOPACK compile-time value", "0x015c3722683b54fff1491a92bfd9c72ca3c84cc4") || ""
 };
 function useDeFi() {
     _s();
@@ -522,7 +522,7 @@ function useDeFi() {
                 "useDeFi.useEffect.initProvider": async ()=>{
                     const hasMetaMask = ("TURBOPACK compile-time value", "object") !== "undefined" && !!window.ethereum;
                     setIsMetaMaskInstalled(hasMetaMask);
-                    const rpc = !isPolygon ? ("TURBOPACK compile-time value", "https://unichain-mainnet.g.alchemy.com/v2/oT1vfY4yefQFB7Czqenvb") || ("TURBOPACK compile-time value", "https://polygon-mainnet.g.alchemy.com/v2/MShMmpJbY-27CEbyan4Ac") : ("TURBOPACK compile-time value", "https://polygon-mainnet.g.alchemy.com/v2/MShMmpJbY-27CEbyan4Ac");
+                    const rpc = !isPolygon ? ("TURBOPACK compile-time value", "https://unichain-mainnet.g.alchemy.com/v2/MShMmpJbY-27CEbyan4Ac") || ("TURBOPACK compile-time value", "https://polygon-mainnet.g.alchemy.com/v2/MShMmpJbY-27CEbyan4Ac") : ("TURBOPACK compile-time value", "https://polygon-mainnet.g.alchemy.com/v2/MShMmpJbY-27CEbyan4Ac");
                     // Priority: chain-appropriate RPC_URL if configured
                     if (rpc) {
                         const provider = new __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$ethers$2f$lib$2e$esm$2f$ethers$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__$2a$__as__ethers$3e$__["ethers"].JsonRpcProvider(rpc);
@@ -1546,6 +1546,16 @@ function Home() {
                                 href: "/pools",
                                 className: "text-xs bg-green-500/10 hover:bg-green-500/20 px-3 py-1.5 rounded border border-green-500/20 text-green-400 transition-all uppercase tracking-widest font-bold",
                                 children: "Earn (Pools)"
+                            }),
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsx"])(__TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$client$2f$app$2d$dir$2f$link$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"], {
+                                href: "/adapter",
+                                className: "text-xs bg-cyan-500/10 hover:bg-cyan-500/20 px-3 py-1.5 rounded border border-cyan-500/20 text-cyan-400 transition-all uppercase tracking-widest font-bold",
+                                children: "Adapter"
+                            }),
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsx"])(__TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$client$2f$app$2d$dir$2f$link$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"], {
+                                href: "/settlement",
+                                className: "text-xs bg-emerald-500/10 hover:bg-emerald-500/20 px-3 py-1.5 rounded border border-emerald-500/20 text-emerald-400 transition-all uppercase tracking-widest font-bold",
+                                children: "Settlement"
                             }),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsx"])(__TURBOPACK__imported__module__$5b$project$5d2f$dashboard$2f$src$2f$components$2f$ConnectButton$2e$jsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__["ConnectButton"], {})
                         ]

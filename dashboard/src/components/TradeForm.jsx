@@ -64,11 +64,8 @@ export function TradeForm({ onTradingTokenChange }) {
                 const marginAddr = ADDRESSES[marginToken]
                 const amountBig = ethers.parseUnits(amount.toString(), balanceData.decimals)
                 const usdBig = await getAmountInUsd(marginAddr, amountBig)
-                // V4 PriceFeed returns USD scaled by the token's own decimals
-                // (getAmountInUsd = amount * price18 / 1e18); the V3 L1 feed
-                // normalises to 18 decimals instead.
                 setUsdValue(
-                    parseFloat(ethers.formatUnits(usdBig, isV4 ? balanceData.decimals : 18)).toFixed(2)
+                    parseFloat(ethers.formatUnits(usdBig, 18)).toFixed(2)
                 )
             } catch (err) {
                 console.error("Error fetching USD value:", err)
@@ -265,13 +262,11 @@ export function TradeForm({ onTradingTokenChange }) {
         setStatus("Preparing transaction...")
 
         try {
-            // "token0" is what trader SENDS as margin
-            // "token1" is the other half of the pair to trade
-            const marginAddr = ADDRESSES[marginToken] // sent by user
-            const tradingAddr = ADDRESSES[tradingToken] // traded against
+            const marginAddr = ADDRESSES[marginToken]
+            const tradingAddr = ADDRESSES[tradingToken]
 
-            // Check if they are trying illegal setups via the UI selector
-            if (marginAddr === tradingAddr) {
+            // Only on Polygon V3 do margin and trading token have to be distinct tokens
+            if (!isV4 && marginAddr === tradingAddr) {
                 throw new Error("Margin token and Trade token cannot be the same.")
             }
 
@@ -279,7 +274,7 @@ export function TradeForm({ onTradingTokenChange }) {
                 throw new Error("Amount cannot be zero")
             }
 
-            // Validation 1: Leverage limit (must be > 1 and <= 5)
+            // Validation 1: Leverage limit (must be >= 2 and <= 5)
             const levInt = parseInt(leverage)
             if (levInt < 2) {
                 throw new Error("Minimum allowed leverage is 2x.")
@@ -288,16 +283,8 @@ export function TradeForm({ onTradingTokenChange }) {
                 throw new Error("Maximum allowed leverage is 5x.")
             }
 
-            // Validation 2: Minimum USD size.
-            // V4 feed scale = token decimals (USDC → 1e6 per $, WETH → 1e18);
-            // the deployed hook enforces a ~$0.10 collateral floor, so V4 uses
-            // $0.10. Polygon V3 uses the 18-decimal feed + classic $1 rule.
-            const minUsdScale = isV4
-                ? (10n ** BigInt(balanceData.decimals)) / 10n
-                : 10n ** 18n
-            // Only enforce when price feed returns a valid value —
-            // if getAmountInUsd returns 0n due to a feed error, skip this check
-            // and let the contract validate instead.
+            // Validation 2: Minimum USD size ($0.10)
+            const minUsdScale = (10n ** 18n) / 10n
             const usdBig = await getAmountInUsd(marginAddr, amountBig)
             if (usdBig > 0n && usdBig < minUsdScale) {
                 throw new Error(
@@ -306,25 +293,24 @@ export function TradeForm({ onTradingTokenChange }) {
             }
 
             if (isShort && isHalalArbunMode) {
-                setStatus("🕋 Locking spot price & booking price-guarantee (Ujrah)...")
+                setStatus("🕋 Opening Shariah-compliant halal short (0% interest leverage)...")
                 try {
-                    const qtyBig = ethers.parseUnits(amount.toString(), 18)
-                    const tx = await openHalalShortOption(tradingAddr, marginAddr, qtyBig, 86400)
+                    const tx = await openHalalShortOption(isShort, amountBig, parseInt(leverage), tradingToken)
                     setStatus(`Transaction Sent: ${tx.hash}`)
                     await tx.wait()
-                    setStatus(`✅ 🕋 Halal Put Option (Arbun Short) Opened Successfully on-chain!\n- Quantity: ${amount} WETH\n- Strike Price Locked!`)
+                    setStatus(`✅ 🕋 Halal Short Opened Successfully on-chain!
+- Quantity: ${amount} ${tradingToken}
+- 0% Interest (Riba-Free) Leveraged Short`)
                 } catch (err) {
-                    console.warn("Actual contract call failed or not deployed; running high-fidelity Shariah-Compliant simulation", err)
-                    await new Promise(r => setTimeout(r, 1500))
-                    setStatus(`✅ 🕋 Shariah-Compliant Put Option (Arbun Short) Opened!\n- Locked Spot Sell Price: WETH at $3,000.00\n- Downpayment (Arbun): ${(parseFloat(amount) * 300).toFixed(2)} USDC (Non-Refundable Deposit)\n- Riba-Free Booking Fee (Ujrah): ${(parseFloat(amount) * 30).toFixed(2)} USDC\n- Takaful Mutual Fund Pool: Fully Solvent\n- Expiration: 1 day (Guaranteed Price Service)`)
+                    console.warn("Halal short failed:", err)
+                    const friendly = formatContractError(err)
+                    setStatus(`❌ Halal short failed: ${friendly}`)
                 }
             } else {
                 setStatus("Opening Position...")
 
                 let tx
                 if (isV4) {
-                    // V4: amount is the margin (input) token supplied by the trader —
-                    // USDC for a LONG, the base token (WETH/WBTC) for a SHORT.
                     tx = await openV4Position(isShort, amountBig, parseInt(leverage), tradingToken)
                 } else {
                     tx = await openPosition(
@@ -352,7 +338,6 @@ export function TradeForm({ onTradingTokenChange }) {
             console.error(error)
             if (isUserCancellation(error)) {
                 setStatus("⚠️ Transaction was canceled by user.")
-                // Clear the status after 3 seconds since it's just a cancellation
                 setTimeout(() => setStatus(""), 3000)
             } else {
                 const friendlyError = formatContractError(error)
@@ -450,79 +435,59 @@ export function TradeForm({ onTradingTokenChange }) {
 
     return (
         <div className="glass-panel p-6 w-full max-w-md">
-            <h2 className="text-xl font-bold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-pink-500 to-violet-500">
-                Open Position
-            </h2>
+            {/* Heading */}
+            <div style={{ marginBottom: '1.25rem' }}>
+                <h2 className="section-heading text-gradient-pink-purple" style={{ marginBottom: '0.2rem' }}>
+                    Open Position
+                </h2>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', letterSpacing: '0.04em' }}>
+                    0% Interest · Uniswap V4 · Chainlink Oracle
+                </div>
+            </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-                {/* Direction Selection */}
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+
+                {/* Direction */}
                 <div>
-                    <label className="text-xs text-gray-400 mb-2 block font-bold uppercase tracking-wider">
-                        Position Direction
+                    <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>
+                        Direction
                     </label>
                     <div className="grid grid-cols-2 gap-3">
                         <button
                             type="button"
                             onClick={() => setIsShort(false)}
-                            className={clsx(
-                                "py-3 rounded-xl border-2 transition-all flex flex-col items-center justify-center gap-1",
-                                !isShort
-                                    ? "bg-green-500/10 border-green-500 text-green-400 shadow-[0_0_15px_rgba(34,197,94,0.3)]"
-                                    : "bg-black/40 border-transparent text-gray-400 hover:bg-white/5 hover:text-gray-300"
-                            )}
+                            className={"direction-btn" + (!isShort ? " long-active" : "")}
                         >
-                            <span className="font-bold text-lg tracking-wider">LONG</span>
-                            <span
-                                className={clsx(
-                                    "text-xs",
-                                    !isShort ? "text-green-500/80" : "text-gray-500"
-                                )}
-                            >
-                                Uses {marginToken} Pool
-                            </span>
+                            <span style={{ fontSize: '1.1rem' }}>↑ LONG</span>
+                            <span style={{ fontSize: '0.68rem', opacity: 0.75 }}>Buy {tradingToken}</span>
                         </button>
                         <button
                             type="button"
                             onClick={() => setIsShort(true)}
-                            className={clsx(
-                                "py-3 rounded-xl border-2 transition-all flex flex-col items-center justify-center gap-1",
-                                isShort
-                                    ? "bg-red-500/10 border-red-500 text-red-400 shadow-[0_0_15px_rgba(239,68,68,0.3)]"
-                                    : "bg-black/40 border-transparent text-gray-400 hover:bg-white/5 hover:text-gray-300"
-                            )}
+                            className={"direction-btn" + (isShort ? " short-active" : "")}
                         >
-                            <span className="font-bold text-lg tracking-wider">SHORT</span>
-                            <span
-                                className={clsx(
-                                    "text-xs",
-                                    isShort ? "text-red-500/80" : "text-gray-500"
-                                )}
-                            >
-                                Uses {tradingToken} Pool
-                            </span>
+                            <span style={{ fontSize: '1.1rem' }}>↓ SHORT</span>
+                            <span style={{ fontSize: '0.68rem', opacity: 0.75 }}>Sell {tradingToken}</span>
                         </button>
                     </div>
                 </div>
 
-                {/* Shariah Arbun Option Mode Toggle (Show when shorting) */}
+                {/* Shariah Arbun Mode */}
                 {isShort && (
-                    <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/5 space-y-2 transition-all">
-                        <div className="flex items-center justify-between">
-                            <span className="text-xs font-bold text-amber-400 tracking-wider uppercase flex items-center gap-1.5">
-                                🕌 Shariah Arbun Short Mode
+                    <div style={{ padding: '0.875rem 1rem', borderRadius: 'var(--r-lg)', border: '1px solid rgba(245,158,11,0.25)', background: 'rgba(245,158,11,0.06)', transition: 'all 0.2s' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                            <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--amber-light)', letterSpacing: '0.07em', textTransform: 'uppercase' }}>
+                                🕌 Shariah Arbun Mode
                             </span>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={isHalalArbunMode}
-                                    onChange={(e) => setIsHalalArbunMode(e.target.checked)}
-                                    className="sr-only peer"
-                                />
-                                <div className="w-9 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+                            <label style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }}>
+                                <input type="checkbox" checked={isHalalArbunMode} onChange={(e) => setIsHalalArbunMode(e.target.checked)} className="sr-only peer" />
+                                <div style={{ width: 36, height: 20, borderRadius: 10, background: isHalalArbunMode ? 'var(--amber)' : 'rgba(255,255,255,0.1)', border: `1px solid ${isHalalArbunMode ? 'var(--amber)' : 'rgba(255,255,255,0.15)'}`, transition: 'all 0.2s', position: 'relative' }}>
+                                    <div style={{ position: 'absolute', top: 2, left: isHalalArbunMode ? 18 : 2, width: 14, height: 14, borderRadius: '50%', background: '#fff', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.3)' }} />
+                                </div>
                             </label>
                         </div>
-                        <p className="text-[11px] text-gray-300 leading-relaxed">
-                            Structure this short as a <strong>Halal Put Option</strong> (Downpayment on a future sale). Eliminates borrow interest (Riba) completely!
+                        <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                            Structure as a <strong style={{ color: 'var(--amber-light)' }}>Halal Put Option</strong> (Arbun). Eliminates Riba completely.
                         </p>
                     </div>
                 )}
@@ -530,297 +495,124 @@ export function TradeForm({ onTradingTokenChange }) {
                 {/* Token Selection */}
                 <div className="grid grid-cols-2 gap-4">
                     <div>
-                        <label className="text-xs text-gray-400 mb-1 block">
-                            Margin Asset
-                        </label>
-                        <select
-                            value={marginToken}
-                            onChange={(e) => {
-                                const val = e.target.value
-                                setMarginToken(val)
-                                // On V4 the margin currency drives direction:
-                                // USDC margin = LONG, base-token margin = SHORT.
-                                if (isV4) setIsShort(val !== "USDC")
-                            }}
-                            className="input-field bg-black/40"
-                        >
+                        <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Margin Asset</label>
+                        <select value={marginToken} onChange={(e) => { const val = e.target.value; setMarginToken(val); if (isV4) setIsShort(val !== "USDC") }} className="input-field bg-black/40">
                             {isV4
-                                ? [
-                                      { key: "USDC", name: "USDC" },
-                                      ...(tradingToken !== "USDC"
-                                          ? [{ key: tradingToken, name: tradingToken }]
-                                          : []),
-                                  ].map((t) => (
-                                      <option key={t.key} value={t.key}>
-                                          {t.name}
-                                      </option>
-                                  ))
-                                : SUPPORTED_TOKENS_LIST.map((t) => (
-                                      <option key={t.key} value={t.key}>
-                                          {t.name}
-                                      </option>
-                                  ))}
+                                ? [{ key: "USDC", name: "USDC" }, ...(tradingToken !== "USDC" ? [{ key: tradingToken, name: tradingToken }] : [])].map((t) => <option key={t.key} value={t.key}>{t.name}</option>)
+                                : SUPPORTED_TOKENS_LIST.map((t) => <option key={t.key} value={t.key}>{t.name}</option>)}
                         </select>
                     </div>
                     <div>
-                        <label className="text-xs text-gray-400 mb-1 block">
-                            Trading Asset
+                        <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Trading Asset</label>
+                        <select value={tradingToken} onChange={(e) => { setTradingToken(e.target.value); if (onTradingTokenChange) onTradingTokenChange(e.target.value); }} className="input-field bg-black/40">
+                            {(isV4 ? SUPPORTED_TOKENS_LIST.filter((t) => t.key !== "USDC") : SUPPORTED_TOKENS_LIST).map((t) => <option key={t.key} value={t.key}>{t.name}</option>)}
+                        </select>
+                    </div>
+                </div>
+
+                {/* Amount */}
+                <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                        <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                            {isShort && isHalalArbunMode ? `Quantity (${tradingToken})` : `Amount (${marginToken})`}
                         </label>
-                        <select
-                            value={tradingToken}
-                            onChange={(e) => {
-                                setTradingToken(e.target.value);
-                                if (onTradingTokenChange) onTradingTokenChange(e.target.value);
-                            }}
-                            className="input-field bg-black/40"
-                        >
-                            {(isV4
-                                ? SUPPORTED_TOKENS_LIST.filter((t) => t.key !== "USDC")
-                                : SUPPORTED_TOKENS_LIST
-                            ).map((t) => (
-                                <option key={t.key} value={t.key}>
-                                    {t.name}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-                </div>
-
-                {/* Amount & Leverage Grid */}
-                <div className="grid grid-cols-2 gap-4">
-                    {/* Amount */}
-                    <div>
-                        <div className="flex justify-between mb-1">
-                            <label className="text-xs text-gray-400 block">
-                                {isShort && isHalalArbunMode ? `Quantity (${tradingToken})` : `Amount (${marginToken})`}
-                            </label>
-                            {balanceData && !isHalalArbunMode && (
-                                <span
-                                    onClick={() => setAmount(balanceData.balance)}
-                                    className="text-xs text-blue-400 cursor-pointer hover:text-blue-300"
-                                >
-                                    Max: {formatTokenAmount(balanceData.balance, marginToken)}
-                                </span>
-                            )}
-                        </div>
-                        <input
-                            type="number"
-                            value={amount}
-                            onChange={(e) => setAmount(e.target.value)}
-                            className="input-field"
-                            placeholder="0.00"
-                        />
-                    </div>
-
-                    {/* Leverage */}
-                    <div>
-                        {isShort && isHalalArbunMode ? (
-                            <>
-                                <label className="text-xs text-gray-400 mb-1 block">
-                                    Arbun Downpayment
-                                </label>
-                                <div className="input-field bg-amber-500/10 border-amber-500/20 text-amber-300 font-mono flex items-center justify-between px-3 h-[42px] rounded-xl">
-                                    <span>10% (Fixed)</span>
-                                </div>
-                            </>
-                        ) : (
-                            <>
-                                <label className="text-xs text-gray-400 mb-1 block">
-                                    Leverage (Max 5x)
-                                </label>
-                                <input
-                                    type="number"
-                                    value={leverage}
-                                    onChange={(e) => setLeverage(e.target.value)}
-                                    className="input-field"
-                                    min="2"
-                                    max="5"
-                                    step="1"
-                                />
-                            </>
+                        {balanceData && !isHalalArbunMode && (
+                            <span onClick={() => setAmount(balanceData.balance)} style={{ fontSize: '0.7rem', color: 'var(--cyan-light)', cursor: 'pointer', fontFamily: 'var(--font-mono)' }}>
+                                MAX: {formatTokenAmount(balanceData.balance, marginToken)}
+                            </span>
                         )}
                     </div>
+                    <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className="input-field" placeholder="0.00" />
+                    <div style={{ textAlign: 'right', fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '0.25rem', fontFamily: 'var(--font-mono)' }}>
+                        ≈ ${usdValue} USD
+                    </div>
                 </div>
 
-                {/* Amount USD Display */}
-                <div className="text-[10px] text-gray-500 text-right px-1">
-                    Value: ≈ ${usdValue} USD
+                {/* Leverage */}
+                <div>
+                    {isShort && isHalalArbunMode ? (
+                        <>
+                            <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Arbun Downpayment</label>
+                            <div style={{ padding: '0.7rem 0.875rem', borderRadius: 'var(--r-md)', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', color: 'var(--amber-light)', fontFamily: 'var(--font-mono)', fontSize: '0.875rem', fontWeight: 700 }}>
+                                10% Fixed
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Leverage</label>
+                            <div style={{ display: 'flex', gap: '0.4rem' }}>
+                                {[2,3,4,5].map(lev => (
+                                    <button key={lev} type="button" onClick={() => setLeverage(String(lev))} className={"leverage-pill" + (parseInt(leverage) === lev ? " active" : "")} style={{ flex: 1 }}>
+                                        {lev}×
+                                    </button>
+                                ))}
+                            </div>
+                        </>
+                    )}
                 </div>
 
-                {/* Shariah Compliance Breakdown & Educational Section */}
+                {/* Arbun details */}
                 {isShort && isHalalArbunMode && (
-                    <div className="space-y-4">
-                        {/* Option Details Card */}
-                        <div className="p-3.5 rounded-xl border border-amber-500/20 bg-amber-500/5 text-xs space-y-2.5">
-                            <h3 className="font-bold text-amber-400 tracking-wider text-center border-b border-amber-500/10 pb-1.5 uppercase">
-                                Arbun Put Option Breakdown
-                            </h3>
-                            <div className="grid grid-cols-2 gap-y-1.5 font-mono text-gray-300">
-                                <span>Locked Spot Price:</span>
-                                <span className="text-right text-white font-bold">$3,000.00 USDC</span>
-
-                                <span>Option Size:</span>
-                                <span className="text-right text-white font-bold">{amount || "0.00"} {tradingToken}</span>
-
-                                <span>Arbun Deposit:</span>
-                                <span className="text-right text-amber-300">{(parseFloat(amount || 0) * 300).toFixed(2)} USDC (10%)</span>
-
-                                <span>Ujrah Booking Fee:</span>
-                                <span className="text-right text-amber-300">{(parseFloat(amount || 0) * 30).toFixed(2)} USDC (1%)</span>
-
-                                <span className="text-gray-400">Takaful Fund Pool:</span>
-                                <span className="text-right text-green-400 font-bold">100% Solvent (Active)</span>
-                            </div>
+                    <div style={{ padding: '0.875rem', borderRadius: 'var(--r-lg)', border: '1px solid rgba(245,158,11,0.18)', background: 'rgba(245,158,11,0.05)', fontSize: '0.75rem' }}>
+                        <div style={{ fontWeight: 800, color: 'var(--amber-light)', textAlign: 'center', marginBottom: '0.6rem', textTransform: 'uppercase', letterSpacing: '0.07em', borderBottom: '1px solid rgba(245,158,11,0.1)', paddingBottom: '0.5rem' }}>
+                            Arbun Put Option Breakdown
                         </div>
-
-                        {/* Shariah Three Pillars of Compliance */}
-                        <div className="p-4 rounded-xl border border-white/5 bg-white/[0.02] text-xs space-y-3">
-                            <h4 className="font-bold text-white tracking-wide uppercase text-[11px] text-center border-b border-white/5 pb-1.5">
-                                🕋 Three Pillars of Shariah Compliance
-                            </h4>
-
-                            <div className="space-y-2 leading-relaxed">
-                                <div>
-                                    <h5 className="font-bold text-amber-300/90 flex items-center gap-1">
-                                        1. No "Selling What You Do Not Own" (Hadith Compliance)
-                                    </h5>
-                                    <p className="text-[10px] text-gray-400 mt-0.5 pl-4">
-                                        Traders do not sell WETH on Day One. Instead, they buy the right (Arbun) to sell WETH at a locked price. Upon exercise, traders must purchase WETH on spot first (establishing physical possession) and immediately deliver it.
-                                    </p>
-                                </div>
-
-                                <div>
-                                    <h5 className="font-bold text-amber-300/90 flex items-center gap-1">
-                                        2. No Interest-Bearing Borrowing (Riba-Free)
-                                    </h5>
-                                    <p className="text-[10px] text-gray-400 mt-0.5 pl-4">
-                                        No borrow leverage or daily compounding funding rates. Traders pay a fixed Administrative booking fee (Ujrah) for the price guarantee, 100% allowed under Islamic commercial law.
-                                    </p>
-                                </div>
-
-                                <div>
-                                    <h5 className="font-bold text-amber-300/90 flex items-center gap-1">
-                                        3. Takaful Mutual Solvency
-                                    </h5>
-                                    <p className="text-[10px] text-gray-400 mt-0.5 pl-4">
-                                        Forfeited downpayments from canceled/expired contracts are pooled into the collaborative Takaful Fund. Winning payouts are cleared organically from this fund, completely bypassing external debt.
-                                    </p>
-                                </div>
-                            </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', rowGap: '0.4rem', fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>
+                            <span>Option Size:</span><span style={{ textAlign: 'right', color: 'var(--text-primary)', fontWeight: 700 }}>{amount || "0.00"} {tradingToken}</span>
+                            <span>Arbun Deposit:</span><span style={{ textAlign: 'right', color: 'var(--amber-light)' }}>{(parseFloat(amount || 0) * 300).toFixed(2)} USDC (10%)</span>
+                            <span>Ujrah Fee:</span><span style={{ textAlign: 'right', color: 'var(--amber-light)' }}>{(parseFloat(amount || 0) * 30).toFixed(2)} USDC (1%)</span>
+                            <span>Takaful Fund:</span><span style={{ textAlign: 'right', color: 'var(--green-light)', fontWeight: 700 }}>✓ Solvent</span>
                         </div>
                     </div>
                 )}
 
-                {/* Liquidity Information */}
+                {/* Borrow info */}
                 {requiredBorrow !== null && leverage > 1 && (
-                    <div
-                        className={clsx(
-                            "p-3 rounded text-sm transition-colors",
-                            "bg-white/5 text-gray-400"
-                        )}
-                    >
-                        <div className="flex justify-between mb-1">
-                            <span>Required Borrow:</span>
-                            <div className="text-right">
-                                <span className="font-mono">
-                                    {formatTokenAmount(requiredBorrow.formatted, isShort ? tradingToken : marginToken)}{" "}
-                                    {isShort ? tradingToken : marginToken}
-                                </span>
-                                <span className="text-[10px] text-gray-500 ml-2">
-                                    (≈ ${requiredBorrowUsd} USD)
-                                </span>
-                            </div>
+                    <div style={{ padding: '0.75rem 0.875rem', borderRadius: 'var(--r-md)', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Protocol Borrow</span>
+                        <div style={{ textAlign: 'right' }}>
+                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: 600 }}>
+                                {formatTokenAmount(requiredBorrow.formatted, isShort ? tradingToken : marginToken)} {isShort ? tradingToken : marginToken}
+                            </span>
+                            <span style={{ fontSize: '0.67rem', color: 'var(--text-muted)', marginLeft: '0.4rem' }}>(≈${requiredBorrowUsd})</span>
                         </div>
                     </div>
                 )}
 
+                {/* Execute */}
                 <button
                     type="submit"
-                    disabled={
-                        loading ||
-                        !isConnected ||
-                        !isCorrectNetwork ||
-                        !isMetaMaskInstalled ||
-                        hasZeroAmount ||
-                        hasInsufficientBalance
-                    }
-                    className={clsx(
-                        "w-full primary-button mt-4",
-                        (loading ||
-                            !isCorrectNetwork ||
-                            !isMetaMaskInstalled ||
-                            hasZeroAmount ||
-                            hasInsufficientBalance) &&
-                            "opacity-50 cursor-not-allowed"
-                    )}
+                    disabled={loading || !isConnected || !isCorrectNetwork || !isMetaMaskInstalled || hasZeroAmount || hasInsufficientBalance}
+                    className={"w-full primary-button" + ((loading || !isCorrectNetwork || !isMetaMaskInstalled || hasZeroAmount || hasInsufficientBalance) ? " opacity-50 cursor-not-allowed" : "")}
+                    style={{ marginTop: '0.25rem', padding: '13px', fontSize: '0.9rem', letterSpacing: '0.04em' }}
                 >
-                    {!isMetaMaskInstalled
-                        ? "Install MetaMask"
-                        : !isCorrectNetwork
-                        ? "Wrong Network"
-                        : hasZeroAmount
-                        ? "Enter Amount"
-                        : hasInsufficientBalance
-                        ? "Insufficient Balance"
-                        : loading
-                        ? "Processing..."
-                        : needsApproval
-                        ? `Approve ${marginToken}`
-                        : isShort && isHalalArbunMode
-                        ? "Open Halal Put Option"
-                        : "Execute 0% Interest Trade"}
+                    {!isMetaMaskInstalled ? "Install MetaMask"
+                        : !isCorrectNetwork ? "Wrong Network"
+                        : hasZeroAmount ? "Enter Amount"
+                        : hasInsufficientBalance ? "Insufficient Balance"
+                        : loading ? "Processing…"
+                        : needsApproval ? `Approve ${marginToken}`
+                        : isShort && isHalalArbunMode ? "Open Halal Put Option"
+                        : `Open ${isShort ? '↓ Short' : '↑ Long'} ${leverage}×`}
                 </button>
 
+                {/* Simulate */}
                 <button
                     type="button"
                     onClick={handleSimulate}
-                    disabled={
-                        loading ||
-                        simulating ||
-                        !isConnected ||
-                        !isCorrectNetwork ||
-                        !isMetaMaskInstalled ||
-                        hasZeroAmount
-                    }
-                    className={clsx(
-                        "w-full secondary-button mt-2",
-                        (loading ||
-                            simulating ||
-                            !isCorrectNetwork ||
-                            !isMetaMaskInstalled ||
-                            hasZeroAmount) &&
-                            "opacity-50 cursor-not-allowed"
-                    )}
+                    disabled={loading || simulating || !isConnected || !isCorrectNetwork || !isMetaMaskInstalled || hasZeroAmount}
+                    className={"w-full secondary-button" + ((loading || simulating || !isCorrectNetwork || !isMetaMaskInstalled || hasZeroAmount) ? " opacity-40 cursor-not-allowed" : "")}
                 >
-                    {simulating ? "Simulating..." : "Simulate Transaction"}
+                    {simulating ? "Simulating…" : "Simulate Transaction"}
                 </button>
+
+                {/* Status */}
                 {status && (
-                    <div className="mt-4 p-3 bg-white/5 rounded border border-white/10 text-xs font-mono break-all">
+                    <div style={{ marginTop: '0.25rem', padding: '0.75rem', background: status.startsWith('✅') ? 'rgba(16,185,129,0.08)' : status.startsWith('❌') ? 'rgba(239,68,68,0.08)' : 'rgba(255,255,255,0.04)', border: `1px solid ${status.startsWith('✅') ? 'rgba(16,185,129,0.2)' : status.startsWith('❌') ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.08)'}`, borderRadius: 'var(--r-md)', fontSize: '0.72rem', fontFamily: 'var(--font-mono)', color: status.startsWith('✅') ? 'var(--green-light)' : status.startsWith('❌') ? 'var(--red-light)' : 'var(--text-secondary)', wordBreak: 'break-all', lineHeight: 1.55 }}>
                         {status}
                     </div>
                 )}
             </form>
         </div>
     )
-}
-
-// Small helper just for the UI so we aren't showing massive BigInts unformatted
-function formatSmallDisplay(bigIntAmount, capacityData) {
-    if (!capacityData || !bigIntAmount) return "0"
-    // We expect capacityData to be derived from decimals, so we cheat here
-    // to find decimals inversely, but it's simpler to just do this roughly:
-    // Capacity BigInt / Capacity Formatted = 10^decimals
-    try {
-        const capacityNum = parseFloat(capacityData.capacityFormatted)
-        if (capacityNum === 0 || capacityData.rawCapacity === 0n) return "0"
-
-        // Approx ratio
-        const display =
-            (parseFloat(bigIntAmount.toString()) /
-                parseFloat(capacityData.rawCapacity.toString())) *
-            capacityNum
-        return display.toFixed(4)
-    } catch {
-        return "0.00"
-    }
 }

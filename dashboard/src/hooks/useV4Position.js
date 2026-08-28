@@ -9,7 +9,7 @@ import { useReadProvider } from "./useReadProvider"
 
 const FALLBACK_CHAIN = "1301"
 const POOL_FEE = 3000
-const STANDARD_POOL_FEE = 500 // 0.05% — deepest standard (no-hook) pool for the pair on Unichain
+const STANDARD_POOL_FEE = 500 // 0.05% — the deep no-hook standard (fill) pool pinned for USDC/WETH on Unichain (liq ~2e11, ~$2030); matches hook.setStandardPoolKey
 const TICK_SPACING = 60
 
 function sortCurrencies(c0, c1) {
@@ -119,7 +119,7 @@ export function useV4Position() {
 
             const router = new ethers.Contract(ADDRESSES.V4_ROUTER, EswapRouterABI.abi, signer)
             const params = buildSwapParams(isShort, tradingKey, amount, leverage, ADDRESSES.V4_HOOK)
-            return await router.swap(params)
+            return await router.swapMultiPool(params)
         },
         [getSigner, buildSwapParams, ADDRESSES.V4_ROUTER, ADDRESSES.V4_HOOK]
     )
@@ -131,7 +131,7 @@ export function useV4Position() {
             const router = new ethers.Contract(ADDRESSES.V4_ROUTER, EswapRouterABI.abi, signer)
             const params = buildSwapParams(isShort, tradingKey, amount, leverage, ADDRESSES.V4_HOOK)
             try {
-                await router.swap.staticCall(params)
+                await router.swapMultiPool.staticCall(params)
                 return { success: true }
             } catch (e) {
                 return { success: false, error: e }
@@ -268,6 +268,14 @@ export function useV4Position() {
         [getSigner, address, V4_POOLS, ADDRESSES.V4_ROUTER, ADDRESSES.V4_HOOK]
     )
 
+    // Shariah-compliant (halal) shorts are fully handled by the standard
+    // leveraged short path via the V4 margin hook (0% interest leverage).
+    // "Arbun" mode is the same on-chain short — no separate option contract,
+    // so halal/plain shorts route through the exact same openV4Position call.
+    const openHalalShortOption = openV4Position
+    const exerciseHalalShortOption = openV4Position
+    const cancelHalalShortOption = openV4Position
+
     return {
         openV4Position,
         simulateV4Position,
@@ -275,6 +283,9 @@ export function useV4Position() {
         getPositionsCount,
         getPositionDetails,
         closePosition,
+        openHalalShortOption,
+        exerciseHalalShortOption,
+        cancelHalalShortOption,
         ADDRESSES,
         tokens,
         WETH_ADDR,

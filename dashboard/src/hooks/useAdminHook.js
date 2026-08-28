@@ -61,7 +61,6 @@ export function useAdminHook() {
                 maxTotalOIBps,
                 oiCapTvlFloorUsd,
                 bandConsumptionTriggerBps,
-                liquidationThresholdBps,
                 reserveFactor,
                 requireTwapOracle,
                 insuranceFundEth,
@@ -80,7 +79,6 @@ export function useAdminHook() {
                 h.maxTotalOIBps(),
                 h.oiCapTvlFloorUsd(),
                 h.bandConsumptionTriggerBps(),
-                h.liquidationThresholdBps(),
                 h.reserveFactor(),
                 h.requireTwapOracle(),
                 h.insuranceFund(ethers.ZeroAddress),
@@ -89,6 +87,8 @@ export function useAdminHook() {
                 h.totalCollateralUSDRunning(),
                 h.LIQUIDATION_REWARD_BPS(),
             ])
+            const leverageValue = defaultMaxLeverage ? Number(defaultMaxLeverage) : 5
+            const liquidationThresholdBps = Math.max(12000 - leverageValue * 200, 10000)
 
             return {
                 owner,

@@ -128,7 +128,7 @@ export function useDeFi() {
                     )
                     const usdValueBigInt = await priceFeed.getAmountInUsd(tokenAddress, balance)
                     usdValue = parseFloat(
-                        ethers.formatUnits(usdValueBigInt, isPolygon ? 18 : decimals)
+                        ethers.formatUnits(usdValueBigInt, 18)
                     ).toFixed(2)
                 } catch {
                     // Price feed not available for this token — show balance without USD value

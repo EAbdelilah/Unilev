@@ -18,59 +18,141 @@ export default function Home() {
     const [activeChartToken, setActiveChartToken] = useState("WETH");
 
     return (
-        <main className="min-h-screen p-6 text-white max-w-[1600px] mx-auto">
-            {/* Header */}
-            <header className="flex justify-between items-center mb-8 glass-panel p-4">
+        <main style={{ minHeight: '100vh', padding: '1.5rem', maxWidth: '1600px', margin: '0 auto' }}>
+
+            {/* ── Header ─────────────────────────────────────────────── */}
+            <header style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '1.75rem',
+                padding: '0.75rem 1.25rem',
+                background: 'rgba(255,255,255,0.04)',
+                backdropFilter: 'blur(20px)',
+                WebkitBackdropFilter: 'blur(20px)',
+                border: '1px solid rgba(255,255,255,0.08)',
+                borderRadius: '16px',
+                boxShadow: '0 1px 0 rgba(255,255,255,0.06) inset, 0 8px 32px rgba(0,0,0,0.4)',
+            }}>
+                {/* Brand */}
                 <div className="flex items-center gap-3">
-                    <img src="/logo.png" alt="Eswap Logo" className="object-contain flex-shrink-0 rounded-full bg-white/5 border border-white/10 p-1" style={{ width: '40px', height: '40px' }} />
-                    <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-cyan-400 tracking-wider">
-                        ESWAP
-                    </h1>
+                    <div style={{
+                        width: 36, height: 36,
+                        borderRadius: '10px',
+                        background: 'linear-gradient(135deg, #7c3aed, #06b6d4)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        boxShadow: '0 0 16px rgba(124,58,237,0.4)',
+                        flexShrink: 0,
+                    }}>
+                        <img src="/logo.png" alt="Eswap" style={{ width: 28, height: 28, borderRadius: 7, objectFit: 'contain' }} />
+                    </div>
+                    <div>
+                        <div style={{
+                            fontWeight: 900,
+                            fontSize: '1.15rem',
+                            letterSpacing: '-0.01em',
+                            background: 'linear-gradient(135deg, #a78bfa, #67e8f9)',
+                            WebkitBackgroundClip: 'text',
+                            WebkitTextFillColor: 'transparent',
+                            backgroundClip: 'text',
+                        }}>
+                            ESWAP
+                        </div>
+                        <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', letterSpacing: '0.12em', textTransform: 'uppercase', marginTop: '-1px' }}>
+                            0% Interest Margin
+                        </div>
+                    </div>
                 </div>
 
-                <div className="flex items-center gap-4">
+                {/* Nav + Connect */}
+                <div className="flex items-center gap-3">
                     <AdminToggle />
+
                     {isAdmin && (
-                        <Link
-                            href="/admin"
-                            className="text-xs bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded border border-white/10 text-gray-400 hover:text-white transition-all uppercase tracking-widest font-bold"
-                        >
-                            Admin Panel
+                        <Link href="/admin" className="nav-link" style={{
+                            color: 'var(--text-muted)',
+                            borderColor: 'rgba(255,255,255,0.08)',
+                        }}>
+                            ⚙ Admin
                         </Link>
                     )}
-                    <Link
-                        href="/swap"
-                        className="text-xs bg-purple-500/10 hover:bg-purple-500/20 px-3 py-1.5 rounded border border-purple-500/20 text-purple-400 transition-all uppercase tracking-widest font-bold"
-                    >
-                        Swap
+
+                    <Link href="/swap" className="nav-link" style={{
+                        color: 'var(--purple-light)',
+                        borderColor: 'rgba(124,58,237,0.25)',
+                        background: 'rgba(124,58,237,0.08)',
+                    }}>
+                        ⇄ Swap
                     </Link>
-                    <Link
-                        href="/pools"
-                        className="text-xs bg-green-500/10 hover:bg-green-500/20 px-3 py-1.5 rounded border border-green-500/20 text-green-400 transition-all uppercase tracking-widest font-bold"
-                    >
-                        Earn (Pools)
+
+                    <Link href="/pools" className="nav-link hide-mobile" style={{
+                        color: 'var(--green-light)',
+                        borderColor: 'rgba(16,185,129,0.25)',
+                        background: 'rgba(16,185,129,0.08)',
+                    }}>
+                        💧 Earn
                     </Link>
-                    <Link
-                        href="/adapter"
-                        className="text-xs bg-cyan-500/10 hover:bg-cyan-500/20 px-3 py-1.5 rounded border border-cyan-500/20 text-cyan-400 transition-all uppercase tracking-widest font-bold"
-                    >
-                        Adapter
+
+                    <Link href="/adapter" className="nav-link hide-mobile" style={{
+                        color: 'var(--cyan-light)',
+                        borderColor: 'rgba(6,182,212,0.25)',
+                        background: 'rgba(6,182,212,0.08)',
+                    }}>
+                        ⚡ Adapter
                     </Link>
-                    <Link
-                        href="/settlement"
-                        className="text-xs bg-emerald-500/10 hover:bg-emerald-500/20 px-3 py-1.5 rounded border border-emerald-500/20 text-emerald-400 transition-all uppercase tracking-widest font-bold"
-                    >
-                        Settlement
+
+                    <Link href="/settlement" className="nav-link hide-mobile" style={{
+                        color: '#6ee7b7',
+                        borderColor: 'rgba(16,185,129,0.25)',
+                        background: 'rgba(16,185,129,0.06)',
+                    }}>
+                        ✓ Settle
                     </Link>
+
                     <ConnectButton />
                 </div>
             </header>
 
-            {/* Dashboard Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+            {/* ── Protocol Stats Bar ─────────────────────────────────── */}
+            <div style={{
+                display: 'flex',
+                gap: '1rem',
+                marginBottom: '1.5rem',
+                padding: '0.65rem 1.25rem',
+                background: 'rgba(0,0,0,0.25)',
+                border: '1px solid rgba(255,255,255,0.06)',
+                borderRadius: '12px',
+                overflowX: 'auto',
+            }}>
+                {[
+                    { label: 'Interest Rate', value: '0%', color: 'var(--green-light)', glow: 'rgba(16,185,129,0.3)' },
+                    { label: 'Protocol', value: 'Uniswap V4', color: 'var(--purple-light)', glow: '' },
+                    { label: 'Network', value: 'Unichain', color: 'var(--cyan-light)', glow: '' },
+                    { label: 'Max Leverage', value: '5×', color: 'var(--amber-light)', glow: '' },
+                    { label: 'Oracle', value: 'Chainlink', color: '#94a3b8', glow: '' },
+                ].map((s, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                            {s.label}
+                        </span>
+                        <span style={{
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            color: s.color,
+                            textShadow: s.glow ? `0 0 12px ${s.glow}` : 'none',
+                        }}>
+                            {s.value}
+                        </span>
+                        {i < 4 && <span style={{ color: 'rgba(255,255,255,0.1)', marginLeft: '0.5rem' }}>│</span>}
+                    </div>
+                ))}
+            </div>
 
-                {/* Left Column (Main Focus): Chart & Positions */}
-                <div className="lg:col-span-2 w-full space-y-6">
+            {/* ── Dashboard Grid ─────────────────────────────────────── */}
+            <div className="grid lg:grid-cols-3 gap-6" style={{ alignItems: 'start' }}>
+
+                {/* Left column: Chart + Positions */}
+                <div className="lg:col-span-2 w-full" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                     <LiveChart
                         tokenKey={activeChartToken}
                         chainId={chainId}
@@ -79,13 +161,25 @@ export default function Home() {
                     <PositionsList />
                 </div>
 
-                {/* Right Column: Trade Execution & Balances */}
-                <div className="space-y-6 w-full">
+                {/* Right column: Trade form + Balances */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%' }}>
                     <TradeForm onTradingTokenChange={setActiveChartToken} />
                     <Balances />
                 </div>
             </div>
 
+            {/* ── Footer ────────────────────────────────────────────── */}
+            <footer style={{
+                marginTop: '2.5rem',
+                padding: '1rem',
+                textAlign: 'center',
+                fontSize: '0.7rem',
+                color: 'var(--text-muted)',
+                letterSpacing: '0.04em',
+                borderTop: '1px solid rgba(255,255,255,0.05)',
+            }}>
+                Eswap Protocol · Uniswap V4 · Powered by Chainlink · 0% Interest Margin Trading
+            </footer>
         </main>
     );
 }

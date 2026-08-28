@@ -16,28 +16,21 @@ export function PositionsList() {
     const [loading, setLoading] = useState(false)
     const [lastUpdated, setLastUpdated] = useState(null)
 
-    // Force tab back to 'my' if admin mode is toggled off
     useEffect(() => {
-        if (!isAdmin && activeTab === "global") {
-            setActiveTab("my");
-        }
-    }, [isAdmin, activeTab]);
+        if (!isAdmin && activeTab === "global") setActiveTab("my")
+    }, [isAdmin, activeTab])
 
     const fetchPositions = useCallback(async () => {
         setLoading(true)
         try {
             let results = []
-
             if (isV4) {
-                // V4: check every authorized hook pool (WETH, WBTC).
                 const pools = SUPPORTED_TOKENS_LIST.filter((t) => t.key !== "USDC")
                 const perPool = await Promise.all(
                     pools.map(async (p) => {
                         const count = Number(await getPositionsCount(p.key))
                         const ids = Array.from({ length: count }, (_, i) => i + 1)
-                        const details = await Promise.all(
-                            ids.map((i) => getPositionDetails(i, address, p.key))
-                        )
+                        const details = await Promise.all(ids.map((i) => getPositionDetails(i, address, p.key)))
                         return details
                     })
                 )
@@ -45,18 +38,11 @@ export function PositionsList() {
             } else {
                 const count = await getPositionsCount()
                 const maxId = Number(count)
-
-                // Fetch position details
                 const promises = []
-                for (let i = 1; i < maxId; i++) {
-                    promises.push(getPositionDetails(i, address))
-                }
+                for (let i = 1; i < maxId; i++) promises.push(getPositionDetails(i, address))
                 results = await Promise.all(promises)
             }
-
-            // Filter out nulls (burned/closed)
             const activePositions = results.filter((p) => p !== null && p.state !== "NONE")
-
             setPositions(activePositions)
             setLastUpdated(new Date())
         } catch (error) {
@@ -68,79 +54,118 @@ export function PositionsList() {
 
     useEffect(() => {
         fetchPositions()
-        const interval = setInterval(fetchPositions, 30000) // 30s refresh
+        const interval = setInterval(fetchPositions, 30000)
         return () => clearInterval(interval)
     }, [address])
 
     const filteredPositions = positions.filter((p) => {
         if (activeTab === "global") return true
-        if (activeTab === "my" && address) {
-            return p.owner.toLowerCase() === address.toLowerCase()
-        }
+        if (activeTab === "my" && address) return p.owner.toLowerCase() === address.toLowerCase()
         return false
     })
 
     return (
-        <div className="glass-panel p-6 w-full lg:col-span-2">
-            <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400">
-                    Positions
-                </h2>
-                <div className="flex bg-black/40 rounded-lg p-1 border border-white/10">
-                    <button
-                        onClick={() => setActiveTab("my")}
-                        className={clsx(
-                            "px-4 py-1 rounded text-sm font-bold transition-all",
-                            activeTab === "my"
-                                ? "bg-white/10 text-white"
-                                : "text-gray-500 hover:text-white"
-                        )}
-                    >
-                        My Positions
-                    </button>
-                    {isAdmin && (
-                        <button
-                            onClick={() => setActiveTab("global")}
-                            className={clsx(
-                                "px-4 py-1 rounded text-sm font-bold transition-all",
-                                activeTab === "global"
-                                    ? "bg-white/10 text-white"
-                                    : "text-gray-500 hover:text-white"
-                            )}
-                        >
-                            Global
-                        </button>
+        <div className="glass-panel p-6 w-full">
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <h2 className="section-heading text-gradient-green-cyan">
+                        Positions
+                    </h2>
+                    {positions.length > 0 && (
+                        <span className="stat-pill neon-badge-cyan">
+                            {filteredPositions.length} Active
+                        </span>
                     )}
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    {/* Refresh */}
+                    <button
+                        onClick={fetchPositions}
+                        style={{
+                            background: 'none',
+                            border: '1px solid rgba(255,255,255,0.08)',
+                            borderRadius: '8px',
+                            color: loading ? 'var(--cyan-light)' : 'var(--text-muted)',
+                            cursor: 'pointer',
+                            padding: '0.3rem 0.7rem',
+                            fontSize: '0.75rem',
+                            transition: 'all 0.2s',
+                            display: 'flex', alignItems: 'center', gap: '0.35rem',
+                        }}
+                        title="Refresh positions"
+                    >
+                        <span style={{ display: 'inline-block', ...(loading ? { animation: 'spin 0.8s linear infinite' } : {}) }}>↻</span>
+                        {loading ? 'Loading…' : 'Refresh'}
+                    </button>
+
+                    {/* Tab bar */}
+                    <div className="tab-bar">
+                        <button
+                            onClick={() => setActiveTab("my")}
+                            className={clsx("tab-btn", activeTab === "my" && "active")}
+                        >
+                            My
+                        </button>
+                        {isAdmin && (
+                            <button
+                                onClick={() => setActiveTab("global")}
+                                className={clsx("tab-btn", activeTab === "global" && "active")}
+                            >
+                                Global
+                            </button>
+                        )}
+                    </div>
                 </div>
             </div>
 
-            {/* List */}
-            <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
-                {loading && positions.length === 0 ? (
-                    <div className="text-center py-10 text-gray-500 animate-pulse">
-                        Loading positions...
-                    </div>
-                ) : (
-                    filteredPositions.map((pos) => (
+            {/* Skeleton loader */}
+            {loading && positions.length === 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    {[1, 2, 3].map((i) => (
+                        <div key={i} className="animate-shimmer" style={{
+                            height: 80, borderRadius: 'var(--r-lg)',
+                            border: '1px solid rgba(255,255,255,0.05)',
+                        }} />
+                    ))}
+                </div>
+            )}
+
+            {/* Position list */}
+            {(!loading || positions.length > 0) && (
+                <div
+                    className="custom-scrollbar"
+                    style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', maxHeight: 500, overflowY: 'auto', paddingRight: '0.25rem' }}
+                >
+                    {filteredPositions.map((pos) => (
                         <PositionCard
                             key={pos.id}
                             position={pos}
                             isOwner={address && pos.owner.toLowerCase() === address.toLowerCase()}
                             onClose={() => closePosition(pos.id)}
                         />
-                    ))
-                )}
+                    ))}
 
-                {!loading && filteredPositions.length === 0 && (
-                    <div className="text-center py-10 text-gray-500">
-                        No active positions found.
-                    </div>
-                )}
-            </div>
+                    {!loading && filteredPositions.length === 0 && (
+                        <div style={{
+                            textAlign: 'center',
+                            padding: '3rem 1rem',
+                            color: 'var(--text-muted)',
+                        }}>
+                            <div style={{ fontSize: '2rem', marginBottom: '0.5rem', opacity: 0.4 }}>◎</div>
+                            <div style={{ fontSize: '0.875rem' }}>No active positions found.</div>
+                            <div style={{ fontSize: '0.75rem', marginTop: '0.25rem', color: 'var(--text-dim)' }}>
+                                Open a position on the right to get started.
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
 
             {lastUpdated && (
-                <div className="text-right text-xs text-gray-600 mt-2">
-                    Last updated: {lastUpdated.toLocaleTimeString()}
+                <div style={{ textAlign: 'right', fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '0.75rem' }}>
+                    Updated {lastUpdated.toLocaleTimeString()}
                 </div>
             )}
         </div>
@@ -149,9 +174,10 @@ export function PositionsList() {
 
 function PositionCard({ position, isOwner, onClose }) {
     const [closing, setClosing] = useState(false)
+    const [hovered, setHovered] = useState(false)
 
     const handleClose = async () => {
-        if (!confirm(`Close Position ${position.id}?`)) return
+        if (!confirm(`Close position?`)) return
         setClosing(true)
         try {
             const tx = await onClose()
@@ -162,104 +188,116 @@ function PositionCard({ position, isOwner, onClose }) {
         } catch (e) {
             console.error(e)
             if (isUserCancellation(e)) {
-                alert("Transaction was canceled by user.")
+                alert("Transaction was canceled.")
             } else {
-                const friendlyError = formatContractError(e)
-                alert(`Failed to close position: ${friendlyError}`)
+                alert(`Failed to close: ${formatContractError(e)}`)
             }
         } finally {
             setClosing(false)
         }
     }
 
+    const current = parseFloat(position.currentPrice)
+    const entry   = parseFloat(position.entryPrice)
+    const isProfitable = position.isShort ? current < entry : current > entry
+
     return (
-        <div className="p-4 rounded-xl bg-white/5 border border-white/5 hover:border-white/20 transition-all group">
-            <div className="flex justify-between items-start">
-                <div className="flex gap-3 items-center">
-                    <div
-                        className={clsx(
-                            "w-2 h-12 rounded-full",
-                            position.isShort
-                                ? "bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]"
-                                : "bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]"
-                        )}
-                    ></div>
+        <div
+            className={clsx("position-card", position.isShort ? "short-card" : "long-card")}
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => setHovered(false)}
+        >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                {/* Left: direction + details */}
+                <div style={{ display: 'flex', gap: '0.875rem', alignItems: 'flex-start', paddingLeft: '0.5rem' }}>
                     <div>
-                        <div className="flex items-center gap-2">
-                            <span className="font-bold text-lg">#{position.id}</span>
-                            <span
-                                className={clsx(
-                                    "text-xs px-2 py-0.5 rounded border",
-                                    position.isShort
-                                        ? "border-red-500/50 text-red-400 bg-red-500/10"
-                                        : "border-green-500/50 text-green-400 bg-green-500/10"
-                                )}
-                            >
-                                {position.isShort ? "SHORT" : "LONG"} {position.leverage}x
+                        {/* Title row */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
+                            <span className={clsx("stat-pill", position.isShort ? "neon-badge-red" : "neon-badge-green")}>
+                                {position.isShort ? "↓ SHORT" : "↑ LONG"} {position.leverage}×
+                            </span>
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem', fontFamily: 'var(--font-mono)' }}>
+                                {position.baseSymbol}/{position.quoteSymbol}
                             </span>
                         </div>
-                        <div className="text-sm text-gray-400 mt-1">
-                            {position.size} {position.baseSymbol}
-                            <span className="text-xs text-gray-600 ml-1">
+
+                        {/* Size */}
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.2rem' }}>
+                            Size:{' '}
+                            <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>
+                                {position.size} {position.baseSymbol}
+                            </span>
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.7rem', marginLeft: '0.4rem' }}>
                                 (~${position.sizeUsd})
                             </span>
                         </div>
-                        {/* PnL Display */}
-                        <div
-                            className={clsx(
-                                "text-sm mt-1 font-mono",
-                                position.pnlIsPositive ? "text-green-400" : "text-red-400"
-                            )}
-                        >
-                            {position.pnlIsPositive ? "+" : "-"}
-                            {formatTokenAmount(position.pnl, position.isShort ? position.quoteSymbol : position.baseSymbol)} {position.isShort ? position.quoteSymbol : position.baseSymbol}
-                            <span
-                                className={clsx(
-                                    "text-xs ml-1",
-                                    position.pnlIsPositive ? "text-green-500" : "text-red-500"
-                                )}
-                            >
-                                ({position.pnlIsPositive ? "+" : "-"}${position.pnlUsd})
+
+                        {/* P&L */}
+                        <div style={{
+                            fontSize: '0.875rem',
+                            fontFamily: 'var(--font-mono)',
+                            fontWeight: 700,
+                            color: position.pnlIsPositive ? 'var(--green-light)' : 'var(--red-light)',
+                            display: 'flex', alignItems: 'center', gap: '0.35rem',
+                        }}>
+                            <span style={{
+                                fontSize: '0.7rem',
+                                padding: '0.1rem 0.3rem',
+                                borderRadius: '4px',
+                                background: position.pnlIsPositive ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)',
+                            }}>
+                                {position.pnlIsPositive ? '▲ +' : '▼ -'}
+                                {formatTokenAmount(position.pnl, position.isShort ? position.quoteSymbol : position.baseSymbol)}{' '}
+                                {position.isShort ? position.quoteSymbol : position.baseSymbol}
+                            </span>
+                            <span style={{
+                                fontSize: '0.7rem',
+                                color: position.pnlIsPositive ? 'var(--green)' : 'var(--red)',
+                            }}>
+                                ({position.pnlIsPositive ? '+' : '-'}${position.pnlUsd})
                             </span>
                         </div>
-                        {/* Price Info - Compact inline format */}
-                        {(() => {
-                            const current = parseFloat(position.currentPrice)
-                            const entry = parseFloat(position.entryPrice)
-                            const isProfitable = position.isShort
-                                ? current < entry
-                                : current > entry
-                            return (
-                                <div className="text-xs text-gray-500 mt-1">
-                                    {position.baseSymbol}: {formatTokenAmount(position.currentPrice, position.quoteSymbol)}{" "}
-                                    {position.quoteSymbol} | {position.isShort ? "BELOW" : "ABOVE"}{" "}
-                                    {formatTokenAmount(position.entryPrice, position.quoteSymbol)} {position.quoteSymbol}{" "}
-                                    {isProfitable ? "✅" : "⏳"}
-                                </div>
-                            )
-                        })()}
+
+                        {/* Price line */}
+                        <div style={{ marginTop: '0.35rem', fontSize: '0.7rem', color: 'var(--text-muted)', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                            <span>Current: <span style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{formatTokenAmount(position.currentPrice, position.quoteSymbol)} {position.quoteSymbol}</span></span>
+                            <span style={{ color: 'rgba(255,255,255,0.1)' }}>|</span>
+                            <span>Entry: <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>{formatTokenAmount(position.entryPrice, position.quoteSymbol)}</span></span>
+                            <span>{isProfitable ? '✅' : '⏳'}</span>
+                        </div>
                     </div>
                 </div>
 
-                <div className="flex flex-col items-end gap-2">
-                    <div
-                        className={clsx(
-                            "px-2 py-1 rounded text-xs",
-                            position.state === "LIQUIDATABLE"
-                                ? "bg-red-900/50 text-red-200 border border-red-500"
-                                : "bg-white/10 text-gray-300"
-                        )}
-                    >
-                        {position.state}
-                    </div>
+                {/* Right: state + close btn */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.5rem' }}>
+                    <span className={clsx(
+                        "stat-pill",
+                        position.state === "LIQUIDATABLE" ? "neon-badge-red" : "neon-badge-cyan"
+                    )}>
+                        {position.state === "LIQUIDATABLE" ? "⚠ LIQD" : position.state}
+                    </span>
 
-                    <button
-                        onClick={handleClose}
-                        disabled={closing}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity bg-red-500/20 hover:bg-red-500/40 text-red-300 text-xs px-3 py-1 rounded border border-red-500/30"
-                    >
-                        {closing ? "..." : "Close"}
-                    </button>
+                    {isOwner && (
+                        <button
+                            onClick={handleClose}
+                            disabled={closing}
+                            style={{
+                                opacity: hovered ? 1 : 0,
+                                transition: 'opacity 0.2s, background 0.2s',
+                                background: closing ? 'rgba(239,68,68,0.3)' : 'rgba(239,68,68,0.15)',
+                                border: '1px solid rgba(239,68,68,0.4)',
+                                borderRadius: '8px',
+                                color: 'var(--red-light)',
+                                fontSize: '0.75rem',
+                                fontWeight: 700,
+                                padding: '0.3rem 0.75rem',
+                                cursor: closing ? 'not-allowed' : 'pointer',
+                                letterSpacing: '0.04em',
+                            }}
+                        >
+                            {closing ? '…' : 'Close'}
+                        </button>
+                    )}
                 </div>
             </div>
         </div>

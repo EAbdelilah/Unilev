@@ -1,0 +1,78 @@
+
+> eswap-dashboard@0.1.0 dev
+> next dev
+
+⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
+ We detected multiple lockfiles and selected the directory of C:\Users\faar_\ESWAP\Unilev\package-lock.json as the root directory.
+ To silence this warning, set `turbopack.root` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
+   See https://nextjs.org/docs/app/api-reference/config/next-config-js/turbopack#root-directory for more information.
+ Detected additional lockfiles: 
+   * C:\Users\faar_\ESWAP\Unilev\dashboard\package-lock.json
+
+▲ Next.js 16.1.6 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.56.1:3000
+- Environments: .env.local, .env
+
+✓ Starting...
+✓ Ready in 9.2s
+  Using external babel configuration from C:\Users\faar_\ESWAP\Unilev\dashboard\babel.config.js
+○ Compiling /admin ...
+ GET / 200 in 13.1s (compile: 12.4s, render: 733ms)
+ GET /admin 200 in 31.2s (compile: 29.8s, render: 1418ms)
+ GET / 200 in 57ms (compile: 19ms, render: 38ms)
+ GET /adapter 200 in 1064ms (compile: 997ms, render: 67ms)
+ GET / 200 in 33ms (compile: 9ms, render: 24ms)
+ GET /settlement 200 in 996ms (compile: 929ms, render: 67ms)
+ GET / 200 in 35ms (compile: 11ms, render: 24ms)
+ GET /admin 200 in 35ms (compile: 9ms, render: 26ms)
+  Reload env: .env
+✓ Finished writing to filesystem cache in 21.8s
+  Reload env: .env
+ GET /admin 200 in 3.6s (compile: 1911ms, render: 1738ms)
+ GET / 200 in 379ms (compile: 310ms, render: 70ms)
+✓ Compiled in 896ms
+✓ Compiled in 1370ms
+✓ Compiled in 633ms
+✓ Compiled in 107ms
+✓ Compiled in 202ms
+ GET /swap 200 in 1012ms (compile: 927ms, render: 86ms)
+ GET / 200 in 409ms (compile: 216ms, render: 193ms)
+ GET /pools 200 in 2.6s (compile: 2.6s, render: 50ms)
+ GET / 200 in 32ms (compile: 9ms, render: 23ms)
+ GET /adapter 200 in 7.1s (compile: 6.5s, render: 607ms)
+ GET /adapter 200 in 101ms (compile: 14ms, render: 87ms)
+ GET /adapter 200 in 49ms (compile: 13ms, render: 36ms)
+✓ Finished writing to filesystem cache in 22.4s
+✓ Compiled in 379ms
+ GET / 200 in 366ms (compile: 204ms, render: 162ms)
+ GET /settlement 200 in 437ms (compile: 251ms, render: 186ms)
+ GET / 200 in 2.6s (compile: 30ms, render: 2.5s)
+ GET /pools 200 in 182ms (compile: 26ms, render: 156ms)
+ GET / 200 in 394ms (compile: 33ms, render: 361ms)
+ GET /swap 200 in 489ms (compile: 16ms, render: 473ms)
+ GET /adapter 200 in 683ms (compile: 24ms, render: 659ms)
+ GET /settlement 200 in 526ms (compile: 15ms, render: 511ms)
+ GET / 200 in 275ms (compile: 28ms, render: 247ms)
+ GET / 200 in 261ms (compile: 27ms, render: 234ms)
+✓ Compiled in 882ms
+ GET /settlement 200 in 1143ms (compile: 410ms, render: 733ms)
+ GET /settlement 200 in 505ms (compile: 312ms, render: 193ms)
+ GET /settlement 200 in 122ms (compile: 38ms, render: 85ms)
+ GET /settlement 200 in 524ms (compile: 32ms, render: 492ms)
+✓ Compiled in 633ms
+  Reload env: .env.local
+✓ Compiled in 1310ms
+ GET /settlement 200 in 1283ms (compile: 1151ms, render: 132ms)
+ GET / 200 in 217ms (compile: 140ms, render: 77ms)
+✓ Compiled in 790ms
+ GET / 200 in 1796ms (compile: 531ms, render: 1266ms)
+ GET / 200 in 447ms (compile: 48ms, render: 399ms)
+ GET / 200 in 2.3s (compile: 816ms, render: 1446ms)
+ GET / 200 in 331ms (compile: 121ms, render: 210ms)
+ GET / 200 in 135ms (compile: 59ms, render: 76ms)
+ GET / 200 in 365ms (compile: 25ms, render: 340ms)
+✓ Compiled in 407ms
+ GET / 200 in 972ms (compile: 196ms, render: 776ms)
+ GET / 200 in 135ms (compile: 41ms, render: 94ms)
+[?25h

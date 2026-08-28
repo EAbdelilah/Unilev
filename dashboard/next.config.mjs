@@ -2,6 +2,7 @@
 const nextConfig = {
   env: {
     NEXT_PUBLIC_RPC_URL: process.env.NEXT_PUBLIC_RPC_URL,
+    NEXT_PUBLIC_WC_PROJECT_ID: process.env.NEXT_PUBLIC_WC_PROJECT_ID,
     NEXT_PUBLIC_PRICEFEEDL1_ADDRESS: process.env.NEXT_PUBLIC_PRICEFEEDL1_ADDRESS,
     NEXT_PUBLIC_POSITIONS_ADDRESS: process.env.NEXT_PUBLIC_POSITIONS_ADDRESS,
     NEXT_PUBLIC_MARKET_ADDRESS: process.env.NEXT_PUBLIC_MARKET_ADDRESS,
@@ -12,4 +13,6 @@ const nextConfig = {
 };
 
 export default nextConfig;
+
+
 
