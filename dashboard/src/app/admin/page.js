@@ -127,7 +127,7 @@ export default function AdminPage() {
             }));
         }
         setLoading(false);
-    }, [admin]);
+    }, [admin.readAll]);
 
     useEffect(() => { refresh(); }, [refresh]);
 

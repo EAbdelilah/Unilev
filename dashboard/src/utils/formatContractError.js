@@ -54,7 +54,27 @@ export function formatContractError(error) {
         "User denied transaction signature": "Transaction was cancelled by the user.",
         "insufficient funds for gas": "Insufficient native token balance to pay for gas.",
         "ERC20: transfer amount exceeds balance": "Insufficient token balance.",
-        "ERC20: transfer amount exceeds allowance": "Insufficient token allowance." // Generic ERC20
+        "ERC20: transfer amount exceeds allowance": "Insufficient token allowance.", // Generic ERC20
+
+        // --- Uniswap V4 (Unichain) hook/router errors ---
+        "PositionAlreadyOpen":
+            "You already have a position open on this pool. Close it before opening a new one.",
+        "SwapOutputZero":
+            "The swap produced zero output. This pool may lack liquidity for this size/direction.",
+        "NoActivePosition": "No active position was found to close.",
+        "LeverageTooHigh": "Leverage exceeds the maximum allowed (5x).",
+        "MaxLeverageExceeded": "Leverage exceeds the maximum allowed (5x).",
+        "InvalidLeverageRange": "Leverage is outside the allowed range.",
+        "CollateralTooLow": "Position size is too small to meet the minimum collateral requirement.",
+        "NotOwner": "Only the position owner can perform this action.",
+        "NotAuthorizedPool": "This trading pool is not authorized in the protocol.",
+        "SlippageExceeded": "Price moved more than the allowed slippage. Try again.",
+        "StalePrice": "Oracle price data is stale — please retry.",
+        "TwapManipulated": "Oracle TWAP looks manipulated — retrying automatically.",
+        "OraclePriceOutOfBounds": "Oracle price is outside acceptable bounds — please retry.",
+        "NotAdmin": "Only an admin can perform this action.",
+        "Insufficient native input":
+            "Insufficient native ETH to cover the full position notional (margin × leverage)."
     };
 
     // check if the error is a known custom error

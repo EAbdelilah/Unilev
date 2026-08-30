@@ -17,6 +17,7 @@ export function TradeForm({ onTradingTokenChange }) {
         SUPPORTED_TOKENS_LIST,
         isMetaMaskInstalled,
         getTokenBalance,
+        getNativeBalance,
         getAmountInUsd,
         getAllowance,
         approveToken,
@@ -81,11 +82,15 @@ export function TradeForm({ onTradingTokenChange }) {
             const marginAddr = ADDRESSES[marginToken]
             if (!marginAddr) return
 
-            const data = await getTokenBalance(marginAddr, address)
+            // Native margin (ETH on Unichain) has no ERC20 contract — read the
+            // wallet's native balance instead of balanceOf(address(0)).
+            const data = marginAddr === ethers.ZeroAddress
+                ? await getNativeBalance(address)
+                : await getTokenBalance(marginAddr, address)
             setBalanceData(data)
         }
         fetchBalance()
-    }, [isConnected, address, isCorrectNetwork, marginToken, ADDRESSES, getTokenBalance])
+    }, [isConnected, address, isCorrectNetwork, marginToken, ADDRESSES, getTokenBalance, getNativeBalance])
 
     // Fetch allowance for the selected margin token
     const spender = isV4 ? ADDRESSES.V4_ROUTER : ADDRESSES.POSITIONS
@@ -93,7 +98,7 @@ export function TradeForm({ onTradingTokenChange }) {
         const fetchAllowance = async () => {
             if (!isConnected || !address || !isCorrectNetwork || !spender) return
             const marginAddr = ADDRESSES[marginToken]
-            if (!marginAddr) return
+            if (!marginAddr || marginAddr === ethers.ZeroAddress) return // native ETH margin needs no approval
 
             const currentAllowance = await getAllowance(marginAddr, address, spender)
             setAllowance(currentAllowance)
@@ -254,7 +259,9 @@ export function TradeForm({ onTradingTokenChange }) {
         if (!isConnected || !isCorrectNetwork || !balanceData) return
 
         const amountBig = ethers.parseUnits(amount.toString(), balanceData.decimals)
-        if (allowance < amountBig) {
+        const marginAddr = ADDRESSES[marginToken]
+        const isNativeMargin = marginAddr === ethers.ZeroAddress
+        if (!isNativeMargin && allowance < amountBig) {
             return handleApprove()
         }
 
@@ -325,6 +332,9 @@ export function TradeForm({ onTradingTokenChange }) {
                 setStatus(`Transaction Sent: ${tx.hash}`)
                 await tx.wait()
                 setStatus("✅ Position Opened Successfully!")
+                if (typeof window !== "undefined") {
+                    window.dispatchEvent(new Event("positions-changed"))
+                }
             }
 
             // Refresh allowance & balance
@@ -357,6 +367,7 @@ export function TradeForm({ onTradingTokenChange }) {
             const marginAddr = ADDRESSES[marginToken]
             const tradingAddr = ADDRESSES[tradingToken]
             const amountBig = ethers.parseUnits(amount.toString(), balanceData.decimals)
+            const isNativeMargin = marginAddr === ethers.ZeroAddress
 
             if (amountBig === 0n) {
                 throw new Error("Amount cannot be zero")
@@ -369,8 +380,8 @@ export function TradeForm({ onTradingTokenChange }) {
                 )
             }
 
-            // Check allowance
-            if (allowance < amountBig) {
+            // Check allowance (native ETH margin needs no approval — paid via msg.value)
+            if (!isNativeMargin && allowance < amountBig) {
                 throw new Error(
                     `Insufficient allowance. You must approve ${marginToken} to be used by the protocol before this transaction can succeed.`
                 )
@@ -429,9 +440,26 @@ export function TradeForm({ onTradingTokenChange }) {
     }
 
     const amountBig = balanceData ? ethers.parseUnits(amount || "0", balanceData.decimals) : 0n
-    const needsApproval = isConnected && isCorrectNetwork && amountBig > 0n && allowance < amountBig
+    const marginTokenAddr = ADDRESSES[marginToken]
+    const isNativeMargin = marginTokenAddr === ethers.ZeroAddress
+    const needsApproval = isConnected && isCorrectNetwork && amountBig > 0n && !isNativeMargin && allowance < amountBig
     const hasZeroAmount = !amount || isNaN(amount) || parseFloat(amount) === 0
-    const hasInsufficientBalance = balanceData && amountBig > balanceData.rawBalance
+
+    // Native (ETH) shorts fund the FULL notional (margin × leverage) via msg.value,
+    // so the wallet must cover notional + gas — not just the margin. Block the
+    // submit with a clear message instead of a confusing estimateGas revert.
+    let hasInsufficientBalance = balanceData && amountBig > balanceData.rawBalance
+    const levNum = parseInt(leverage) || 0
+    if (isNativeMargin && levNum > 1 && amountBig > 0n) {
+        const notional = amountBig * BigInt(levNum)
+        if (notional > balanceData?.rawBalance) {
+            hasInsufficientBalance = true
+        }
+    }
+
+    const balanceHint = isNativeMargin && hasInsufficientBalance && levNum > 1
+        ? `Need ${(parseFloat(amount) * levNum).toFixed(8)} ETH total (margin × ${levNum}x leverage).`
+        : null
 
     return (
         <div className="glass-panel p-6 w-full max-w-md">
@@ -580,6 +608,16 @@ export function TradeForm({ onTradingTokenChange }) {
                 )}
 
                 {/* Execute */}
+                {balanceHint && (
+                    <div style={{
+                        fontSize: '0.72rem', color: '#f87171', marginBottom: '0.5rem',
+                        fontFamily: 'var(--font-mono)', background: 'rgba(248,113,113,0.08)',
+                        border: '1px solid rgba(248,113,113,0.2)', borderRadius: '8px',
+                        padding: '0.5rem 0.7rem',
+                    }}>
+                        {balanceHint}
+                    </div>
+                )}
                 <button
                     type="submit"
                     disabled={loading || !isConnected || !isCorrectNetwork || !isMetaMaskInstalled || hasZeroAmount || hasInsufficientBalance}
@@ -589,7 +627,7 @@ export function TradeForm({ onTradingTokenChange }) {
                     {!isMetaMaskInstalled ? "Install MetaMask"
                         : !isCorrectNetwork ? "Wrong Network"
                         : hasZeroAmount ? "Enter Amount"
-                        : hasInsufficientBalance ? "Insufficient Balance"
+                        : hasInsufficientBalance ? (balanceHint ? "Insufficient ETH (margin × leverage)" : "Insufficient Balance")
                         : loading ? "Processing…"
                         : needsApproval ? `Approve ${marginToken}`
                         : isShort && isHalalArbunMode ? "Open Halal Put Option"

@@ -49,7 +49,11 @@ export function useDeFi() {
     const chainKey = String(chainId || "1301")
     const chainTokens = useMemo(() => {
         if (isPolygon) return polygonTokens
-        return supportedTokensByChain[chainKey] || supportedTokensByChain["1301"] || {}
+        // Unichain V4 trades native ETH against USDC only; the wrapped WETH and
+        // any WBTC entries are redundant with the native base (address 0x0).
+        const all = supportedTokensByChain[chainKey] || supportedTokensByChain["1301"] || {}
+        const { WETH, WBTC, ...rest } = all
+        return rest
     }, [isPolygon, chainKey])
     const ADDRESSES = useMemo(() => ({ ...chainTokens, ...ENV_ADDRESSES }), [chainTokens])
     const SUPPORTED_TOKENS_LIST = useMemo(
@@ -103,6 +107,7 @@ export function useDeFi() {
     const getTokenBalance = useCallback(
         async (tokenAddress, userAddress) => {
             if (!readProvider || !tokenAddress || !userAddress) return null
+            if (tokenAddress === ethers.ZeroAddress) return null // native token has no ERC20 contract
             try {
                 const contract = new ethers.Contract(tokenAddress, ERC20ABI.abi, readProvider)
 
@@ -155,7 +160,7 @@ export function useDeFi() {
             try {
                 const balance = await readProvider.getBalance(userAddress)
 
-                // On Unichain the native asset is ETH, valued via the WETH USD feed.
+                // On Unichain the native asset is ETH, priced via the native ETH/USD feed (token 0x0).
                 if (!isPolygon) {
                     let usdValue = "N/A"
                     try {
@@ -165,7 +170,7 @@ export function useDeFi() {
                             PriceFeedL1ABI.abi,
                             readProvider
                         )
-                        const usdBig = await priceFeed.getAmountInUsd(ADDRESSES.WETH, balance)
+                        const usdBig = await priceFeed.getAmountInUsd(ethers.ZeroAddress, balance)
                         usdValue = parseFloat(ethers.formatUnits(usdBig, 18)).toFixed(2)
                     } catch {
                         // No feed configured yet — show balance without USD value
@@ -264,6 +269,7 @@ export function useDeFi() {
     const getAllowance = useCallback(
         async (tokenAddress, owner, spender) => {
             if (!readProvider || !tokenAddress || !owner || !spender) return 0n
+            if (tokenAddress === ethers.ZeroAddress) return 0n // native token has no ERC20 contract
             try {
                 const contract = new ethers.Contract(tokenAddress, ERC20ABI.abi, readProvider)
                 return await contract.allowance(owner, spender)
@@ -438,7 +444,7 @@ export function useDeFi() {
             const tx = await marketContract.closePosition(posId, { gasLimit: 2000000 })
             return tx
         },
-        [isPolygon, v4, getSigner, ADDRESSES]
+        [isPolygon, v4.closePosition, getSigner, ADDRESSES]
     )
 
     const getPositionDetails = useCallback(
@@ -578,7 +584,7 @@ export function useDeFi() {
                 return null
             }
         },
-        [isPolygon, v4, readProvider, ADDRESSES]
+        [isPolygon, v4.getPositionDetails, readProvider, ADDRESSES]
     )
 
     /**
@@ -653,7 +659,7 @@ export function useDeFi() {
             console.error("Error fetching positions count:", error)
             return 0n
         }
-    }, [isPolygon, v4, readProvider, ADDRESSES])
+    }, [isPolygon, v4.getPositionsCount, readProvider, ADDRESSES])
 
 
 

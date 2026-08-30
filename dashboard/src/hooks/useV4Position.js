@@ -9,14 +9,15 @@ import { useReadProvider } from "./useReadProvider"
 
 const FALLBACK_CHAIN = "1301"
 const POOL_FEE = 3000
-const STANDARD_POOL_FEE = 500 // 0.05% — the deep no-hook standard (fill) pool pinned for USDC/WETH on Unichain (liq ~2e11, ~$2030); matches hook.setStandardPoolKey
+const STANDARD_POOL_FEE = 500 // 0.05% — the deep no-hook standard (fill) pool pinned for ETH/USDC on Unichain (PoolId 0x3258..., ~$5.4M TVL); matches hook.setStandardPoolKey
 const TICK_SPACING = 60
+const STANDARD_TICK_SPACING = 10 // deep native-ETH/USDC pool uses tickSpacing 10
 
 function sortCurrencies(c0, c1) {
     return c0.toLowerCase() < c1.toLowerCase() ? [c0, c1] : [c1, c0]
 }
 
-const TOKEN_DECIMALS = { WBTC: 8, WETH: 18, USDC: 6 }
+const TOKEN_DECIMALS = { ETH: 18, WBTC: 8, WETH: 18, USDC: 6 }
 
 function poolIdFor(base, quote, hookAddress) {
     const [c0, c1] = sortCurrencies(base, quote)
@@ -40,6 +41,7 @@ export function useV4Position() {
     )
     const WETH_ADDR = tokens.WETH || "0x4200000000000000000000000000000000000006"
     const USDC_ADDR = tokens.USDC || "0x078D782b760474a361dDA0AF3839290b0EF57AD6"
+    const ETH_ADDR = tokens.ETH || "0x0000000000000000000000000000000000000000"
     const WBTC_ADDR = tokens.WBTC || "0x927B51f251480a681271180DA4de28D44EC4AfB8"
 
     const ADDRESSES = {
@@ -52,14 +54,14 @@ export function useV4Position() {
             "",
     }
 
-    // Authorized hook pools (base token quoted in USDC). Each pool is keyed by the
-    // "trading asset": WETH → USDC/WETH pool, WBTC → WBTC/USDC pool.
+    // Authorized hook pool (base token quoted in USDC): NATIVE ETH/USDC only —
+    // the deepest liquidity pair on Unichain ($5.4M TVL via the 500/10 no-hook
+    // standard pool). Keyed by the "trading asset" ETH (native, address 0x0).
     const V4_POOLS = useMemo(() => {
         const pools = []
-        if (WETH_ADDR && USDC_ADDR) pools.push({ key: "WETH", base: WETH_ADDR, quote: USDC_ADDR })
-        if (WBTC_ADDR && USDC_ADDR) pools.push({ key: "WBTC", base: WBTC_ADDR, quote: USDC_ADDR })
+        if (ETH_ADDR) pools.push({ key: "ETH", base: ETH_ADDR, quote: USDC_ADDR })
         return pools
-    }, [WETH_ADDR, WBTC_ADDR, USDC_ADDR])
+    }, [ETH_ADDR, USDC_ADDR])
 
     const SUPPORTED_TOKENS_LIST = useMemo(
         () => V4_POOLS.map((p) => ({ key: p.key, name: p.key, address: p.base })),
@@ -79,10 +81,10 @@ export function useV4Position() {
     }
 
     // Standard (physical execution) pool: same currency ordering as the hook pool,
-    // $0 fee tier is not used on-chain — 0.05% standard pool for the pair, no hook.
+    // 0.05% fee tier on the DEEP native-ETH/USDC no-hook pool (tickSpacing 10).
     function buildStandardPoolKeyFor({ base, quote }) {
         const [currency0, currency1] = sortCurrencies(base, quote)
-        return { currency0, currency1, fee: STANDARD_POOL_FEE, tickSpacing: TICK_SPACING, hooks: ethers.ZeroAddress }
+        return { currency0, currency1, fee: STANDARD_POOL_FEE, tickSpacing: STANDARD_TICK_SPACING, hooks: ethers.ZeroAddress }
     }
 
     const getSigner = useCallback(async () => {
@@ -90,7 +92,7 @@ export function useV4Position() {
         return await new ethers.BrowserProvider(window.ethereum).getSigner()
     }, [walletClient])
 
-    // Builds router.swap() params for `tradingKey` (WETH or WBTC). Each pool's
+    // Builds router.swap() params for `tradingKey` (WETH). Each pool's
     // base currency is the "trading asset" (set via hook.setBaseCurrency), so:
     //   LONG  → sell quote (USDC), buy base   → zeroForOne = baseIsCurrency0 ? false : true
     //   SHORT → sell base, buy quote          → zeroForOne = baseIsCurrency0 ? true  : false
@@ -112,26 +114,29 @@ export function useV4Position() {
     )
 
     const openV4Position = useCallback(
-        async (isShort, amount, leverage, tradingKey = "WETH") => {
+        async (isShort, amount, leverage, tradingKey = "ETH") => {
             if (!ADDRESSES.V4_ROUTER) throw new Error("V4 Router address not configured")
             const signer = await getSigner()
             if (!signer) throw new Error("Wallet not connected")
 
             const router = new ethers.Contract(ADDRESSES.V4_ROUTER, EswapRouterABI.abi, signer)
             const params = buildSwapParams(isShort, tradingKey, amount, leverage, ADDRESSES.V4_HOOK)
-            return await router.swapMultiPool(params)
+            // Native short: the whole notional (margin × leverage) is funded via msg.value.
+            const overrides = isShort ? { value: amount * BigInt(leverage) } : {}
+            return await router.swapMultiPool(params, overrides)
         },
         [getSigner, buildSwapParams, ADDRESSES.V4_ROUTER, ADDRESSES.V4_HOOK]
     )
 
     const simulateV4Position = useCallback(
-        async (isShort, amount, leverage, tradingKey = "WETH") => {
+        async (isShort, amount, leverage, tradingKey = "ETH") => {
             const signer = await getSigner()
             if (!signer) throw new Error("Wallet not connected")
             const router = new ethers.Contract(ADDRESSES.V4_ROUTER, EswapRouterABI.abi, signer)
             const params = buildSwapParams(isShort, tradingKey, amount, leverage, ADDRESSES.V4_HOOK)
+            const overrides = isShort ? { value: amount * BigInt(leverage) } : {}
             try {
-                await router.swapMultiPool.staticCall(params)
+                await router.swapMultiPool.staticCall(params, overrides)
                 return { success: true }
             } catch (e) {
                 return { success: false, error: e }

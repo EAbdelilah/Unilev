@@ -33,7 +33,7 @@ export function Balances() {
                 if (bal) bal.symbol = 'ETH';
             } else {
                 const tokenAddr = ADDRESSES[t.key];
-                if (tokenAddr) bal = await getTokenBalance(tokenAddr, address);
+                if (tokenAddr && tokenAddr !== '0x0000000000000000000000000000000000000000') bal = await getTokenBalance(tokenAddr, address);
             }
             if (bal) newBalances[t.key] = bal;
         }

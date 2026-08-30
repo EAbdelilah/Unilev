@@ -55,8 +55,16 @@ export function PositionsList() {
     useEffect(() => {
         fetchPositions()
         const interval = setInterval(fetchPositions, 30000)
-        return () => clearInterval(interval)
-    }, [address])
+        const onFocus = () => fetchPositions()
+        const onTraded = () => fetchPositions()
+        window.addEventListener("focus", onFocus)
+        window.addEventListener("positions-changed", onTraded)
+        return () => {
+            clearInterval(interval)
+            window.removeEventListener("focus", onFocus)
+            window.removeEventListener("positions-changed", onTraded)
+        }
+    }, [fetchPositions])
 
     const filteredPositions = positions.filter((p) => {
         if (activeTab === "global") return true

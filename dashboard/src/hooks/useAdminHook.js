@@ -49,6 +49,16 @@ export function useAdminHook() {
     const readAll = useCallback(async () => {
         const h = hookContract(true)
         if (!h) return null
+        // Each read is isolated: a transient RPC/decode failure on one getter
+        // must never reject the whole batch and blank the admin dashboard.
+        const safe = async (fn, fallback) => {
+            try {
+                return await fn()
+            } catch (e) {
+                console.warn("Hook read skipped:", e.shortMessage || e.message)
+                return fallback
+            }
+        }
         try {
             const [
                 owner,
@@ -69,23 +79,23 @@ export function useAdminHook() {
                 totalCollateralUSDRunning,
                 liquidationRewardBps,
             ] = await Promise.all([
-                h.owner(),
-                h.emergencyPaused(),
-                h.router(),
-                h.defaultMaxLeverage(),
-                h.minCollateralUsd(),
-                h.maxPriceSwingBps(),
-                h.maxSingleOIBps(),
-                h.maxTotalOIBps(),
-                h.oiCapTvlFloorUsd(),
-                h.bandConsumptionTriggerBps(),
-                h.reserveFactor(),
-                h.requireTwapOracle(),
-                h.insuranceFund(ethers.ZeroAddress),
-                h.totalCollateral(ethers.ZeroAddress),
-                h.totalOpenInterestUSD(),
-                h.totalCollateralUSDRunning(),
-                h.LIQUIDATION_REWARD_BPS(),
+                safe(() => h.owner(), ethers.ZeroAddress),
+                safe(() => h.emergencyPaused(), false),
+                safe(() => h.router(), ethers.ZeroAddress),
+                safe(() => h.defaultMaxLeverage(), 5n),
+                safe(() => h.minCollateralUsd(), 0n),
+                safe(() => h.maxPriceSwingBps(), 0n),
+                safe(() => h.maxSingleOIBps(), 0n),
+                safe(() => h.maxTotalOIBps(), 0n),
+                safe(() => h.oiCapTvlFloorUsd(), 0n),
+                safe(() => h.bandConsumptionTriggerBps(), 0n),
+                safe(() => h.reserveFactor(), 0n),
+                safe(() => h.requireTwapOracle(), false),
+                safe(() => h.insuranceFund(ethers.ZeroAddress), 0n),
+                safe(() => h.totalCollateral(ethers.ZeroAddress), 0n),
+                safe(() => h.totalOpenInterestUSD(), 0n),
+                safe(() => h.totalCollateralUSDRunning(), 0n),
+                safe(() => h.LIQUIDATION_REWARD_BPS(), 0n),
             ])
             const leverageValue = defaultMaxLeverage ? Number(defaultMaxLeverage) : 5
             const liquidationThresholdBps = Math.max(12000 - leverageValue * 200, 10000)
