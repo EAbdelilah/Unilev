@@ -54,7 +54,7 @@ contract EswapLiquidationKeeper is Ownable {
 
     constructor(address _hook, address _router) Ownable(msg.sender) {
         hook = EswapMarginHook(payable(_hook));
-        router = EswapRouter(_router);
+        router = EswapRouter(payable(_router));
     }
 
     modifier validKey(PoolKey calldata key) {

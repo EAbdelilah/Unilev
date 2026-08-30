@@ -94,3 +94,55 @@ the chosen design gap, plus buffer. Do NOT rely on accrual inflows.
   - `EswapCapStressTest` (cap boundary exactness, preset validation)
   - `EswapInsuranceStressTest` (grid flows, cascade liveness ±1wei, steady state)
   - `EswapResidueSweepTest` (floor walls, access control, dust exactness)
+
+## 6. REDEPLOY-3 — oracle-anchored circuit breaker + live Unichain validation
+
+### 6.1 Why the pool-slot0 breaker was unreliable
+- The accounting (hook) pool is intentionally empty → slot0 frozen at init, never
+  tracks the market.
+- The standard (fill) pool may be thin/lagging → honest fake prices trigger
+  `TwapManipulated` even when the trader is honest.
+- Switching to a "near-market" pool only works if one exists within
+  `maxPriceSwingBps` — false-positive-prone by construction.
+
+### 6.2 REDEPLOY-3 design (implemented in hook + logic `_checkV4SpotAgainstV3Twap`)
+- Reads LIVE Chainlink prices (`priceFeed.getTwapPrice(currency0/currency1)`), not
+  pool slot0.
+- Derives a self-consistent spot `sqrtPriceX96` by inverting `checkTwap`'s
+  token-decimal (d0/d1, default 18) adjustment so spot == twap == oracle →
+  deviation ~0 → never false-positives at any price/pair.
+- Immune to on-chain pool-slot0 manipulation; accounting/liquidation is already
+  oracle-anchored via `getAmountInUsd`, so the AMM spot was never a trusted input.
+- Still reverts `TwapNotConfigured()` when a feed is missing under `requireTwapOracle`.
+- Uses OZ `Math.sqrt`; `IPriceFeedLib` casts replaced with direct
+  `priceFeed.getTwapPrice(...)` calls.
+
+### 6.3 Live validation (Unichain, chain 130)
+- Redeployed all 4 contracts (addresses in `OPERATIONS.md §1.1`).
+- Opened a USDC-margin LONG via `router.swapMultiPool` → **no `TwapManipulated`**.
+- `deployCollateral` rehypothecation active (pos.liquidity > 0).
+- Closed the position → USDC returned, position cleared. Open→close round-trip mined.
+
+### 6.4 Fill-venue finding (important)
+- The fee-3000 no-hook USDC/WETH pool is extremely thin (**~1.8e7**) → ~99% fill
+  slippage (a $0.10 margin produced only ~$0.0009 of WETH collateral).
+- The canonical **fee-500 no-hook** pool carries **~2e11** liquidity (~$2030/WETH),
+  11,000× deeper, and is now viable because the oracle-anchored breaker no longer
+  requires the fill pool to be near-market. `standardPoolKey` (USDC/WETH) re-pointed
+  to fee-500; dashboard `STANDARD_POOL_FEE` updated to 500 to match.
+- Residual: Unichain V4 USDC/WETH pools are thinly capitalized → even fee-500 shows
+  material slippage at meaningful sizes (venue depth, not a contract defect).
+
+### 6.5 Low-severity observations from the full trading-flow recheck
+1. **Liquidator has no direct incentive** — `LIQUIDATION_REWARD_BPS=300` is routed to
+   `insuranceFund[debtCurrency]`, never paid to the `liquidator` address. Keeper is
+   owner-operated, arguably by design, but there is no permissionless-liquidator payoff.
+2. **`totalBorrowedByToken[inputCurrency]` is never decremented** on close/liquidation —
+   cosmetic metric drift, no accounting impact.
+3. **Underwater trader-close reverts** unless `insuranceFund` covers the shortfall
+   (`_settle` → `InsufficientInsuranceFundForShortfall`); the liquidation path is the
+   intended recovery route.
+4. **Some rehypothecation edge** with `pos.liquidity>0` when the concentrated-LP range is
+   crossed: LP-removed debt tokens are `take`n but not credited to the trader's payout in
+   the close path — flag for focused review before enabling concentrated-LP yield for
+   large positions.

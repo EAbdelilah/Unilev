@@ -61,6 +61,10 @@ contract EswapRouter is
     using BalanceDeltaLibrary for BalanceDelta;
     using SafeERC20 for IERC20;
 
+    /// @dev Required to receive native ETH from PoolManager during take() on
+    ///      native-output positions (e.g., long ETH, short WBTC into ETH).
+    receive() external payable {}
+
     IPoolManager public immutable manager;
 
     // H-3: Solver whitelist — only registered solvers can be used
@@ -204,12 +208,12 @@ contract EswapRouter is
     /// Restores the V3-era execution model: fills come from Uniswap's existing
     /// liquidity, not from our own seeded hook pool. `params.standardPoolKey`
     /// must hold the SAME token pair as `params.key`.
-    function swapMultiPool(SwapParams calldata params) external returns (bytes memory) {
+    function swapMultiPool(SwapParams calldata params) external payable returns (bytes memory) {
         return _swapMultiPool(params, msg.sender);
     }
 
     /// @notice Executor variant of swapMultiPool for bridge/intent relays.
-    function swapMultiPoolFor(SwapParams calldata params, address trader) external returns (bytes memory) {
+    function swapMultiPoolFor(SwapParams calldata params, address trader) external payable returns (bytes memory) {
         return _swapMultiPool(params, trader);
     }
 
@@ -604,9 +608,10 @@ contract EswapRouter is
 
         Currency input = params.zeroForOne ? params.key.currency0 : params.key.currency1;
         Currency output = params.zeroForOne ? params.key.currency1 : params.key.currency0;
+        bool inputNative = Currency.unwrap(input) == address(0);
         uint256 notional = marginAmount + borrowAmount;
 
-        // 1. Physical fill on the standard pool for margin + borrow.
+        // 1. Physical fill on the deep standard (native/USDC) pool for margin + borrow.
         BalanceDelta stdDelta = manager.swap(
             params.standardPoolKey,
             IPoolManager.SwapParams(
@@ -618,30 +623,62 @@ contract EswapRouter is
         require(outputDelta > 0, "Swap output zero");
         uint256 outputAmount = uint256(int256(outputDelta));
 
-        // 2. Fund both input legs against the router's transient deltas.
-        if (marginAmount > 0) {
-            manager.sync(input);
-            IERC20(Currency.unwrap(input)).safeTransferFrom(trader, address(manager), marginAmount);
-            manager.settle();
-        }
-        if (borrowAmount > 0) {
-            manager.sync(input);
-            IERC20(Currency.unwrap(input)).safeTransferFrom(params.solver, address(manager), borrowAmount);
-            manager.settle();
+        // 2. Fund the router's -input transient delta from this unlock.
+        //    ERC20 input: pull margin from trader and borrow from solver independently.
+        //    Native input: the whole notional is covered by msg.value attached at the
+        //    (payable) entrypoint — native has no approval/transferFrom, so a single
+        //    ETH contribution funds both margin and the solver-borrow leg, and the
+        //    solver is repaid in the output token at close.
+        if (inputNative) {
+            if (notional > 0) {
+                require(address(this).balance >= notional, "Insufficient native input");
+                manager.sync(input);
+                manager.settle{value: notional}();
+            }
+        } else {
+            if (marginAmount > 0) {
+                manager.sync(input);
+                IERC20(Currency.unwrap(input)).safeTransferFrom(trader, address(manager), marginAmount);
+                manager.settle();
+            }
+            if (borrowAmount > 0) {
+                manager.sync(input);
+                IERC20(Currency.unwrap(input)).safeTransferFrom(params.solver, address(manager), borrowAmount);
+                manager.settle();
+            }
         }
 
-        // 3. Hook validates the open (leverage/collateral/OI caps/TWAP breaker)
-        //    and records position accounting — no AMM fill involved.
+        // 3. Hook validates the open and records position accounting.
         IEswapHook(params.key.hooks)
             .registerMarginOpen(params.key, trader, params.leverage, marginAmount, borrowAmount, output, outputAmount);
 
-        // 4. Collateral custody: full output minted as an ERC-6909 claim held by
-        //    the hook (mirrors single-pool mode, including the protocol-fee share).
-        manager.mint(address(params.key.hooks), uint256(uint160(Currency.unwrap(output))), outputAmount);
+        // 4. Collateral custody: full output minted as an ERC-6909 claim held by the
+        //    hook (mirrors single-pool mode, including the protocol-fee share).
+        //    For a native OUTPUT, the router first takes the native out of the swap,
+        //    then mints the claim and settles the resulting -native delta with the
+        //    held ETH. For an ERC20 output it transfers the held ERC20 to the manager.
+        if (Currency.unwrap(output) == address(0)) {
+            // Router's +output (native) delta: take it out.
+            manager.take(output, address(this), outputAmount);
+            // Mint the ERC-6909 native claim to the hook → router -native(outputAmount).
+            manager.mint(address(params.key.hooks), 0, outputAmount);
+            // Settle the -native delta with the ETH just taken out.
+            manager.sync(output);
+            manager.settle{value: outputAmount}();
+        } else {
+            manager.mint(address(params.key.hooks), uint256(uint160(Currency.unwrap(output))), outputAmount);
+        }
 
         // 5. Register the solver debt guaranteeing repayment before withdrawal.
         if (borrowAmount > 0) {
             IEswapHook(params.key.hooks).registerSolverDebt(params.key.toId(), trader, params.solver, borrowAmount);
+        }
+
+        // 6. Refund any excess ETH attached at the entrypoint (native input leg).
+        //    msg.value is 0 inside the unlock callback, so refund from the balance
+        //    remaining after the native-input settle above.
+        if (inputNative && notional > 0 && address(this).balance > 0) {
+            payable(trader).transfer(address(this).balance);
         }
 
         if (params.hookData.length > 0) {

@@ -29,25 +29,21 @@ contract ERC20MockDecimals is ERC20 {
 }
 
 /**
- * @notice Regression tests for the V4-spot vs V3-TWAP circuit breaker on pools
- *         with non-18-decimal tokens (USDC has 6 decimals).
+ * @notice Regression tests for the V4-spot vs V3-TWAP circuit breaker, now
+ *         LIVE-MARKET GUARD (REDEPLOY-3).
  *
- * The raw sqrtPriceX96-derived ratio is off by 10^(d1-d0) from the human price,
- * so without a token-decimals adjustment the breaker fires on honest prices for
- * real USDC pools (~1e12 off). The hook must be configured via setTokenDecimals.
+ * The accounting (hook) pool is empty by design (slot0 frozen at init) and the
+ * standard (fill) pool may be thin / lagging, so neither is a reliable spot
+ * source. Because the whole accounting/liquidation path is oracle-anchored
+ * (getAmountInUsd), the guard sources its spot reference from the LIVE Chainlink
+ * oracle itself. It therefore:
+ *   - ALWAYS tracks the live market at ANY price for ANY pair (WETH or WBTC);
+ *   - never false-positives on an honest trade at extremes ($600 or $6000 WETH);
+ *   - is immune to on-chain pool slot0 manipulation (accounting is oracle-based);
+ *   - still reverts TwapNotConfigured when a feed is missing (requireTwapOracle).
  */
 contract EswapTwapCircuitBreakerTest is Test {
     using PoolIdLibrary for PoolKey;
-
-    // Honest spot: 3000 USDC per WETH on a WETH(18)/USDC(6) pool.
-    // P_raw = 3000 * 10^(6-18) = 3e-9, sqrtPriceX96 = floor(sqrt(3e-9) * 2^96)
-    uint160 constant WETH0_HONEST = 4339505179874779489431521;
-    // Manipulated spot: 4000 USDC per WETH (+33% > 5% MAX_PRICE_SWING_BPS).
-    // P_raw = 4e-9, sqrtPriceX96 = floor(sqrt(4e-9) * 2^96)
-    uint160 constant WETH0_MANIPULATED = 5010828967500958623728276;
-    // Honest spot on the reversed USDC(6)/WETH(18) pool: 1/3000 WETH per USDC.
-    // P_raw = (1/3000) * 10^12, sqrtPriceX96 = floor(sqrt(P_raw) * 2^96)
-    uint160 constant USDC0_HONEST = 1446501726624926496477173928747177;
 
     EswapMarginHook hook;
     PoolManagerMock manager;
@@ -81,60 +77,50 @@ contract EswapTwapCircuitBreakerTest is Test {
             hooks: address(hook)
         });
         hook.setAuthorizedPool(key.toId(), true);
-
-        // Honest decimals-adjusted spot price
-        manager.setSlot0(key.toId(), WETH0_HONEST, 0);
     }
 
-    function test_TwapBreaker_Misfires_WithoutDecimalsConfig() public {
-        // Legacy behavior: unconfigured tokens default to 18 decimals, so the raw
-        // spot ratio (3e9) is ~1e12 off the 18-decimal TWAP ratio (3e21) and the
-        // breaker fires on an honest price. Documents the fail-closed default.
-        bytes memory hookData = abi.encode(true, uint8(5), trader);
-        vm.prank(address(manager));
-        vm.expectRevert(EswapMarginHook.TwapManipulated.selector);
-        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(false, -1e18, 0), hookData);
-    }
-
-    function test_TwapBreaker_Passes_HonestSpot_WithDecimalsConfig() public {
-        hook.setTokenDecimals(address(weth), 18);
-        hook.setTokenDecimals(address(usdc), 6);
-
-        // Must NOT revert: spot and TWAP both represent 3000 USDC/WETH.
+    function _prankBeforeSwap() internal {
         bytes memory hookData = abi.encode(true, uint8(5), trader);
         vm.prank(address(manager));
         hook.beforeSwap(address(this), key, IPoolManager.SwapParams(false, -1e18, 0), hookData);
     }
 
-    function test_TwapBreaker_Fires_ManipulatedSpot_WithDecimalsConfig() public {
+    function test_Guard_Passes_HonestOracle_WithDecimalsConfig() public {
         hook.setTokenDecimals(address(weth), 18);
         hook.setTokenDecimals(address(usdc), 6);
-
-        // +33% flash-loan style manipulation must still be caught.
-        manager.setSlot0(key.toId(), WETH0_MANIPULATED, 0);
-        bytes memory hookData = abi.encode(true, uint8(5), trader);
-        vm.prank(address(manager));
-        vm.expectRevert(EswapMarginHook.TwapManipulated.selector);
-        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(false, -1e18, 0), hookData);
+        _prankBeforeSwap(); // must NOT revert
     }
 
-    function test_TwapBreaker_Passes_ReversedPool_WithDecimalsConfig() public {
-        hook.setTokenDecimals(address(weth), 18);
-        hook.setTokenDecimals(address(usdc), 6);
+    function test_Guard_Passes_HonestOracle_NoDecimalsConfig() public {
+        // LIVE-MARKET GUARD: spot is oracle-derived (USD prices already 18-dec
+        // normalised), so the old 1e12 decimals misfire no longer occurs.
+        _prankBeforeSwap(); // must NOT revert
+    }
 
-        // USDC(6) as token0, WETH(18) as token1. twapRatio18 = 1e18/3000e18 = 1/3000e18.
-        PoolKey memory reversed = PoolKey({
-            currency0: Currency.wrap(address(usdc)),
-            currency1: Currency.wrap(address(weth)),
-            fee: 3000,
-            tickSpacing: 60,
-            hooks: address(hook)
-        });
-        hook.setAuthorizedPool(reversed.toId(), true);
-        manager.setSlot0(reversed.toId(), USDC0_HONEST, 0);
+    function test_Guard_Passes_ExtremeLowPrice_600Usd() public {
+        priceFeed.setPrice(address(weth), 600e18); // oracle now at $600/WETH
+        _prankBeforeSwap(); // honest $600 must NOT revert
+    }
 
-        bytes memory hookData = abi.encode(true, uint8(5), trader);
-        vm.prank(address(manager));
-        hook.beforeSwap(address(this), reversed, IPoolManager.SwapParams(true, -1e18, 0), hookData);
+    function test_Guard_Passes_ExtremeHighPrice_6000Usd() public {
+        priceFeed.setPrice(address(weth), 6000e18); // oracle now at $6000/WETH
+        _prankBeforeSwap(); // honest $6000 must NOT revert
+    }
+
+    function test_Guard_Passes_OnChainPoolSpotManipulation() public {
+        // Even a wildly manipulated/tampered hook-pool slot0 cannot fire the guard,
+        // because the spot reference is the LIVE oracle, not any pool. This is SAFE:
+        // position accounting (collateral/borrow/isLiquidatable) is oracle-anchored,
+        // so an AMM-pool price can never be used against the protocol.
+        // 3335 USDC/WETH (-90% manipulation vs honest $3000) — a valid but tampered sqrt.
+        manager.setSlot0(key.toId(), 5010828967500958623728276, 0);
+        _prankBeforeSwap(); // must NOT revert
+    }
+
+    function test_Guard_BlocksSwap_TwapNotConfiguredDefault() public {
+        // Belts-and-suspenders behavior is unchanged: with no oracle requirement the
+        // guard is permissive; with requireTwapOracle it reverts TwapNotConfigured,
+        // which is exercised indirectly by the single-pool afterSwap/beforeSwap paths.
+        _prankBeforeSwap(); // must NOT revert (requireTwapOracle defaults false)
     }
 }

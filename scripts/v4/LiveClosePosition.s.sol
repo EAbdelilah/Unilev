@@ -9,50 +9,49 @@ import {PoolKey} from "../../src/v4/types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "../../src/v4/types/PoolId.sol";
 import {Currency} from "../../src/v4/types/Currency.sol";
 
-/// @notice Live smoke test: close the trader's position via EswapRouter.closePosition.
-///         For a LONG the trader receives WETH (collateral is WETH, debt is USDC);
-///         for a SHORT the trader receives USDC (collateral is USDC, debt is WETH).
+/// @notice Live close: unwind a NATIVE-ETH/USDC margin position opened via
+///         LiveOpenPosition. The trader (PRIVATE_KEY) is the only caller allowed.
 ///         Env: PRIVATE_KEY, HOOK_ADDRESS, ROUTER_ADDRESS, USDC_ADDRESS,
-///         POSITION_TYPE (default LONG), SOLVER_ADDRESS (optional, only needed to
-///         report the recorded solver; close uses the on-chain positionSolver),
-///         MIN_AMOUNT_OUT (raw of the payout currency, default 1 = any amount).
+///         TRADER_ADDRESS (defaults to PRIVATE_KEY's address), MIN_AMOUNT_OUT
+///         (raw wei, default 0).
 contract LiveClosePosition is Script {
     using PoolIdLibrary for PoolKey;
 
-    address constant WETH = 0x4200000000000000000000000000000000000006;
+    address constant NATIVE_ETH = address(0);
+    address constant USDC = 0x078D782b760474a361dDA0AF3839290b0EF57AD6; // Unichain mainnet USDC
 
     function run() external {
         uint256 pk = vm.envUint("PRIVATE_KEY");
-        address trader = vm.addr(pk);
-        address hookAddr = vm.envAddress("HOOK_ADDRESS");
-        address routerAddr = vm.envAddress("ROUTER_ADDRESS");
-        address usdc = vm.envAddress("USDC_ADDRESS");
-        string memory positionType = vm.envOr("POSITION_TYPE", string("LONG"));
-        address solver = vm.envOr("SOLVER_ADDRESS", address(0));
-        uint256 minAmountOut = vm.envOr("MIN_AMOUNT_OUT", uint256(1));
-
-        EswapRouter router = EswapRouter(routerAddr);
+        address hookAddr = vm.envAddress("V4_HOOK_ADDRESS");
+        address routerAddr = vm.envAddress("V4_ROUTER_ADDRESS");
+        address trader = vm.envOr("TRADER_ADDRESS", address(vm.addr(pk)));
+        uint256 minAmountOut = vm.envOr("MIN_AMOUNT_OUT", uint256(0));
+        address solver = vm.envOr("V4_SOLVER_ADDRESS", address(0));
 
         PoolKey memory key = PoolKey({
-            currency0: Currency.wrap(usdc),
-            currency1: Currency.wrap(WETH),
+            currency0: Currency.wrap(NATIVE_ETH),
+            currency1: Currency.wrap(USDC),
             fee: 3000,
             tickSpacing: 60,
             hooks: hookAddr
         });
 
+        EswapMarginHook hook = EswapMarginHook(payable(hookAddr));
+        (, uint256 posCollateral, uint256 posBorrow, uint8 posLev, bool posIsLong,,,,) = hook.positions(key.toId(), trader);
+        console.log("before - collateral:", posCollateral);
+        console.log("before - borrow:", posBorrow);
+        console.log("before - lev:", uint256(posLev));
+        console.log("before - isLong:", posIsLong);
+
+        EswapRouter router = EswapRouter(payable(routerAddr));
         vm.startBroadcast(pk);
         router.closePosition(hookAddr, key, trader, solver, minAmountOut);
         vm.stopBroadcast();
 
-        EswapMarginHook hook = EswapMarginHook(payable(hookAddr));
-        (address posTrader, uint256 posCollateral, uint256 posBorrow, uint8 posLev, bool isLong, , , , ) =
-            hook.positions(key.toId(), trader);
-        console.log("after close - posTrader:", posTrader);
-        console.log("after close - collateral raw:", posCollateral);
-        console.log("after close - borrowed raw:", posBorrow);
-        console.log("after close - leverage:", uint256(posLev));
-        console.log("after close - isLong:", isLong);
-        console.log("positionType:", positionType);
+        (, uint256 c2, uint256 b2, uint8 l2, bool il2,,,,) = hook.positions(key.toId(), trader);
+        console.log("after - collateral:", c2);
+        console.log("after - borrow:", b2);
+        console.log("after - lev:", uint256(l2));
+        console.log("after - isLong:", il2);
     }
 }

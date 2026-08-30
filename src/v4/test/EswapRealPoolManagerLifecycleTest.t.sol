@@ -76,12 +76,15 @@ contract EswapRealPoolManagerLifecycleTest is EswapV4CoreProofTest {
         realHook.beforeSwap(address(this), localRealKey, IPoolManager.SwapParams(true, -1e18, 0), data);
     }
 
-    // Confirm the TWAP breaker now behaves: and an out-of-band spot price would revert.
-    function test_RealPM_TwapBreaker_Reverts() public {
+    // LIVE-MARKET GUARD (REDEPLOY-3): the guard is now oracle-anchored, so it is
+    // INDEPENDENT of the hook-pool init spot. Here the pool was initialized at 1:1
+    // while the live oracle says 1.2:1 — and the honest open still passes, because
+    // the spot reference is the live oracle, not the (empty) hook pool's frozen slot0.
+    function test_RealPM_TwapBreaker_Passes_RegardlessOfPoolInitSpot() public {
         realManager.initialize(realKey, SQRT_PRICE_1_1);
         realHook.setTokenDecimals(address(token0), 18);
         realHook.setTokenDecimals(address(token1), 18);
-        priceFeed.setPrice(address(token0), 1.2e18); // TWAP 1.2:1 (deviation 20% > 5%) -> should revert
+        priceFeed.setPrice(address(token0), 1.2e18); // oracle 1.2:1
         priceFeed.setPrice(address(token1), 1e18);
 
         PoolKey memory localRealKey = PoolKey({
@@ -94,7 +97,6 @@ contract EswapRealPoolManagerLifecycleTest is EswapV4CoreProofTest {
 
         bytes memory data = abi.encode(true, uint8(5), address(this));
         vm.prank(address(realManager));
-        vm.expectRevert(EswapMarginHook.TwapManipulated.selector);
         realHook.beforeSwap(address(this), localRealKey, IPoolManager.SwapParams(true, -1e18, 0), data);
     }
 

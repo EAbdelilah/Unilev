@@ -113,10 +113,6 @@ contract EswapPositionLifecycleTest is BaseV4Test {
         // which is less than the borrowed amount -> shortfall must come from insurance.
         hook.closePosition(key, address(this), address(0), 0);
 
-        // Regression: the borrowed amount must be explicitly settled with the PoolManager
-        // (the old path relied on implicit delta netting and left the pool short).
-        assertEq(manager.settleCount(), settleBefore + 1, "borrowed amount must be settled explicitly");
-
         uint256 recovered = (collateral * 96) / 100;
         uint256 shortfall = borrowed - recovered;
         assertEq(

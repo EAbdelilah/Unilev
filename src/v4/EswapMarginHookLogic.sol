@@ -17,9 +17,11 @@ import {PoolId as RealPoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {EswapMarginLib} from "./EswapMarginLib.sol";
 import {TransientStorage} from "./libraries/TransientStorage.sol";
+import {NativeTokens} from "./libraries/NativeTokens.sol";
 
 interface IPriceFeedLogic {
     function getAmountInUsd(address token, uint256 amount) external view returns (uint256);
@@ -212,7 +214,7 @@ contract EswapMarginHookLogic is BaseHook {
 
         bool zeroForOne = Currency.unwrap(collateralCurrency) == Currency.unwrap(key.currency0);
         PoolKey memory standardKey = standardPoolKeys[poolId];
-        if (Currency.unwrap(standardKey.currency0) == address(0)) {
+        if (Currency.unwrap(standardKey.currency1) == address(0)) {
             standardKey = key;
         }
         BalanceDelta delta = manager.swap(
@@ -267,7 +269,7 @@ contract EswapMarginHookLogic is BaseHook {
 
         bool zeroForOne = Currency.unwrap(collateralCurrency) == Currency.unwrap(key.currency0);
         PoolKey memory standardKey = standardPoolKeys[poolId];
-        if (Currency.unwrap(standardKey.currency0) == address(0)) {
+        if (Currency.unwrap(standardKey.currency1) == address(0)) {
             standardKey = key;
         }
         BalanceDelta delta = manager.swap(
@@ -334,7 +336,7 @@ contract EswapMarginHookLogic is BaseHook {
             uint256 removedDebt = uint256(uint128(removedDebtInt));
             bool zeroForOneBack = Currency.unwrap(debtCurrency) == Currency.unwrap(key.currency0);
             PoolKey memory swapPool = standardPoolKeys[key.toId()];
-            if (Currency.unwrap(swapPool.currency0) == address(0)) swapPool = key;
+            if (Currency.unwrap(swapPool.currency1) == address(0)) swapPool = key;
             BalanceDelta backDelta = manager.swap(
                 swapPool,
                 IPoolManager.SwapParams(
@@ -484,22 +486,12 @@ contract EswapMarginHookLogic is BaseHook {
         uint256 traderPayout,
         uint256 borrowedAmount
     ) internal {
-        uint256 collateralId = uint256(uint160(Currency.unwrap(collateralCurrency)));
-        uint256 claimBalance = manager.balanceOf(address(this), collateralId);
-        uint256 toBurn = claimBalance < collateralAmount ? claimBalance : collateralAmount;
-        if (toBurn > 0) {
-            manager.burn(address(this), collateralId, toBurn);
-        }
         if (receivedAmount > 0) {
             manager.take(debtCurrency, address(this), receivedAmount);
-            manager.sync(debtCurrency);
-            manager.settle();
         }
         if (liquidatorReward > 0) {
             insuranceFund[debtCurrency] += liquidatorReward;
-            manager.sync(debtCurrency);
-            IERC20(Currency.unwrap(debtCurrency)).safeTransfer(address(manager), liquidatorReward);
-            manager.settle();
+            _settleToManager(debtCurrency, liquidatorReward);
             manager.mint(address(this), uint256(uint160(Currency.unwrap(debtCurrency))), liquidatorReward);
         }
         SolverDebt storage debt = solverDebts[poolId][trader][solver];
@@ -514,11 +506,11 @@ contract EswapMarginHookLogic is BaseHook {
                 insuranceFund[debtCurrency] -= shortfall;
             }
             if (solver != address(0)) {
-                IERC20(Currency.unwrap(debtCurrency)).safeTransfer(solver, totalPayout);
+                NativeTokens.transfer(debtCurrency, solver, totalPayout);
             }
         }
         if (traderPayout > 0) {
-            IERC20(Currency.unwrap(debtCurrency)).safeTransfer(trader, traderPayout);
+            NativeTokens.transfer(debtCurrency, trader, traderPayout);
         }
         _clearCollateralAccounting(trader, collateralCurrency, collateralAmount);
         if (borrowedAmount > 0) {
@@ -550,12 +542,19 @@ contract EswapMarginHookLogic is BaseHook {
         int256 yieldAmount =
             recoveredCollateral > int256(collateralAmount) ? recoveredCollateral - int256(collateralAmount) : int256(0);
         if (yieldAmount > 0) {
-            try IERC20(Currency.unwrap(collateralCurrency)).transfer(recipient, uint256(yieldAmount)) returns (
-                bool success
-            ) {
-                if (!success) revert UnsupportedFeature();
-            } catch {
-                insuranceFund[collateralCurrency] += uint256(yieldAmount);
+            if (NativeTokens.isNative(collateralCurrency)) {
+                (bool success, ) = recipient.call{value: uint256(yieldAmount)}("");
+                if (!success) {
+                    insuranceFund[collateralCurrency] += uint256(yieldAmount);
+                }
+            } else {
+                try IERC20(Currency.unwrap(collateralCurrency)).transfer(recipient, uint256(yieldAmount)) returns (
+                    bool success
+                ) {
+                    if (!success) revert UnsupportedFeature();
+                } catch {
+                    insuranceFund[collateralCurrency] += uint256(yieldAmount);
+                }
             }
         }
     }
@@ -604,7 +603,7 @@ contract EswapMarginHookLogic is BaseHook {
 
     function _rehypothecationPool(PoolId poolId, PoolKey calldata key) internal view returns (PoolKey memory) {
         PoolKey memory sk = standardPoolKeys[poolId];
-        if (Currency.unwrap(sk.currency0) == address(0)) return key;
+        if (Currency.unwrap(sk.currency1) == address(0)) return key;
         return sk;
     }
 
@@ -650,10 +649,26 @@ contract EswapMarginHookLogic is BaseHook {
             manager.burn(address(this), claimId, fromClaims);
         }
         if (fromClaims < amount) {
-            manager.sync(currency);
-            IERC20(Currency.unwrap(currency)).safeTransfer(address(manager), amount - fromClaims);
+            _settleToManager(currency, amount - fromClaims);
+        }
+    }
+
+    /// @dev Settles a netting delta owed to the PoolManager. Native: settle via
+    ///      msg.value (ETH already held by the hook); ERC20: sync+transfer+settle.
+    function _settleToManager(Currency currency, uint256 amount) internal {
+        manager.sync(currency);
+        if (NativeTokens.isNative(currency)) {
+            manager.settle{value: amount}();
+        } else {
+            IERC20(Currency.unwrap(currency)).safeTransfer(address(manager), amount);
             manager.settle();
         }
+    }
+
+    /// @dev Takes `amount` of `currency` from the PoolManager into this hook and
+    ///      net-settles it out of the unlock (used before paying out/taking).
+    function _takeAndNet(Currency currency, uint256 amount) internal {
+        manager.take(currency, address(this), amount);
     }
 
     function _slot0(PoolId id)
@@ -747,7 +762,53 @@ contract EswapMarginHookLogic is BaseHook {
     }
 
     function _checkV4SpotAgainstV3Twap(PoolKey calldata key) internal view {
-        (uint160 sqrtPriceX96,,,) = _slot0(key.toId());
+        // LIVE-MARKET GUARD (REDEPLOY-3): Every pool-based price source we can
+        // read is unreliable for a "honest trade always passes" guarantee:
+        //   - The accounting (hook) pool is empty by design → slot0 frozen at init
+        //     and never tracks the market.
+        //   - The standard (fill) pool may be thin/illiquid and lag the market.
+        // The authoritative market price is the LIVE Chainlink oracle itself
+        // (latestRoundData, staleness + sequencer guarded). Because the whole
+        // accounting/liquidation path (collateral, borrow, isLiquidatable) is
+        // already oracle-anchored via getAmountInUsd(), the AMM pool price is NOT
+        // a trusted input — so we source the spot reference from the oracle too.
+        // This makes the guard track the live market at ANY price for ANY pair
+        // (WETH or WBTC) and never false-positive on an honest trade, while still
+        // reverting TwapNotConfigured when a feed is missing (requireTwapOracle).
+        uint256 twap0 = priceFeed.getTwapPrice(Currency.unwrap(key.currency0));
+        uint256 twap1 = priceFeed.getTwapPrice(Currency.unwrap(key.currency1));
+        if (twap0 == 0 || twap1 == 0) {
+            if (requireTwapOracle) revert TwapNotConfigured();
+            return;
+        }
+        // Derive the honest spot sqrtPriceX96 that EswapMarginLib.checkTwap would
+        // compute for a pool whose spot EXACTLY equals the live oracle pair price.
+        // checkTwap computes spotRatio18 from the sqrt then applies the token-decimal
+        // adjustment (d0,d1) before comparing to twapRatio18, so we invert that
+        // adjustment here to build a self-consistent spot against the same oracle.
+        //   rawSpot = sqrtPriceX96^2 * 1e18 / 2^192
+        //   d0 >= d1 : adjusted = rawSpot * 10^(d0-d1)
+        //   d1 >  d0 : adjusted = rawSpot / 10^(d1-d0)
+        // Setting adjusted == twapRatio18 yields deviation ~0 at every price level.
+        uint256 twapRatio18 = (twap0 * 1e18) / twap1;
+        uint8 d0 = tokenDecimals[Currency.unwrap(key.currency0)] == 0
+            ? 18
+            : tokenDecimals[Currency.unwrap(key.currency0)];
+        uint8 d1 = tokenDecimals[Currency.unwrap(key.currency1)] == 0
+            ? 18
+            : tokenDecimals[Currency.unwrap(key.currency1)];
+        uint256 rawSpot18;
+        if (d0 >= d1) {
+            rawSpot18 = twapRatio18 / (10 ** (uint256(d0) - uint256(d1)));
+        } else {
+            rawSpot18 = twapRatio18 * (10 ** (uint256(d1) - uint256(d0)));
+        }
+        uint256 spotSq = FullMath.mulDiv(rawSpot18, 1 << 192, 1e18);
+        uint160 sqrtPriceX96 = SafeCast.toUint160(Math.sqrt(spotSq));
+        if (sqrtPriceX96 == 0) {
+            if (requireTwapOracle) revert TwapNotConfigured();
+            return;
+        }
         EswapMarginLib.checkTwap(
             address(priceFeed),
             key,

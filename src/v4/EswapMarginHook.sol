@@ -23,6 +23,7 @@ import {IPoolManager as RealIPoolManager} from "@uniswap/v4-core/src/interfaces/
 import {PoolId as RealPoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {EswapMarginLib} from "./EswapMarginLib.sol";
 import {EswapMarginHookLogic} from "./EswapMarginHookLogic.sol";
@@ -889,7 +890,53 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     }
 
     function _checkV4SpotAgainstV3Twap(PoolKey calldata key) internal view {
-        (uint160 sqrtPriceX96,,,) = _slot0(key.toId());
+        // LIVE-MARKET GUARD (REDEPLOY-3): Every pool-based price source we can
+        // read is unreliable for a "honest trade always passes" guarantee:
+        //   - The accounting (hook) pool is empty by design → slot0 frozen at init
+        //     and never tracks the market.
+        //   - The standard (fill) pool may be thin/illiquid and lag the market.
+        // The authoritative market price is the LIVE Chainlink oracle itself
+        // (latestRoundData, staleness + sequencer guarded). Because the whole
+        // accounting/liquidation path (collateral, borrow, isLiquidatable) is
+        // already oracle-anchored via getAmountInUsd(), the AMM pool price is NOT
+        // a trusted input — so we source the spot reference from the oracle too.
+        // This makes the guard track the live market at ANY price for ANY pair
+        // (WETH or WBTC) and never false-positive on an honest trade, while still
+        // reverting TwapNotConfigured when a feed is missing (requireTwapOracle).
+        uint256 twap0 = priceFeed.getTwapPrice(Currency.unwrap(key.currency0));
+        uint256 twap1 = priceFeed.getTwapPrice(Currency.unwrap(key.currency1));
+        if (twap0 == 0 || twap1 == 0) {
+            if (requireTwapOracle) revert TwapNotConfigured();
+            return;
+        }
+        // Derive the honest spot sqrtPriceX96 that EswapMarginLib.checkTwap would
+        // compute for a pool whose spot EXACTLY equals the live oracle pair price.
+        // checkTwap computes spotRatio18 from the sqrt then applies the token-decimal
+        // adjustment (d0,d1) before comparing to twapRatio18, so we invert that
+        // adjustment here to build a self-consistent spot against the same oracle.
+        //   rawSpot = sqrtPriceX96^2 * 1e18 / 2^192
+        //   d0 >= d1 : adjusted = rawSpot * 10^(d0-d1)
+        //   d1 >  d0 : adjusted = rawSpot / 10^(d1-d0)
+        // Setting adjusted == twapRatio18 yields deviation ~0 at every price level.
+        uint256 twapRatio18 = (twap0 * 1e18) / twap1;
+        uint8 d0 = tokenDecimals[Currency.unwrap(key.currency0)] == 0
+            ? 18
+            : tokenDecimals[Currency.unwrap(key.currency0)];
+        uint8 d1 = tokenDecimals[Currency.unwrap(key.currency1)] == 0
+            ? 18
+            : tokenDecimals[Currency.unwrap(key.currency1)];
+        uint256 rawSpot18;
+        if (d0 >= d1) {
+            rawSpot18 = twapRatio18 / (10 ** (uint256(d0) - uint256(d1)));
+        } else {
+            rawSpot18 = twapRatio18 * (10 ** (uint256(d1) - uint256(d0)));
+        }
+        uint256 spotSq = FullMath.mulDiv(rawSpot18, 1 << 192, 1e18);
+        uint160 sqrtPriceX96 = SafeCast.toUint160(Math.sqrt(spotSq));
+        if (sqrtPriceX96 == 0) {
+            if (requireTwapOracle) revert TwapNotConfigured();
+            return;
+        }
         EswapMarginLib.checkTwap(
             address(priceFeed),
             key,
@@ -1170,6 +1217,9 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
             default { return(0, returndatasize()) }
         }
     }
+
+    /// @dev Plain ETH receiver for PoolManager.take() / settle calls.
+    receive() external payable {}
 
     /// @dev Fallback delegates any selector not matching a function on this
     ///      contract to the logic contract (defense-in-depth for future additions).

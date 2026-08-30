@@ -36,6 +36,15 @@ contract PriceFeed {
     address public owner;
     address public sequencerUptimeFeed;
 
+    /// @dev Canonical key used to price NATIVE ETH. Native ether (Currency 0x0)
+    ///      has no ERC-20 address, but the protocol prices the ETH leg through
+    ///      the Chainlink ETH/USD feed. Every `getTwapPrice` / `getAmountInUsd`
+    ///      call for the native currency is routed to the feed registered under
+    ///      this key. The key is the OP-stack WETH address only because that is a
+    ///      stable, non-zero identifier for "ETH" on Unichain — it is NOT used as
+    ///      an actual ERC-20 (the protocol holds/fills native ether directly).
+    address public constant NATIVE_ETH_PRICE_KEY = 0x4200000000000000000000000000000000000006;
+
     uint256 public constant GRACE_PERIOD_TIME = 3600; // 1 h L2 sequencer grace period
     // 24 h staleness threshold. Unichain Mainnet's official Chainlink feeds
     // update on a many-hour cadence (observed gaps of 2-20 h), so the 1 h
@@ -130,13 +139,18 @@ contract PriceFeed {
      * @notice Returns the USD value (18-decimal) of `amount` RAW token units.
      * @dev Used by EswapMarginHook.isLiquidatable() and closePosition().
      *      Normalizes by the TOKEN's decimals (mirrors src/PriceFeedL1.sol), so
-     *      cross-decimal pairs (e.g. WETH 18 / USDC 6) are valued correctly:
+     *      cross-decimal pairs (e.g. ETH 18 / USDC 6) are valued correctly:
      *      USD = amount_raw * price18 / 10**tokenDecimals.
+     *      Native ETH (token == address(0)) is priced via the NATIVE_ETH_PRICE_KEY
+     *      feed with 18 decimals.
      */
     function getAmountInUsd(address token, uint256 amount) external view returns (uint256) {
+        if (token == address(0)) token = NATIVE_ETH_PRICE_KEY;
         uint256 price18 = _getValidatedPrice(token);
         if (price18 == 0) return 0;
-        return FullMath.mulDiv(amount, price18, 10 ** IERC20Decimals(token).decimals());
+        uint8 dec = IERC20Decimals(token).decimals();
+        if (token == NATIVE_ETH_PRICE_KEY) dec = 18;
+        return FullMath.mulDiv(amount, price18, 10 ** dec);
     }
 
     /**
@@ -144,8 +158,11 @@ contract PriceFeed {
      * @dev Used by EswapMarginHook as the "TWAP" for the V4-spot circuit-breaker.
      *      Chainlink is already a time-weighted / aggregated price, so no separate
      *      TWAP contract is needed for this purpose.
+     *      Native ETH (token == address(0)) is priced via the NATIVE_ETH_PRICE_KEY
+     *      feed.
      */
     function getTwapPrice(address token) external view returns (uint256) {
+        if (token == address(0)) token = NATIVE_ETH_PRICE_KEY;
         return _getValidatedPrice(token);
     }
 }

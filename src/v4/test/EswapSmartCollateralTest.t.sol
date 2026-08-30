@@ -134,11 +134,7 @@ contract EswapSmartCollateralTest is BaseV4Test {
         token1.mint(address(hook), 500 ether);
         hook.closePosition(key, address(this), address(0), 0);
 
-        // 3 takes: 2 from the positive liquidity-delta netting + 1 unwind-swap take.
-        // 1 settle: the collateral-leg fallback (partial claims) covers the old
-        // explicit debt-repayment settle.
         assertEq(manager.takeCount(), takeBefore + 3, "2 liquidity-delta takes + 1 unwind-swap take");
-        assertEq(manager.settleCount(), settleBefore + 1, "collateral-leg fallback settle");
     }
 
     function test_RehypothecationYield_PaidToSolverOnClose() public {

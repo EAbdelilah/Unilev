@@ -53,3 +53,12 @@ deploy-unichain-sepolia :; @forge script scripts/v4/DeployUnichainSepolia.s.sol:
 # Add a NEW trading pair to the LIVE V4 protocol (no redeploy; env-driven, see script header)
 add-pair :; @forge script scripts/v4/AddPair.s.sol:AddPair --via-ir --rpc-url ${UNICHAIN_RPC_URL} --private-key ${PRIVATE_KEY} --broadcast --slow
 
+# --- V4 live trading scripts (Unichain mainnet, requires deployed contracts) ---
+v4-setup         :; node javascript/v4/setup.js
+v4-long-eth      :; node javascript/v4/openLong.js eth
+v4-long-wbtc     :; node javascript/v4/openLong.js wbtc
+v4-short-eth     :; node javascript/v4/openShort.js eth
+v4-short-wbtc    :; node javascript/v4/openShort.js wbtc
+v4-close-eth     :; node javascript/v4/closePosition.js eth
+v4-close-wbtc    :; node javascript/v4/closePosition.js wbtc
+v4-positions     :; node javascript/v4/checkPositions.js

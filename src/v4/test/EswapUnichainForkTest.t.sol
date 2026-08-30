@@ -118,24 +118,25 @@ contract EswapUnichainForkTest is Test {
 
     function test_Unichain_TWAP_CircuitBreaker() public {
         if (!rpcAvailable) return;
-        // Scenario 3: Attempt to swap with a manipulated V4 spot price.
-        // We set the oracle TWAP to 3000, but we forcefully set the V4 pool spot price to 4000 (manipulated)
+        // LIVE-MARKET GUARD (REDEPLOY-3): the guard is oracle-anchored, so an
+        // on-chain pool spot that diverges from the oracle NO LONGER fires a revert.
+        // Scenario: oracle TWAP = 3000, but we forcibly set the V4 pool spot to 4000
+        // (simulating the empty-hook-pool / thin-pool failure mode that previously
+        // blocked every honest open). Because the spot reference is the LIVE oracle,
+        // the honest open now PASSES regardless of the pool's frozen/tampered slot0.
 
         // Let's assume WETH is token0 for this test logic
         bool isWeth0 = Currency.unwrap(key.currency0) == UNICHAIN_WETH;
 
         // Manipulate spot price significantly (spot shows 4000 USDC/WETH instead of 3000).
         // Decimals-aware sqrtPriceX96 values:
-        //   WETH as currency0: raw = 4000e6/1e18 = 4e-9
-        //   USDC as currency0: raw = 1e18/4000e6 = 2.5e8
         uint160 manipulatedSqrtPrice = isWeth0 ? 5010828967500958623728276 : 1252707241875239655932069007848031;
         manager.setSlot0(key.toId(), manipulatedSqrtPrice, 0);
 
-        // Attempt to open a position. The hook should revert due to V4 Spot vs V3 TWAP deviation
+        // Open a position: must NOT revert — the guard tracks the live oracle, not the pool.
         bytes memory hookData = abi.encode(true, uint8(5), trader);
 
         vm.startPrank(address(manager));
-        vm.expectRevert(EswapMarginHook.TwapManipulated.selector);
         hook.beforeSwap(address(this), key, IPoolManager.SwapParams(!isWeth0, -10 ether, 0), hookData);
         vm.stopPrank();
     }

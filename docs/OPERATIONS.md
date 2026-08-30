@@ -22,6 +22,43 @@
 - **Health Server** (built into both keepers): Exposes `/health` and `/metrics` HTTP endpoints
 - **Logger** (`javascript/logger.js`): Structured pino logging with pino-pretty transport
 
+## 1.1 Current Live Deployment — Unichain Mainnet (chain 130)
+
+> Updated after REDEPLOY-3 (oracle-anchored circuit breaker). Verify with
+> `cast code <addr>` / `node javascript/network-info.js`.
+
+| Contract            | Address                                      |
+| ------------------- | --------------------------------------------- |
+| EswapMarginHook     | `0xe3574Bc94557378fD944cdF1EE2F56f7c12d90c8` |
+| EswapRouter         | `0x1244a9977368A09aA38619D92959A78638Ac0DEa` |
+| EswapLiquidationKeeper | `0xB43D0A603D9Bf6Bd9463709eDbDDF9B6ee2D484d` |
+| PriceFeed           | `0x798518400Ae9C6A145dA2A646833627ef6c2c510` |
+| PoolManager (canonical) | `0x1F98400000000000000000000000000000000004` |
+
+**Fill venue (standardPoolKey) for USDC/WETH = fee-500 no-hook pool**
+(`0x078D…6 / 0x4200…06`, fee 500, ts 60, hooks 0x0). Chosen because the canonical
+fee-500 pool carries ~2e11 liquidity (~$2030/WETH), while the fee-3000 no-hook
+pool is only ~1.8e7 — 11,000× thinner and produces ~99% fill slippage.
+
+**Why oracle-anchored breaker (REDEPLOY-3):** `_checkV4SpotAgainstV3Twap` derives
+the "honest spot `sqrtPriceX96`" from the LIVE Chainlink oracle pair price
+(`getTwapPrice(currency0/currency1)`), inverting `checkTwap`'s token-decimal
+adjustment. Because the whole accounting/liquidation path is already oracle-
+anchored via `getAmountInUsd`, the AMM pool spot is not a trusted input — so the
+guard makes spot == twap == oracle and never false-positives at ANY price/pair
+(WETH or WBTC), while still reverting `TwapNotConfigured` when a feed is missing
+under `requireTwapOracle`. This is what unblocks honest live fills.
+
+**Live smoke validation (this deployment):** opened a USDC-margin LONG via
+`swapMultiPool` on the fee-500 venue (no `TwapManipulated`), rehypothecated LP
+deployed (pos.liquidity > 0), then closed — full open→close round-trip mined,
+collateral returned, position cleared. Scripts: `scripts/v4/{DeploySwapper,
+FundDeployer2,RepointAndOpen,CloseLivePosition}.s.sol`.
+
+> NOTE: deployer EOA (`0x5186…566`) holds ~$0.5 USDC. Unichain V4 USDC/WETH pools
+> are thinly capitalized, so realistic-size fills experience material slippage
+> (venue depth, not a contract defect).
+
 ## 2. Keeper Deployment
 
 ### Prerequisites
