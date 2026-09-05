@@ -10,6 +10,8 @@ import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interf
 import {PoolKey as RealPoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {Currency as RealCurrency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {LPFeeLibrary} from "@uniswap/v4-core/src/libraries/LPFeeLibrary.sol";
+import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
+import {PoolId as RealPoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 // Mirrored local types — used by the EswapMarginHook/Router ABI surface.
 import {PoolKey} from "../../src/v4/types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "../../src/v4/types/PoolId.sol";
@@ -24,10 +26,9 @@ import {PriceFeed} from "../../src/v4/PriceFeed.sol";
 import {HookFlags} from "../../src/v4/libraries/HookFlags.sol";
 
 /// @notice Unichain mainnet deployment scoped to the ETH/USDC pool ONLY — the
-///         deepest liquidity pool on Unichain. The hook pool is the wrapped
-///         USDC/WETH (0x078D.. / 0x4200..) fee-3000, tick-60 pool that the
-///         dashboard's useV4Position builds; the physical fill routes to the
-///         deep no-hook USDC/WETH fee-500, tick-60 standard pool.
+///         deepest liquidity pool on Unichain. The hook pool is the native
+///         ETH/USDC (0x0 / 0x078D..) fee-3000, tick-60 pool; the physical fill
+///         routes to the deep no-hook ETH/USDC fee-500, tick-10 standard pool.
 contract DeployUnichain is Script {
     using PoolIdLibrary for PoolKey;
     using LPFeeLibrary for uint24;
@@ -162,7 +163,7 @@ contract DeployUnichain is Script {
         hook.setConfig(EswapMarginHook.ConfigParams({
             treasury: treasury,
             router: address(router),
-            reserveFactor: 50,                 // 0.5% protocol fee
+            reserveFactor: 5,                  // 0.05% protocol fee (matches live)
             maxPriceSwingBps: 800,             // 8% V4-spot vs oracle TWAP deviation tolerance
             defaultMaxLeverage: 5,
             requireTwapOracle: vm.envOr("REQUIRE_TWAP_ORACLE", false)
@@ -172,35 +173,46 @@ contract DeployUnichain is Script {
         hook.setTokenDecimals(WETH, 18);
         hook.setTokenDecimals(USDC, 6);
 
-        // USD-denominated collateral floor (18-decimals). Defaults to $0.10 (100000)
-        // so micro-margin (25-cent-scale) solver test positions can open; override
-        // with MIN_COLLATERAL_USD in .env (e.g. 1000000000000000000 = $1). Setting
-        // 0 restores the legacy raw-token MIN_COLLATERAL floor.
+        // USD-denominated collateral floor (18-decimals). Defaults to $0.05 to
+        // MATCH the live minCollateralUsd (read from the old hook on chain);
+        // override with MIN_COLLATERAL_USD in .env (e.g. 1000000000000000000 = $1).
+        // Setting 0 restores the legacy raw-token MIN_COLLATERAL floor.
         hook.setRouterAndMinCollateralUsd(
             address(router),
-            vm.envOr("MIN_COLLATERAL_USD", uint256(100000))
+            vm.envOr("MIN_COLLATERAL_USD", uint256(50000000000000000))
         );
 
-        // --- Initialize the ONLY pool: USDC / WETH (ETH/USDC) ---
-        // currency0 = USDC (0x078D..) < currency1 = WETH (0x4200..), so USDC is
-        // currency0, wrapped WETH is currency1. Base currency = WETH.
+        // --- Initialize the ONLY pool: native ETH / USDC (ETH/USDC) ---
+        // currency0 = native ETH (0x0) < currency1 = USDC (0x078D..), so ETH is
+        // currency0, USDC is currency1. Base currency = native ETH.
+        // This mirrors the LIVE re-purposed topology (LiveRepurposeHookConfig):
+        // the hook (accounting) pool is fee-3000/tick-60; the physical fill
+        // routes to the deep no-hook fee-500/tick-10 ETH/USDC standard pool.
         PoolKey memory key = PoolKey({
-            currency0: Currency.wrap(USDC),
-            currency1: Currency.wrap(WETH),
+            currency0: Currency.wrap(address(0)),
+            currency1: Currency.wrap(USDC),
             fee: 3000,
             tickSpacing: 60,
             hooks: address(hook)
         });
 
-        // Initialize pool at ~current WETH/USD market price. tick 200760 → raw
-        // P ≈ 5.25e8 → ~$1912 per WETH (live oracle read 1917.34 at deploy time).
-        // MUST be within maxPriceSwingBps (8%/800bps) of the Chainlink oracle or
-        // the circuit breaker reverts TwapManipulated.
-        uint160 sqrtPriceX96 = TickMath.getSqrtRatioAtTick(200760);
+        // Initialize pool at the LIVE deep standard pool's current sqrt: the
+        // accounting rail must sit at the same price the physical fill pool
+        // trades at (mirrors RehypothecationForkTest). MUST be within
+        // maxPriceSwingBps (8%/800bps) of the Chainlink oracle or the circuit
+        // breaker reverts TwapManipulated. NOTE: for a native ETH/USDC pool
+        // currency0=ETH(0x0), currency1=USDC, so raw sqrtPriceX96 encodes USDC
+        // per ETH (1e6-decimal quote for 18-dec base).
+        RealPoolId stdRealId = RealPoolId.wrap(
+            keccak256(abi.encode(address(0), USDC, uint24(500), int24(10), address(0)))
+        );
+        (uint160 stdSqrt,,,) = StateLibrary.getSlot0(pm, stdRealId);
+        require(stdSqrt > 0, "deep standard pool uninitialized");
+        uint160 sqrtPriceX96 = stdSqrt;
         pm.initialize(
             RealPoolKey({
-                currency0: RealCurrency.wrap(USDC),
-                currency1: RealCurrency.wrap(WETH),
+                currency0: RealCurrency.wrap(address(0)),
+                currency1: RealCurrency.wrap(USDC),
                 fee: 3000,
                 tickSpacing: 60,
                 hooks: IHooks(address(hook))
@@ -210,23 +222,31 @@ contract DeployUnichain is Script {
 
         PoolId poolId = key.toId();
         hook.setAuthorizedPool(poolId, true);
-        // WETH is base currency: long WETH buys WETH (isLong = true) and borrows
-        // USDC; short sells WETH for USDC. Margin currency follows the base.
-        hook.setBaseCurrency(poolId, Currency.wrap(WETH));
+        // Native ETH is base currency: long ETH buys ETH (isLong = true) and
+        // borrows USDC; short sells ETH for USDC. Margin currency follows base.
+        hook.setBaseCurrency(poolId, Currency.wrap(address(0)));
 
         // [FIX M-3] Pin the standard (physical-execution) pool for the hook pool so
         // close/liquidation unwind swaps route through deep standard liquidity instead
-        // of the thin hook pool. The standard pool is the canonical no-hook 0.05% pool
-        // for the same currency pair (owner-set at deploy; user-supplied keys can never
-        // poison liquidation routing — see EswapRouter._swapCallback).
+        // of the thin hook pool. The standard pool is the DEEP canonical no-hook
+        // 0.05% (fee-500/tick-10) pool for the same native ETH/USDC pair
+        // (owner-set at deploy; user-supplied keys can never poison liquidation
+        // routing — see EswapRouter._swapCallback).
         PoolKey memory standardKey = PoolKey({
             currency0: key.currency0,
             currency1: key.currency1,
             fee: 500,
-            tickSpacing: 60,
+            tickSpacing: 10,
             hooks: address(0)
         });
         hook.setStandardPoolKey(poolId, standardKey);
+
+        // Mirror the LIVE re-purposed scalar config (read from the old hook on
+        // chain before this redeploy) so the fresh hook is a faithful drop-in.
+        hook.setBandConsumptionTriggerBps(2500);
+        hook.setOpenInterestCaps(200, 1500, 100000000000000000000000); // maxSingle 200bps / maxTotal 1500bps / TVL floor 1e23
+        // insuranceWithdrawalCapBps has no live setter beyond its owner default (5000);
+        // the old hook reports 5000, which is the constructor default, so no call needed.
 
         vm.stopBroadcast();
 

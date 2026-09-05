@@ -1,0 +1,20 @@
+﻿Compiler run failed:
+Error (7576): Undeclared identifier.
+   --> src/v4/test/RehypothecationForkTest.t.sol:157:42:
+    |
+157 |         uint256 owed0 = fg0 >= fi0Last ? FullMath.mulDiv(fg0 - fi0Last, pliq, 1 << 128) : 0;
+    |                                          ^^^^^^^^
+
+Error (7576): Undeclared identifier.
+   --> src/v4/test/RehypothecationForkTest.t.sol:158:42:
+    |
+158 |         uint256 owed1 = fg1 >= fi1Last ? FullMath.mulDiv(fg1 - fi1Last, pliq, 1 << 128) : 0;
+    |                                          ^^^^^^^^
+
+forge : Error: Compilation failed
+Au caractère Ligne:1 : 1
++ forge test --match-contract RehypothecationForkTest -vvvv --via-ir 2> ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Error: Compilation failed:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 

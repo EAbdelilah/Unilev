@@ -117,6 +117,11 @@ contract EswapMarginHookLogic is BaseHook {
     // ─── Storage layout (MUST mirror EswapMarginHook exactly) ──────────────────
     mapping(PoolId => bool) public isAuthorizedPool;
     mapping(PoolId => mapping(address => Position)) public positions;
+
+    /// @dev Raw principal (in the collateral currency) currently rehypothecated
+    ///      as the LP band for a position. When the band is removed, LP proceeds
+    ///      beyond this principal (the accrued fees) are paid to the solver.
+    mapping(PoolId => mapping(address => uint256)) public rehypPrincipal;
     mapping(PoolId => mapping(address => bool)) public isSyntheticArbun;
     mapping(PoolId => PoolKey) public standardPoolKeys;
     mapping(Currency => bool) public isCurrencyRegistered;
@@ -210,7 +215,7 @@ contract EswapMarginHookLogic is BaseHook {
 
         address yieldRecipient = positionSolver[poolId][trader];
         if (yieldRecipient == address(0)) yieldRecipient = trader;
-        _distributeRehypothecation(key, removeDelta, collateralCurrency, collateralAmount, yieldRecipient);
+        _distributeRehypothecation(key, removeDelta, collateralCurrency, rehypPrincipal[poolId][trader], yieldRecipient);
 
         bool zeroForOne = Currency.unwrap(collateralCurrency) == Currency.unwrap(key.currency0);
         PoolKey memory standardKey = standardPoolKeys[poolId];
@@ -265,7 +270,7 @@ contract EswapMarginHookLogic is BaseHook {
 
         address yieldRecipient = positionSolver[poolId][trader];
         if (yieldRecipient == address(0)) yieldRecipient = trader;
-        _distributeRehypothecation(key, removeDelta, collateralCurrency, collateralAmount, yieldRecipient);
+        _distributeRehypothecation(key, removeDelta, collateralCurrency, rehypPrincipal[poolId][trader], yieldRecipient);
 
         bool zeroForOne = Currency.unwrap(collateralCurrency) == Currency.unwrap(key.currency0);
         PoolKey memory standardKey = standardPoolKeys[poolId];
@@ -323,7 +328,7 @@ contract EswapMarginHookLogic is BaseHook {
 
         address yieldRecipient = positionSolver[poolId][trader];
         if (yieldRecipient == address(0)) yieldRecipient = trader;
-        _distributeRehypothecation(key, removeDelta, collateralCurrency, pos.collateralAmount, yieldRecipient);
+        _distributeRehypothecation(key, removeDelta, collateralCurrency, rehypPrincipal[poolId][trader], yieldRecipient);
 
         int128 recoveredCollatInt = isCurrency0 ? removeDelta.amount0() : removeDelta.amount1();
         uint256 availableCollateral = recoveredCollatInt > 0 ? uint256(uint128(recoveredCollatInt)) : 0;
@@ -373,6 +378,10 @@ contract EswapMarginHookLogic is BaseHook {
                 lpPool, IPoolManager.ModifyLiquidityParams(tickLower, tickUpper, int128(newLiquidity), 0), ""
             );
             _netLiquidityDelta(lpPool, addDelta);
+            int128 pDelta = isCurrency0 ? addDelta.amount0() : addDelta.amount1();
+            rehypPrincipal[poolId][trader] = pDelta < 0 ? uint256(int256(-pDelta)) : 0;
+        } else {
+            rehypPrincipal[poolId][trader] = 0;
         }
         pos.tickLower = tickLower;
         pos.tickUpper = tickUpper;
@@ -399,13 +408,20 @@ contract EswapMarginHookLogic is BaseHook {
             maxLiquidity = FullMath.mulDiv(pos.collateralAmount, 1 << 96, sqrtSpan);
         }
         uint256 capped = FullMath.mulDiv(maxLiquidity, 9, 10);
-        if (capped == 0) return;
+        if (capped == 0) {
+            rehypPrincipal[key.toId()][trader] = 0;
+            return;
+        }
         uint128 liquidity = capped > uint256(type(uint128).max) ? type(uint128).max : uint128(capped);
 
         (BalanceDelta addDelta,) = manager.modifyLiquidity(
             lpPool, IPoolManager.ModifyLiquidityParams(tickLower, tickUpper, int128(liquidity), 0), ""
         );
         _netLiquidityDelta(lpPool, addDelta);
+
+        int128 principalInt = isCurrency0 ? addDelta.amount0() : addDelta.amount1();
+        rehypPrincipal[key.toId()][trader] =
+            principalInt < 0 ? uint256(int256(-principalInt)) : 0;
 
         pos.tickLower = tickLower;
         pos.tickUpper = tickUpper;
@@ -516,6 +532,11 @@ contract EswapMarginHookLogic is BaseHook {
         if (borrowedAmount > 0) {
             uint256 tradeOIUsd = priceFeed.getAmountInUsd(Currency.unwrap(debtCurrency), borrowedAmount);
             totalOpenInterestUSD = EswapMarginLib.saturatingSub(totalOpenInterestUSD, tradeOIUsd);
+            // [FIX] Keep totalBorrowedByToken in sync: it was previously only
+            // incremented on open (registerMarginOpen) and never decremented on
+            // close/liquidation, so the ledger drifted upward over time.
+            totalBorrowedByToken[debtCurrency] =
+                EswapMarginLib.saturatingSub(totalBorrowedByToken[debtCurrency], borrowedAmount);
         }
         totalCollateralUSDRunning =
             EswapMarginLib.saturatingSub(totalCollateralUSDRunning, positionCollateralUSD[poolId][trader]);
@@ -523,13 +544,14 @@ contract EswapMarginHookLogic is BaseHook {
         delete positions[poolId][trader];
         delete solverDebts[poolId][trader][solver];
         delete positionSolver[poolId][trader];
+        rehypPrincipal[poolId][trader] = 0;
     }
 
     function _distributeRehypothecation(
         PoolKey calldata key,
         BalanceDelta removeDelta,
         Currency collateralCurrency,
-        uint256 collateralAmount,
+        uint256 rehypPrincipal,
         address recipient
     ) internal {
         if (recipient == address(0)) return;
@@ -539,8 +561,11 @@ contract EswapMarginHookLogic is BaseHook {
         } else {
             recoveredCollateral = removeDelta.amount1();
         }
+        // Yield = what the LP band returned beyond the principal that was
+        // actually deployed into it (i.e. the accrued fees), NOT beyond the
+        // whole position collateral (which would always be zero here).
         int256 yieldAmount =
-            recoveredCollateral > int256(collateralAmount) ? recoveredCollateral - int256(collateralAmount) : int256(0);
+            recoveredCollateral > int256(rehypPrincipal) ? recoveredCollateral - int256(rehypPrincipal) : int256(0);
         if (yieldAmount > 0) {
             if (NativeTokens.isNative(collateralCurrency)) {
                 (bool success, ) = recipient.call{value: uint256(yieldAmount)}("");

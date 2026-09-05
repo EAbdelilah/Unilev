@@ -1,0 +1,32 @@
+﻿Compiler run failed:
+Error (7364): Different number of components on the left hand side (1) than on the right hand side (9).
+  --> src/v4/test/LiveDeployCollateralReproTest.t.sol:99:9:
+   |
+99 |         EswapMarginHook.Position memory pos = hook.positions(hookKey.toId(), trader);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (9574): Type address is not implicitly convertible to expected type struct EswapMarginHook.Position memory.
+  --> src/v4/test/LiveDeployCollateralReproTest.t.sol:99:9:
+   |
+99 |         EswapMarginHook.Position memory pos = hook.positions(hookKey.toId(), trader);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7364): Different number of components on the left hand side (1) than on the right hand side (9).
+   --> src/v4/test/LiveDeployCollateralReproTest.t.sol:108:9:
+    |
+108 |         EswapMarginHook.Position memory pos2 = hook.positions(hookKey.toId(), trader);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (9574): Type address is not implicitly convertible to expected type struct EswapMarginHook.Position memory.
+   --> src/v4/test/LiveDeployCollateralReproTest.t.sol:108:9:
+    |
+108 |         EswapMarginHook.Position memory pos2 = hook.positions(hookKey.toId(), trader);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+forge : Error: Compilation failed
+Au caractère Ligne:1 : 1
++ forge test --match-contract LiveDeployCollateralReproTest --match-tes ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Error: Compilation failed:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 

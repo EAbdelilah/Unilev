@@ -1,0 +1,224 @@
+﻿Compiling 1 files with Solc 0.8.26
+Solc 0.8.26 finished in 28.70s
+Compiler run successful with warnings:
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> src/v4/EswapMarginHookLogic.sol:484:9:
+    |
+484 |         address liquidator,
+    |         ^^^^^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/EswapMarginHook.sol:590:16:
+    |
+590 |             (, address solver, uint256 solverOutput) = abi.decode(data, (bool, address, uint256));
+    |                ^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> src/v4/EswapMarginHook.sol:968:32:
+    |
+968 |     function rebalancePosition(PoolKey calldata key, address trader) external onlyRouter {
+    |                                ^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> src/v4/EswapMarginHook.sol:968:54:
+    |
+968 |     function rebalancePosition(PoolKey calldata key, address trader) external onlyRouter {
+    |                                                      ^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> src/v4/EswapMarginHook.sol:990:33:
+    |
+990 |     function executeLiquidation(PoolKey calldata key, address trader, uint256 minAmountOut, address liquidator)
+    |                                 ^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> src/v4/EswapMarginHook.sol:990:55:
+    |
+990 |     function executeLiquidation(PoolKey calldata key, address trader, uint256 minAmountOut, address liquidator)
+    |                                                       ^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> src/v4/EswapMarginHook.sol:990:71:
+    |
+990 |     function executeLiquidation(PoolKey calldata key, address trader, uint256 minAmountOut, address liquidator)
+    |                                                                       ^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> src/v4/EswapMarginHook.sol:990:93:
+    |
+990 |     function executeLiquidation(PoolKey calldata key, address trader, uint256 minAmountOut, address liquidator)
+    |                                                                                             ^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1064:31:
+     |
+1064 |     function deployCollateral(PoolKey calldata key, address trader) external onlyRouter {
+     |                               ^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1064:53:
+     |
+1064 |     function deployCollateral(PoolKey calldata key, address trader) external onlyRouter {
+     |                                                     ^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1135:9:
+     |
+1135 |         PoolKey calldata key,
+     |         ^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1136:9:
+     |
+1136 |         address trader,
+     |         ^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1137:9:
+     |
+1137 |         uint8 leverage,
+     |         ^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1138:9:
+     |
+1138 |         uint256 marginAmount,
+     |         ^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1139:9:
+     |
+1139 |         uint256 borrowedAmount,
+     |         ^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1140:9:
+     |
+1140 |         Currency boughtCurrency,
+     |         ^^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1141:9:
+     |
+1141 |         uint256 boughtAmount
+     |         ^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1157:9:
+     |
+1157 |         PoolKey calldata key,
+     |         ^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1158:9:
+     |
+1158 |         address trader,
+     |         ^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1159:9:
+     |
+1159 |         address solver,
+     |         ^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1160:9:
+     |
+1160 |         uint256 minAmountOut
+     |         ^^^^^^^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+  --> src/v4/test/LiveDeployCollateralReproTest.t.sol:79:29:
+   |
+79 |         (,,,, bool isLong,, int24 tl, int24 tu, uint128 liq) = hook.positions(hookKey.toId(), freshTrader);
+   |                             ^^^^^^^^
+
+Warning (2072): Unused local variable.
+  --> src/v4/test/LiveDeployCollateralReproTest.t.sol:79:39:
+   |
+79 |         (,,,, bool isLong,, int24 tl, int24 tu, uint128 liq) = hook.positions(hookKey.toId(), freshTrader);
+   |                                       ^^^^^^^^
+
+Warning (2072): Unused local variable.
+  --> src/v4/test/LiveDeployCollateralReproTest.t.sol:99:42:
+   |
+99 |         (,, uint256 coll,, bool isLong,, int24 tl, int24 tu, uint128 liq) = hook.positions(hookKey.toId(), trader);
+   |                                          ^^^^^^^^
+
+Warning (2072): Unused local variable.
+  --> src/v4/test/LiveDeployCollateralReproTest.t.sol:99:52:
+   |
+99 |         (,, uint256 coll,, bool isLong,, int24 tl, int24 tu, uint128 liq) = hook.positions(hookKey.toId(), trader);
+   |                                                    ^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/LiveDeployCollateralReproTest.t.sol:107:13:
+    |
+107 |         (,, uint256 coll2,, bool isLong2,, int24 tl2, int24 tu2, uint128 liq2) =
+    |             ^^^^^^^^^^^^^
+
+Warning (2018): Function state mutability can be restricted to pure
+   --> src/v4/EswapRouter.sol:310:5:
+    |
+310 |     function resolve(CrossChainOrder calldata order, bytes calldata)
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+
+Ran 1 test for src/v4/test/LiveDeployCollateralReproTest.t.sol:LiveDeployCollateralReproTest
+[FAIL: ManagerLocked()] test_DeployCollateral_OnExistingLivePosition() (gas: 103034)
+Logs:
+  existing collateral: 84444
+  existing liq: 0
+  isLong: true
+
+Traces:
+  [49219] LiveDeployCollateralReproTest::setUp()
+    Ôö£ÔöÇ [0] VM::envOr("UNICHAIN_RPC_URL", "") [staticcall]
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] <env var value>
+    Ôö£ÔöÇ [0] VM::envOr("FORK_BLOCK", 0) [staticcall]
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] <env var value>
+    Ôö£ÔöÇ [0] VM::createSelectFork("<rpc url>")
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] 0
+    ÔööÔöÇ ÔåÉ [Return]
+
+  [103034] LiveDeployCollateralReproTest::test_DeployCollateral_OnExistingLivePosition()
+    Ôö£ÔöÇ [0] VM::envString("UNICHAIN_RPC_URL") [staticcall]
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] <env var value>
+    Ôö£ÔöÇ [0] VM::createSelectFork("<rpc url>", 57791352 [5.779e7])
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] 1
+    Ôö£ÔöÇ [11590] 0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8::positions(0x7ccf282d5a9a40ee2209954e91d0b331898e816b4166cf07e0a38fe9a42cb9ff, 0x7a5Ccd2402EEf7E989d86318ef8E4678A8a5ce79) [staticcall]
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] 0x7a5Ccd2402EEf7E989d86318ef8E4678A8a5ce79, 68610814606434 [6.861e13], 84444 [8.444e4], 2, true, 0, 0, 0, 0
+    Ôö£ÔöÇ emit log_named_uint(key: "existing collateral", val: 84444 [8.444e4])
+    Ôö£ÔöÇ emit log_named_uint(key: "existing liq", val: 0)
+    Ôö£ÔöÇ [0] VM::toString(true) [staticcall]
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] "true"
+    Ôö£ÔöÇ emit log_named_string(key: "isLong", val: "true")
+    Ôö£ÔöÇ [0] VM::prank(0x4c14D923E9A9f64Da6684b77E07B33c76D0B3d60)
+    Ôöé   ÔööÔöÇ ÔåÉ [Return]
+    Ôö£ÔöÇ [61436] 0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8::deployCollateral(PoolKey({ currency0: 0x0000000000000000000000000000000000000000, currency1: 0x078D782b760474a361dDA0AF3839290b0EF57AD6, fee: 3000, tickSpacing: 60, hooks: 0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8 }), 0x7a5Ccd2402EEf7E989d86318ef8E4678A8a5ce79)
+    Ôöé   Ôö£ÔöÇ [56120] 0x83391d5E99301A92C3BE18296EA88FC093aFC067::deployCollateral(PoolKey({ currency0: 0x0000000000000000000000000000000000000000, currency1: 0x078D782b760474a361dDA0AF3839290b0EF57AD6, fee: 3000, tickSpacing: 60, hooks: 0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8 }), 0x7a5Ccd2402EEf7E989d86318ef8E4678A8a5ce79) [delegatecall]
+    Ôöé   Ôöé   Ôö£ÔöÇ [2375] 0x1F98400000000000000000000000000000000004::extsload(0x43130f93cefb7181db6895095719021e5e7989c89e5b438c91887c4bbf051585) [staticcall]
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 0x0000000001f4000000fcf99b000000000000000000033ff70edbfe6f18f5d37e
+    Ôöé   Ôöé   Ôö£ÔöÇ [1428] 0x1F98400000000000000000000000000000000004::modifyLiquidity(PoolKey({ currency0: 0x0000000000000000000000000000000000000000, currency1: 0x078D782b760474a361dDA0AF3839290b0EF57AD6, fee: 500, tickSpacing: 10, hooks: 0x0000000000000000000000000000000000000000 }), ModifyLiquidityParams({ tickLower: -198240 [-1.982e5], tickUpper: -197640 [-1.976e5], liquidityDelta: 103638631291 [1.036e11], salt: 0x0000000000000000000000000000000000000000000000000000000000000000 }), 0x)
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Revert] ManagerLocked()
+    Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Revert] ManagerLocked()
+    Ôöé   ÔööÔöÇ ÔåÉ [Revert] ManagerLocked()
+    ÔööÔöÇ ÔåÉ [Revert] ManagerLocked()
+
+Backtrace:
+  at 0x1F98400000000000000000000000000000000004.modifyLiquidity
+  at 0x83391d5E99301A92C3BE18296EA88FC093aFC067.deployCollateral
+  at 0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8.deployCollateral
+  at LiveDeployCollateralReproTest.test_DeployCollateral_OnExistingLivePosition
+
+Suite result: FAILED. 0 passed; 1 failed; 0 skipped; finished in 623.02ms (429.77ms CPU time)
+
+Ran 1 test suite in 1.18s (623.02ms CPU time): 0 tests passed, 1 failed, 0 skipped (1 total tests)
+
+Failing tests:
+Encountered 1 failing test in src/v4/test/LiveDeployCollateralReproTest.t.sol:LiveDeployCollateralReproTest
+[FAIL: ManagerLocked()] test_DeployCollateral_OnExistingLivePosition() (gas: 103034)
+
+Encountered a total of 1 failing tests, 0 tests succeeded
+
+Tip: Run `forge test --rerun` to retry only the 1 failed test

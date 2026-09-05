@@ -1,0 +1,14 @@
+﻿Compiler run failed:
+Error (2314): Expected ',' but got identifier
+  --> src/v4/test/RehypothecationForkTest.t.sol:94:29:
+   |
+94 |         (,, coll,,, uint160 lsp, tl, tu, liq) = hook.positions(hookKey.toId(), trader);
+   |                             ^^^
+
+forge : Error: Compilation failed
+Au caractère Ligne:1 : 1
++ forge test --match-contract RehypothecationForkTest -vvvv --via-ir 2> ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Error: Compilation failed:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 

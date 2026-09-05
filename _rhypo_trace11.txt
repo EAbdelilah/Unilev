@@ -1,0 +1,809 @@
+﻿Compiling 1 files with Solc 0.8.26
+Solc 0.8.26 finished in 73.25s
+Compiler run successful with warnings:
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> src/v4/EswapMarginHookLogic.sol:484:9:
+    |
+484 |         address liquidator,
+    |         ^^^^^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/EswapMarginHook.sol:590:16:
+    |
+590 |             (, address solver, uint256 solverOutput) = abi.decode(data, (bool, address, uint256));
+    |                ^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> src/v4/EswapMarginHook.sol:968:32:
+    |
+968 |     function rebalancePosition(PoolKey calldata key, address trader) external onlyRouter {
+    |                                ^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> src/v4/EswapMarginHook.sol:968:54:
+    |
+968 |     function rebalancePosition(PoolKey calldata key, address trader) external onlyRouter {
+    |                                                      ^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> src/v4/EswapMarginHook.sol:990:33:
+    |
+990 |     function executeLiquidation(PoolKey calldata key, address trader, uint256 minAmountOut, address liquidator)
+    |                                 ^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> src/v4/EswapMarginHook.sol:990:55:
+    |
+990 |     function executeLiquidation(PoolKey calldata key, address trader, uint256 minAmountOut, address liquidator)
+    |                                                       ^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> src/v4/EswapMarginHook.sol:990:71:
+    |
+990 |     function executeLiquidation(PoolKey calldata key, address trader, uint256 minAmountOut, address liquidator)
+    |                                                                       ^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> src/v4/EswapMarginHook.sol:990:93:
+    |
+990 |     function executeLiquidation(PoolKey calldata key, address trader, uint256 minAmountOut, address liquidator)
+    |                                                                                             ^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1064:31:
+     |
+1064 |     function deployCollateral(PoolKey calldata key, address trader) external onlyRouter {
+     |                               ^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1064:53:
+     |
+1064 |     function deployCollateral(PoolKey calldata key, address trader) external onlyRouter {
+     |                                                     ^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1135:9:
+     |
+1135 |         PoolKey calldata key,
+     |         ^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1136:9:
+     |
+1136 |         address trader,
+     |         ^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1137:9:
+     |
+1137 |         uint8 leverage,
+     |         ^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1138:9:
+     |
+1138 |         uint256 marginAmount,
+     |         ^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1139:9:
+     |
+1139 |         uint256 borrowedAmount,
+     |         ^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1140:9:
+     |
+1140 |         Currency boughtCurrency,
+     |         ^^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1141:9:
+     |
+1141 |         uint256 boughtAmount
+     |         ^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1157:9:
+     |
+1157 |         PoolKey calldata key,
+     |         ^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1158:9:
+     |
+1158 |         address trader,
+     |         ^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1159:9:
+     |
+1159 |         address solver,
+     |         ^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1160:9:
+     |
+1160 |         uint256 minAmountOut
+     |         ^^^^^^^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/RehypothecationForkTest.t.sol:207:17:
+    |
+207 |         (,,,,,, int24 ftl, int24 ftu, uint128 fliq) = hook.positions(hookKey.toId(), trader);
+    |                 ^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/RehypothecationForkTest.t.sol:207:28:
+    |
+207 |         (,,,,,, int24 ftl, int24 ftu, uint128 fliq) = hook.positions(hookKey.toId(), trader);
+    |                            ^^^^^^^^^
+
+Warning (2018): Function state mutability can be restricted to pure
+   --> src/v4/EswapRouter.sol:310:5:
+    |
+310 |     function resolve(CrossChainOrder calldata order, bytes calldata)
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+
+Ran 1 test for src/v4/test/RehypothecationForkTest.t.sol:RehypothecationForkTest
+[FAIL: solver must receive positive LP yield: 172113509498423 <= 172113509498423] test_RhypoOpensBand_AccruesFees_AndPaysSolver() (gas: 6712711)
+Logs:
+  collateral ETH wei: 81396084197552754
+  pos.liquidity: 122951152921376
+  band tickLower: -198240
+  band tickUpper: -197640
+  std tick at open: -198263
+  std tick after push: -197520
+  std tick after cycles: -197520
+  after cycles pliq: 0
+  after cycles feeOwed0(ETH wei): 0
+  after cycles feeOwed1(USDC raw): 0
+  std tick at close: -198481
+  solver ETH before: 172113509498423
+  solver ETH after: 172113509498423
+  final liq: 0
+
+Traces:
+  [736595] RehypothecationForkTest::setUp()
+    Ôö£ÔöÇ [0] VM::envOr("UNICHAIN_RPC_URL", "") [staticcall]
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] <env var value>
+    Ôö£ÔöÇ [0] VM::createSelectFork("<rpc url>")
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] 0
+    Ôö£ÔöÇ [9750] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::balanceOf(0xABC0000000000000000000000000000000000001) [staticcall]
+    Ôöé   Ôö£ÔöÇ [2553] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::balanceOf(0xABC0000000000000000000000000000000000001) [delegatecall]
+    Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 0
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] 0
+    Ôö£ÔöÇ [0] VM::record()
+    Ôöé   ÔööÔöÇ ÔåÉ [Return]
+    Ôö£ÔöÇ [1250] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::balanceOf(0xABC0000000000000000000000000000000000001) [staticcall]
+    Ôöé   Ôö£ÔöÇ [553] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::balanceOf(0xABC0000000000000000000000000000000000001) [delegatecall]
+    Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 0
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] 0
+    Ôö£ÔöÇ [0] VM::accesses(0x078D782b760474a361dDA0AF3839290b0EF57AD6) [staticcall]
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] [0x10d6a54a4754c8869d6886b5f5d7fbfa5b4522237ea5c60d11bc4e7a1ff9390b, 0x7050c9e0f4ca769c69bd3a8ef740bc37934f8e2c036e5a723fd8ee048ed3f8c3, 0xae86fc69d6081fe51fcf2ff48ab9565b5f3f37453bad0a927c296554a368de6c], []
+    Ôö£ÔöÇ [0] VM::load(0x078D782b760474a361dDA0AF3839290b0EF57AD6, 0xae86fc69d6081fe51fcf2ff48ab9565b5f3f37453bad0a927c296554a368de6c) [staticcall]
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] 0x0000000000000000000000000000000000000000000000000000000000000000
+    Ôö£ÔöÇ emit WARNING_UninitedSlot(who: 0x078D782b760474a361dDA0AF3839290b0EF57AD6, slot: 78940935253582619029515689925908703051506075208516540057442094094769833172588 [7.894e76])
+    Ôö£ÔöÇ [0] VM::load(0x078D782b760474a361dDA0AF3839290b0EF57AD6, 0xae86fc69d6081fe51fcf2ff48ab9565b5f3f37453bad0a927c296554a368de6c) [staticcall]
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] 0x0000000000000000000000000000000000000000000000000000000000000000
+    Ôö£ÔöÇ [1250] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::balanceOf(0xABC0000000000000000000000000000000000001) [staticcall]
+    Ôöé   Ôö£ÔöÇ [553] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::balanceOf(0xABC0000000000000000000000000000000000001) [delegatecall]
+    Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 0
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] 0
+    Ôö£ÔöÇ [0] VM::store(0x078D782b760474a361dDA0AF3839290b0EF57AD6, 0xae86fc69d6081fe51fcf2ff48ab9565b5f3f37453bad0a927c296554a368de6c, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff)
+    Ôöé   ÔööÔöÇ ÔåÉ [Return]
+    Ôö£ÔöÇ [1250] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::balanceOf(0xABC0000000000000000000000000000000000001) [staticcall]
+    Ôöé   Ôö£ÔöÇ [553] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::balanceOf(0xABC0000000000000000000000000000000000001) [delegatecall]
+    Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 57896044618658097711785492504343953926634992332820282019728792003956564819967 [5.789e76]
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] 57896044618658097711785492504343953926634992332820282019728792003956564819967 [5.789e76]
+    Ôö£ÔöÇ [0] VM::store(0x078D782b760474a361dDA0AF3839290b0EF57AD6, 0xae86fc69d6081fe51fcf2ff48ab9565b5f3f37453bad0a927c296554a368de6c, 0x0000000000000000000000000000000000000000000000000000000000000000)
+    Ôöé   ÔööÔöÇ ÔåÉ [Return]
+    Ôö£ÔöÇ emit SlotFound(who: 0x078D782b760474a361dDA0AF3839290b0EF57AD6, fsig: 0x70a08231, keysHash: 0x7ade9c6a9ec8d8ecde1e8d1230614fc9ea95b0d6f293b56b878fdb428ec95143, slot: 78940935253582619029515689925908703051506075208516540057442094094769833172588 [7.894e76])
+    Ôö£ÔöÇ [0] VM::load(0x078D782b760474a361dDA0AF3839290b0EF57AD6, 0xae86fc69d6081fe51fcf2ff48ab9565b5f3f37453bad0a927c296554a368de6c) [staticcall]
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] 0x0000000000000000000000000000000000000000000000000000000000000000
+    Ôö£ÔöÇ [0] VM::store(0x078D782b760474a361dDA0AF3839290b0EF57AD6, 0xae86fc69d6081fe51fcf2ff48ab9565b5f3f37453bad0a927c296554a368de6c, 0x000000000000000000000000000000000000000000000000000000174876e800)
+    Ôöé   ÔööÔöÇ ÔåÉ [Return]
+    Ôö£ÔöÇ [1250] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::balanceOf(0xABC0000000000000000000000000000000000001) [staticcall]
+    Ôöé   Ôö£ÔöÇ [553] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::balanceOf(0xABC0000000000000000000000000000000000001) [delegatecall]
+    Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 100000000000 [1e11]
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] 100000000000 [1e11]
+    Ôö£ÔöÇ [3250] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::balanceOf(0x518634753C61342298c3E04326056b3Ce596a566) [staticcall]
+    Ôöé   Ôö£ÔöÇ [2553] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::balanceOf(0x518634753C61342298c3E04326056b3Ce596a566) [delegatecall]
+    Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 287034 [2.87e5]
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] 287034 [2.87e5]
+    Ôö£ÔöÇ [0] VM::record()
+    Ôöé   ÔööÔöÇ ÔåÉ [Return]
+    Ôö£ÔöÇ [1250] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::balanceOf(0x518634753C61342298c3E04326056b3Ce596a566) [staticcall]
+    Ôöé   Ôö£ÔöÇ [553] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::balanceOf(0x518634753C61342298c3E04326056b3Ce596a566) [delegatecall]
+    Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 287034 [2.87e5]
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] 287034 [2.87e5]
+    Ôö£ÔöÇ [0] VM::accesses(0x078D782b760474a361dDA0AF3839290b0EF57AD6) [staticcall]
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] [0x10d6a54a4754c8869d6886b5f5d7fbfa5b4522237ea5c60d11bc4e7a1ff9390b, 0x7050c9e0f4ca769c69bd3a8ef740bc37934f8e2c036e5a723fd8ee048ed3f8c3, 0x9a69daf2b7b87dfba144e4962cc09916a9f64727b3c38f63194caf4c719dcf46], []
+    Ôö£ÔöÇ [0] VM::load(0x078D782b760474a361dDA0AF3839290b0EF57AD6, 0x9a69daf2b7b87dfba144e4962cc09916a9f64727b3c38f63194caf4c719dcf46) [staticcall]
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] 0x000000000000000000000000000000000000000000000000000000000004613a
+    Ôö£ÔöÇ [0] VM::load(0x078D782b760474a361dDA0AF3839290b0EF57AD6, 0x9a69daf2b7b87dfba144e4962cc09916a9f64727b3c38f63194caf4c719dcf46) [staticcall]
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] 0x000000000000000000000000000000000000000000000000000000000004613a
+    Ôö£ÔöÇ [1250] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::balanceOf(0x518634753C61342298c3E04326056b3Ce596a566) [staticcall]
+    Ôöé   Ôö£ÔöÇ [553] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::balanceOf(0x518634753C61342298c3E04326056b3Ce596a566) [delegatecall]
+    Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 287034 [2.87e5]
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] 287034 [2.87e5]
+    Ôö£ÔöÇ [0] VM::store(0x078D782b760474a361dDA0AF3839290b0EF57AD6, 0x9a69daf2b7b87dfba144e4962cc09916a9f64727b3c38f63194caf4c719dcf46, 0x0000000000000000000000000000000000000000000000000000000000000000)
+    Ôöé   ÔööÔöÇ ÔåÉ [Return]
+    Ôö£ÔöÇ [1250] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::balanceOf(0x518634753C61342298c3E04326056b3Ce596a566) [staticcall]
+    Ôöé   Ôö£ÔöÇ [553] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::balanceOf(0x518634753C61342298c3E04326056b3Ce596a566) [delegatecall]
+    Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 0
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] 0
+    Ôö£ÔöÇ [0] VM::store(0x078D782b760474a361dDA0AF3839290b0EF57AD6, 0x9a69daf2b7b87dfba144e4962cc09916a9f64727b3c38f63194caf4c719dcf46, 0x000000000000000000000000000000000000000000000000000000000004613a)
+    Ôöé   ÔööÔöÇ ÔåÉ [Return]
+    Ôö£ÔöÇ emit SlotFound(who: 0x078D782b760474a361dDA0AF3839290b0EF57AD6, fsig: 0x70a08231, keysHash: 0xec07a2002b254d20a7ef27af51440f44bcbbb9c90bcae8b373f823f370a9c0c1, slot: 69843208747983492989203773736289409308440220519410726482387504077390737166150 [6.984e76])
+    Ôö£ÔöÇ [0] VM::load(0x078D782b760474a361dDA0AF3839290b0EF57AD6, 0x9a69daf2b7b87dfba144e4962cc09916a9f64727b3c38f63194caf4c719dcf46) [staticcall]
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] 0x000000000000000000000000000000000000000000000000000000000004613a
+    Ôö£ÔöÇ [0] VM::store(0x078D782b760474a361dDA0AF3839290b0EF57AD6, 0x9a69daf2b7b87dfba144e4962cc09916a9f64727b3c38f63194caf4c719dcf46, 0x000000000000000000000000000000000000000000000000000000174876e800)
+    Ôöé   ÔööÔöÇ ÔåÉ [Return]
+    Ôö£ÔöÇ [1250] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::balanceOf(0x518634753C61342298c3E04326056b3Ce596a566) [staticcall]
+    Ôöé   Ôö£ÔöÇ [553] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::balanceOf(0x518634753C61342298c3E04326056b3Ce596a566) [delegatecall]
+    Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 100000000000 [1e11]
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] 100000000000 [1e11]
+    Ôö£ÔöÇ [3250] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::balanceOf(RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496]) [staticcall]
+    Ôöé   Ôö£ÔöÇ [2553] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::balanceOf(RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496]) [delegatecall]
+    Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 0
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] 0
+    Ôö£ÔöÇ [0] VM::record()
+    Ôöé   ÔööÔöÇ ÔåÉ [Return]
+    Ôö£ÔöÇ [1250] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::balanceOf(RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496]) [staticcall]
+    Ôöé   Ôö£ÔöÇ [553] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::balanceOf(RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496]) [delegatecall]
+    Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 0
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] 0
+    Ôö£ÔöÇ [0] VM::accesses(0x078D782b760474a361dDA0AF3839290b0EF57AD6) [staticcall]
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] [0x10d6a54a4754c8869d6886b5f5d7fbfa5b4522237ea5c60d11bc4e7a1ff9390b, 0x7050c9e0f4ca769c69bd3a8ef740bc37934f8e2c036e5a723fd8ee048ed3f8c3, 0xea80dd88ed2c8da1b3cfa53b6b2568ae58fe83d484d0c01324a62ba1aa9ffdac], []
+    Ôö£ÔöÇ [0] VM::load(0x078D782b760474a361dDA0AF3839290b0EF57AD6, 0xea80dd88ed2c8da1b3cfa53b6b2568ae58fe83d484d0c01324a62ba1aa9ffdac) [staticcall]
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] 0x0000000000000000000000000000000000000000000000000000000000000000
+    Ôö£ÔöÇ emit WARNING_UninitedSlot(who: 0x078D782b760474a361dDA0AF3839290b0EF57AD6, slot: 106068891970248696789493712859882542862066930050875226902812495036911416507820 [1.06e77])
+    Ôö£ÔöÇ [0] VM::load(0x078D782b760474a361dDA0AF3839290b0EF57AD6, 0xea80dd88ed2c8da1b3cfa53b6b2568ae58fe83d484d0c01324a62ba1aa9ffdac) [staticcall]
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] 0x0000000000000000000000000000000000000000000000000000000000000000
+    Ôö£ÔöÇ [1250] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::balanceOf(RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496]) [staticcall]
+    Ôöé   Ôö£ÔöÇ [553] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::balanceOf(RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496]) [delegatecall]
+    Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 0
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] 0
+    Ôö£ÔöÇ [0] VM::store(0x078D782b760474a361dDA0AF3839290b0EF57AD6, 0xea80dd88ed2c8da1b3cfa53b6b2568ae58fe83d484d0c01324a62ba1aa9ffdac, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff)
+    Ôöé   ÔööÔöÇ ÔåÉ [Return]
+    Ôö£ÔöÇ [1250] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::balanceOf(RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496]) [staticcall]
+    Ôöé   Ôö£ÔöÇ [553] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::balanceOf(RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496]) [delegatecall]
+    Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 57896044618658097711785492504343953926634992332820282019728792003956564819967 [5.789e76]
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] 57896044618658097711785492504343953926634992332820282019728792003956564819967 [5.789e76]
+    Ôö£ÔöÇ [0] VM::store(0x078D782b760474a361dDA0AF3839290b0EF57AD6, 0xea80dd88ed2c8da1b3cfa53b6b2568ae58fe83d484d0c01324a62ba1aa9ffdac, 0x0000000000000000000000000000000000000000000000000000000000000000)
+    Ôöé   ÔööÔöÇ ÔåÉ [Return]
+    Ôö£ÔöÇ emit SlotFound(who: 0x078D782b760474a361dDA0AF3839290b0EF57AD6, fsig: 0x70a08231, keysHash: 0x5ff10565516c110180bb9cc111cdbc2b0a68e09ff7fac17290373c3aa4a1bb03, slot: 106068891970248696789493712859882542862066930050875226902812495036911416507820 [1.06e77])
+    Ôö£ÔöÇ [0] VM::load(0x078D782b760474a361dDA0AF3839290b0EF57AD6, 0xea80dd88ed2c8da1b3cfa53b6b2568ae58fe83d484d0c01324a62ba1aa9ffdac) [staticcall]
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] 0x0000000000000000000000000000000000000000000000000000000000000000
+    Ôö£ÔöÇ [0] VM::store(0x078D782b760474a361dDA0AF3839290b0EF57AD6, 0xea80dd88ed2c8da1b3cfa53b6b2568ae58fe83d484d0c01324a62ba1aa9ffdac, 0x00000000000000000000000000000000000000000000000000071afd498d0000)
+    Ôöé   ÔööÔöÇ ÔåÉ [Return]
+    Ôö£ÔöÇ [1250] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::balanceOf(RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496]) [staticcall]
+    Ôöé   Ôö£ÔöÇ [553] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::balanceOf(RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496]) [delegatecall]
+    Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 2000000000000000 [2e15]
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] 2000000000000000 [2e15]
+    Ôö£ÔöÇ [0] VM::prank(0xABC0000000000000000000000000000000000001)
+    Ôöé   ÔööÔöÇ ÔåÉ [Return]
+    Ôö£ÔöÇ [27341] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::approve(0x4c14D923E9A9f64Da6684b77E07B33c76D0B3d60, 115792089237316195423570985008687907853269984665640564039457584007913129639935 [1.157e77])
+    Ôöé   Ôö£ÔöÇ [26673] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::approve(0x4c14D923E9A9f64Da6684b77E07B33c76D0B3d60, 115792089237316195423570985008687907853269984665640564039457584007913129639935 [1.157e77]) [delegatecall]
+    Ôöé   Ôöé   Ôö£ÔöÇ emit Approval(owner: 0xABC0000000000000000000000000000000000001, spender: 0x4c14D923E9A9f64Da6684b77E07B33c76D0B3d60, value: 115792089237316195423570985008687907853269984665640564039457584007913129639935 [1.157e77])
+    Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] true
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] true
+    Ôö£ÔöÇ [0] VM::prank(0x518634753C61342298c3E04326056b3Ce596a566)
+    Ôöé   ÔööÔöÇ ÔåÉ [Return]
+    Ôö£ÔöÇ [8241] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::approve(0x4c14D923E9A9f64Da6684b77E07B33c76D0B3d60, 115792089237316195423570985008687907853269984665640564039457584007913129639935 [1.157e77])
+    Ôöé   Ôö£ÔöÇ [7573] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::approve(0x4c14D923E9A9f64Da6684b77E07B33c76D0B3d60, 115792089237316195423570985008687907853269984665640564039457584007913129639935 [1.157e77]) [delegatecall]
+    Ôöé   Ôöé   Ôö£ÔöÇ emit Approval(owner: 0x518634753C61342298c3E04326056b3Ce596a566, spender: 0x4c14D923E9A9f64Da6684b77E07B33c76D0B3d60, value: 115792089237316195423570985008687907853269984665640564039457584007913129639935 [1.157e77])
+    Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] true
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] true
+    ÔööÔöÇ ÔåÉ [Return]
+
+  [6712711] RehypothecationForkTest::test_RhypoOpensBand_AccruesFees_AndPaysSolver()
+    Ôö£ÔöÇ [0] VM::prank(0xABC0000000000000000000000000000000000001)
+    Ôöé   ÔööÔöÇ ÔåÉ [Return]
+    Ôö£ÔöÇ [748855] 0x4c14D923E9A9f64Da6684b77E07B33c76D0B3d60::swapMultiPool(SwapParams({ key: PoolKey({ currency0: 0x0000000000000000000000000000000000000000, currency1: 0x078D782b760474a361dDA0AF3839290b0EF57AD6, fee: 3000, tickSpacing: 60, hooks: 0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8 }), standardPoolKey: PoolKey({ currency0: 0x0000000000000000000000000000000000000000, currency1: 0x078D782b760474a361dDA0AF3839290b0EF57AD6, fee: 500, tickSpacing: 10, hooks: 0x0000000000000000000000000000000000000000 }), zeroForOne: false, amountSpecified: -100000000 [-1e8], leverage: 2, solver: 0x518634753C61342298c3E04326056b3Ce596a566, hookData: 0x00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000002000000000000000000000000abc0000000000000000000000000000000000001 }))
+    Ôöé   Ôö£ÔöÇ [742425] 0x1F98400000000000000000000000000000000004::unlock(0x00000000000000000000000000000000000000000000000000000000000000070000000000000000000000000000000000000000000000000000000000000060000000000000000000000000abc00000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000078d782b760474a361dda0af3839290b0ef57ad60000000000000000000000000000000000000000000000000000000000000bb8000000000000000000000000000000000000000000000000000000000000003c0000000000000000000000004bd2c1e73d150b65ef88dba247ed60a1538310c80000000000000000000000000000000000000000000000000000000000000000000000000000000000000000078d782b760474a361dda0af3839290b0ef57ad600000000000000000000000000000000000000000000000000000000000001f4000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffa0a1f000000000000000000000000000000000000000000000000000000000000000002000000000000000000000000518634753c61342298c3e04326056b3ce596a56600000000000000000000000000000000000000000000000000000000000001e0000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000002000000000000000000000000abc0000000000000000000000000000000000001)
+    Ôöé   Ôöé   Ôö£ÔöÇ [740342] 0x4c14D923E9A9f64Da6684b77E07B33c76D0B3d60::unlockCallback(0x00000000000000000000000000000000000000000000000000000000000000070000000000000000000000000000000000000000000000000000000000000060000000000000000000000000abc00000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000078d782b760474a361dda0af3839290b0ef57ad60000000000000000000000000000000000000000000000000000000000000bb8000000000000000000000000000000000000000000000000000000000000003c0000000000000000000000004bd2c1e73d150b65ef88dba247ed60a1538310c80000000000000000000000000000000000000000000000000000000000000000000000000000000000000000078d782b760474a361dda0af3839290b0ef57ad600000000000000000000000000000000000000000000000000000000000001f4000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffa0a1f000000000000000000000000000000000000000000000000000000000000000002000000000000000000000000518634753c61342298c3e04326056b3ce596a56600000000000000000000000000000000000000000000000000000000000001e0000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000002000000000000000000000000abc0000000000000000000000000000000000001)
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [28736] 0x1F98400000000000000000000000000000000004::swap(PoolKey({ currency0: 0x0000000000000000000000000000000000000000, currency1: 0x078D782b760474a361dDA0AF3839290b0EF57AD6, fee: 500, tickSpacing: 10, hooks: 0x0000000000000000000000000000000000000000 }), SwapParams({ zeroForOne: false, amountSpecified: -200000000 [-2e8], sqrtPriceLimitX96: 1461446703485210103287273052203988822378723970341 [1.461e48] }), 0x)
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ emit Swap(id: 0x3258f413c7a88cda2fa8709a589d221a80f6574f63df5a5b6774485d8acc39d9, sender: 0x4c14D923E9A9f64Da6684b77E07B33c76D0B3d60, amount0: 81436802598852180 [8.143e16], amount1: -200000000 [-2e8], sqrtPriceX96: 3925371931974962708988165 [3.925e24], liquidity: 168847540487736871 [1.688e17], tick: -198263 [-1.982e5], fee: 500)
+    Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 27711507942810652889697325569079333626769605828694785536 [2.771e55]
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [13623] 0x1F98400000000000000000000000000000000004::sync(0x078D782b760474a361dDA0AF3839290b0EF57AD6)
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [9750] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::balanceOf(0x1F98400000000000000000000000000000000004) [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [2553] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::balanceOf(0x1F98400000000000000000000000000000000004) [delegatecall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 3780258112738 [3.78e12]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 3780258112738 [3.78e12]
+    Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Stop]
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [22828] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::transferFrom(0xABC0000000000000000000000000000000000001, 0x1F98400000000000000000000000000000000004, 100000000 [1e8])
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [22154] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::transferFrom(0xABC0000000000000000000000000000000000001, 0x1F98400000000000000000000000000000000004, 100000000 [1e8]) [delegatecall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ emit Transfer(from: 0xABC0000000000000000000000000000000000001, to: 0x1F98400000000000000000000000000000000004, value: 100000000 [1e8])
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] true
+    Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] true
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [3026] 0x1F98400000000000000000000000000000000004::settle()
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [1250] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::balanceOf(0x1F98400000000000000000000000000000000004) [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [553] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::balanceOf(0x1F98400000000000000000000000000000000004) [delegatecall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 3780358112738 [3.78e12]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 3780358112738 [3.78e12]
+    Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 100000000 [1e8]
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [2623] 0x1F98400000000000000000000000000000000004::sync(0x078D782b760474a361dDA0AF3839290b0EF57AD6)
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [1250] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::balanceOf(0x1F98400000000000000000000000000000000004) [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [553] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::balanceOf(0x1F98400000000000000000000000000000000004) [delegatecall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 3780358112738 [3.78e12]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 3780358112738 [3.78e12]
+    Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Stop]
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [16028] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::transferFrom(0x518634753C61342298c3E04326056b3Ce596a566, 0x1F98400000000000000000000000000000000004, 100000000 [1e8])
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [15354] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::transferFrom(0x518634753C61342298c3E04326056b3Ce596a566, 0x1F98400000000000000000000000000000000004, 100000000 [1e8]) [delegatecall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ emit Transfer(from: 0x518634753C61342298c3E04326056b3Ce596a566, to: 0x1F98400000000000000000000000000000000004, value: 100000000 [1e8])
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] true
+    Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] true
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [3224] 0x1F98400000000000000000000000000000000004::settle()
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [1250] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::balanceOf(0x1F98400000000000000000000000000000000004) [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [553] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::balanceOf(0x1F98400000000000000000000000000000000004) [delegatecall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 3780458112738 [3.78e12]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 3780458112738 [3.78e12]
+    Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 100000000 [1e8]
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [362686] 0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8::registerMarginOpen(PoolKey({ currency0: 0x0000000000000000000000000000000000000000, currency1: 0x078D782b760474a361dDA0AF3839290b0EF57AD6, fee: 3000, tickSpacing: 60, hooks: 0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8 }), 0xABC0000000000000000000000000000000000001, 2, 100000000 [1e8], 100000000 [1e8], 0x0000000000000000000000000000000000000000, 81436802598852180 [8.143e16])
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [355768] 0x83391d5E99301A92C3BE18296EA88FC093aFC067::registerMarginOpen(PoolKey({ currency0: 0x0000000000000000000000000000000000000000, currency1: 0x078D782b760474a361dDA0AF3839290b0EF57AD6, fee: 3000, tickSpacing: 60, hooks: 0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8 }), 0xABC0000000000000000000000000000000000001, 2, 100000000 [1e8], 100000000 [1e8], 0x0000000000000000000000000000000000000000, 81436802598852180 [8.143e16]) [delegatecall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [37656] 0x1a378D64e3497Ca24808A2C5d8f8C350598A162f::collateralOk(0xc245def5317DbcB34e9F153eb3E0388bbc0e69F5, 0x078D782b760474a361dDA0AF3839290b0EF57AD6, 100000000 [1e8], 5000, 10000000000000000 [1e16], 6) [delegatecall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [34233] 0xc245def5317DbcB34e9F153eb3E0388bbc0e69F5::getAmountInUsd(0x078D782b760474a361dDA0AF3839290b0EF57AD6, 100000000 [1e8]) [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [15642] 0xbd1cD1518eFB92a92100da62D4C488c810dFd75b::latestRoundData() [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [7409] 0x608Dd75f9C7097e699D1C20f2b1ae50618503549::latestRoundData() [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 34, 999861915812489300 [9.998e17], 1788559807 [1.788e9], 1788559821 [1.788e9], 34
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 36893488147419103266 [3.689e19], 999861915812489300 [9.998e17], 1788559807 [1.788e9], 1788559821 [1.788e9], 36893488147419103266 [3.689e19]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [3043] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::decimals() [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [2381] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::decimals() [delegatecall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 6
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 6
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 99986191581248930000 [9.998e19]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] true
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [26140] 0xc245def5317DbcB34e9F153eb3E0388bbc0e69F5::getTwapPrice(0x0000000000000000000000000000000000000000) [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [13315] 0xBcE70e194940a157f3A80566505a7E96f5238CCa::latestRoundData() [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [5082] 0x171CD463acAc4305a5db4E70d9fb07F6A6D89af5::latestRoundData() [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 5013, 2454700324377183700000 [2.454e21], 1788535562 [1.788e9], 1788535575 [1.788e9], 5013
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 18446744073709556629 [1.844e19], 2454700324377183700000 [2.454e21], 1788535562 [1.788e9], 1788535575 [1.788e9], 18446744073709556629 [1.844e19]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 2454700324377183700000 [2.454e21]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [5438] 0xc245def5317DbcB34e9F153eb3E0388bbc0e69F5::getTwapPrice(0x078D782b760474a361dDA0AF3839290b0EF57AD6) [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [3142] 0xbd1cD1518eFB92a92100da62D4C488c810dFd75b::latestRoundData() [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [1409] 0x608Dd75f9C7097e699D1C20f2b1ae50618503549::latestRoundData() [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 34, 999861915812489300 [9.998e17], 1788559807 [1.788e9], 1788559821 [1.788e9], 34
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 36893488147419103266 [3.689e19], 999861915812489300 [9.998e17], 1788559807 [1.788e9], 1788559821 [1.788e9], 36893488147419103266 [3.689e19]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 999861915812489300 [9.998e17]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [13154] 0x1a378D64e3497Ca24808A2C5d8f8C350598A162f::checkTwap() [delegatecall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [5140] 0xc245def5317DbcB34e9F153eb3E0388bbc0e69F5::getTwapPrice(0x0000000000000000000000000000000000000000) [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [2815] 0xBcE70e194940a157f3A80566505a7E96f5238CCa::latestRoundData() [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [1082] 0x171CD463acAc4305a5db4E70d9fb07F6A6D89af5::latestRoundData() [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 5013, 2454700324377183700000 [2.454e21], 1788535562 [1.788e9], 1788535575 [1.788e9], 5013
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 18446744073709556629 [1.844e19], 2454700324377183700000 [2.454e21], 1788535562 [1.788e9], 1788535575 [1.788e9], 18446744073709556629 [1.844e19]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 2454700324377183700000 [2.454e21]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [5438] 0xc245def5317DbcB34e9F153eb3E0388bbc0e69F5::getTwapPrice(0x078D782b760474a361dDA0AF3839290b0EF57AD6) [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [3142] 0xbd1cD1518eFB92a92100da62D4C488c810dFd75b::latestRoundData() [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [1409] 0x608Dd75f9C7097e699D1C20f2b1ae50618503549::latestRoundData() [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 34, 999861915812489300 [9.998e17], 1788559807 [1.788e9], 1788559821 [1.788e9], 34
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 36893488147419103266 [3.689e19], 999861915812489300 [9.998e17], 1788559807 [1.788e9], 1788559821 [1.788e9], 36893488147419103266 [3.689e19]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 999861915812489300 [9.998e17]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Stop]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [8683] 0xc245def5317DbcB34e9F153eb3E0388bbc0e69F5::getAmountInUsd(0x0000000000000000000000000000000000000000, 81396084197552754 [8.139e16]) [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [2815] 0xBcE70e194940a157f3A80566505a7E96f5238CCa::latestRoundData() [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [1082] 0x171CD463acAc4305a5db4E70d9fb07F6A6D89af5::latestRoundData() [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 5013, 2454700324377183700000 [2.454e21], 1788535562 [1.788e9], 1788535575 [1.788e9], 5013
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 18446744073709556629 [1.844e19], 2454700324377183700000 [2.454e21], 1788535562 [1.788e9], 1788535575 [1.788e9], 18446744073709556629 [1.844e19]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [271] 0x4200000000000000000000000000000000000006::decimals() [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 18
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 199802994282765301454 [1.998e20]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [7233] 0xc245def5317DbcB34e9F153eb3E0388bbc0e69F5::getAmountInUsd(0x078D782b760474a361dDA0AF3839290b0EF57AD6, 100000000 [1e8]) [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [3142] 0xbd1cD1518eFB92a92100da62D4C488c810dFd75b::latestRoundData() [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [1409] 0x608Dd75f9C7097e699D1C20f2b1ae50618503549::latestRoundData() [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 34, 999861915812489300 [9.998e17], 1788559807 [1.788e9], 1788559821 [1.788e9], 34
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 36893488147419103266 [3.689e19], 999861915812489300 [9.998e17], 1788559807 [1.788e9], 1788559821 [1.788e9], 36893488147419103266 [3.689e19]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [1043] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::decimals() [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [381] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::decimals() [delegatecall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 6
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 6
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 99986191581248930000 [9.998e19]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ emit MultiPoolMarginOpened(poolId: 0x7ccf282d5a9a40ee2209954e91d0b331898e816b4166cf07e0a38fe9a42cb9ff, trader: 0xABC0000000000000000000000000000000000001, leverage: 2, marginAmount: 100000000 [1e8], boughtAmount: 81436802598852180 [8.143e16])
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Stop]
+    Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return]
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [8190] 0x1F98400000000000000000000000000000000004::take(0x0000000000000000000000000000000000000000, 0x4c14D923E9A9f64Da6684b77E07B33c76D0B3d60, 81436802598852180 [8.143e16])
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [62] 0x4c14D923E9A9f64Da6684b77E07B33c76D0B3d60::fallback{value: 81436802598852180}()
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Stop]
+    Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Stop]
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [8935] 0x1F98400000000000000000000000000000000004::mint(0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8, 0, 81436802598852180 [8.143e16])
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ emit Transfer(caller: 0x4c14D923E9A9f64Da6684b77E07B33c76D0B3d60, from: 0x0000000000000000000000000000000000000000, to: 0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8, id: 0, amount: 81436802598852180 [8.143e16])
+    Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Stop]
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [853] 0x1F98400000000000000000000000000000000004::sync(0x0000000000000000000000000000000000000000)
+    Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Stop]
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [1273] 0x1F98400000000000000000000000000000000004::settle{value: 81436802598852180}()
+    Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 81436802598852180 [8.143e16]
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [71045] 0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8::registerSolverDebt(0x7ccf282d5a9a40ee2209954e91d0b331898e816b4166cf07e0a38fe9a42cb9ff, 0xABC0000000000000000000000000000000000001, 0x518634753C61342298c3E04326056b3Ce596a566, 100000000 [1e8])
+    Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Stop]
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [172430] 0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8::deployCollateral(PoolKey({ currency0: 0x0000000000000000000000000000000000000000, currency1: 0x078D782b760474a361dDA0AF3839290b0EF57AD6, fee: 3000, tickSpacing: 60, hooks: 0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8 }), 0xABC0000000000000000000000000000000000001)
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [171618] 0x83391d5E99301A92C3BE18296EA88FC093aFC067::deployCollateral(PoolKey({ currency0: 0x0000000000000000000000000000000000000000, currency1: 0x078D782b760474a361dDA0AF3839290b0EF57AD6, fee: 3000, tickSpacing: 60, hooks: 0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8 }), 0xABC0000000000000000000000000000000000001) [delegatecall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [375] 0x1F98400000000000000000000000000000000004::extsload(0x43130f93cefb7181db6895095719021e5e7989c89e5b438c91887c4bbf051585) [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 0x0000000001f4000000fcf989000000000000000000033f3ad6bd1b6450dfc105
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [95907] 0x1F98400000000000000000000000000000000004::modifyLiquidity(PoolKey({ currency0: 0x0000000000000000000000000000000000000000, currency1: 0x078D782b760474a361dDA0AF3839290b0EF57AD6, fee: 500, tickSpacing: 10, hooks: 0x0000000000000000000000000000000000000000 }), ModifyLiquidityParams({ tickLower: -198240 [-1.982e5], tickUpper: -197640 [-1.976e5], liquidityDelta: 122951152921376 [1.229e14], salt: 0x0000000000000000000000000000000000000000000000000000000000000000 }), 0x)
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ emit ModifyLiquidity(id: 0x3258f413c7a88cda2fa8709a589d221a80f6574f63df5a5b6774485d8acc39d9, sender: 0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8, tickLower: -198240 [-1.982e5], tickUpper: -197640 [-1.976e5], liquidityDelta: 122951152921376 [1.229e14], salt: 0x0000000000000000000000000000000000000000000000000000000000000000)
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] -24927886969955211392168061394028968157868526794610573312 [-2.492e55], 0
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [438] 0x1F98400000000000000000000000000000000004::balanceOf(0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8, 0) [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 81438384748032503 [8.143e16]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [4717] 0x1F98400000000000000000000000000000000004::burn(0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8, 0, 73256475777797152 [7.325e16])
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ emit Transfer(caller: 0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8, from: 0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8, to: 0x0000000000000000000000000000000000000000, id: 0, amount: 73256475777797152 [7.325e16])
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Stop]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Stop]
+    Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return]
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 0x0000000000000000012152572a8c5654fffffffffffffffffffffffff4143e00
+    Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 0x0000000000000000012152572a8c5654fffffffffffffffffffffffff4143e00
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] 0x0000000000000000012152572a8c5654fffffffffffffffffffffffff4143e00
+    Ôö£ÔöÇ [1590] 0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8::positions(0x7ccf282d5a9a40ee2209954e91d0b331898e816b4166cf07e0a38fe9a42cb9ff, 0xABC0000000000000000000000000000000000001) [staticcall]
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] 0xABC0000000000000000000000000000000000001, 81396084197552754 [8.139e16], 100000000 [1e8], 2, true, 0, -198240 [-1.982e5], -197640 [-1.976e5], 122951152921376 [1.229e14]
+    Ôö£ÔöÇ emit log_named_uint(key: "collateral ETH wei", val: 81396084197552754 [8.139e16])
+    Ôö£ÔöÇ emit log_named_uint(key: "pos.liquidity", val: 122951152921376 [1.229e14])
+    Ôö£ÔöÇ emit log_named_int(key: "band tickLower", val: -198240 [-1.982e5])
+    Ôö£ÔöÇ emit log_named_int(key: "band tickUpper", val: -197640 [-1.976e5])
+    Ôö£ÔöÇ [375] 0x1F98400000000000000000000000000000000004::extsload(0x43130f93cefb7181db6895095719021e5e7989c89e5b438c91887c4bbf051585) [staticcall]
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] 0x0000000001f4000000fcf989000000000000000000033f3ad6bd1b6450dfc105
+    Ôö£ÔöÇ emit log_named_int(key: "std tick at open", val: -198263 [-1.982e5])
+    Ôö£ÔöÇ [1268697] 0x1F98400000000000000000000000000000000004::unlock(0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000012309ce54000000000000000000000000000000000000000000000035eaa2a884fcddea13f67)
+    Ôöé   Ôö£ÔöÇ [1266738] RehypothecationForkTest::unlockCallback(0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000012309ce54000000000000000000000000000000000000000000000035eaa2a884fcddea13f67)
+    Ôöé   Ôöé   Ôö£ÔöÇ [1236185] 0x1F98400000000000000000000000000000000004::swap(PoolKey({ currency0: 0x0000000000000000000000000000000000000000, currency1: 0x078D782b760474a361dDA0AF3839290b0EF57AD6, fee: 500, tickSpacing: 10, hooks: 0x0000000000000000000000000000000000000000 }), SwapParams({ zeroForOne: false, amountSpecified: -20000000000000 [-2e13], sqrtPriceLimitX96: 4073818919513456845602663 [4.073e24] }), 0x)
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ emit Swap(id: 0x3258f413c7a88cda2fa8709a589d221a80f6574f63df5a5b6774485d8acc39d9, sender: RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], amount0: 76019767519635544732 [7.601e19], amount1: -193709629263 [-1.937e11], sqrtPriceX96: 4073818919513456845602663 [4.073e24], liquidity: 99086452580207747 [9.908e16], tick: -197520 [-1.975e5], fee: 500)
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 25868186424361062511820189096042169760138755441137981431985 [2.586e58]
+    Ôöé   Ôöé   Ôö£ÔöÇ [8190] 0x1F98400000000000000000000000000000000004::take(0x0000000000000000000000000000000000000000, RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], 76019767519635544732 [7.601e19])
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [62] RehypothecationForkTest::receive{value: 76019767519635544732}()
+    Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Stop]
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Stop]
+    Ôöé   Ôöé   Ôö£ÔöÇ [3250] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::balanceOf(RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496]) [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [2553] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::balanceOf(RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496]) [delegatecall]
+    Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 2000000000000000 [2e15]
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 2000000000000000 [2e15]
+    Ôöé   Ôöé   Ôö£ÔöÇ [2623] 0x1F98400000000000000000000000000000000004::sync(0x078D782b760474a361dDA0AF3839290b0EF57AD6)
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [1250] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::balanceOf(0x1F98400000000000000000000000000000000004) [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [553] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::balanceOf(0x1F98400000000000000000000000000000000004) [delegatecall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 3780458112738 [3.78e12]
+    Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 3780458112738 [3.78e12]
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Stop]
+    Ôöé   Ôöé   Ôö£ÔöÇ [8163] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::transfer(0x1F98400000000000000000000000000000000004, 193709629263 [1.937e11])
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [7463] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::transfer(0x1F98400000000000000000000000000000000004, 193709629263 [1.937e11]) [delegatecall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ emit Transfer(from: RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], to: 0x1F98400000000000000000000000000000000004, value: 193709629263 [1.937e11])
+    Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] true
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] true
+    Ôöé   Ôöé   Ôö£ÔöÇ [3224] 0x1F98400000000000000000000000000000000004::settle()
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [1250] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::balanceOf(0x1F98400000000000000000000000000000000004) [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [553] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::balanceOf(0x1F98400000000000000000000000000000000004) [delegatecall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 3974167742001 [3.974e12]
+    Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 3974167742001 [3.974e12]
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 193709629263 [1.937e11]
+    Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 0x
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] 0x
+    Ôö£ÔöÇ [375] 0x1F98400000000000000000000000000000000004::extsload(0x43130f93cefb7181db6895095719021e5e7989c89e5b438c91887c4bbf051585) [staticcall]
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] 0x0000000001f4000000fcfc70000000000000000000035eaa2a884fcddea13f67
+    Ôö£ÔöÇ emit log_named_int(key: "std tick after push", val: -197520 [-1.975e5])
+    Ôö£ÔöÇ [0] VM::deal(RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], 340282366920938463463374607431768211455 [3.402e38])
+    Ôöé   ÔööÔöÇ ÔåÉ [Return]
+    Ôö£ÔöÇ [677902] 0x1F98400000000000000000000000000000000004::unlock(0x00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000878678326eac90000000000000000000000000000000000000000000000003363ca2a3a9b1587202ea)
+    Ôöé   Ôö£ÔöÇ [675943] RehypothecationForkTest::unlockCallback(0x00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000878678326eac90000000000000000000000000000000000000000000000003363ca2a3a9b1587202ea)
+    Ôöé   Ôöé   Ôö£ÔöÇ [657418] 0x1F98400000000000000000000000000000000004::swap(PoolKey({ currency0: 0x0000000000000000000000000000000000000000, currency1: 0x078D782b760474a361dDA0AF3839290b0EF57AD6, fee: 500, tickSpacing: 10, hooks: 0x0000000000000000000000000000000000000000 }), SwapParams({ zeroForOne: true, amountSpecified: -2500000000000000000000 [-2.5e21], sqrtPriceLimitX96: 3882903772960505445090026 [3.882e24] }), 0x)
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ emit Swap(id: 0x3258f413c7a88cda2fa8709a589d221a80f6574f63df5a5b6774485d8acc39d9, sender: RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], amount0: -98284867318754166249 [-9.828e19], amount1: 247612963592 [2.476e11], sqrtPriceX96: 3882903772960505445090026 [3.882e24], liquidity: 88169102746874587 [8.816e16], tick: -198481 [-1.984e5], fee: 500)
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] -33444607283736058553802169884511672177651791750231597384952 [-3.344e58]
+    Ôöé   Ôöé   Ôö£ÔöÇ [6936] 0x1F98400000000000000000000000000000000004::take(0x078D782b760474a361dDA0AF3839290b0EF57AD6, RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], 247612963592 [2.476e11])
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [5363] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::transfer(RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], 247612963592 [2.476e11])
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [4663] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::transfer(RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], 247612963592 [2.476e11]) [delegatecall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ emit Transfer(from: 0x1F98400000000000000000000000000000000004, to: RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], value: 247612963592 [2.476e11])
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] true
+    Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] true
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Stop]
+    Ôöé   Ôöé   Ôö£ÔöÇ [1273] 0x1F98400000000000000000000000000000000004::settle{value: 98284867318754166249}()
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 98284867318754166249 [9.828e19]
+    Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 0x
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] 0x
+    Ôö£ÔöÇ [473155] 0x1F98400000000000000000000000000000000004::unlock(0x000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000246139ca800000000000000000000000000000000000000000000035eaa2a884fcddea13f67)
+    Ôöé   Ôö£ÔöÇ [471196] RehypothecationForkTest::unlockCallback(0x000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000246139ca800000000000000000000000000000000000000000000035eaa2a884fcddea13f67)
+    Ôöé   Ôöé   Ôö£ÔöÇ [445443] 0x1F98400000000000000000000000000000000004::swap(PoolKey({ currency0: 0x0000000000000000000000000000000000000000, currency1: 0x078D782b760474a361dDA0AF3839290b0EF57AD6, fee: 500, tickSpacing: 10, hooks: 0x0000000000000000000000000000000000000000 }), SwapParams({ zeroForOne: false, amountSpecified: -2500000000000 [-2.5e12], sqrtPriceLimitX96: 4073818919513456845602663 [4.073e24] }), 0x)
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ emit Swap(id: 0x3258f413c7a88cda2fa8709a589d221a80f6574f63df5a5b6774485d8acc39d9, sender: RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], amount0: 98235724885094789030 [9.823e19], amount1: -247736832146 [-2.477e11], sqrtPriceX96: 4073818919513456845602663 [4.073e24], liquidity: 99086452580207747 [9.908e16], tick: -197520 [-1.975e5], fee: 500)
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 33427884980094190478629514419924380612708583989692780506990 [3.342e58]
+    Ôöé   Ôöé   Ôö£ÔöÇ [8190] 0x1F98400000000000000000000000000000000004::take(0x0000000000000000000000000000000000000000, RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], 98235724885094789030 [9.823e19])
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [62] RehypothecationForkTest::receive{value: 98235724885094789030}()
+    Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Stop]
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Stop]
+    Ôöé   Ôöé   Ôö£ÔöÇ [1250] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::balanceOf(RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496]) [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [553] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::balanceOf(RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496]) [delegatecall]
+    Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 2000053903334329 [2e15]
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 2000053903334329 [2e15]
+    Ôöé   Ôöé   Ôö£ÔöÇ [2623] 0x1F98400000000000000000000000000000000004::sync(0x078D782b760474a361dDA0AF3839290b0EF57AD6)
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [1250] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::balanceOf(0x1F98400000000000000000000000000000000004) [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [553] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::balanceOf(0x1F98400000000000000000000000000000000004) [delegatecall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 3726554778409 [3.726e12]
+    Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 3726554778409 [3.726e12]
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Stop]
+    Ôöé   Ôöé   Ôö£ÔöÇ [5363] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::transfer(0x1F98400000000000000000000000000000000004, 247736832146 [2.477e11])
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [4663] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::transfer(0x1F98400000000000000000000000000000000004, 247736832146 [2.477e11]) [delegatecall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ emit Transfer(from: RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], to: 0x1F98400000000000000000000000000000000004, value: 247736832146 [2.477e11])
+    Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] true
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] true
+    Ôöé   Ôöé   Ôö£ÔöÇ [3224] 0x1F98400000000000000000000000000000000004::settle()
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [1250] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::balanceOf(0x1F98400000000000000000000000000000000004) [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [553] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::balanceOf(0x1F98400000000000000000000000000000000004) [delegatecall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 3974291610555 [3.974e12]
+    Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 3974291610555 [3.974e12]
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 247736832146 [2.477e11]
+    Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 0x
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] 0x
+    Ôö£ÔöÇ [0] VM::deal(RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], 340282366920938463463374607431768211455 [3.402e38])
+    Ôöé   ÔööÔöÇ ÔåÉ [Return]
+    Ôö£ÔöÇ [471902] 0x1F98400000000000000000000000000000000004::unlock(0x00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000878678326eac90000000000000000000000000000000000000000000000003363ca2a3a9b1587202ea)
+    Ôöé   Ôö£ÔöÇ [469943] RehypothecationForkTest::unlockCallback(0x00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000878678326eac90000000000000000000000000000000000000000000000003363ca2a3a9b1587202ea)
+    Ôöé   Ôöé   Ôö£ÔöÇ [451418] 0x1F98400000000000000000000000000000000004::swap(PoolKey({ currency0: 0x0000000000000000000000000000000000000000, currency1: 0x078D782b760474a361dDA0AF3839290b0EF57AD6, fee: 500, tickSpacing: 10, hooks: 0x0000000000000000000000000000000000000000 }), SwapParams({ zeroForOne: true, amountSpecified: -2500000000000000000000 [-2.5e21], sqrtPriceLimitX96: 3882903772960505445090026 [3.882e24] }), 0x)
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ emit Swap(id: 0x3258f413c7a88cda2fa8709a589d221a80f6574f63df5a5b6774485d8acc39d9, sender: RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], amount0: -98284867318754166249 [-9.828e19], amount1: 247612963592 [2.476e11], sqrtPriceX96: 3882903772960505445090026 [3.882e24], liquidity: 88169102746874587 [8.816e16], tick: -198481 [-1.984e5], fee: 500)
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] -33444607283736058553802169884511672177651791750231597384952 [-3.344e58]
+    Ôöé   Ôöé   Ôö£ÔöÇ [6936] 0x1F98400000000000000000000000000000000004::take(0x078D782b760474a361dDA0AF3839290b0EF57AD6, RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], 247612963592 [2.476e11])
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [5363] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::transfer(RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], 247612963592 [2.476e11])
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [4663] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::transfer(RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], 247612963592 [2.476e11]) [delegatecall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ emit Transfer(from: 0x1F98400000000000000000000000000000000004, to: RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], value: 247612963592 [2.476e11])
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] true
+    Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] true
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Stop]
+    Ôöé   Ôöé   Ôö£ÔöÇ [1273] 0x1F98400000000000000000000000000000000004::settle{value: 98284867318754166249}()
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 98284867318754166249 [9.828e19]
+    Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 0x
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] 0x
+    Ôö£ÔöÇ [473155] 0x1F98400000000000000000000000000000000004::unlock(0x000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000246139ca800000000000000000000000000000000000000000000035eaa2a884fcddea13f67)
+    Ôöé   Ôö£ÔöÇ [471196] RehypothecationForkTest::unlockCallback(0x000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000246139ca800000000000000000000000000000000000000000000035eaa2a884fcddea13f67)
+    Ôöé   Ôöé   Ôö£ÔöÇ [445443] 0x1F98400000000000000000000000000000000004::swap(PoolKey({ currency0: 0x0000000000000000000000000000000000000000, currency1: 0x078D782b760474a361dDA0AF3839290b0EF57AD6, fee: 500, tickSpacing: 10, hooks: 0x0000000000000000000000000000000000000000 }), SwapParams({ zeroForOne: false, amountSpecified: -2500000000000 [-2.5e12], sqrtPriceLimitX96: 4073818919513456845602663 [4.073e24] }), 0x)
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ emit Swap(id: 0x3258f413c7a88cda2fa8709a589d221a80f6574f63df5a5b6774485d8acc39d9, sender: RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], amount0: 98235724885094789030 [9.823e19], amount1: -247736832146 [-2.477e11], sqrtPriceX96: 4073818919513456845602663 [4.073e24], liquidity: 99086452580207747 [9.908e16], tick: -197520 [-1.975e5], fee: 500)
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 33427884980094190478629514419924380612708583989692780506990 [3.342e58]
+    Ôöé   Ôöé   Ôö£ÔöÇ [8190] 0x1F98400000000000000000000000000000000004::take(0x0000000000000000000000000000000000000000, RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], 98235724885094789030 [9.823e19])
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [62] RehypothecationForkTest::receive{value: 98235724885094789030}()
+    Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Stop]
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Stop]
+    Ôöé   Ôöé   Ôö£ÔöÇ [1250] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::balanceOf(RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496]) [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [553] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::balanceOf(RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496]) [delegatecall]
+    Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 2000053779465775 [2e15]
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 2000053779465775 [2e15]
+    Ôöé   Ôöé   Ôö£ÔöÇ [2623] 0x1F98400000000000000000000000000000000004::sync(0x078D782b760474a361dDA0AF3839290b0EF57AD6)
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [1250] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::balanceOf(0x1F98400000000000000000000000000000000004) [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [553] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::balanceOf(0x1F98400000000000000000000000000000000004) [delegatecall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 3726678646963 [3.726e12]
+    Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 3726678646963 [3.726e12]
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Stop]
+    Ôöé   Ôöé   Ôö£ÔöÇ [5363] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::transfer(0x1F98400000000000000000000000000000000004, 247736832146 [2.477e11])
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [4663] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::transfer(0x1F98400000000000000000000000000000000004, 247736832146 [2.477e11]) [delegatecall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ emit Transfer(from: RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], to: 0x1F98400000000000000000000000000000000004, value: 247736832146 [2.477e11])
+    Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] true
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] true
+    Ôöé   Ôöé   Ôö£ÔöÇ [3224] 0x1F98400000000000000000000000000000000004::settle()
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [1250] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::balanceOf(0x1F98400000000000000000000000000000000004) [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [553] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::balanceOf(0x1F98400000000000000000000000000000000004) [delegatecall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 3974415479109 [3.974e12]
+    Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 3974415479109 [3.974e12]
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 247736832146 [2.477e11]
+    Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 0x
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] 0x
+    Ôö£ÔöÇ [0] VM::deal(RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], 340282366920938463463374607431768211455 [3.402e38])
+    Ôöé   ÔööÔöÇ ÔåÉ [Return]
+    Ôö£ÔöÇ [471902] 0x1F98400000000000000000000000000000000004::unlock(0x00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000878678326eac90000000000000000000000000000000000000000000000003363ca2a3a9b1587202ea)
+    Ôöé   Ôö£ÔöÇ [469943] RehypothecationForkTest::unlockCallback(0x00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000878678326eac90000000000000000000000000000000000000000000000003363ca2a3a9b1587202ea)
+    Ôöé   Ôöé   Ôö£ÔöÇ [451418] 0x1F98400000000000000000000000000000000004::swap(PoolKey({ currency0: 0x0000000000000000000000000000000000000000, currency1: 0x078D782b760474a361dDA0AF3839290b0EF57AD6, fee: 500, tickSpacing: 10, hooks: 0x0000000000000000000000000000000000000000 }), SwapParams({ zeroForOne: true, amountSpecified: -2500000000000000000000 [-2.5e21], sqrtPriceLimitX96: 3882903772960505445090026 [3.882e24] }), 0x)
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ emit Swap(id: 0x3258f413c7a88cda2fa8709a589d221a80f6574f63df5a5b6774485d8acc39d9, sender: RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], amount0: -98284867318754166249 [-9.828e19], amount1: 247612963592 [2.476e11], sqrtPriceX96: 3882903772960505445090026 [3.882e24], liquidity: 88169102746874587 [8.816e16], tick: -198481 [-1.984e5], fee: 500)
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] -33444607283736058553802169884511672177651791750231597384952 [-3.344e58]
+    Ôöé   Ôöé   Ôö£ÔöÇ [6936] 0x1F98400000000000000000000000000000000004::take(0x078D782b760474a361dDA0AF3839290b0EF57AD6, RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], 247612963592 [2.476e11])
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [5363] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::transfer(RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], 247612963592 [2.476e11])
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [4663] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::transfer(RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], 247612963592 [2.476e11]) [delegatecall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ emit Transfer(from: 0x1F98400000000000000000000000000000000004, to: RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], value: 247612963592 [2.476e11])
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] true
+    Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] true
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Stop]
+    Ôöé   Ôöé   Ôö£ÔöÇ [1273] 0x1F98400000000000000000000000000000000004::settle{value: 98284867318754166249}()
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 98284867318754166249 [9.828e19]
+    Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 0x
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] 0x
+    Ôö£ÔöÇ [473155] 0x1F98400000000000000000000000000000000004::unlock(0x000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000246139ca800000000000000000000000000000000000000000000035eaa2a884fcddea13f67)
+    Ôöé   Ôö£ÔöÇ [471196] RehypothecationForkTest::unlockCallback(0x000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000246139ca800000000000000000000000000000000000000000000035eaa2a884fcddea13f67)
+    Ôöé   Ôöé   Ôö£ÔöÇ [445443] 0x1F98400000000000000000000000000000000004::swap(PoolKey({ currency0: 0x0000000000000000000000000000000000000000, currency1: 0x078D782b760474a361dDA0AF3839290b0EF57AD6, fee: 500, tickSpacing: 10, hooks: 0x0000000000000000000000000000000000000000 }), SwapParams({ zeroForOne: false, amountSpecified: -2500000000000 [-2.5e12], sqrtPriceLimitX96: 4073818919513456845602663 [4.073e24] }), 0x)
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ emit Swap(id: 0x3258f413c7a88cda2fa8709a589d221a80f6574f63df5a5b6774485d8acc39d9, sender: RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], amount0: 98235724885094789030 [9.823e19], amount1: -247736832146 [-2.477e11], sqrtPriceX96: 4073818919513456845602663 [4.073e24], liquidity: 99086452580207747 [9.908e16], tick: -197520 [-1.975e5], fee: 500)
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 33427884980094190478629514419924380612708583989692780506990 [3.342e58]
+    Ôöé   Ôöé   Ôö£ÔöÇ [8190] 0x1F98400000000000000000000000000000000004::take(0x0000000000000000000000000000000000000000, RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], 98235724885094789030 [9.823e19])
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [62] RehypothecationForkTest::receive{value: 98235724885094789030}()
+    Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Stop]
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Stop]
+    Ôöé   Ôöé   Ôö£ÔöÇ [1250] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::balanceOf(RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496]) [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [553] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::balanceOf(RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496]) [delegatecall]
+    Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 2000053655597221 [2e15]
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 2000053655597221 [2e15]
+    Ôöé   Ôöé   Ôö£ÔöÇ [2623] 0x1F98400000000000000000000000000000000004::sync(0x078D782b760474a361dDA0AF3839290b0EF57AD6)
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [1250] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::balanceOf(0x1F98400000000000000000000000000000000004) [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [553] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::balanceOf(0x1F98400000000000000000000000000000000004) [delegatecall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 3726802515517 [3.726e12]
+    Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 3726802515517 [3.726e12]
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Stop]
+    Ôöé   Ôöé   Ôö£ÔöÇ [5363] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::transfer(0x1F98400000000000000000000000000000000004, 247736832146 [2.477e11])
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [4663] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::transfer(0x1F98400000000000000000000000000000000004, 247736832146 [2.477e11]) [delegatecall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ emit Transfer(from: RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], to: 0x1F98400000000000000000000000000000000004, value: 247736832146 [2.477e11])
+    Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] true
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] true
+    Ôöé   Ôöé   Ôö£ÔöÇ [3224] 0x1F98400000000000000000000000000000000004::settle()
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [1250] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::balanceOf(0x1F98400000000000000000000000000000000004) [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [553] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::balanceOf(0x1F98400000000000000000000000000000000004) [delegatecall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 3974539347663 [3.974e12]
+    Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 3974539347663 [3.974e12]
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 247736832146 [2.477e11]
+    Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 0x
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] 0x
+    Ôö£ÔöÇ [0] VM::deal(RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], 340282366920938463463374607431768211455 [3.402e38])
+    Ôöé   ÔööÔöÇ ÔåÉ [Return]
+    Ôö£ÔöÇ [471902] 0x1F98400000000000000000000000000000000004::unlock(0x00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000878678326eac90000000000000000000000000000000000000000000000003363ca2a3a9b1587202ea)
+    Ôöé   Ôö£ÔöÇ [469943] RehypothecationForkTest::unlockCallback(0x00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000878678326eac90000000000000000000000000000000000000000000000003363ca2a3a9b1587202ea)
+    Ôöé   Ôöé   Ôö£ÔöÇ [451418] 0x1F98400000000000000000000000000000000004::swap(PoolKey({ currency0: 0x0000000000000000000000000000000000000000, currency1: 0x078D782b760474a361dDA0AF3839290b0EF57AD6, fee: 500, tickSpacing: 10, hooks: 0x0000000000000000000000000000000000000000 }), SwapParams({ zeroForOne: true, amountSpecified: -2500000000000000000000 [-2.5e21], sqrtPriceLimitX96: 3882903772960505445090026 [3.882e24] }), 0x)
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ emit Swap(id: 0x3258f413c7a88cda2fa8709a589d221a80f6574f63df5a5b6774485d8acc39d9, sender: RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], amount0: -98284867318754166249 [-9.828e19], amount1: 247612963592 [2.476e11], sqrtPriceX96: 3882903772960505445090026 [3.882e24], liquidity: 88169102746874587 [8.816e16], tick: -198481 [-1.984e5], fee: 500)
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] -33444607283736058553802169884511672177651791750231597384952 [-3.344e58]
+    Ôöé   Ôöé   Ôö£ÔöÇ [6936] 0x1F98400000000000000000000000000000000004::take(0x078D782b760474a361dDA0AF3839290b0EF57AD6, RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], 247612963592 [2.476e11])
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [5363] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::transfer(RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], 247612963592 [2.476e11])
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [4663] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::transfer(RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], 247612963592 [2.476e11]) [delegatecall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ emit Transfer(from: 0x1F98400000000000000000000000000000000004, to: RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], value: 247612963592 [2.476e11])
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] true
+    Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] true
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Stop]
+    Ôöé   Ôöé   Ôö£ÔöÇ [1273] 0x1F98400000000000000000000000000000000004::settle{value: 98284867318754166249}()
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 98284867318754166249 [9.828e19]
+    Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 0x
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] 0x
+    Ôö£ÔöÇ [473155] 0x1F98400000000000000000000000000000000004::unlock(0x000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000246139ca800000000000000000000000000000000000000000000035eaa2a884fcddea13f67)
+    Ôöé   Ôö£ÔöÇ [471196] RehypothecationForkTest::unlockCallback(0x000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000246139ca800000000000000000000000000000000000000000000035eaa2a884fcddea13f67)
+    Ôöé   Ôöé   Ôö£ÔöÇ [445443] 0x1F98400000000000000000000000000000000004::swap(PoolKey({ currency0: 0x0000000000000000000000000000000000000000, currency1: 0x078D782b760474a361dDA0AF3839290b0EF57AD6, fee: 500, tickSpacing: 10, hooks: 0x0000000000000000000000000000000000000000 }), SwapParams({ zeroForOne: false, amountSpecified: -2500000000000 [-2.5e12], sqrtPriceLimitX96: 4073818919513456845602663 [4.073e24] }), 0x)
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ emit Swap(id: 0x3258f413c7a88cda2fa8709a589d221a80f6574f63df5a5b6774485d8acc39d9, sender: RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], amount0: 98235724885094789030 [9.823e19], amount1: -247736832146 [-2.477e11], sqrtPriceX96: 4073818919513456845602663 [4.073e24], liquidity: 99086452580207747 [9.908e16], tick: -197520 [-1.975e5], fee: 500)
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 33427884980094190478629514419924380612708583989692780506990 [3.342e58]
+    Ôöé   Ôöé   Ôö£ÔöÇ [8190] 0x1F98400000000000000000000000000000000004::take(0x0000000000000000000000000000000000000000, RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], 98235724885094789030 [9.823e19])
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [62] RehypothecationForkTest::receive{value: 98235724885094789030}()
+    Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Stop]
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Stop]
+    Ôöé   Ôöé   Ôö£ÔöÇ [1250] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::balanceOf(RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496]) [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [553] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::balanceOf(RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496]) [delegatecall]
+    Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 2000053531728667 [2e15]
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 2000053531728667 [2e15]
+    Ôöé   Ôöé   Ôö£ÔöÇ [2623] 0x1F98400000000000000000000000000000000004::sync(0x078D782b760474a361dDA0AF3839290b0EF57AD6)
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [1250] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::balanceOf(0x1F98400000000000000000000000000000000004) [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [553] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::balanceOf(0x1F98400000000000000000000000000000000004) [delegatecall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 3726926384071 [3.726e12]
+    Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 3726926384071 [3.726e12]
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Stop]
+    Ôöé   Ôöé   Ôö£ÔöÇ [5363] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::transfer(0x1F98400000000000000000000000000000000004, 247736832146 [2.477e11])
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [4663] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::transfer(0x1F98400000000000000000000000000000000004, 247736832146 [2.477e11]) [delegatecall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ emit Transfer(from: RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], to: 0x1F98400000000000000000000000000000000004, value: 247736832146 [2.477e11])
+    Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] true
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] true
+    Ôöé   Ôöé   Ôö£ÔöÇ [3224] 0x1F98400000000000000000000000000000000004::settle()
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [1250] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::balanceOf(0x1F98400000000000000000000000000000000004) [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [553] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::balanceOf(0x1F98400000000000000000000000000000000004) [delegatecall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 3974663216217 [3.974e12]
+    Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 3974663216217 [3.974e12]
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 247736832146 [2.477e11]
+    Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 0x
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] 0x
+    Ôö£ÔöÇ [375] 0x1F98400000000000000000000000000000000004::extsload(0x43130f93cefb7181db6895095719021e5e7989c89e5b438c91887c4bbf051585) [staticcall]
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] 0x0000000001f4000000fcfc70000000000000000000035eaa2a884fcddea13f67
+    Ôö£ÔöÇ emit log_named_int(key: "std tick after cycles", val: -197520 [-1.975e5])
+    Ôö£ÔöÇ [6949] 0x1F98400000000000000000000000000000000004::extsload(0xe27d5504832cf87530d5f526de4616e66e62e246ed2a8c2079f50a0025b82555, 3) [staticcall]
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] [0x0000000000000000000000000000000000000000000000000000000000000000, 0x0000000000000000000000000000000000000000000000000000000000000000, 0x0000000000000000000000000000000000000000000000000000000000000000]
+    Ôö£ÔöÇ [774] 0x1F98400000000000000000000000000000000004::extsload(0x43130f93cefb7181db6895095719021e5e7989c89e5b438c91887c4bbf051586, 2) [staticcall]
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] [0x0000000000000000000000000000051facf8e52f381b8553b3f5792ac0e7a162, 0x00000000000000000000000000000000000037aeb53526558ab4f789ee442a34]
+    Ôö£ÔöÇ [774] 0x1F98400000000000000000000000000000000004::extsload(0xc5bb8484366dddb322a5c1dd14df78badf62f88738ab7a1a474bdea0f8a40688, 2) [staticcall]
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] [0x0000000000000000000000000000050938d44d6469fc4900467e232b6836d852, 0x00000000000000000000000000000000000036bad6b437a80503b8a722317ab7]
+    Ôö£ÔöÇ [774] 0x1F98400000000000000000000000000000000004::extsload(0x770575fd8159dbd95aa20b305494500ab7cf6e504945a8dd4e5bdc3d05bc041e, 2) [staticcall]
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] [0x00000000000000000000000000000368995fc13d393287adfd3db3c4b6cf0fa5, 0x0000000000000000000000000000000000001e05599273b434b3e7c496a6bed1]
+    Ôö£ÔöÇ [375] 0x1F98400000000000000000000000000000000004::extsload(0x43130f93cefb7181db6895095719021e5e7989c89e5b438c91887c4bbf051585) [staticcall]
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] 0x0000000001f4000000fcfc70000000000000000000035eaa2a884fcddea13f67
+    Ôö£ÔöÇ emit log_named_uint(key: "after cycles pliq", val: 0)
+    Ôö£ÔöÇ emit log_named_uint(key: "after cycles feeOwed0(ETH wei)", val: 0)
+    Ôö£ÔöÇ emit log_named_uint(key: "after cycles feeOwed1(USDC raw)", val: 0)
+    Ôö£ÔöÇ [0] VM::deal(RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], 340282366920938463463374607431768211455 [3.402e38])
+    Ôöé   ÔööÔöÇ ÔåÉ [Return]
+    Ôö£ÔöÇ [471902] 0x1F98400000000000000000000000000000000004::unlock(0x00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000878678326eac90000000000000000000000000000000000000000000000003363ca2a3a9b1587202ea)
+    Ôöé   Ôö£ÔöÇ [469943] RehypothecationForkTest::unlockCallback(0x00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000878678326eac90000000000000000000000000000000000000000000000003363ca2a3a9b1587202ea)
+    Ôöé   Ôöé   Ôö£ÔöÇ [451418] 0x1F98400000000000000000000000000000000004::swap(PoolKey({ currency0: 0x0000000000000000000000000000000000000000, currency1: 0x078D782b760474a361dDA0AF3839290b0EF57AD6, fee: 500, tickSpacing: 10, hooks: 0x0000000000000000000000000000000000000000 }), SwapParams({ zeroForOne: true, amountSpecified: -2500000000000000000000 [-2.5e21], sqrtPriceLimitX96: 3882903772960505445090026 [3.882e24] }), 0x)
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ emit Swap(id: 0x3258f413c7a88cda2fa8709a589d221a80f6574f63df5a5b6774485d8acc39d9, sender: RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], amount0: -98284867318754166249 [-9.828e19], amount1: 247612963592 [2.476e11], sqrtPriceX96: 3882903772960505445090026 [3.882e24], liquidity: 88169102746874587 [8.816e16], tick: -198481 [-1.984e5], fee: 500)
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] -33444607283736058553802169884511672177651791750231597384952 [-3.344e58]
+    Ôöé   Ôöé   Ôö£ÔöÇ [6936] 0x1F98400000000000000000000000000000000004::take(0x078D782b760474a361dDA0AF3839290b0EF57AD6, RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], 247612963592 [2.476e11])
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [5363] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::transfer(RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], 247612963592 [2.476e11])
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [4663] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::transfer(RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], 247612963592 [2.476e11]) [delegatecall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ emit Transfer(from: 0x1F98400000000000000000000000000000000004, to: RehypothecationForkTest: [0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496], value: 247612963592 [2.476e11])
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] true
+    Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] true
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Stop]
+    Ôöé   Ôöé   Ôö£ÔöÇ [1273] 0x1F98400000000000000000000000000000000004::settle{value: 98284867318754166249}()
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 98284867318754166249 [9.828e19]
+    Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 0x
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] 0x
+    Ôö£ÔöÇ [375] 0x1F98400000000000000000000000000000000004::extsload(0x43130f93cefb7181db6895095719021e5e7989c89e5b438c91887c4bbf051585) [staticcall]
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] 0x0000000001f4000000fcf8af00000000000000000003363ca2a3a9b1587202ea
+    Ôö£ÔöÇ emit log_named_int(key: "std tick at close", val: -198481 [-1.984e5])
+    Ôö£ÔöÇ [0] VM::prank(0xABC0000000000000000000000000000000000001)
+    Ôöé   ÔööÔöÇ ÔåÉ [Return]
+    Ôö£ÔöÇ [121063] 0x4c14D923E9A9f64Da6684b77E07B33c76D0B3d60::closePosition(0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8, PoolKey({ currency0: 0x0000000000000000000000000000000000000000, currency1: 0x078D782b760474a361dDA0AF3839290b0EF57AD6, fee: 3000, tickSpacing: 60, hooks: 0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8 }), 0xABC0000000000000000000000000000000000001, 0x518634753C61342298c3E04326056b3Ce596a566, 0)
+    Ôöé   Ôö£ÔöÇ [118609] 0x1F98400000000000000000000000000000000004::unlock(0x00000000000000000000000000000000000000000000000000000000000000010000000000000000000000004bd2c1e73d150b65ef88dba247ed60a1538310c80000000000000000000000000000000000000000000000000000000000000000000000000000000000000000078d782b760474a361dda0af3839290b0ef57ad60000000000000000000000000000000000000000000000000000000000000bb8000000000000000000000000000000000000000000000000000000000000003c0000000000000000000000004bd2c1e73d150b65ef88dba247ed60a1538310c8000000000000000000000000abc0000000000000000000000000000000000001000000000000000000000000518634753c61342298c3e04326056b3ce596a5660000000000000000000000000000000000000000000000000000000000000000)
+    Ôöé   Ôöé   Ôö£ÔöÇ [116608] 0x4c14D923E9A9f64Da6684b77E07B33c76D0B3d60::unlockCallback(0x00000000000000000000000000000000000000000000000000000000000000010000000000000000000000004bd2c1e73d150b65ef88dba247ed60a1538310c80000000000000000000000000000000000000000000000000000000000000000000000000000000000000000078d782b760474a361dda0af3839290b0ef57ad60000000000000000000000000000000000000000000000000000000000000bb8000000000000000000000000000000000000000000000000000000000000003c0000000000000000000000004bd2c1e73d150b65ef88dba247ed60a1538310c8000000000000000000000000abc0000000000000000000000000000000000001000000000000000000000000518634753c61342298c3e04326056b3ce596a5660000000000000000000000000000000000000000000000000000000000000000)
+    Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [113819] 0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8::closePosition(PoolKey({ currency0: 0x0000000000000000000000000000000000000000, currency1: 0x078D782b760474a361dDA0AF3839290b0EF57AD6, fee: 3000, tickSpacing: 60, hooks: 0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8 }), 0xABC0000000000000000000000000000000000001, 0x518634753C61342298c3E04326056b3Ce596a566, 0)
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [111413] 0x83391d5E99301A92C3BE18296EA88FC093aFC067::closePosition(PoolKey({ currency0: 0x0000000000000000000000000000000000000000, currency1: 0x078D782b760474a361dDA0AF3839290b0EF57AD6, fee: 3000, tickSpacing: 60, hooks: 0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8 }), 0xABC0000000000000000000000000000000000001, 0x518634753C61342298c3E04326056b3Ce596a566, 0) [delegatecall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [13070] 0x1F98400000000000000000000000000000000004::modifyLiquidity(PoolKey({ currency0: 0x0000000000000000000000000000000000000000, currency1: 0x078D782b760474a361dDA0AF3839290b0EF57AD6, fee: 500, tickSpacing: 10, hooks: 0x0000000000000000000000000000000000000000 }), ModifyLiquidityParams({ tickLower: -198240 [-1.982e5], tickUpper: -197640 [-1.976e5], liquidityDelta: -122951152921376 [-1.229e14], salt: 0x0000000000000000000000000000000000000000000000000000000000000000 }), 0x)
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ emit ModifyLiquidity(id: 0x3258f413c7a88cda2fa8709a589d221a80f6574f63df5a5b6774485d8acc39d9, sender: 0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8, tickLower: -198240 [-1.982e5], tickUpper: -197640 [-1.976e5], liquidityDelta: -122951152921376 [-1.229e14], salt: 0x0000000000000000000000000000000000000000000000000000000000000000)
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 24990237862826534542025152606130280486320234667602024076 [2.499e55], 62350892871323490139458133039775791826315304759662220 [6.235e52]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [8186] 0x1F98400000000000000000000000000000000004::take(0x0000000000000000000000000000000000000000, 0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8, 73439708583644567 [7.343e16])
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [58] 0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8::fallback{value: 73439708583644567}()
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Stop]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Stop]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [11736] 0x1F98400000000000000000000000000000000004::take(0x078D782b760474a361dDA0AF3839290b0EF57AD6, 0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8, 464524 [4.645e5])
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [10163] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::transfer(0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8, 464524 [4.645e5])
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [9463] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::transfer(0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8, 464524 [4.645e5]) [delegatecall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ emit Transfer(from: 0x1F98400000000000000000000000000000000004, to: 0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8, value: 464524 [4.645e5])
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] true
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] true
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Stop]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [15364] 0x1F98400000000000000000000000000000000004::swap(PoolKey({ currency0: 0x0000000000000000000000000000000000000000, currency1: 0x078D782b760474a361dDA0AF3839290b0EF57AD6, fee: 500, tickSpacing: 10, hooks: 0x0000000000000000000000000000000000000000 }), SwapParams({ zeroForOne: true, amountSpecified: -81396084197552754 [-8.139e16], sqrtPriceLimitX96: 4295128740 [4.295e9] }), 0x)
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ emit Swap(id: 0x3258f413c7a88cda2fa8709a589d221a80f6574f63df5a5b6774485d8acc39d9, sender: 0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8, amount0: -81396084197552754 [-8.139e16], amount1: 195398290 [1.953e8], sqrtPriceX96: 3882728189371261199075504 [3.882e24], liquidity: 88169102746874587 [8.816e16], tick: -198481 [-1.984e5], fee: 500)
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] -27697652188839247253765664191701261440017015566591751534 [-2.769e55]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [438] 0x1F98400000000000000000000000000000000004::balanceOf(0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8, 0) [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 8181908970235351 [8.181e15]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [4519] 0x1F98400000000000000000000000000000000004::burn(0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8, 0, 8181908970235351 [8.181e15])
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ emit Transfer(caller: 0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8, from: 0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8, to: 0x0000000000000000000000000000000000000000, id: 0, amount: 8181908970235351 [8.181e15])
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Stop]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [853] 0x1F98400000000000000000000000000000000004::sync(0x0000000000000000000000000000000000000000)
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Stop]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [1273] 0x1F98400000000000000000000000000000000004::settle{value: 73214175227317403}()
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 73214175227317403 [7.321e16]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [6936] 0x1F98400000000000000000000000000000000004::take(0x078D782b760474a361dDA0AF3839290b0EF57AD6, 0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8, 195398290 [1.953e8])
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [5363] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::transfer(0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8, 195398290 [1.953e8])
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [4663] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::transfer(0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8, 195398290 [1.953e8]) [delegatecall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ emit Transfer(from: 0x1F98400000000000000000000000000000000004, to: 0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8, value: 195398290 [1.953e8])
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] true
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] true
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Stop]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [5363] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::transfer(0x518634753C61342298c3E04326056b3Ce596a566, 100000000 [1e8])
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [4663] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::transfer(0x518634753C61342298c3E04326056b3Ce596a566, 100000000 [1e8]) [delegatecall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ emit Transfer(from: 0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8, to: 0x518634753C61342298c3E04326056b3Ce596a566, value: 100000000 [1e8])
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] true
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] true
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [5363] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::transfer(0xABC0000000000000000000000000000000000001, 95398290 [9.539e7])
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [4663] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::transfer(0xABC0000000000000000000000000000000000001, 95398290 [9.539e7]) [delegatecall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ emit Transfer(from: 0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8, to: 0xABC0000000000000000000000000000000000001, value: 95398290 [9.539e7])
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] true
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] true
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [7233] 0xc245def5317DbcB34e9F153eb3E0388bbc0e69F5::getAmountInUsd(0x078D782b760474a361dDA0AF3839290b0EF57AD6, 100000000 [1e8]) [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [3142] 0xbd1cD1518eFB92a92100da62D4C488c810dFd75b::latestRoundData() [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [1409] 0x608Dd75f9C7097e699D1C20f2b1ae50618503549::latestRoundData() [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 34, 999861915812489300 [9.998e17], 1788559807 [1.788e9], 1788559821 [1.788e9], 34
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 36893488147419103266 [3.689e19], 999861915812489300 [9.998e17], 1788559807 [1.788e9], 1788559821 [1.788e9], 36893488147419103266 [3.689e19]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [1043] 0x078D782b760474a361dDA0AF3839290b0EF57AD6::decimals() [staticcall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [381] 0xBE959c573dC03a18a57e31C9ACE210cCf66F0F6e::decimals() [delegatecall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 6
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 6
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 99986191581248930000 [9.998e19]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [229] 0x1a378D64e3497Ca24808A2C5d8f8C350598A162f::saturatingSub(99986191581248930000 [9.998e19], 99986191581248930000 [9.998e19]) [delegatecall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 0
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôö£ÔöÇ [229] 0x1a378D64e3497Ca24808A2C5d8f8C350598A162f::saturatingSub(199802994282765301454 [1.998e20], 199802994282765301454 [1.998e20]) [delegatecall]
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 0
+    Ôöé   Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return]
+    Ôöé   Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return]
+    Ôöé   Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 0x
+    Ôöé   Ôöé   ÔööÔöÇ ÔåÉ [Return] 0x
+    Ôöé   ÔööÔöÇ ÔåÉ [Stop]
+    Ôö£ÔöÇ emit log_named_uint(key: "solver ETH before", val: 172113509498423 [1.721e14])
+    Ôö£ÔöÇ emit log_named_uint(key: "solver ETH after", val: 172113509498423 [1.721e14])
+    Ôö£ÔöÇ [1590] 0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8::positions(0x7ccf282d5a9a40ee2209954e91d0b331898e816b4166cf07e0a38fe9a42cb9ff, 0xABC0000000000000000000000000000000000001) [staticcall]
+    Ôöé   ÔööÔöÇ ÔåÉ [Return] 0x0000000000000000000000000000000000000000, 0, 0, 0, false, 0, 0, 0, 0
+    Ôö£ÔöÇ emit log_named_uint(key: "final liq", val: 0)
+    Ôö£ÔöÇ [0] VM::assertGt(172113509498423 [1.721e14], 172113509498423 [1.721e14], "solver must receive positive LP yield") [staticcall]
+    Ôöé   ÔööÔöÇ ÔåÉ [Revert] solver must receive positive LP yield: 172113509498423 <= 172113509498423
+    ÔööÔöÇ ÔåÉ [Revert] solver must receive positive LP yield: 172113509498423 <= 172113509498423
+
+Backtrace:
+  at VM.assertGt
+  at RehypothecationForkTest.test_RhypoOpensBand_AccruesFees_AndPaysSolver
+
+Suite result: FAILED. 0 passed; 1 failed; 0 skipped; finished in 13.90s (13.28s CPU time)
+
+Ran 1 test suite in 15.79s (13.90s CPU time): 0 tests passed, 1 failed, 0 skipped (1 total tests)
+
+Failing tests:
+Encountered 1 failing test in src/v4/test/RehypothecationForkTest.t.sol:RehypothecationForkTest
+[FAIL: solver must receive positive LP yield: 172113509498423 <= 172113509498423] test_RhypoOpensBand_AccruesFees_AndPaysSolver() (gas: 6712711)
+
+Encountered a total of 1 failing tests, 0 tests succeeded
+
+Tip: Run `forge test --rerun` to retry only the 1 failed test

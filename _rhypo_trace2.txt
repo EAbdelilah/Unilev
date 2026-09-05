@@ -1,0 +1,26 @@
+﻿Compiler run failed:
+Error (9553): Invalid type for argument in function call. Invalid implicit conversion from address to contract IHooks requested.
+  --> src/v4/test/RehypothecationForkTest.t.sol:46:16:
+   |
+46 |         hooks: address(0)
+   |                ^^^^^^^^^^
+
+Error (9553): Invalid type for argument in function call. Invalid implicit conversion from contract IHooks to address requested.
+  --> src/v4/test/RehypothecationForkTest.t.sol:78:20:
+   |
+78 |             hooks: stdKey.hooks
+   |                    ^^^^^^^^^^^^
+
+Error (9582): Member "getSlot0" not found or not visible after argument-dependent lookup in contract IPoolManager.
+   --> src/v4/test/RehypothecationForkTest.t.sol:143:28:
+    |
+143 |         (, int24 tick,,) = mgr.getSlot0(stdKey.toId());
+    |                            ^^^^^^^^^^^^
+
+forge : Error: Compilation failed
+Au caractère Ligne:1 : 1
++ forge test --match-contract RehypothecationForkTest -vvvv --via-ir 2> ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Error: Compilation failed:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 

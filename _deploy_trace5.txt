@@ -1,0 +1,14 @@
+﻿Compiler run failed:
+Error (9582): Member "collateralAmount" not found or not visible after argument-dependent lookup in tuple(address,uint256,uint256,uint8,bool,uint160,int24,int24,uint128).
+   --> src/v4/test/LiveDeployCollateralReproTest.t.sol:100:52:
+    |
+100 |         emit log_named_uint("existing collateral", hook.positions(hookKey.toId(), trader).collateralAmount);
+    |                                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+forge : Error: Compilation failed
+Au caractère Ligne:1 : 1
++ forge test --match-contract LiveDeployCollateralReproTest --match-tes ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Error: Compilation failed:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 

@@ -130,6 +130,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
 
     mapping(PoolId => bool) public isAuthorizedPool;
     mapping(PoolId => mapping(address => Position)) public positions;
+    mapping(PoolId => mapping(address => uint256)) public rehypPrincipal;
     mapping(PoolId => mapping(address => bool)) public isSyntheticArbun;
     mapping(PoolId => PoolKey) public standardPoolKeys;
 

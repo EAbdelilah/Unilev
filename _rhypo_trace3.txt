@@ -1,0 +1,14 @@
+﻿Compiler run failed:
+Error (9582): Member "getSqrtRatioAtTick" not found or not visible after argument-dependent lookup in type(library TickMath).
+   --> src/v4/test/RehypothecationForkTest.t.sol:162:28:
+    |
+162 |         uint160 buyLimit = TickMath.getSqrtRatioAtTick(tu + 240);
+    |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+forge : Error: Compilation failed
+Au caractère Ligne:1 : 1
++ forge test --match-contract RehypothecationForkTest -vvvv --via-ir 2> ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Error: Compilation failed:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 

@@ -34,11 +34,12 @@ contract PriceFeedMockYield is IPriceFeed {
 }
 
 /// @notice Rehypothecation yield must reach the SOLVER on every band-removal
-///         path. closePosition and executeLiquidation already route the
-///         collateral-currency surplus beyond the recorded principal through
-///         _distributeRehypothecation; these tests pin the same behavior on
-///         rebalancePosition (which previously compounded LP fees silently
-///         into the trader's re-deployed band), plus the no-solver fallback.
+///         path. closePosition, executeLiquidation, and rebalancePosition all
+///         route the collateral-currency surplus beyond the RECORDED principal
+///         (the amount actually deployed as LP) through _distributeRehypothecation;
+///         these tests pin that principal-based semantics (yield = recovery -
+///         rehypPrincipal, not recovery - full collateral), plus the no-solver
+///         fallback.
 contract EswapSolverYieldTest is Test {
     using PoolIdLibrary for PoolKey;
 
@@ -80,6 +81,9 @@ contract EswapSolverYieldTest is Test {
         // The manager must hold real tokens so removal take()s can pay out.
         token0.mint(address(manager), 10_000 ether);
         token1.mint(address(manager), 10_000 ether);
+        // The hook must hold real tokens so the band deploy's settle can pay in.
+        token0.transfer(address(hook), 1_000 ether);
+        token1.transfer(address(hook), 1_000 ether);
     }
 
     /// @dev Direct open through beforeSwap + afterSwap: sells `margin` token0,
@@ -100,12 +104,16 @@ contract EswapSolverYieldTest is Test {
         );
     }
 
-    function _deployBand() internal {
+    /// @dev Deploys the band and forces the mock to return a (0, -principal)
+    ///      delta for the add so the hook records `principal` as rehypPrincipal.
+    function _deployBand(uint256 principal) internal {
         manager.setSlot0(key.toId(), 1 << 96, 0); // price 1.0, tick 0
+        manager.setNextModifyLiquidityDelta(0, -int128(int256(principal)));
         hook.deployCollateral(key, trader);
         (,,,,,, int24 tl, int24 tu, uint128 liq) = hook.positions(key.toId(), trader);
         assertGt(liq, 0, "band must be deployed");
         assertLt(tl, tu);
+        assertEq(hook.rehypPrincipal(key.toId(), trader), principal, "principal recorded as deployed LP amount");
     }
 
     function test_Rebalance_RoutesYieldSurplusToSolver() public {
@@ -117,14 +125,15 @@ contract EswapSolverYieldTest is Test {
         hook.registerSolverDebt(key.toId(), trader, solver, borrowed);
         assertEq(hook.positionSolver(key.toId(), trader), solver);
 
-        _deployBand();
+        uint256 principal = collateralRecorded;
+        _deployBand(principal);
 
         // Removal override: burning the band returns principal + 5 TK1 of LP fees.
         uint256 yieldSurplus = 5 ether;
         // Price drifts into the lower half of the band: tick -300 sits inside [-600, 0),
         // consuming 50% against the 25% trigger, so the rebalance gate opens.
         manager.setSlot0(key.toId(), TickMath.getSqrtRatioAtTick(-300), -300);
-        manager.setNextModifyLiquidityDelta(0, int128(int256(collateralRecorded + yieldSurplus)));
+        manager.setNextModifyLiquidityDelta(0, int128(int256(principal + yieldSurplus)));
 
         uint256 solverBefore = token1.balanceOf(solver);
         hook.rebalancePosition(key, trader);
@@ -140,12 +149,13 @@ contract EswapSolverYieldTest is Test {
         (, uint256 collateralRecorded,,,,,,,) = hook.positions(key.toId(), trader);
         assertTrue(hook.positionSolver(key.toId(), trader) == address(0));
 
-        _deployBand();
+        uint256 principal = collateralRecorded;
+        _deployBand(principal);
 
         // Same 50%-consumed gate-opening drift as above.
         manager.setSlot0(key.toId(), TickMath.getSqrtRatioAtTick(-300), -300);
         uint256 yieldSurplus = 2 ether;
-        manager.setNextModifyLiquidityDelta(0, int128(int256(collateralRecorded + yieldSurplus)));
+        manager.setNextModifyLiquidityDelta(0, int128(int256(principal + yieldSurplus)));
 
         uint256 traderBefore = token1.balanceOf(trader);
         hook.rebalancePosition(key, trader);
@@ -158,11 +168,12 @@ contract EswapSolverYieldTest is Test {
         (, uint256 collateralRecorded, uint256 borrowed,,,,,,) = hook.positions(key.toId(), trader);
         hook.registerSolverDebt(key.toId(), trader, solver, borrowed);
 
-        _deployBand();
+        uint256 principal = collateralRecorded;
+        _deployBand(principal);
 
         // Removal returns LESS than the recorded principal (round-trip loss):
         // nothing may be paid out and the shortfall caps the re-deploy.
-        uint256 removedCollateral = collateralRecorded - 3 ether;
+        uint256 removedCollateral = principal - 3 ether;
         manager.setSlot0(key.toId(), TickMath.getSqrtRatioAtTick(-300), -300);
         manager.setNextModifyLiquidityDelta(0, int128(int256(removedCollateral)));
 
