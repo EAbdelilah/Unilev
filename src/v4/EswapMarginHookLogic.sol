@@ -152,12 +152,12 @@ contract EswapMarginHookLogic is BaseHook {
     uint160 public maxPriceSwingBps;
     uint8 public defaultMaxLeverage;
     mapping(PoolId => uint8) public maxLeverageByPool;
+    uint256 public minCollateralUsd;
+    uint256 public bandConsumptionTriggerBps;
     uint256 public maxSingleOIBps;
     uint256 public maxTotalOIBps;
     uint256 public oiCapTvlFloorUsd;
-    uint256 public bandConsumptionTriggerBps;
     uint256 public insuranceWithdrawalCapBps;
-    uint256 public minCollateralUsd;
 
     bytes32 constant TRADER_BASE = keccak256("TRADER");
     bytes32 constant BORROW_BASE = keccak256("BORROW");

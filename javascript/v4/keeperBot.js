@@ -128,7 +128,7 @@ async function main() {
 
                 if (isOwner) {
                     try {
-                        const tx = await keeper.performUpkeep(performData)
+                        const tx = await keeper.performUpkeep(performData, { gasLimit: 5_000_000n })
                         const receipt = await tx.wait()
                         liquidationCount++
                         console.log(`  ${GREEN}LIQUIDATED via performUpkeep${RESET} — Tx: ${tx.hash.slice(0, 18)}… Gas: ${receipt.gasUsed}`)
@@ -162,7 +162,7 @@ async function main() {
                         // Try keeper.liquidate first
                         if (isOwner) {
                             try {
-                                const tx = await keeper.liquidate(poolKey, w.trader)
+                                const tx = await keeper.liquidate(poolKey, w.trader, { gasLimit: 5_000_000n })
                                 const receipt = await tx.wait()
                                 liquidationCount++
                                 console.log(`  ${GREEN}LIQUIDATED via keeper.liquidate${RESET} — Tx: ${tx.hash.slice(0, 18)}… Gas: ${receipt.gasUsed}`)
@@ -174,7 +174,7 @@ async function main() {
 
                         // Fallback to router.liquidate
                         try {
-                            const tx = await router.liquidate(hookAddr, poolKey, w.trader, 0n)
+                            const tx = await router.liquidate(hookAddr, poolKey, w.trader, 0n, { gasLimit: 5_000_000n })
                             const receipt = await tx.wait()
                             liquidationCount++
                             console.log(`  ${GREEN}LIQUIDATED via router.liquidate${RESET} — Tx: ${tx.hash.slice(0, 18)}… Gas: ${receipt.gasUsed}`)

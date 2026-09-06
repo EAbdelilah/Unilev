@@ -185,7 +185,7 @@ async function main() {
             console.log(`  (dry-run: would call router.swapMultiPool)`)
         } else {
             try {
-                const tx = await traderRouter.swapMultiPool(swapParams, { value: msgValue })
+                const tx = await traderRouter.swapMultiPool(swapParams, { value: msgValue, gasLimit: 5_000_000n })
                 const receipt = await tx.wait()
                 console.log(`  ${GREEN}OPENED${RESET} — Tx: ${tx.hash.slice(0, 18)}… Gas: ${receipt.gasUsed}`)
             } catch (e) {
@@ -208,7 +208,7 @@ async function main() {
         } else {
             try {
                 const closeTx = await traderRouter.closePosition(
-                    hookAddr, poolKey, trader.address, solverAddr || trader.address, 0n
+                    hookAddr, poolKey, trader.address, solverAddr || trader.address, 0n, { gasLimit: 5_000_000n }
                 )
                 const closeReceipt = await closeTx.wait()
                 console.log(`  ${GREEN}CLOSED${RESET} — Tx: ${closeTx.hash.slice(0, 18)}… Gas: ${closeReceipt.gasUsed}`)

@@ -67,6 +67,13 @@ contract EswapRouter is
 
     IPoolManager public immutable manager;
 
+    /// @dev Minimum gasleft required at the deployCollateral call site so the
+    ///      EIP-150 63/64 sub-call budget (~63/64 of the current gas) never
+    ///      starves rehypothecation. Measured deployCollateral cost is ~200k;
+    ///      this 350k floor hands it ~345k of headroom. Below it the open
+    ///      reverts loudly instead of silently opening without pinned collateral.
+    uint256 public constant MIN_DEPLOY_COLLATERAL_GAS = 350_000;
+
     // H-3: Solver whitelist — only registered solvers can be used
     mapping(address => bool) public registeredSolvers;
 
@@ -169,7 +176,7 @@ contract EswapRouter is
     }
 
     // M-11: Event for failed collateral deployment
-    event DeployCollateralFailed(address indexed hook, address indexed trader, bytes reason);
+    error InsufficientGasForCollateralDeployment(uint256 available, uint256 required);
 
     struct SwapParams {
         // Hook-enabled pool where leverage accounting (flash borrow + position
@@ -567,9 +574,12 @@ contract EswapRouter is
         if (params.hookData.length > 0) {
             (bool isMargin,,) = abi.decode(params.hookData, (bool, uint8, address));
             if (isMargin) {
-                try IEswapHook(params.key.hooks).deployCollateral(params.key, trader) {} catch (bytes memory reason) {
-                    emit DeployCollateralFailed(params.key.hooks, trader, reason);
+                if (gasleft() < MIN_DEPLOY_COLLATERAL_GAS) {
+                    revert InsufficientGasForCollateralDeployment(gasleft(), MIN_DEPLOY_COLLATERAL_GAS);
                 }
+                // No try/catch: deployCollateral failure reverts the whole open —
+                // a position must never exist without its pinned band collateral.
+                IEswapHook(params.key.hooks).deployCollateral(params.key, trader);
             }
         }
 
@@ -684,9 +694,11 @@ contract EswapRouter is
         if (params.hookData.length > 0) {
             (bool isMargin,,) = abi.decode(params.hookData, (bool, uint8, address));
             if (isMargin) {
-                try IEswapHook(params.key.hooks).deployCollateral(params.key, trader) {} catch (bytes memory reason) {
-                    emit DeployCollateralFailed(params.key.hooks, trader, reason);
+                if (gasleft() < MIN_DEPLOY_COLLATERAL_GAS) {
+                    revert InsufficientGasForCollateralDeployment(gasleft(), MIN_DEPLOY_COLLATERAL_GAS);
                 }
+                // No try/catch — see _swapCallback: rehyp is open-critical.
+                IEswapHook(params.key.hooks).deployCollateral(params.key, trader);
             }
         }
 
