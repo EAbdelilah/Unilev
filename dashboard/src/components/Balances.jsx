@@ -101,7 +101,7 @@ export function Balances() {
                                     {ts.emoji}
                                 </div>
                                 <span style={{ fontWeight: 700, fontSize: '0.875rem', color: ts.text }}>
-                                    {t.name}
+                                    {bal && bal.symbol ? bal.symbol : t.name}
                                 </span>
                             </div>
 

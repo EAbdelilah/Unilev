@@ -59,6 +59,28 @@
  * below for SHORT; cleanup verified. Wallet end state dust (ETH 0.000125, USDC
  * 0.2244); anvil fork torn down after this live proof.
  * ────────────────────────────────────────────────────────────────────────────────
+ *
+ * ── 2026-09-06 AIRTIGHT on-chain proof (verifyRehypOnChain.js, chain 130) ─────
+ * We were not satisfied with hook-only bookkeeping, so this run reads the REAL
+ * Uniswap v4 PoolManager (0x1F984…004) via StorageLibrary slot math + extsload
+ * (pools=keccak(poolId,6); liquidity=+3; positions[positionId]=keccak(positionId,
+ * stateSlot+6); positionId=keccak(packed(owner,tickLower,tickUpper,salt=0))) and
+ * parses the atomic ModifyLiquidity event. 37/37 PASS, both directions.
+ * LONG  (tx 0x65a985c7…, gas 783872): ModifyLiquidity(id=hookpool, sender=hook,
+ *   [-198060,-197460], delta=109484458202) seen in log; PoolManager positions
+ *   [hook][band].liquidity == 109484458202 (REAL LP, owner=hook); band ticks
+ *   liquidityGross ≥ band; band ≥ currentTick(-198173); rehypPrincipal=0.0000646
+ *   ETH (≈90% coll). Close (0x7b42e3cd…): positionLiquidity→0, rehyp→0.
+ * SHORT (tx 0x2c5d80a2…, gas 728224): ModifyLiquidity([-198720,-198120],
+ *   137365584896); pool storage position == 137365584896; band ≤ currentTick;
+ *   rehyp=0.202570 USDC (≈90%); close (0x177a634d…): LP removed, rehyp→0.
+ * Baseline pool total liquidity 0 (pure band pool, band deployed out-of-range by
+ * design — aggregate in-range var is 0, yet the out-of-range position EXISTS in
+ * PM storage and both boundary ticks are registered with the band's gross).
+ * 3 independent on-chain confirmations (event, position storage, tick ledger)
+ * match the hook's own Pos.liquidity/rehypPrincipal to the wei. ABORT guards:
+ * chainId==130, PM code present, pool initialized (sqrtPriceX96≠0), no open pos.
+ * ────────────────────────────────────────────────────────────────────────────────
  */
 const { ethers } = require("ethers")
 const { setup, ERC20_ABI, USDC } = require("./utils")

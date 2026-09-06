@@ -44,7 +44,7 @@ describe("Balances", () => {
 
     it("renders token balances when connected", async () => {
         await act(async () => render(<Balances />))
-        expect(screen.getByText("Wallet Balances")).toBeInTheDocument()
+        expect(screen.getByText("Wallet")).toBeInTheDocument()
         expect(screen.getByText("ETH")).toBeInTheDocument()
         expect(screen.getByText("WETH")).toBeInTheDocument()
         expect(screen.getByText("USDC")).toBeInTheDocument()

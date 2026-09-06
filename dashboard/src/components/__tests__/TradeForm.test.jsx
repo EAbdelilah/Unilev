@@ -59,8 +59,8 @@ describe("TradeForm", () => {
 
     it("renders long/short toggle", async () => {
         await act(async () => render(<TradeForm />))
-        expect(screen.getByText("LONG")).toBeInTheDocument()
-        expect(screen.getByText("SHORT")).toBeInTheDocument()
+        expect(screen.getByText("↑ LONG")).toBeInTheDocument()
+        expect(screen.getByText("↓ SHORT")).toBeInTheDocument()
     })
 
     it("renders token selectors", async () => {
@@ -92,7 +92,7 @@ describe("TradeForm", () => {
             await userEvent.type(input, "10")
         })
         await act(async () => {
-            const btn = screen.getByText("Execute 0% Interest Trade")
+            const btn = screen.getByRole("button", { name: "Open ↑ Long 2×" })
             await userEvent.click(btn)
         })
         expect(await screen.findByText(/LeverageTooHigh/)).toBeInTheDocument()

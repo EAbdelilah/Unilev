@@ -43,7 +43,7 @@ describe("PositionsList", () => {
         })
         await act(async () => render(<PositionsList />))
         expect(screen.getByText("Positions")).toBeInTheDocument()
-        expect(screen.getByText("My Positions")).toBeInTheDocument()
+        expect(screen.getByText("My")).toBeInTheDocument()
     })
 
     it("shows empty state when no positions", async () => {
@@ -85,6 +85,6 @@ describe("PositionsList", () => {
         })
         await act(async () => render(<PositionsList />))
         expect(await screen.findByText("ACTIVE")).toBeInTheDocument()
-        expect(screen.getByText(/LONG 2x/)).toBeInTheDocument()
+        expect(screen.getByText(/↑ LONG 2×/)).toBeInTheDocument()
     })
 })
