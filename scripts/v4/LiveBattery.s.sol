@@ -90,7 +90,8 @@ contract LiveBattery is Script {
             amountSpecified: -int256(marginWeiShort),
             leverage: lev,
             solver: solver,
-            hookData: abi.encode(true, lev, trader)
+            hookData: abi.encode(true, lev, trader),
+            deadline: block.timestamp + 15 minutes
         }));
         console.log("--- SHORT opened");
         _print(lev);
@@ -105,7 +106,8 @@ contract LiveBattery is Script {
             amountSpecified: -int256(marginUsdc),
             leverage: lev,
             solver: solver,
-            hookData: abi.encode(true, lev, trader)
+            hookData: abi.encode(true, lev, trader),
+            deadline: block.timestamp + 15 minutes
         }));
         console.log("--- LONG opened");
         _print(lev);

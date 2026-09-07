@@ -103,6 +103,8 @@ contract EswapMarginHookLogic is BaseHook {
     error InsufficientResidue(uint256 requested, uint256 available);
     error ZeroSweepRecipient();
     error EmergencyPaused();
+    error PositionNotLiquidatable();
+    error InvalidStandardPoolKey();
 
     // ─── Events ───────────────────────────────────────────────────────────────
     event HookSwap(PoolId indexed poolId, address indexed trader, int128 amount0, int128 amount1, uint128 liquidityDelta);
@@ -113,6 +115,7 @@ contract EswapMarginHookLogic is BaseHook {
     );
     event ResidueSwept(Currency indexed currency, address indexed to, uint256 amount);
     event EmergencyPauseToggled(bool indexed paused);
+    event BadDebtRecorded(Currency indexed currency, uint256 amount);
 
     // ─── Storage layout (MUST mirror EswapMarginHook exactly) ──────────────────
     mapping(PoolId => bool) public isAuthorizedPool;
@@ -158,6 +161,14 @@ contract EswapMarginHookLogic is BaseHook {
     uint256 public maxTotalOIBps;
     uint256 public oiCapTvlFloorUsd;
     uint256 public insuranceWithdrawalCapBps;
+    // [FIX C-7] Uncovered liquidation/close shortfall (insurance insufficient) is
+    // recorded as protocol bad debt instead of bricking the position forever.
+    mapping(Currency => uint256) public badDebt;
+    // [FIX M-9] When true, close/liquidation/rebalance unwind swaps require a
+    // configured standard (deep) pool — no silent fallback to the accounting pool.
+    bool public requireStandardPoolKey;
+    // [FIX C-9] Per-currency cooldown for withdrawInsuranceFund (1 withdrawal/day).
+    mapping(Currency => uint256) public lastInsuranceWithdrawal;
 
     bytes32 constant TRADER_BASE = keccak256("TRADER");
     bytes32 constant BORROW_BASE = keccak256("BORROW");
@@ -218,10 +229,7 @@ contract EswapMarginHookLogic is BaseHook {
         _distributeRehypothecation(key, removeDelta, collateralCurrency, rehypPrincipal[poolId][trader], yieldRecipient);
 
         bool zeroForOne = Currency.unwrap(collateralCurrency) == Currency.unwrap(key.currency0);
-        PoolKey memory standardKey = standardPoolKeys[poolId];
-        if (Currency.unwrap(standardKey.currency1) == address(0)) {
-            standardKey = key;
-        }
+        PoolKey memory standardKey = _resolveUnwindPool(poolId, key);
         BalanceDelta delta = manager.swap(
             standardKey,
             IPoolManager.SwapParams(zeroForOne, -int256(collateralAmount), EswapMarginLib.sqrtPriceLimit(zeroForOne)),
@@ -252,7 +260,7 @@ contract EswapMarginHookLogic is BaseHook {
     {
         PoolId poolId = key.toId();
         Position storage pos = positions[poolId][trader];
-        if (!isLiquidatable(pos, key)) return;
+        if (!isLiquidatable(pos, key)) revert PositionNotLiquidatable();
 
         BalanceDelta removeDelta;
         if (pos.liquidity > 0) {
@@ -273,10 +281,7 @@ contract EswapMarginHookLogic is BaseHook {
         _distributeRehypothecation(key, removeDelta, collateralCurrency, rehypPrincipal[poolId][trader], yieldRecipient);
 
         bool zeroForOne = Currency.unwrap(collateralCurrency) == Currency.unwrap(key.currency0);
-        PoolKey memory standardKey = standardPoolKeys[poolId];
-        if (Currency.unwrap(standardKey.currency1) == address(0)) {
-            standardKey = key;
-        }
+        PoolKey memory standardKey = _resolveUnwindPool(poolId, key);
         BalanceDelta delta = manager.swap(
             standardKey,
             IPoolManager.SwapParams(zeroForOne, -int256(collateralAmount), EswapMarginLib.sqrtPriceLimit(zeroForOne)),
@@ -340,8 +345,7 @@ contract EswapMarginHookLogic is BaseHook {
         if (removedDebtInt > 0) {
             uint256 removedDebt = uint256(uint128(removedDebtInt));
             bool zeroForOneBack = Currency.unwrap(debtCurrency) == Currency.unwrap(key.currency0);
-            PoolKey memory swapPool = standardPoolKeys[key.toId()];
-            if (Currency.unwrap(swapPool.currency1) == address(0)) swapPool = key;
+            PoolKey memory swapPool = _resolveUnwindPool(key.toId(), key);
             BalanceDelta backDelta = manager.swap(
                 swapPool,
                 IPoolManager.SwapParams(
@@ -513,20 +517,41 @@ contract EswapMarginHookLogic is BaseHook {
         SolverDebt storage debt = solverDebts[poolId][trader][solver];
         uint256 totalPayout = debt.principal + debt.accumulatedYield;
         if (totalPayout == 0 && borrowedAmount > 0) totalPayout = borrowedAmount;
+        // [FIX C-7] Physical tokens available to cover the solver/trader claims:
+        // the unwind proceeds plus whatever the insurance fund covers from the
+        // shortfall. Any gap the insurance fund cannot cover is RECORDED as
+        // protocol bad debt instead of reverting — a reverted close/liquidation
+        // would strand the position (and the trader's collateral) forever.
+        uint256 payableAmount = receivedAmount;
         if (totalPayout > 0) {
-            uint256 shortfall = totalPayout > receivedAmount ? totalPayout - receivedAmount : 0;
+            uint256 shortfall = totalPayout > payableAmount ? totalPayout - payableAmount : 0;
             if (shortfall > 0) {
-                if (insuranceFund[debtCurrency] < shortfall) {
-                    revert InsufficientInsuranceFundForShortfall(shortfall, insuranceFund[debtCurrency]);
+                uint256 covered = shortfall > insuranceFund[debtCurrency] ? insuranceFund[debtCurrency] : shortfall;
+                insuranceFund[debtCurrency] -= covered;
+                if (covered > 0) {
+                    manager.take(debtCurrency, address(this), covered);
+                    payableAmount += covered;
                 }
-                insuranceFund[debtCurrency] -= shortfall;
+                uint256 uncovered = shortfall - covered;
+                if (uncovered > 0) {
+                    badDebt[debtCurrency] += uncovered;
+                    emit BadDebtRecorded(debtCurrency, uncovered);
+                }
             }
             if (solver != address(0)) {
-                NativeTokens.transfer(debtCurrency, solver, totalPayout);
+                uint256 solverPayout = totalPayout > payableAmount ? payableAmount : totalPayout;
+                payableAmount -= solverPayout;
+                NativeTokens.transfer(debtCurrency, solver, solverPayout);
             }
         }
+        // [FIX C-7] Never transfer the trader more than the physical tokens still
+        // available after the solver claim.
         if (traderPayout > 0) {
-            NativeTokens.transfer(debtCurrency, trader, traderPayout);
+            uint256 finalTraderPayout = traderPayout > payableAmount ? payableAmount : traderPayout;
+            if (finalTraderPayout > 0) {
+                payableAmount -= finalTraderPayout;
+                NativeTokens.transfer(debtCurrency, trader, finalTraderPayout);
+            }
         }
         _clearCollateralAccounting(trader, collateralCurrency, collateralAmount);
         if (borrowedAmount > 0) {
@@ -628,8 +653,19 @@ contract EswapMarginHookLogic is BaseHook {
 
     function _rehypothecationPool(PoolId poolId, PoolKey calldata key) internal view returns (PoolKey memory) {
         PoolKey memory sk = standardPoolKeys[poolId];
-        if (Currency.unwrap(sk.currency1) == address(0)) return key;
-        return sk;
+        if (Currency.unwrap(sk.currency1) != address(0)) return sk;
+        // [FIX M-9] When requireStandardPoolKey is set, a position must
+        // have a configured standard (deep) pool — no silent fallback to the
+        // hook's own accounting pool.
+        if (requireStandardPoolKey) revert InvalidStandardPoolKey();
+        return key;
+    }
+
+    function _resolveUnwindPool(PoolId poolId, PoolKey calldata key) internal view returns (PoolKey memory) {
+        PoolKey memory sk = standardPoolKeys[poolId];
+        if (Currency.unwrap(sk.currency1) != address(0)) return sk;
+        if (requireStandardPoolKey) revert InvalidStandardPoolKey();
+        return key;
     }
 
     function _collateralCurrency(Position memory pos, PoolKey calldata key) internal view returns (Currency) {

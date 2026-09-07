@@ -143,7 +143,8 @@ contract RehypothecationForkTest is Test {
             amountSpecified: -int256(margin),
             leverage: leverage,
             solver: solver,
-            hookData: abi.encode(true, leverage, trader)
+            hookData: abi.encode(true, leverage, trader),
+            deadline: block.timestamp + 15 minutes
         }));
         (, uint256 rColl, , , , , int24 rTl, int24 rTu, uint128 rLiq) =
             newHook.positions(hookPoolId, trader);

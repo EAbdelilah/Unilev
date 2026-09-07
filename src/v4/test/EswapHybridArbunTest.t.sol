@@ -93,7 +93,8 @@ contract EswapHybridArbunTest is BaseV4Test {
             amountSpecified: -int256(marginAmount),
             leverage: leverage,
             solver: solver,
-            hookData: hookData
+            hookData: hookData,
+            deadline: block.timestamp + 15 minutes
         });
 
         vm.prank(trader);

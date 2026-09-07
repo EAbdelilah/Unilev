@@ -77,7 +77,8 @@ contract EswapEmergencyPauseTest is BaseV4Test {
                 amountSpecified: -10 ether,
                 leverage: 5,
                 solver: solver,
-                hookData: abi.encode(true, uint8(5), trader)
+                hookData: abi.encode(true, uint8(5), trader),
+                deadline: block.timestamp + 15 minutes
             })
         );
     }
@@ -109,7 +110,8 @@ contract EswapEmergencyPauseTest is BaseV4Test {
                 amountSpecified: -10 ether,
                 leverage: 5,
                 solver: solver,
-                hookData: abi.encode(true, uint8(5), trader)
+                hookData: abi.encode(true, uint8(5), trader),
+                deadline: block.timestamp + 15 minutes
             })
         );
 
@@ -124,7 +126,8 @@ contract EswapEmergencyPauseTest is BaseV4Test {
                 amountSpecified: -10 ether,
                 leverage: 5,
                 solver: solver,
-                hookData: abi.encode(true, uint8(5), trader)
+                hookData: abi.encode(true, uint8(5), trader),
+                deadline: block.timestamp + 15 minutes
             })
         );
 

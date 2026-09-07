@@ -279,7 +279,8 @@ contract EswapMainnetV4ForkTest is Test {
             amountSpecified: -int256(margin),
             leverage: 2,
             solver: solver,
-            hookData: abi.encode(true, uint8(2), trader)
+            hookData: abi.encode(true, uint8(2), trader),
+            deadline: block.timestamp + 15 minutes
         });
 
         vm.prank(trader);

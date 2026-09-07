@@ -77,7 +77,8 @@ contract RepointAndOpen is Script {
             amountSpecified: -int256(marginUsdc),
             leverage: 1,
             solver: address(0),
-            hookData: hookData
+            hookData: hookData,
+            deadline: block.timestamp + 15 minutes
         }));
         console.log("opened LONG, margin(raw)", marginUsdc);
 

@@ -63,7 +63,8 @@ contract LiveNativeShort is Test {
             amountSpecified: -int256(marginWei),
             leverage: leverage,
             solver: SOLVER,
-            hookData: hookData
+            hookData: hookData,
+            deadline: block.timestamp + 15 minutes
         });
         vm.deal(trader, 10 ether);
         vm.startPrank(trader);
@@ -131,7 +132,8 @@ contract LiveNativeShort is Test {
             amountSpecified: -int256(marginUsdc),
             leverage: 5,
             solver: SOLVER,
-            hookData: hookData
+            hookData: hookData,
+            deadline: block.timestamp + 15 minutes
         });
         vm.startPrank(trader);
         IERC20Like(USDC).approve(LIVE_ROUTER, type(uint256).max);
@@ -164,7 +166,8 @@ contract LiveNativeShort is Test {
             amountSpecified: -int256(marginUsdc),
             leverage: 5,
             solver: SOLVER,
-            hookData: hookData
+            hookData: hookData,
+            deadline: block.timestamp + 15 minutes
         });
         vm.startPrank(trader);
         IERC20Like(USDC).approve(LIVE_ROUTER, type(uint256).max);

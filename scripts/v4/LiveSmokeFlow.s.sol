@@ -79,7 +79,8 @@ contract LiveSmokeFlow is Script {
                 amountSpecified: -int256(marginWei),
                 leverage: leverage,
                 solver: solver,
-                hookData: hookData
+                hookData: hookData,
+                deadline: block.timestamp + 15 minutes
             }));
             console.log("SHORT open done");
             _print("SHORT after open");
@@ -96,7 +97,8 @@ contract LiveSmokeFlow is Script {
                 amountSpecified: -int256(marginUsdc),
                 leverage: leverage,
                 solver: solver,
-                hookData: hookData
+                hookData: hookData,
+                deadline: block.timestamp + 15 minutes
             }));
             console.log("LONG open done");
             _print("LONG after open");

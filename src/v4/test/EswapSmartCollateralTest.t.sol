@@ -161,9 +161,17 @@ contract EswapSmartCollateralTest is BaseV4Test {
 
         // Register the solver's debt so close pays the yield to it
         hook.registerSolverDebt(key.toId(), address(this), solver, 400 ether);
+        // [FIX C-7][harness] Simulate the deploy delta so rehypPrincipal is
+        // correctly recorded: SHORT sells token1 (the collateral) into the band.
+        manager.setNextModifyLiquidityDelta(0, -int128(int256(collateralAmount)));
         hook.deployCollateral(key, address(this));
 
         assertEq(hook.positionSolver(key.toId(), address(this)), solver, "solver must back the leveraged position");
+        assertEq(
+            hook.rehypPrincipal(key.toId(), address(this)),
+            collateralAmount,
+            "deploy delta must be recorded as rehypothecated principal"
+        );
 
         // Closing removes liquidity; the pool returns principal + LP fees. Mock:
         // removeDelta returns 500 ether token1 (collateral), i.e. 500 - 477.6 = 22.4 ether yield.

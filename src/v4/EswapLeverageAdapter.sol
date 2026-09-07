@@ -121,7 +121,8 @@ contract EswapLeverageAdapter is Ownable {
             amountSpecified: -int256(int256(amountIn)),
             leverage: leverage,
             solver: solver,
-            hookData: abi.encode(true, leverage, recipient)
+            hookData: abi.encode(true, leverage, recipient),
+            deadline: block.timestamp + router.DEFAULT_DEADLINE_SLACK()
         });
 
         bytes memory result = router.swapMultiPoolFor(params, recipient);

@@ -100,6 +100,9 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     );
     event ResidueSwept(Currency indexed currency, address indexed to, uint256 amount);
     event EmergencyPauseToggled(bool indexed paused);
+    event BadDebtRecorded(Currency indexed currency, uint256 amount);
+    event ConfigSet(ConfigParams params);
+    event StandardPoolRequirementSet(bool required);
 
     modifier onlyPoolManager() {
         if (msg.sender != address(manager)) revert NotPoolManager();
@@ -283,6 +286,13 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         standardPoolKeys[poolId] = key;
     }
 
+    /// @notice [FIX M-9] When true, close/liquidation/rebalance unwind swaps may
+    ///         only run against a configured standard (deep) pool.
+    function setRequireStandardPoolKey(bool required) external onlyOwner {
+        requireStandardPoolKey = required;
+        emit StandardPoolRequirementSet(required);
+    }
+
     /**
      * @notice Configures the ERC-20 decimals for a pool token.
      * @dev Required for pools containing non-18-decimal tokens (e.g. 6-decimal USDC)
@@ -378,8 +388,25 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
      * @notice Withdraws physically settled tokens from the Insurance Fund.
      */
     uint256 public insuranceWithdrawalCapBps = 5000; // 50% max per call
+    uint256 public constant INSURANCE_WITHDRAWAL_COOLDOWN = 1 days;
+    // [FIX C-7] Uncovered liquidation/close shortfall (insurance insufficient) is
+    // recorded as protocol bad debt instead of bricking the position forever.
+    // Declared AFTER insuranceWithdrawalCapBps to keep the storage layout in
+    // lockstep with EswapMarginHookLogic (C-6).
+    mapping(Currency => uint256) public badDebt;
+    // [FIX M-9] When true, close/liquidation/rebalance unwind swaps require a
+    // configured standard (deep) pool — no silent fallback to the accounting pool.
+    bool public requireStandardPoolKey;
+    // [FIX C-9] Per-currency cooldown for withdrawInsuranceFund (1 withdrawal/day).
+    mapping(Currency => uint256) public lastInsuranceWithdrawal;
 
     function withdrawInsuranceFund(Currency currency, address to, uint256 amount) external onlyOwner {
+        // [FIX C-9] Cooldown prevents repeated 50%-cap drains that could gut the
+        // insurance backing between liquidations.
+        if (block.timestamp < lastInsuranceWithdrawal[currency] + INSURANCE_WITHDRAWAL_COOLDOWN) {
+            revert UnsupportedFeature();
+        }
+        lastInsuranceWithdrawal[currency] = block.timestamp;
         uint256 cap = (insuranceFund[currency] * insuranceWithdrawalCapBps) / 10000;
         if (amount > cap) revert UnsupportedFeature();
         insuranceFund[currency] -= amount;
@@ -450,6 +477,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         maxPriceSwingBps = params.maxPriceSwingBps;
         defaultMaxLeverage = params.defaultMaxLeverage;
         requireTwapOracle = params.requireTwapOracle;
+        emit ConfigSet(params);
     }
 
     /**
@@ -1080,6 +1108,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     }
 
     function transfer(address receiver, uint256 id, uint256 amount) public override returns (bool) {
+        if (receiver == address(0)) revert ZeroAddress(); // [FIX H-6]
         if (_isCollateralTokenId(id)) revert UnsupportedFeature();
         if (_claimBalances[msg.sender][id] < amount) revert ERC6909InsufficientBalance();
         _claimBalances[msg.sender][id] -= amount;
@@ -1088,6 +1117,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     }
 
     function transferFrom(address sender, address receiver, uint256 id, uint256 amount) public override returns (bool) {
+        if (receiver == address(0)) revert ZeroAddress(); // [FIX H-6]
         if (_isCollateralTokenId(id)) revert UnsupportedFeature();
         if (msg.sender != sender && !_isOperator[sender][msg.sender]) {
             if (_allowances[sender][msg.sender][id] < amount) revert ERC6909InsufficientAllowance();
@@ -1100,10 +1130,8 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     }
 
     function _isCollateralTokenId(uint256 id) internal view returns (bool) {
-        for (uint256 i = 0; i < registeredCurrencies.length; i++) {
-            if (id == uint256(uint160(Currency.unwrap(registeredCurrencies[i])))) return true;
-        }
-        return false;
+        // [FIX H-7] O(1) lookup instead of scanning registeredCurrencies.
+        return isCurrencyRegistered[Currency.wrap(address(uint160(id)))];
     }
 
     function approve(address spender, uint256 id, uint256 amount) public override returns (bool) {
@@ -1145,6 +1173,9 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     }
 
     function registerSolverDebt(PoolId poolId, address trader, address solver, uint256 principal) external onlyRouter {
+        // [FIX H-8] A zero solver would silently leave the borrowed leg with no
+        // designated repayer - the position would then resolve with no repayment.
+        if (solver == address(0)) revert ZeroAddress();
         Position storage pos = positions[poolId][trader];
         if (principal > pos.borrowedAmount) revert UnsupportedFeature();
         solverDebts[poolId][trader][solver] = SolverDebt({solver: solver, principal: principal, accumulatedYield: 0});
@@ -1224,7 +1255,18 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
 
     /// @dev Fallback delegates any selector not matching a function on this
     ///      contract to the logic contract (defense-in-depth for future additions).
+    /// [FIX M-7] Restrict delegation to known logic selectors and reject empty
+    /// calldata so the hook never proxies arbitrary calldata to a foreign call.
     fallback() external payable {
+        if (msg.data.length < 4) revert UnsupportedFeature();
+        bytes4 sig = bytes4(msg.data[0:4]);
+        if (
+            sig != this.closePosition.selector && sig != this.executeLiquidation.selector
+                && sig != this.rebalancePosition.selector && sig != this.deployCollateral.selector
+                && sig != this.registerMarginOpen.selector
+        ) {
+            revert UnsupportedFeature();
+        }
         _delegateToLogic();
     }
 }

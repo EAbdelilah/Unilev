@@ -153,7 +153,7 @@ contract EswapSolvencyTest is BaseV4Test {
         assertEq(collateral, 0);
     }
 
-    function test_BadDebt_RevertsIfInsuranceInsufficient() public {
+    function test_BadDebt_RecordedWhenInsuranceInsufficient() public {
         _openPosition(); // opens at 1:1
 
         // Now simulate extreme crash
@@ -162,11 +162,16 @@ contract EswapSolvencyTest is BaseV4Test {
 
         token0.mint(address(hook), 100 ether);
         token1.mint(address(hook), 100 ether);
-        // SHORT liquidation: receives token0 = 0.3 ether < borrow 4 ether → shortfall 3.7
-        // Insurance for currency0 = 0 → should revert
+        // SHORT liquidation: receives token0 = 0.3 ether < borrow 4 ether → shortfall 3.7.
+        // Insurance for currency0 = 0 → the whole 3.7 ether is recorded as bad debt
+        // [FIX C-7] instead of reverting and stranding the position forever.
         manager.setNextSwapDelta(0.3 ether, -0.3 ether);
 
-        vm.expectRevert();
         hook.executeLiquidation(key, address(this), 0, address(this));
+
+        (address trader, uint256 collateral,,,,,,,) = hook.positions(key.toId(), address(this));
+        assertEq(trader, address(0), "position cleared despite insufficient insurance");
+        assertEq(collateral, 0, "position collateral cleared");
+        assertEq(hook.badDebt(key.currency0), 3.7 ether, "uncovered shortfall booked as protocol bad debt");
     }
 }

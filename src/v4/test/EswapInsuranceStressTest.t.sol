@@ -158,7 +158,9 @@ contract EswapInsuranceStressTest is BaseV4Test {
         assertLe(_fund(), CASCADE_N, "exact seed fully consumed (dust only)");
         console2.log("minSeed (5x5x@50%, margin 100e each):", seedNeeded);
 
-        // --- Run 2: one wei less -> the LAST liquidation is STUCK. ---
+        // --- Run 2: one wei less -> the LAST liquidation SUCCEEDS by drawing the
+        //     remaining fund and booking the uncovered wei as protocol bad debt
+        //     [FIX C-7] — previously it reverted and stranded the bag forever. ---
         (address[CASCADE_N] memory tradersB, uint256 seedNeededB) = _cascade(100 ether, 5);
         assertEq(seedNeededB, seedNeeded, "identical economics");
 
@@ -175,17 +177,17 @@ contract EswapInsuranceStressTest is BaseV4Test {
         }
 
         // Final position: fund is one wei short of its shortfall.
-        (, uint256 cLast, uint256 borrowedLast,,,,,,) = hook.positions(key.toId(), tradersB[CASCADE_N - 1]);
+        (, uint256 cLast,,,,,,,) = hook.positions(key.toId(), tradersB[CASCADE_N - 1]);
         uint256 RLast = (cLast * 50) / 100;
         priceFeed.setPrice(address(token1), 0.5e18);
         manager.setNextSwapDelta(int128(uint128(RLast)), -int128(uint128(RLast)));
 
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                EswapMarginHook.InsufficientInsuranceFundForShortfall.selector, borrowedLast - RLast, _fund()
-            )
-        );
         hook.executeLiquidation(key, tradersB[CASCADE_N - 1], 0, address(this));
+
+        (, uint256 cFinal,,,,,,,) = hook.positions(key.toId(), tradersB[CASCADE_N - 1]);
+        assertEq(cFinal, 0, "final bag cleared despite 1 wei shortfall");
+        assertEq(_fund(), 0, "insurance fully consumed");
+        assertEq(hook.badDebt(key.currency0), 1 wei, "uncovered shortfall booked as bad debt");
     }
 
     // ------------------------------------------------------------------

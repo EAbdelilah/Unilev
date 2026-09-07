@@ -77,7 +77,8 @@ contract LiveShortSimTest is Test {
             amountSpecified: -int256(marginWeth),
             leverage: leverage,
             solver: LIVE_SOLVER,
-            hookData: hookData
+            hookData: hookData,
+            deadline: block.timestamp + 15 minutes
         });
 
         vm.prank(trader);
@@ -143,7 +144,8 @@ contract LiveShortSimTest is Test {
             amountSpecified: -int256(marginWeth),
             leverage: leverage,
             solver: LIVE_SOLVER,
-            hookData: hookData
+            hookData: hookData,
+            deadline: block.timestamp + 15 minutes
         });
 
         vm.prank(trader);

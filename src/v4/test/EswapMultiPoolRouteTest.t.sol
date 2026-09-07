@@ -118,7 +118,8 @@ contract EswapMultiPoolRouteTest is BaseV4Test {
             amountSpecified: -int128(uint128(margin)),
             leverage: leverage,
             solver: solver,
-            hookData: abi.encode(true, leverage, trader)
+            hookData: abi.encode(true, leverage, trader),
+            deadline: block.timestamp + 15 minutes
         });
 
         token0.mint(trader, 100 ether);
@@ -174,7 +175,8 @@ contract EswapMultiPoolRouteTest is BaseV4Test {
             amountSpecified: -int128(uint128(margin)),
             leverage: leverage,
             solver: solver,
-            hookData: abi.encode(true, leverage, trader)
+            hookData: abi.encode(true, leverage, trader),
+            deadline: block.timestamp + 15 minutes
         });
 
         token1.mint(trader, 100 ether);
@@ -226,7 +228,8 @@ contract EswapMultiPoolRouteTest is BaseV4Test {
             amountSpecified: -int128(uint128(margin)),
             leverage: leverage,
             solver: solver,
-            hookData: abi.encode(true, leverage, trader)
+            hookData: abi.encode(true, leverage, trader),
+            deadline: block.timestamp + 15 minutes
         });
 
         token0.mint(trader, margin);

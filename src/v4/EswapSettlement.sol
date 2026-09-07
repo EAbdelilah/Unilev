@@ -108,7 +108,8 @@ contract EswapSettlement is Ownable {
             amountSpecified: amountSpecified,
             leverage: leverage,
             solver: address(this),
-            hookData: abi.encode(true, leverage, address(this))
+            hookData: abi.encode(true, leverage, address(this)),
+            deadline: block.timestamp + router.DEFAULT_DEADLINE_SLACK()
         });
 
         router.swapMultiPoolFor(params, address(this));

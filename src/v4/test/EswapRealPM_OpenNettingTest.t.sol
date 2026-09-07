@@ -162,7 +162,8 @@ contract EswapRealPM_OpenNettingTest is Test {
             amountSpecified: -int256(MARGIN),
             leverage: 2,
             solver: solver,
-            hookData: hookData
+            hookData: hookData,
+            deadline: block.timestamp + 15 minutes
         });
         vm.prank(trader);
         router.swap(params);
@@ -189,7 +190,8 @@ contract EswapRealPM_OpenNettingTest is Test {
             amountSpecified: -int256(MARGIN),
             leverage: 2,
             solver: solver,
-            hookData: hookData
+            hookData: hookData,
+            deadline: block.timestamp + 15 minutes
         });
         address executor = makeAddr("executor");
         vm.prank(executor);

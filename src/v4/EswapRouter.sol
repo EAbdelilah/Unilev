@@ -178,6 +178,9 @@ contract EswapRouter is
     // M-11: Event for failed collateral deployment
     error InsufficientGasForCollateralDeployment(uint256 available, uint256 required);
 
+    error DeadlineExpired();
+    uint256 public constant DEFAULT_DEADLINE_SLACK = 15 minutes;
+
     struct SwapParams {
         // Hook-enabled pool where leverage accounting (flash borrow + position
         // registration) and the physical swap both happen.
@@ -192,6 +195,9 @@ contract EswapRouter is
         // (margin x (leverage-1)). Must be non-zero for leverage > 1.
         address solver;
         bytes hookData;
+        // [FIX L-4] Unix timestamp after which the swap is rejected, so a signed
+        // fill can never be executed late against a stale price.
+        uint256 deadline;
     }
 
     function swap(SwapParams calldata params) external returns (bytes memory) {
@@ -302,7 +308,8 @@ contract EswapRouter is
             amountSpecified: amountSpecified,
             leverage: leverage,
             solver: activeSolver,
-            hookData: hookData
+            hookData: hookData,
+            deadline: uint256(order.fillDeadline)
         });
 
         // Aggregator intents fill on the DEEP standard pool (multi-pool mode):
@@ -508,6 +515,8 @@ contract EswapRouter is
      *      sqrtPriceLimitX96 ([FIX V1]); the real Pool library rejects 0.
      */
     function _swapCallback(SwapParams memory params, address trader) internal returns (bytes memory) {
+        // [FIX L-4] Reject fills past the signed deadline.
+        if (block.timestamp > params.deadline) revert DeadlineExpired();
         uint256 marginAmount =
             uint256(int256(params.amountSpecified < 0 ? -params.amountSpecified : params.amountSpecified));
         uint256 borrowAmount = marginAmount * uint256(params.leverage - 1);
@@ -601,6 +610,8 @@ contract EswapRouter is
      *      BOTH input legs are funded and the FULL output is minted as a claim.
      */
     function _multiPoolSwapCallback(SwapParams memory params, address trader) internal returns (bytes memory) {
+        // [FIX L-4] Reject fills past the signed deadline.
+        if (block.timestamp > params.deadline) revert DeadlineExpired();
         uint256 marginAmount =
             uint256(int256(params.amountSpecified < 0 ? -params.amountSpecified : params.amountSpecified));
         uint256 borrowAmount = marginAmount * uint256(params.leverage - 1);
