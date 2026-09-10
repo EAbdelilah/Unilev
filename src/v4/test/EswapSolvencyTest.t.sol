@@ -99,7 +99,7 @@ contract EswapSolvencyTest is BaseV4Test {
         // SHORT liquidation: zeroForOne=false → sell currency1 (collateral) → receive currency0 (debt)
         // New directional mock: amount0=+5 ether (received), amount1=-5 ether (sold)
         // receivedAmount comes from amount0 (positive) = 5 ether
-        // Surplus after repaying the 4 ether borrow = 1 ether → 3% = 0.03 to insurance
+        // Surplus after repaying the 4 ether borrow = 1 ether → 3% = 0.03 to the liquidator
         token0.mint(address(hook), 10 ether);
         token1.mint(address(hook), 10 ether);
         // Override with explicit directional delta: selling token1, receiving token0
@@ -116,12 +116,15 @@ contract EswapSolvencyTest is BaseV4Test {
         (address trader, uint256 collateral,,,,,,,) = hook.positions(key.toId(), address(this));
         assertEq(trader, address(0));
         assertEq(collateral, 0);
-        // Nobody profits from a penalty: the liquidator earns 0; the trader receives
-        // the surplus minus the insurance carve-out (1 - 0.03 = 0.97 ether).
+        // [FIX H-5] The liquidator earns the 3% liquidation reward OUT of the
+        // recovered surplus (incentivising keepers); the trader keeps the
+        // remainder. Here the trader happens to liquidate themselves, so BOTH
+        // flows pay to this address: 0.03 (liquidator) + 0.97 (trader) = 1 ether.
         assertEq(
-            token0.balanceOf(address(this)) - traderBalBefore, 0.97 ether, "trader receives surplus minus carve-out"
+            token0.balanceOf(address(this)) - traderBalBefore, 1 ether,
+            "liquidator reward + trader surplus both reach the caller"
         );
-        assertEq(hook.insuranceFund(key.currency0), 0.03 ether, "reward routed to the insurance fund");
+        assertEq(hook.insuranceFund(key.currency0), 0, "nothing carved out to the insurance fund");
 
         // No phantom ERC-6909 claim or collateral aggregate should remain after liquidation
         assertEq(hook._claimBalances(address(this), claimId), 0, "claim balance not cleared on liquidation");

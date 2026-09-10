@@ -79,9 +79,10 @@ contract EswapRouterAccessTest is BaseV4Test {
         (address trader, uint256 collateral,,,,,,,) = hook.positions(key.toId(), address(this));
         assertEq(trader, address(0), "position should be liquidated");
         assertEq(collateral, 0);
-        // Keeper earns NOTHING: nobody profits from a trader's penalty.
-        assertEq(token0.balanceOf(keeper), 0, "keeper must not profit from penalties");
-        assertGt(hook.insuranceFund(key.currency0), 0, "recovery carve-out routed to insurance fund");
+        // [FIX H-5] The permissionless liquidator is rewarded: the 3% liquidation
+        // fee comes out of the recovered surplus (no more insurance carve-out).
+        assertGt(token0.balanceOf(keeper), 0, "keeper must earn the liquidation reward");
+        assertEq(hook.insuranceFund(key.currency0), 0, "no insurance carve-out");
     }
 
     function test_Close_PropagatesHookRevert() public {

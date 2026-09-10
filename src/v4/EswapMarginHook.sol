@@ -25,6 +25,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {NativeTokens} from "./libraries/NativeTokens.sol"; // [FIX H-1]
 import {EswapMarginLib} from "./EswapMarginLib.sol";
 import {EswapMarginHookLogic} from "./EswapMarginHookLogic.sol";
 import {IPriceFeedLogic} from "./EswapMarginHookLogic.sol";
@@ -92,6 +93,10 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     error ZeroSweepRecipient();
     error EmergencyPaused();
 
+    /// @dev First-word tag of self-wrapped `deployCollateral` unlock payloads.
+    ///      Must match the constant in EswapMarginHookLogic.
+    uint256 private constant DEPLOY_TAG = uint256(keccak256("DEPLOY_COLLATERAL"));
+
     event BaseCurrencySet(PoolId indexed poolId, Currency currency);
     event TradingPairRegistered(PoolId indexed poolId, Currency base, PoolKey standardKey);
     event AddressProtocolFeeSet(address indexed account, uint256 bps);
@@ -116,6 +121,11 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
 
     modifier onlyRouter() {
         if (msg.sender != router) revert Unauthorized();
+        _;
+    }
+
+    modifier onlyRouterOrManager() {
+        if (msg.sender != router && msg.sender != address(manager)) revert Unauthorized();
         _;
     }
 
@@ -411,7 +421,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         if (amount > cap) revert UnsupportedFeature();
         insuranceFund[currency] -= amount;
         manager.unlock(abi.encode(currency, -SafeCast.toInt128(int256(amount)), true)); // Take from PM
-        IERC20(Currency.unwrap(currency)).safeTransfer(to, amount); // [FIX C-2]
+        NativeTokens.transfer(currency, to, amount); // [FIX C-2] [FIX H-1] native-aware
     }
 
     /**
@@ -423,7 +433,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         if (protocolFees[currency] < amount) revert InsufficientProtocolFees(amount, protocolFees[currency]);
         protocolFees[currency] -= amount;
         manager.unlock(abi.encode(currency, -SafeCast.toInt128(int256(amount)), true)); // Take from PM
-        IERC20(Currency.unwrap(currency)).safeTransfer(treasury, amount); // [FIX C-2]
+        NativeTokens.transfer(currency, treasury, amount); // [FIX C-2] [FIX H-1] native-aware
     }
 
     // ─── Protocol-Owned Residue Sweep ─────────────────────────────────────────
@@ -462,7 +472,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         uint256 sweepable = sweepableResidue(currency);
         if (amount > sweepable) revert InsufficientResidue(amount, sweepable);
         manager.unlock(abi.encode(currency, -SafeCast.toInt128(int256(amount)), true)); // Take from PM
-        IERC20(Currency.unwrap(currency)).safeTransfer(to, amount);
+        NativeTokens.transfer(currency, to, amount); // [FIX H-1] native-aware
         emit ResidueSwept(currency, to, amount);
     }
 
@@ -919,49 +929,32 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     }
 
     function _checkV4SpotAgainstV3Twap(PoolKey calldata key) internal view {
-        // LIVE-MARKET GUARD (REDEPLOY-3): Every pool-based price source we can
-        // read is unreliable for a "honest trade always passes" guarantee:
-        //   - The accounting (hook) pool is empty by design → slot0 frozen at init
-        //     and never tracks the market.
-        //   - The standard (fill) pool may be thin/illiquid and lag the market.
-        // The authoritative market price is the LIVE Chainlink oracle itself
-        // (latestRoundData, staleness + sequencer guarded). Because the whole
-        // accounting/liquidation path (collateral, borrow, isLiquidatable) is
-        // already oracle-anchored via getAmountInUsd(), the AMM pool price is NOT
-        // a trusted input — so we source the spot reference from the oracle too.
-        // This makes the guard track the live market at ANY price for ANY pair
-        // (WETH or WBTC) and never false-positive on an honest trade, while still
-        // reverting TwapNotConfigured when a feed is missing (requireTwapOracle).
+        // LIVE-MARKET GUARD (REDEPLOY-3, [FIX H-2]): compare the REAL V4 spot
+        // price of the EXECUTION venue — the configured standard (deep fill) pool
+        // — against the Chainlink-anchored TWAP ratio. The accounting (hook) pool
+        // is empty by design (slot0 frozen at init, never tracks the market), so
+        // it carries no honest spot: for accounting-only pairs the guard degrades
+        // to verifying the oracle is configured (requireTwapOracle) and otherwise
+        // passes — the accounting/liquidation path is oracle-anchored anyway via
+        // getAmountInUsd(). When a standard pool IS configured, its live slot0 is a
+        // genuine independent market read, so deviation > maxPriceSwingBps from the
+        // oracle TWAP (e.g. a flash-manipulated or stale fill venue) reverts the
+        // trade instead of silently executing against a bad price.
         uint256 twap0 = priceFeed.getTwapPrice(Currency.unwrap(key.currency0));
         uint256 twap1 = priceFeed.getTwapPrice(Currency.unwrap(key.currency1));
         if (twap0 == 0 || twap1 == 0) {
             if (requireTwapOracle) revert TwapNotConfigured();
             return;
         }
-        // Derive the honest spot sqrtPriceX96 that EswapMarginLib.checkTwap would
-        // compute for a pool whose spot EXACTLY equals the live oracle pair price.
-        // checkTwap computes spotRatio18 from the sqrt then applies the token-decimal
-        // adjustment (d0,d1) before comparing to twapRatio18, so we invert that
-        // adjustment here to build a self-consistent spot against the same oracle.
-        //   rawSpot = sqrtPriceX96^2 * 1e18 / 2^192
-        //   d0 >= d1 : adjusted = rawSpot * 10^(d0-d1)
-        //   d1 >  d0 : adjusted = rawSpot / 10^(d1-d0)
-        // Setting adjusted == twapRatio18 yields deviation ~0 at every price level.
-        uint256 twapRatio18 = (twap0 * 1e18) / twap1;
-        uint8 d0 = tokenDecimals[Currency.unwrap(key.currency0)] == 0
-            ? 18
-            : tokenDecimals[Currency.unwrap(key.currency0)];
-        uint8 d1 = tokenDecimals[Currency.unwrap(key.currency1)] == 0
-            ? 18
-            : tokenDecimals[Currency.unwrap(key.currency1)];
-        uint256 rawSpot18;
-        if (d0 >= d1) {
-            rawSpot18 = twapRatio18 / (10 ** (uint256(d0) - uint256(d1)));
-        } else {
-            rawSpot18 = twapRatio18 * (10 ** (uint256(d1) - uint256(d0)));
+
+        PoolKey memory execKey = standardPoolKeys[key.toId()];
+        if (Currency.unwrap(execKey.currency1) == address(0)) {
+            // Accounting-only pool: no execution venue to protect; the frozen
+            // slot0 would false-positive on any real market move.
+            return;
         }
-        uint256 spotSq = FullMath.mulDiv(rawSpot18, 1 << 192, 1e18);
-        uint160 sqrtPriceX96 = SafeCast.toUint160(Math.sqrt(spotSq));
+
+        (uint160 sqrtPriceX96,,,) = _slot0(execKey.toId());
         if (sqrtPriceX96 == 0) {
             if (requireTwapOracle) revert TwapNotConfigured();
             return;
@@ -1090,7 +1083,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         return abi.decode(data, (bool, uint8, address));
     }
 
-    function deployCollateral(PoolKey calldata key, address trader) external onlyRouter {
+    function deployCollateral(PoolKey calldata key, address trader) external onlyRouterOrManager {
         _delegateToLogic();
     }
 
@@ -1220,14 +1213,44 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
 
     function unlockCallback(bytes calldata data) external returns (bytes memory) {
         if (msg.sender != address(manager)) revert NotPoolManager();
+        // [FIX SELF-CLOSE] Disambiguate the self-wrapped deployCollateral payload
+        // from the legacy (Currency, int128, bool) unpause/seed encoding. The tag
+        // has nonzero high bytes so it can never collide with a left-aligned
+        // Currency (address) first word.
+        bytes32 firstWord;
+        assembly ("memory-safe") {
+            firstWord := calldataload(data.offset)
+        }
+        if (uint256(firstWord) == DEPLOY_TAG) {
+            (, PoolKey memory key, address trader) = abi.decode(data, (uint256, PoolKey, address));
+            (bool ok, bytes memory ret) =
+                address(hookLogic).delegatecall(abi.encodeCall(EswapMarginHookLogic.deployCollateral, (key, trader)));
+            if (!ok) {
+                assembly ("memory-safe") { revert(add(ret, 32), mload(ret)) }
+            }
+            return "";
+        }
         (Currency currency, int128 delta, bool isTake) = abi.decode(data, (Currency, int128, bool));
         if (isTake) {
-            manager.take(currency, address(this), uint256(int256(-delta)));
+            // [FIX C-3] On the real PoolManager, take() alone records a negative
+            // transient delta against the hook that never nets to zero, so the
+            // unlock reverts CurrencyNotSettled. Because the extracted value is
+            // claim-backed (insurance/fees/residue were settled and minted as
+            // ERC-6909 claims held by this hook), net the extraction the canonical
+            // V4 way: burn the claim (+delta) then take (-delta) => zero residual.
+            uint256 claimId = uint256(uint160(Currency.unwrap(currency)));
+            uint256 amount = uint256(int256(-delta));
+            manager.burn(address(this), claimId, amount);
+            manager.take(currency, address(this), amount);
         } else {
             uint256 amount = uint256(int256(delta));
             manager.sync(currency);
-            IERC20(Currency.unwrap(currency)).safeTransfer(address(manager), amount);
-            manager.settle();
+            if (NativeTokens.isNative(currency)) {
+                manager.settle{value: amount}();
+            } else {
+                IERC20(Currency.unwrap(currency)).safeTransfer(address(manager), amount);
+                manager.settle();
+            }
             manager.mint(address(this), uint256(uint160(Currency.unwrap(currency))), amount);
         }
         return "";

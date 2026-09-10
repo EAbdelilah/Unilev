@@ -97,7 +97,8 @@ contract LiveTinyBattery is Script {
             leverage: lev,
             solver: solver,
             hookData: abi.encode(true, lev, trader),
-            deadline: block.timestamp + 15 minutes
+            deadline: block.timestamp + 15 minutes,
+minAmountOut: 0
         }));
         console.log("--- SHORT opened");
         _print(lev);
@@ -112,7 +113,8 @@ contract LiveTinyBattery is Script {
             leverage: lev,
             solver: solver,
             hookData: abi.encode(true, lev, trader),
-            deadline: block.timestamp + 15 minutes
+            deadline: block.timestamp + 15 minutes,
+minAmountOut: 0
         }));
         console.log("--- LONG opened");
         _print(lev);

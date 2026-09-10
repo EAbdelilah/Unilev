@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {IPoolManager} from "../../interfaces/IPoolManager.sol";
+import {Lock} from "@uniswap/v4-core/src/libraries/Lock.sol";
 import {PoolKey} from "../../types/PoolKey.sol";
 import {Currency} from "../../types/Currency.sol";
 import {BalanceDelta, BalanceDeltaLibrary} from "../../types/BalanceDelta.sol";
@@ -201,6 +202,13 @@ contract PoolManagerMock is IPoolManager {
         bytes32 value;
         assembly ("memory-safe") {
             value := tload(slot)
+        }
+        // [FIX SELF-CLOSE] The base mock emulates an always-open PoolManager
+        // unlock lock so direct calls keep executing deployCollateral without
+        // unlock ceremony. The transient lock slot is only ever meaningful on
+        // the real (Exttload) PoolManager.
+        if (slot == Lock.IS_UNLOCKED_SLOT && value == bytes32(0)) {
+            value = bytes32(uint256(1));
         }
         return value;
     }

@@ -91,7 +91,11 @@ contract EswapSolverAdapterTest is BaseV4Test {
         manager.mint(address(hook), uint256(uint160(address(token1))), 2.88 ether);
 
         address solver = address(0x5011);
-        adapter.registerSolverDebt(key, traderAddress, solver, 2 ether);
+        // The adapter is the configured router here, but the sole authorized
+        // path is the hook's own onlyRouter[] registerSolverDebt (the adapter's
+        // unauthenticated public forwarder was removed, [FIX M-5]).
+        vm.prank(address(adapter));
+        hook.registerSolverDebt(key.toId(), traderAddress, solver, 2 ether);
         (address solverOut, uint256 principal,) = hook.solverDebts(key.toId(), traderAddress, solver);
         assertEq(solverOut, solver);
         assertEq(principal, 2 ether);
@@ -127,21 +131,5 @@ contract EswapSolverAdapterTest is BaseV4Test {
         bool success = adapter.submitSpotIntent(intent, sig);
         assertTrue(success);
         assertEq(adapter.nonces(traderAddress), 1);
-    }
-
-    function test_BatchOpen_3Positions_AllMapped() public {
-        EswapSolverAdapter.MarginIntent[] memory intents = new EswapSolverAdapter.MarginIntent[](3);
-        bytes[] memory sigs = new bytes[](3);
-
-        for (uint256 i = 0; i < 3; i++) {
-            intents[i] = EswapSolverAdapter.MarginIntent({
-                trader: traderAddress, leverage: 2, amount: 1 ether, nonce: i, deadline: block.timestamp + 1000
-            });
-            sigs[i] = _signIntent(intents[i]);
-        }
-
-        uint256 count = adapter.batchOpenPositions(intents, sigs);
-        assertEq(count, 3);
-        assertEq(adapter.nonces(traderAddress), 3);
     }
 }

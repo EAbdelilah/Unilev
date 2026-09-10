@@ -88,12 +88,14 @@ library EswapMarginLib {
             spotRatio18 = spotRatio18 / (uint256(10) ** (d1 - d0));
         }
 
-        uint256 deviation;
-        if (spotRatio18 >= twapRatio18) {
-            deviation = ((spotRatio18 - twapRatio18) * 10000) / twapRatio18;
-        } else {
-            deviation = ((twapRatio18 - spotRatio18) * 10000) / spotRatio18;
-        }
+        // [FIX M-10] Deviation is always anchored to the trusted oracle baseline
+        // (`twapRatio18`), never the potentially-manipulated spot. Dividing by spot
+        // on the downside inflated a clean downtick into a false TwapManipulated
+        // (e.g. a genuine -50% move computed 100% deviation), DoS-ing opens during
+        // legitimate crashes while up-side manipulation stayed correctly scaled.
+        uint256 deviation = spotRatio18 >= twapRatio18
+            ? ((spotRatio18 - twapRatio18) * 10000) / twapRatio18
+            : ((twapRatio18 - spotRatio18) * 10000) / twapRatio18;
 
         if (deviation > maxPriceSwingBps) revert TwapManipulated();
     }

@@ -251,8 +251,13 @@ contract EswapSmartCollateralTest is BaseV4Test {
 
         // removeDelta returns ONLY token0 (the debt/other currency): recovered collateral (token1) = 0.
         manager.setNextModifyLiquidityDelta(int128(300 ether), 0);
-        // Fund the hook for the unwind-swap payout (mock take() is a no-op).
-        token0.mint(address(hook), 500 ether);
+        // [FIX C-1] The deferred debt-currency value returned by the LP band
+        // (300 token0) ALSO rejoins the payout pool, so the close pays out
+        // solver principal (400) + trader net (458.496 received + 300 band
+        // - 400 principal = 358.496) in token0. The mock's take() only credits
+        // claims, not physical balances, so fund the hook for the FULL payout
+        // pool here to mirror what the real PoolManager transfers out on take().
+        token0.mint(address(hook), 800 ether);
         // The unwind swap's transient COLLATERAL-currency (token1) debt: no PM
         // claims exist in direct-call mode, so physical tokens must cover it.
         token1.mint(address(hook), 477.6 ether);

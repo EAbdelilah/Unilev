@@ -103,6 +103,13 @@ contract EswapPositionLifecycleTest is BaseV4Test {
         hook.seedInsuranceFund(key.currency0, 100 ether);
         uint256 insuranceBefore = hook.insuranceFund(key.currency0);
         assertEq(insuranceBefore, 100 ether);
+        // [FIX C-2] On the REAL PoolManager, seedInsuranceFund's unlock settles
+        // the pulled physical tokens and MINTS an ERC-6909 claim to the hook
+        // (the mock's unlock() is a no-op, minting nothing). Coverage extraction
+        // burns that claim before taking, and is capped at the claims actually
+        // held — so mint the production ledger's claim to model it faithfully
+        // and prove the full shortfall is covered (no bad debt).
+        manager.mint(address(hook), uint256(uint160(address(token0))), 100 ether);
 
         // Collateral-currency (token1) leg of the unwind swap: physical funding
         token1.mint(address(hook), 9.95 ether);

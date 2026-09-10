@@ -64,7 +64,8 @@ contract LiveNewHookDeployRepro is Test {
             leverage: 2,
             solver: solver,
             hookData: abi.encode(true, uint8(2), freshTrader),
-            deadline: block.timestamp + 15 minutes
+            deadline: block.timestamp + 15 minutes,
+minAmountOut: 0
         });
 
         vm.prank(freshTrader);

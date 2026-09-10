@@ -25,6 +25,12 @@ contract PriceFeedMock {
     function getTwapPrice(address token) external view returns (uint256) {
         return prices[token] > 0 ? prices[token] : 1e18;
     }
+
+    // Mirrors PriceFeed.getAmountInUsd for 18-decimal tokens (the test mocks
+    // WETH/USDC are both 18-dec): USD = raw_amount * price18 / 1e18.
+    function getAmountInUsd(address token, uint256 amount) external view returns (uint256) {
+        return (prices[token] > 0 ? prices[token] : 1e18) * amount / 1e18;
+    }
 }
 
 contract ArbunPutOptionTest is Test {

@@ -77,6 +77,15 @@ contract EswapRouter is
     // H-3: Solver whitelist — only registered solvers can be used
     mapping(address => bool) public registeredSolvers;
 
+    // [FIX C-02] Native-borrow escrow. Native (ETH) has no transferFrom, so a
+    // leveraged native-input open cannot pull the solver's borrow leg the way the
+    // ERC-20 path does. Solvers deposit ETH here ahead of time; every leveraged
+    // native open draws `borrowAmount` from `nativeBorrowEscrow[solver]` so the
+    // borrow leg is genuinely funded BY THE SOLVER — never by the trader's own
+    // msg.value (which previously funded 100% of notional while the solver was
+    // still repaid at close, siphoning trader capital).
+    mapping(address => uint256) public nativeBorrowEscrow;
+
     // M-2: ERC-7683 nonce consumption
     mapping(bytes32 => bool) public filledOrders;
 
@@ -130,7 +139,10 @@ contract EswapRouter is
         ATOMIC_MARGIN,
         JIT_SPOT,
         ARBUN_DELIVERY,
-        MULTI_POOL_SWAP
+        MULTI_POOL_SWAP,
+        // [CoW] Solver-funded fill: position credited to `trader` (the recovered
+        // CoW order owner) while the margin leg is pulled from `marginFunder`.
+        MULTI_POOL_SOLVER_FUNDED
     }
 
     struct AtomicMarginParams {
@@ -171,6 +183,25 @@ contract EswapRouter is
         registeredSolvers[solver] = approved;
     }
 
+    // [FIX C-02] Solver native-borrow escrow. Solvers pre-fund ETH (or withdraw
+    // it) so leveraged native-input opens draw the borrow leg from real solver
+    // capital. Withdraw is limited to the solver's own balance; once a position
+    // draws from the escrow the ETH is spent on the position's borrow leg and is
+    // repaid to the solver through the normal close/liquidation payout path.
+    function depositNativeBorrow(address solver) external payable {
+        if (msg.value > 0) {
+            nativeBorrowEscrow[solver] += msg.value;
+            emit NativeBorrowDeposited(solver, msg.value);
+        }
+    }
+
+    function withdrawNativeBorrow(uint256 amount) external {
+        if (amount > nativeBorrowEscrow[msg.sender]) revert InsufficientNativeBorrowEscrow(nativeBorrowEscrow[msg.sender], amount);
+        nativeBorrowEscrow[msg.sender] -= amount;
+        _safeTransferETH(msg.sender, amount);
+        emit NativeBorrowWithdrawn(msg.sender, amount);
+    }
+
     function setJitApprovedSwapper(address swapper, bool approved) external onlyOwner {
         jitApprovedSwappers[swapper] = approved;
     }
@@ -179,6 +210,21 @@ contract EswapRouter is
     error InsufficientGasForCollateralDeployment(uint256 available, uint256 required);
 
     error DeadlineExpired();
+    // [FIX H-2] Single-pool mode settles via ERC-20 transferFrom and
+    // [FIX H-2/C-02] Single-pool native-input margin trades were structurally
+    // unsupported (swap/swapFor were non-payable and the callback settled via
+    // ERC-20 transferFrom). The entrypoints are payable now and the callback
+    // settles native legs with manager.settle{value}; the solver's borrow leg is
+    // drawn from `nativeBorrowEscrow` so the ledger stays honest.
+    error InsufficientNativeMargin(uint256 attached, uint256 required);
+    error InsufficientNativeBorrowEscrow(uint256 available, uint256 required);
+    // [FIX C-4] Minimum output enforcement (open-leg slippage protection): a
+    // seller-specified floor on the swap output, checked against the executed
+    // delta in both callbacks. Zero disables it (aggregator/intent flows rely on
+    // their own fill-time slippage checks against the router quote).
+    error SwapOutputBelowMinimum(uint256 outputAmount, uint256 minAmountOut);
+    event NativeBorrowDeposited(address indexed solver, uint256 amount);
+    event NativeBorrowWithdrawn(address indexed solver, uint256 amount);
     uint256 public constant DEFAULT_DEADLINE_SLACK = 15 minutes;
 
     struct SwapParams {
@@ -198,9 +244,11 @@ contract EswapRouter is
         // [FIX L-4] Unix timestamp after which the swap is rejected, so a signed
         // fill can never be executed late against a stale price.
         uint256 deadline;
+        // [FIX C-4] Minimum acceptable swap output (slippage protection).
+        uint256 minAmountOut;
     }
 
-    function swap(SwapParams calldata params) external returns (bytes memory) {
+    function swap(SwapParams calldata params) external payable returns (bytes memory) {
         return _swap(params, msg.sender);
     }
 
@@ -208,12 +256,13 @@ contract EswapRouter is
     /// For bridge/intent executors (Socket/Li.Fi/Rubic destination calldata):
     /// the executor relays the call but the position and margin belong to
     /// `trader`, who must have approved this router to pull the margin.
-    function swapFor(SwapParams calldata params, address trader) external returns (bytes memory) {
+    /// Payable so native-input (ETH) margin trades can attach the margin leg.
+    function swapFor(SwapParams calldata params, address trader) external payable returns (bytes memory) {
         return _swap(params, trader);
     }
 
     function _swap(SwapParams calldata params, address trader) internal returns (bytes memory) {
-        return manager.unlock(abi.encode(CallType.SWAP, params, trader));
+        return manager.unlock(abi.encode(CallType.SWAP, params, trader, msg.value, msg.sender));
     }
 
     /// @notice Open a leveraged position with the physical fill routed to the
@@ -230,8 +279,28 @@ contract EswapRouter is
         return _swapMultiPool(params, trader);
     }
 
+    /// @notice CoW-settlement variant of swapMultiPoolFor: opens a leveraged
+    ///         position credited to `trader` (the recovered CoW order owner)
+    ///         while the MARGIN leg is pulled from `marginFunder` (the CoW
+    ///         solver). Lets CoW solvers fund intents without the trader ever
+    ///         approving this router. The borrowed leg is still pulled from
+    ///         `params.solver` and the solver must remain whitelisted for
+    ///         leverage > 1.
+    function swapMultiPoolForSolverFunded(SwapParams calldata params, address trader, address marginFunder)
+        external
+        payable
+        returns (bytes memory)
+    {
+        return manager.unlock(
+            abi.encode(CallType.MULTI_POOL_SOLVER_FUNDED, params, trader, marginFunder, msg.value, msg.sender)
+        );
+    }
+
     function _swapMultiPool(SwapParams calldata params, address trader) internal returns (bytes memory) {
-        return manager.unlock(abi.encode(CallType.MULTI_POOL_SWAP, params, trader));
+        // [FIX M-3] Carry the attached ETH value and its sender through the unlock
+        // so the callback can refund the exact excess (msg.value is 0 inside the
+        // callback) to the party who actually funded it.
+        return manager.unlock(abi.encode(CallType.MULTI_POOL_SWAP, params, trader, msg.value, msg.sender));
     }
 
     function executeJITSpotSwap(JITSpotParams calldata params) external returns (bytes memory) {
@@ -293,8 +362,9 @@ contract EswapRouter is
             int256 amountSpecified,
             uint8 leverage,
             address solver,
-            bytes memory hookData
-        ) = abi.decode(order.orderData, (PoolKey, PoolKey, bool, int256, uint8, address, bytes));
+            bytes memory hookData,
+            uint256 minAmountOut
+        ) = abi.decode(order.orderData, (PoolKey, PoolKey, bool, int256, uint8, address, bytes, uint256));
 
         address activeSolver = solver;
         if (activeSolver == address(0)) {
@@ -309,12 +379,18 @@ contract EswapRouter is
             leverage: leverage,
             solver: activeSolver,
             hookData: hookData,
-            deadline: uint256(order.fillDeadline)
+            deadline: uint256(order.fillDeadline),
+            // [FIX H-3] Signed orders carry an explicit output floor appended to
+            // orderData; it is enforced inside the swap callback. Zero is only
+            // accepted when the signer deliberately omitted/zeroed it.
+            minAmountOut: minAmountOut
         });
 
         // Aggregator intents fill on the DEEP standard pool (multi-pool mode):
-        // execution depth comes from Uniswap's existing liquidity.
-        manager.unlock(abi.encode(CallType.MULTI_POOL_SWAP, params, swapper));
+        // execution depth comes from Uniswap's existing liquidity. `initiate` is
+        // non-payable (native margins flow via swapMultiPool/swapMultiPoolFor),
+        // so ETH attached to the unlock is always 0 here.
+        manager.unlock(abi.encode(CallType.MULTI_POOL_SWAP, params, swapper, uint256(0), msg.sender));
     }
 
     /**
@@ -359,11 +435,17 @@ contract EswapRouter is
         CallType callType = abi.decode(data, (CallType));
 
         if (callType == CallType.SWAP) {
-            (, SwapParams memory params, address trader) = abi.decode(data, (CallType, SwapParams, address));
-            return _swapCallback(params, trader);
+            (, SwapParams memory params, address trader, uint256 ethAttached, address refundRecipient) =
+                abi.decode(data, (CallType, SwapParams, address, uint256, address));
+            return _swapCallback(params, trader, ethAttached, refundRecipient);
         } else if (callType == CallType.MULTI_POOL_SWAP) {
-            (, SwapParams memory params, address trader) = abi.decode(data, (CallType, SwapParams, address));
-            return _multiPoolSwapCallback(params, trader);
+            (, SwapParams memory params, address trader, uint256 ethAttached, address refundRecipient) =
+                abi.decode(data, (CallType, SwapParams, address, uint256, address));
+            return _multiPoolOpen(params, trader, trader, ethAttached, refundRecipient);
+        } else if (callType == CallType.MULTI_POOL_SOLVER_FUNDED) {
+            (, SwapParams memory params, address trader, address marginFunder, uint256 ethAttached, address refundRecipient) =
+                abi.decode(data, (CallType, SwapParams, address, address, uint256, address));
+            return _multiPoolOpen(params, trader, marginFunder, ethAttached, refundRecipient);
         } else if (callType == CallType.CLOSE) {
             (, address hook, PoolKey memory key, address trader, address solver, uint256 minAmountOut) =
                 abi.decode(data, (CallType, address, PoolKey, address, address, uint256));
@@ -514,7 +596,10 @@ contract EswapRouter is
      *      liquidation unwind swaps. All swaps use a valid full-range
      *      sqrtPriceLimitX96 ([FIX V1]); the real Pool library rejects 0.
      */
-    function _swapCallback(SwapParams memory params, address trader) internal returns (bytes memory) {
+    function _swapCallback(SwapParams memory params, address trader, uint256 ethAttached, address refundRecipient)
+        internal
+        returns (bytes memory)
+    {
         // [FIX L-4] Reject fills past the signed deadline.
         if (block.timestamp > params.deadline) revert DeadlineExpired();
         uint256 marginAmount =
@@ -539,9 +624,9 @@ contract EswapRouter is
 
         Currency input = params.zeroForOne ? params.key.currency0 : params.key.currency1;
         Currency output = params.zeroForOne ? params.key.currency1 : params.key.currency0;
+        bool inputNative = Currency.unwrap(input) == address(0);
+        uint256 notional = marginAmount + borrowAmount;
 
-        // The hook pool executes the swap (flash-expanded by the borrow) and
-        // records the position in afterSwap.
         BalanceDelta delta = manager.swap(
             params.key,
             IPoolManager.SwapParams(
@@ -553,12 +638,39 @@ contract EswapRouter is
         int128 outputDelta = params.zeroForOne ? delta.amount1() : delta.amount0();
         require(outputDelta > 0, "Swap output zero");
         uint256 outputAmount = uint256(int256(outputDelta));
+        // [FIX C-4] Enforce the caller's slippage floor on the executed output.
+        if (outputAmount < params.minAmountOut) revert SwapOutputBelowMinimum(outputAmount, params.minAmountOut);
 
-        // Settle the trader's margin (router's -margin delta from the swap)
-        if (marginAmount > 0) {
-            manager.sync(input);
-            IERC20(Currency.unwrap(input)).safeTransferFrom(trader, address(manager), marginAmount);
-            manager.settle();
+        // [FIX H-2/C-02] Settle the router's -margin delta (and, for native
+        // leveraged opens, the hook's -borrow delta) from funds the router
+        // actually holds: the caller-attached ETH covers the MARGIN leg and the
+        // solver's nativeBorrowEscrow covers the BORROW leg. Native has no
+        // transferFrom, so the escrow is the only way to keep the borrow truly
+        // solver-funded. Excess attached ETH is refunded to the caller.
+        if (inputNative) {
+            if (borrowAmount > 0) {
+                require(params.solver != address(0), "Solver required for leverage");
+                if (nativeBorrowEscrow[params.solver] < borrowAmount) {
+                    revert InsufficientNativeBorrowEscrow(nativeBorrowEscrow[params.solver], borrowAmount);
+                }
+                nativeBorrowEscrow[params.solver] -= borrowAmount;
+            }
+            if (marginAmount > 0) {
+                if (ethAttached < marginAmount) revert InsufficientNativeMargin(ethAttached, marginAmount);
+                manager.sync(input);
+                // margin leg (caller-attached ETH) settles the router's -margin delta
+                manager.settle{value: marginAmount}();
+            }
+            if (ethAttached > marginAmount) {
+                _safeTransferETH(refundRecipient, ethAttached - marginAmount);
+            }
+        } else {
+            // Settle the trader's margin (router's -margin delta from the swap)
+            if (marginAmount > 0) {
+                manager.sync(input);
+                IERC20(Currency.unwrap(input)).safeTransferFrom(trader, address(manager), marginAmount);
+                manager.settle();
+            }
         }
 
         // Mint the collateral as an ERC-6909 claim held by the hook, offsetting
@@ -569,9 +681,14 @@ contract EswapRouter is
         // borrow leg, so it carries a -borrowAmount transient delta that
         // settleFor(hook) zeroes.
         if (borrowAmount > 0) {
-            manager.sync(input);
-            IERC20(Currency.unwrap(input)).safeTransferFrom(params.solver, address(manager), borrowAmount);
-            manager.settleFor(address(params.key.hooks));
+            if (inputNative) {
+                manager.sync(input);
+                manager.settleFor{value: borrowAmount}(address(params.key.hooks));
+            } else {
+                manager.sync(input);
+                IERC20(Currency.unwrap(input)).safeTransferFrom(params.solver, address(manager), borrowAmount);
+                manager.settleFor(address(params.key.hooks));
+            }
         }
 
         // Register the on-chain solver debt (principal + yield) guaranteeing
@@ -602,14 +719,25 @@ contract EswapRouter is
      *         execution model where fills come from Uniswap's existing liquidity.
      * @dev Delta ledger inside this unlock (router perspective):
      *        standard swap:  -notional(input), +outStd(output)
-     *        settle margin:  -margin netted          (transferFrom trader)
+     *        settle margin:  -margin netted          (transferFrom marginFunder)
      *        settle borrow:  -borrow netted          (transferFrom solver)
      *        mint claim:     -outStd netted          (6909 to hook)
      *      All deltas zero before unlock exits — the failure mode of the former
      *      multi-pool branch ([FIX V2] in _swapCallback) cannot recur because
      *      BOTH input legs are funded and the FULL output is minted as a claim.
+     *
+     * @param marginFunder Address the MARGIN leg is pulled from. The position
+     *        is always credited to `trader`; for a standard relay these are the
+     *        same address, for CoW solver-funded fills the solver funds the
+     *        margin on behalf of the trader.
      */
-    function _multiPoolSwapCallback(SwapParams memory params, address trader) internal returns (bytes memory) {
+    function _multiPoolOpen(
+        SwapParams memory params,
+        address trader,
+        address marginFunder,
+        uint256 ethAttached,
+        address refundRecipient
+    ) internal returns (bytes memory) {
         // [FIX L-4] Reject fills past the signed deadline.
         if (block.timestamp > params.deadline) revert DeadlineExpired();
         uint256 marginAmount =
@@ -643,23 +771,35 @@ contract EswapRouter is
         int128 outputDelta = params.zeroForOne ? stdDelta.amount1() : stdDelta.amount0();
         require(outputDelta > 0, "Swap output zero");
         uint256 outputAmount = uint256(int256(outputDelta));
+        // [FIX C-4] Enforce the caller's slippage floor on the executed output.
+        if (outputAmount < params.minAmountOut) revert SwapOutputBelowMinimum(outputAmount, params.minAmountOut);
 
         // 2. Fund the router's -input transient delta from this unlock.
         //    ERC20 input: pull margin from trader and borrow from solver independently.
-        //    Native input: the whole notional is covered by msg.value attached at the
-        //    (payable) entrypoint — native has no approval/transferFrom, so a single
-        //    ETH contribution funds both margin and the solver-borrow leg, and the
-        //    solver is repaid in the output token at close.
+        //    Native input: the MARGIN leg is covered by msg.value attached at the
+        //    (payable) entrypoint and the BORROW leg is drawn from the solver's
+        //    `nativeBorrowEscrow` — native has no approval/transferFrom, so the
+        //    escrow is the only way the borrow can be genuinely solver-funded
+        //    (was: the whole notional came from the trader's msg.value and the
+        //    solver was still repaid at close, siphoning trader capital).
         if (inputNative) {
+            if (borrowAmount > 0) {
+                require(params.solver != address(0), "Solver required for leverage");
+                if (nativeBorrowEscrow[params.solver] < borrowAmount) {
+                    revert InsufficientNativeBorrowEscrow(nativeBorrowEscrow[params.solver], borrowAmount);
+                }
+                nativeBorrowEscrow[params.solver] -= borrowAmount;
+            }
             if (notional > 0) {
-                require(address(this).balance >= notional, "Insufficient native input");
+                if (ethAttached < marginAmount) revert InsufficientNativeMargin(ethAttached, marginAmount);
                 manager.sync(input);
+                // margin (attached at entrypoint) + borrow (escrow, router-held)
                 manager.settle{value: notional}();
             }
         } else {
             if (marginAmount > 0) {
                 manager.sync(input);
-                IERC20(Currency.unwrap(input)).safeTransferFrom(trader, address(manager), marginAmount);
+                IERC20(Currency.unwrap(input)).safeTransferFrom(marginFunder, address(manager), marginAmount);
                 manager.settle();
             }
             if (borrowAmount > 0) {
@@ -695,11 +835,15 @@ contract EswapRouter is
             IEswapHook(params.key.hooks).registerSolverDebt(params.key.toId(), trader, params.solver, borrowAmount);
         }
 
-        // 6. Refund any excess ETH attached at the entrypoint (native input leg).
-        //    msg.value is 0 inside the unlock callback, so refund from the balance
-        //    remaining after the native-input settle above.
-        if (inputNative && notional > 0 && address(this).balance > 0) {
-            payable(trader).transfer(address(this).balance);
+        // 6. [FIX M-3/M-4/C-02] Refund exactly the excess ETH attached at the
+        //    entrypoint, back to the caller who funded it — never the trader, and
+        //    never the whole router balance (which may hold unrelated native takes
+        //    from other flows). Native margin is capped at `marginAmount`: the
+        //    borrow leg comes from the solver's escrow, so anything beyond the
+        //    margin is returned. Uses a safe call so a contract recipient cannot
+        //    DoS the refund with the 2300-gas transfer() stipend.
+        if (inputNative && ethAttached > marginAmount) {
+            _safeTransferETH(refundRecipient, ethAttached - marginAmount);
         }
 
         if (params.hookData.length > 0) {
@@ -805,5 +949,13 @@ contract EswapRouter is
         // This prevents aggregators from penalising the protocol for quote-vs-execution divergence.
         output = (output * 9990) / 10000;
         return int128(uint128(output));
+    }
+
+    /// @dev [FIX M-4] Safe ETH transfer without a hard 2300-gas stipend so
+    ///      contract recipients cannot brick the refund.
+    function _safeTransferETH(address to, uint256 amount) internal {
+        if (amount == 0) return;
+        (bool ok, ) = payable(to).call{value: amount}("");
+        require(ok, "ETH refund failed");
     }
 }

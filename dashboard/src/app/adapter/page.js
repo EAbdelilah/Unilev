@@ -115,9 +115,18 @@ export default function AdapterPage() {
                            amount, leverage, and slippage. The adapter translates to router calls.</p>
                     </div>
                     <div>
-                        <h3 className="text-gray-300 font-semibold mb-1">3. CoW Swap / UniswapX (ERC-7683)</h3>
-                        <p>Call <code className="text-cyan-400">router.initiate(order, signature, solverData)</code> on origin chain.
-                           Solver fills on destination via <code className="text-cyan-400">settlement.fill(orderId, originData, fillerData)</code>.</p>
+                        <h3 className="text-gray-300 font-semibold mb-1">3. CoW Swap (GPv2)</h3>
+                        <p>Fill a trader&apos;s canonical CoW order (signed for the real GPv2Settlement domain) into a leveraged
+                           position via <code className="text-cyan-400">cowSettlement.fillOrder(order, scheme, signature, params)</code>.
+                           The position credits to the recovered order owner; the CoW solver funds the margin leg.
+                           Order digests, UIDs and EIP-712/eth_sign/EIP-1271/pre-sign verification are byte-compatible with
+                           the CoW Protocol order model.</p>
+                    </div>
+                    <div>
+                        <h3 className="text-gray-300 font-semibold mb-1">4. UniswapX / ERC-7683</h3>
+                        <p>Cross-chain intent flow: call <code className="text-cyan-400">router.initiate(order, signature, solverData)</code> on the origin chain.
+                           Solver fills on the destination via <code className="text-cyan-400">settlement.fill(orderId, originData, fillerData)</code>.
+                           This is the UniswapX-style ERC-7683 architecture — distinct from CoW Swap&apos;s GPv2 batch settlement.</p>
                     </div>
                 </div>
             </div>

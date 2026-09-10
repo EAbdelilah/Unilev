@@ -14,15 +14,19 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
  *         Fills on the DESTINATION chain: the filler bridges margin+borrow tokens to
  *         this contract, which then opens a leveraged position via the EswapRouter.
  *
- * @dev ERC-7683 flow:
+* @dev ERC-7683 flow:
  *        Origin chain:  User signs CrossChainOrder → resolver translates for solvers
  *        Bridge:        Filler bridges margin+borrow tokens to destination chain
  *        Destination:   Filler calls settlement.fill() → pulls tokens, opens position
  *
- *      IMPORTANT: Positions are registered under `address(this)` (the settlement).
- *      After fill(), the settlement holds the position. The recipient can later call
- *      closePosition() to settle and receive proceeds, OR the settlement owner can
- *      call closePositionFor() on behalf of any recipient.
+ *      [FIX H-4] Positions are credited DIRECTLY to the order recipient (the
+ *      swapper recovered from hookData), NOT to this settlement. The settlement
+ *      acts only as the filler-side solver + margin funder for the router's
+ *      solver-funded multi-pool open; the recipient owns the position claim from
+ *      the first block. The recipient closes it exactly like any other position
+ *      via EswapRouter.closePosition(...) — the router's C-1 rule demands the
+ *      trader be the direct caller — and the hook pays close proceeds straight
+ *      to the recipient's wallet.
  *
  *      IDestinationSettler interface (ERC-7683):
  *        fill(bytes32 orderId, bytes calldata originData, bytes calldata fillerData)
@@ -32,42 +36,35 @@ contract EswapSettlement is Ownable {
 
     EswapRouter public immutable router;
 
-    error ZeroAddress();
+error ZeroAddress();
     error OrderAlreadyFilled();
     error CloseFailed();
-    error NoProceeds();
 
     event PositionFilled(
         bytes32 indexed orderId, address indexed recipient, address indexed tokenIn, uint256 marginAmount
     );
-    event PositionClosed(address indexed trader, uint256 payout);
-    event ProceedsClaimed(address indexed recipient, address indexed token, uint256 amount);
 
     // M-3: orderId replay protection
     mapping(bytes32 => bool) public filledOrders;
 
-    // H-6: Authorized close callers (settlement owner + designated executors)
-    mapping(address => bool) public closeExecutors;
-
-    // C-1 FIX: Track close proceeds per recipient per token so they can be claimed
-    mapping(address => mapping(address => uint256)) public claimableProceeds;
+    // H-4: orderId → credited recipient (on-chain lookup after a bridge fill)
+    mapping(bytes32 => address) public filledRecipient;
 
     constructor(EswapRouter _router) Ownable(msg.sender) {
         router = _router;
     }
 
-    // ─── Admin ──────────────────────────────────────────────────────────
-
-    function setCloseExecutor(address executor, bool approved) external onlyOwner {
-        closeExecutors[executor] = approved;
-    }
+// ─── Admin ──────────────────────────────────────────────────────────
 
     // ─── ERC-7683 Destination Settler ───────────────────────────────────
 
-    /**
+/**
      * @notice Fill a cross-chain order on the destination chain.
      * @param orderId   Unique order identifier from the origin chain event.
-     * @param originData  ABI-encoded SwapParams from the origin chain order.
+     * @param originData  ABI-encoded SwapParams from the origin chain order:
+     *                    (PoolKey key, PoolKey standardPoolKey, bool zeroForOne,
+     *                     int256 amountSpecified, uint8 leverage, address solver,
+     *                     bytes hookData, uint256 minAmountOut).
      *                    The solver address in originData is overwritten with address(this).
      */
     function fill(
@@ -81,16 +78,24 @@ contract EswapSettlement is Ownable {
         if (filledOrders[orderId]) revert OrderAlreadyFilled();
         filledOrders[orderId] = true;
 
-        (
+(
             PoolKey memory key,
             PoolKey memory standardPoolKey,
             bool zeroForOne,
             int256 amountSpecified,
             uint8 leverage,,
-            bytes memory hookData
-        ) = abi.decode(originData, (PoolKey, PoolKey, bool, int256, uint8, address, bytes));
+            bytes memory hookData,
+            // [FIX H-3] Origin orders now carry an explicit output floor
+            // (appended after hookData). It is forwarded into the router's
+            // SwapParams and enforced inside the swap callback
+            // (SwapOutputBelowMinimum), so a sandwiched fill reverts instead of
+            // opening the position at a manipulated price.
+            uint256 minAmountOut
+        ) = abi.decode(originData, (PoolKey, PoolKey, bool, int256, uint8, address, bytes, uint256));
 
-        (,, address recipient) = abi.decode(hookData, (bool, uint8, address));
+(,, address recipient) = abi.decode(hookData, (bool, uint8, address));
+        // [FIX H-4] Never open a position under the zero address.
+        if (recipient == address(0)) revert ZeroAddress();
 
         uint256 marginAmount = uint256(amountSpecified < 0 ? -amountSpecified : amountSpecified);
         uint256 borrowAmount = marginAmount * uint256(leverage - 1);
@@ -108,75 +113,29 @@ contract EswapSettlement is Ownable {
             amountSpecified: amountSpecified,
             leverage: leverage,
             solver: address(this),
-            hookData: abi.encode(true, leverage, address(this)),
-            deadline: block.timestamp + router.DEFAULT_DEADLINE_SLACK()
+            hookData: abi.encode(true, leverage, recipient),
+            deadline: block.timestamp + router.DEFAULT_DEADLINE_SLACK(),
+            minAmountOut: minAmountOut
         });
 
-        router.swapMultiPoolFor(params, address(this));
+        // [FIX H-4] Solver-funded multi-pool open: the position is credited to
+        // `recipient` while BOTH legs (margin + borrow) are pulled from this
+        // settlement, which already holds the filler-bridged notional. The
+        // recipient never has to approve the router.
+        router.swapMultiPoolForSolverFunded(params, recipient, address(this));
 
+        filledRecipient[orderId] = recipient;
         emit PositionFilled(orderId, recipient, inputToken, marginAmount);
     }
 
-    // ─── Position Management ────────────────────────────────────────────
+// ─── Position Management ────────────────────────────────────────────
 
-    /**
-     * @notice Close a position opened by this settlement contract.
-     * @dev Can be called by the recipient (msg.sender == recipient) or by an
-     *      authorized close executor (owner or designated bots).
-     *      Proceeds are credited to the recipient's claimable balance and can
-     *      be withdrawn via claimProceeds().
-     * @param key           Pool key of the position
-     * @param recipient     The address that should receive the close proceeds
-     * @param solver        The solver who backed the position
-     * @param minAmountOut  Slippage protection
-     */
-    function closePosition(
-        PoolKey calldata key,
-        address recipient,
-        address solver,
-        uint256 minAmountOut
-    ) external {
-        require(
-            msg.sender == recipient || closeExecutors[msg.sender] || msg.sender == owner(),
-            "Not authorized to close"
-        );
-        require(recipient != address(0), "Invalid recipient");
-
-        // C-1 FIX: Measure balance delta to credit proceeds to recipient
-        address c0 = Currency.unwrap(key.currency0);
-        address c1 = Currency.unwrap(key.currency1);
-        uint256 bal0Before = IERC20(c0).balanceOf(address(this));
-        uint256 bal1Before = IERC20(c1).balanceOf(address(this));
-
-        router.closePosition(key.hooks, key, address(this), solver, minAmountOut);
-
-        uint256 bal0After = IERC20(c0).balanceOf(address(this));
-        uint256 bal1After = IERC20(c1).balanceOf(address(this));
-
-        if (bal0After > bal0Before) {
-            uint256 delta = bal0After - bal0Before;
-            claimableProceeds[recipient][c0] += delta;
-            emit ProceedsClaimed(recipient, c0, delta);
-        }
-        if (bal1After > bal1Before) {
-            uint256 delta = bal1After - bal1Before;
-            claimableProceeds[recipient][c1] += delta;
-            emit ProceedsClaimed(recipient, c1, delta);
-        }
-
-        emit PositionClosed(recipient, 0);
-    }
-
-    /**
-     * @notice Claim accumulated close proceeds for a given token.
-     * @param token  The ERC-20 token to withdraw
-     */
-    function claimProceeds(address token) external {
-        uint256 amount = claimableProceeds[msg.sender][token];
-        if (amount == 0) revert NoProceeds();
-        claimableProceeds[msg.sender][token] = 0;
-        IERC20(token).safeTransfer(msg.sender, amount);
-    }
+    // [FIX H-4] The settlement never owns positions, so it exposes no close()
+    // here. After fill(), the RECIPIENT owns the position and closes it exactly
+    // like any other position: EswapRouter.closePosition(hook, key, recipient,
+    // solver, minAmountOut) — the router's C-1 rule requires the trader to be
+    // the direct caller, and close proceeds pay the recipient directly from the
+    // hook.
 
     /**
      * @notice Emergency withdrawal of ERC-20 tokens NOT related to open positions.

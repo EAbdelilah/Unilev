@@ -11,17 +11,21 @@ import {BalanceDeltaLibrary} from "../types/BalanceDelta.sol";
 import {console2} from "forge-std/console2.sol";
 
 /// @notice Insurance-fund sizing stress against the REAL settlement waterfall
-///         (_settle: carve-out accrual -> solver repayment -> shortfall draw).
+///         (_settle: solver repayment -> keeper reward -> trader payout;
+///          shortfall draw from the seeded fund).
 ///
 ///         Model (SHORT book: collateral token1, debt token0):
 ///           open(m): bought = L*m*96/100 (mock fill), recorded collateral
 ///           c = bought*9950/10000 (50bps fee); borrow b = (L-1)*m.
 ///           Crash X: recovery injected as R = c*(1-X).
 ///           surplus = max(0, R-b); shortfall = max(0, b-R);
-///           fundDelta = +300bps*surplus - shortfall; trader gets 97% surplus.
+///           fundDelta = -shortfall (liquidations no longer ACCRUE a carve-out:
+///           the 3% keeper reward is paid to the liquidator instead [H-05]).
 ///         LIVENESS: if fund < shortfall the whole liquidation reverts and the
-///         bag stays stuck (InsufficientInsuranceFundForShortfall) Ã¢â‚¬â€ so the
+///         bag stays stuck (InsufficientInsuranceFundForShortfall) — so the
 ///         sizing question is a liveness floor, not just solvency.
+///         ACCRUAL: the fund grows ONLY via explicit governance seeding
+///         (seedInsuranceFund); benign liquidations add nothing to it.
 contract EswapInsuranceStressTest is BaseV4Test {
     using PoolIdLibrary for PoolKey;
 
@@ -93,8 +97,10 @@ contract EswapInsuranceStressTest is BaseV4Test {
         hook.executeLiquidation(key, t, 0, address(this));
         delta = int256(_fund()) - int256(before);
 
+        // [H-05] Liquidations never accrue: surplus goes to trader/keeper
+        // (keeper 300bps via _settle), so the fund only ever DRAWS shortfall.
         int256 expSurplus = int256(R) - int256(b);
-        int256 expected = expSurplus > 0 ? (expSurplus * 300) / 10000 : expSurplus;
+        int256 expected = expSurplus > 0 ? int256(0) : expSurplus;
         assertApproxEqAbs(delta, expected, 2, "fund flow mismatch");
 
         console2.log("L / crashPct / delta:", L);
@@ -117,6 +123,35 @@ contract EswapInsuranceStressTest is BaseV4Test {
                 _crashCase(t, 100 ether, levs[i], x);
             }
         }
+    }
+
+    // ------------------------------------------------------------------
+    // Scenario F: positive accrual no longer exists. Mild crashes pay the
+    // surplus straight to the trader (300bps to keeper, rest to trader);
+    // the fund balance is untouched by benign liquidations.
+    // ------------------------------------------------------------------
+
+    function test_Insurance_Benign_Liquidation_DoesNot_Accrue() public {
+        uint256 seed = 123 ether;
+        token0.mint(address(this), seed);
+        token0.approve(address(hook), seed);
+        hook.seedInsuranceFund(key.currency0, seed);
+
+        address t = _freshTrader();
+        uint256 before = _fund();
+        uint256 traderBefore = token0.balanceOf(t);
+        _crashCase(t, 100 ether, 5, 10);
+        assertEq(_fund(), before, "fund untouched by benign liquidation");
+
+        // The whole 300 bps that used to hit the fund now lands with the
+        // liquidator (plus the traded-out share of the 50bps fill fee).
+        uint256 traderGot = token0.balanceOf(t) - traderBefore;
+        uint256 bought = (100 ether * 5 * 96) / 100;
+        uint256 c = (bought * 9950) / 10000;
+        uint256 R = (c * 90) / 100;
+        uint256 b = 4 * 100 ether;
+        uint256 expTraderSurplus = (R - b) * 97 / 100;
+        assertGe(traderGot, expTraderSurplus, "trader keeps at least 97% surplus");
     }
 
     // ------------------------------------------------------------------
@@ -190,12 +225,14 @@ contract EswapInsuranceStressTest is BaseV4Test {
         assertEq(hook.badDebt(key.currency0), 1 wei, "uncovered shortfall booked as bad debt");
     }
 
-    // ------------------------------------------------------------------
-    // Scenario C: steady-state accrual Ã¢â‚¬â€ how many BENIGN liquidations
-    // (10% dip, healthy surplus) pre-fund ONE tail event?
+// ------------------------------------------------------------------
+    // Scenario C: steady-state sizing under the no-accrual model. Benign
+    // liquidations add ZERO to the fund (the 300bps is paid to keepers), so
+    // tail coverage comes 100% from explicit governance seeding. A given
+    // seed covers exactly the number of tail events it was sized for.
     // ------------------------------------------------------------------
 
-    function test_Insurance_SteadyState_AccrualPerBenignEvent() public {
+    function test_Insurance_ZeroAccrual_SeedingCoversExactTails() public {
         uint256 m = 100 ether;
         address t = _freshTrader();
         (uint256 c, uint256 b) = _openShort(t, m, 5);
@@ -208,17 +245,30 @@ contract EswapInsuranceStressTest is BaseV4Test {
         hook.executeLiquidation(key, t, 0, address(this));
         uint256 accrued = _fund() - before;
 
-        uint256 expectedAccrual = ((R - b) * 300) / 10000;
-        assertApproxEqAbs(accrued, expectedAccrual, 2, "benign accrual");
+        assertEq(accrued, 0, "benign liquidation must not accrue (keeper takes 300bps)");
 
+        // One tail need sized exactly by seed: (L-1)*m margin book, 50% gap.
         uint256 tailNeed = b - (c * 50) / 100;
-        uint256 benignEventsNeeded = tailNeed / accrued + 1;
-        console2.log("tailNeed(50% gap):", tailNeed);
-        console2.log("accrual per benign event:", accrued);
-        console2.log("benign events to pre-fund one tail:", benignEventsNeeded);
+        uint256 seed = tailNeed;
+        token0.mint(address(this), seed);
+        token0.approve(address(hook), seed);
+        hook.seedInsuranceFund(key.currency0, seed);
 
-        // Documented expectation: accrual alone is slow; seeding dominates.
-        assertGe(benignEventsNeeded, 50, "accrual unexpectedly rich");
-        assertLe(benignEventsNeeded, 500, "accrual unexpectedly poor");
+        console2.log("tailNeed(50% gap):", tailNeed);
+        console2.log("seed funds exactly %d tail event(s)", tailNeed);
+
+        // A single tail liquidation consumes the fund and clears the bag.
+        address t2 = _freshTrader();
+        _resetPrices();
+        (uint256 c2,) = _openShort(t2, m, 5);
+        uint256 R2 = (c2 * 50) / 100;
+        priceFeed.setPrice(address(token1), 0.5e18);
+        manager.setNextSwapDelta(int128(uint128(R2)), -int128(uint128(R2)));
+        hook.executeLiquidation(key, t2, 0, address(this));
+        assertLe(_fund(), 2, "fund drawn to dust, bag cleared");
+        assertEq(hook.badDebt(key.currency0), 0, "exact seed covers the tail");
+
+        // Documented expectation: accrual is zero, so seeding dominates.
+        console2.log("accrual per benchmark event:", uint256(0));
     }
 }

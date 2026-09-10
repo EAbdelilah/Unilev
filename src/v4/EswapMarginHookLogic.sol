@@ -15,6 +15,8 @@ import {IERC6909} from "./interfaces/IERC6909.sol";
 import {IPoolManager as RealIPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {PoolId as RealPoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
+import {Lock} from "@uniswap/v4-core/src/libraries/Lock.sol";
+import {IExttload} from "@uniswap/v4-core/src/interfaces/IExttload.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
@@ -185,6 +187,11 @@ contract EswapMarginHookLogic is BaseHook {
         _;
     }
 
+    modifier onlyRouterOrManager() {
+        if (msg.sender != router && msg.sender != address(manager)) revert Unauthorized();
+        _;
+    }
+
     modifier onlyPoolManager() {
         if (msg.sender != address(manager)) revert NotPoolManager();
         _;
@@ -213,9 +220,10 @@ contract EswapMarginHookLogic is BaseHook {
         Currency collateralCurrency = _collateralCurrency(pos, key);
         Currency debtCurrency = _debtCurrency(pos, key);
         uint256 collateralAmount = pos.collateralAmount;
+        bool hadBand = pos.liquidity > 0;
 
         BalanceDelta removeDelta;
-        if (pos.liquidity > 0) {
+        if (hadBand) {
             PoolKey memory lpPool = _rehypothecationPool(poolId, key);
             (removeDelta,) = manager.modifyLiquidity(
                 lpPool, IPoolManager.ModifyLiquidityParams(pos.tickLower, pos.tickUpper, -int128(pos.liquidity), 0), ""
@@ -228,29 +236,33 @@ contract EswapMarginHookLogic is BaseHook {
         if (yieldRecipient == address(0)) yieldRecipient = trader;
         _distributeRehypothecation(key, removeDelta, collateralCurrency, rehypPrincipal[poolId][trader], yieldRecipient);
 
-        bool zeroForOne = Currency.unwrap(collateralCurrency) == Currency.unwrap(key.currency0);
-        PoolKey memory standardKey = _resolveUnwindPool(poolId, key);
-        BalanceDelta delta = manager.swap(
-            standardKey,
-            IPoolManager.SwapParams(zeroForOne, -int256(collateralAmount), EswapMarginLib.sqrtPriceLimit(zeroForOne)),
-            ""
-        );
-
-        int128 receivedDelta = zeroForOne ? delta.amount1() : delta.amount0();
-        uint256 receivedAmount = receivedDelta > 0 ? uint256(uint128(receivedDelta)) : 0;
-
-        _settleTransientDebt(collateralCurrency, collateralAmount);
+        // [FIX C-14] Unwind-swap only the collateral the hook actually holds:
+        // the band's collateral-currency return PLUS the share that never left
+        // the accounting pool (`collateralAmount - rehypPrincipal`). Adverse
+        // price drift can convert part of the deployed collateral into the DEBT
+        // currency, so removing the band can leave the hook holding LESS
+        // collateral than the book `collateralAmount`; swapping the full book
+        // amount would force _settleTransientDebt to physically transfer
+        // collateral tokens the hook never recovered — bricking close and
+        // liquidation forever. The converted value is recovered as `bandProceeds`
+        // (already taken physically by _netLiquidityDelta) and joins the payout
+        // pool, so the trader/solver are still paid their full value. When NO band
+        // was ever deployed, the full book `collateralAmount` sits in the
+        // accounting pool and is the correct unwind quantity.
+        (uint256 receivedAmount, uint256 bandProceeds) =
+            _unwindBand(key, poolId, removeDelta, collateralCurrency, collateralAmount, rehypPrincipal[poolId][trader], hadBand);
 
         address actualSolver = positionSolver[poolId][trader];
         SolverDebt storage debt = solverDebts[poolId][trader][actualSolver];
         uint256 totalPayout = debt.principal + debt.accumulatedYield;
         if (totalPayout == 0 && pos.borrowedAmount > 0) totalPayout = pos.borrowedAmount;
-        uint256 netToTrader = receivedAmount >= totalPayout ? receivedAmount - totalPayout : 0;
+        uint256 totalSource = receivedAmount + bandProceeds;
+        uint256 netToTrader = totalSource >= totalPayout ? totalSource - totalPayout : 0;
         if (netToTrader < minAmountOut) revert SlippageExceeded(netToTrader, minAmountOut);
 
         _settle(
             poolId, trader, collateralCurrency, debtCurrency, collateralAmount, receivedAmount,
-            actualSolver, address(0), 0, netToTrader, pos.borrowedAmount
+            actualSolver, address(0), 0, netToTrader, pos.borrowedAmount, bandProceeds
         );
     }
 
@@ -262,8 +274,9 @@ contract EswapMarginHookLogic is BaseHook {
         Position storage pos = positions[poolId][trader];
         if (!isLiquidatable(pos, key)) revert PositionNotLiquidatable();
 
+        bool hadBand = pos.liquidity > 0;
         BalanceDelta removeDelta;
-        if (pos.liquidity > 0) {
+        if (hadBand) {
             PoolKey memory lpPool = _rehypothecationPool(poolId, key);
             (removeDelta,) = manager.modifyLiquidity(
                 lpPool, IPoolManager.ModifyLiquidityParams(pos.tickLower, pos.tickUpper, -int128(pos.liquidity), 0), ""
@@ -280,21 +293,19 @@ contract EswapMarginHookLogic is BaseHook {
         if (yieldRecipient == address(0)) yieldRecipient = trader;
         _distributeRehypothecation(key, removeDelta, collateralCurrency, rehypPrincipal[poolId][trader], yieldRecipient);
 
-        bool zeroForOne = Currency.unwrap(collateralCurrency) == Currency.unwrap(key.currency0);
-        PoolKey memory standardKey = _resolveUnwindPool(poolId, key);
-        BalanceDelta delta = manager.swap(
-            standardKey,
-            IPoolManager.SwapParams(zeroForOne, -int256(collateralAmount), EswapMarginLib.sqrtPriceLimit(zeroForOne)),
-            ""
-        );
+        // [FIX C-14] See closePosition/_unwindBand: unwind-swap only the collateral
+        // the hook actually holds (band return + accounting-pool remainder),
+        // never the book `collateralAmount`, and credit the band's returned DEBT
+        // currency value.
+        (uint256 receivedAmount, uint256 bandProceeds) =
+            _unwindBand(key, poolId, removeDelta, collateralCurrency, collateralAmount, rehypPrincipal[poolId][trader], hadBand);
 
-        int128 receivedDelta = zeroForOne ? delta.amount1() : delta.amount0();
-        uint256 receivedAmount = receivedDelta > 0 ? uint256(uint128(receivedDelta)) : 0;
-
-        _settleTransientDebt(collateralCurrency, collateralAmount);
-
-        if (receivedAmount == 0) revert SlippageExceeded(0, minAmountOut);
-        if (receivedAmount < minAmountOut) revert SlippageExceeded(receivedAmount, minAmountOut);
+        // Guard on the TOTAL recovered value (swap output + band proceeds): a
+        // fully-converted band can leave `receivedAmount == 0` while the LP value
+        // sits in `bandProceeds` — that is still a valid, fully-payable unwind.
+        uint256 totalSource = receivedAmount + bandProceeds;
+        if (totalSource == 0) revert SlippageExceeded(0, minAmountOut);
+        if (totalSource < minAmountOut) revert SlippageExceeded(totalSource, minAmountOut);
 
         address solver = positionSolver[poolId][trader];
         uint256 afterSolver;
@@ -302,13 +313,13 @@ contract EswapMarginHookLogic is BaseHook {
             SolverDebt storage debt = solverDebts[poolId][trader][solver];
             uint256 sp = debt.principal + debt.accumulatedYield;
             if (sp == 0 && pos.borrowedAmount > 0) sp = pos.borrowedAmount;
-            afterSolver = receivedAmount >= sp ? receivedAmount - sp : 0;
+            afterSolver = totalSource >= sp ? totalSource - sp : 0;
         }
         uint256 liqReward = (afterSolver * LIQUIDATION_REWARD_BPS) / 10000;
 
         _settle(
             poolId, trader, collateralCurrency, debtCurrency, collateralAmount, receivedAmount,
-            solver, liquidator, liqReward, afterSolver - liqReward, pos.borrowedAmount
+            solver, liquidator, liqReward, afterSolver - liqReward, pos.borrowedAmount, bandProceeds
         );
     }
 
@@ -361,6 +372,14 @@ contract EswapMarginHookLogic is BaseHook {
             }
         }
 
+        // [FIX M-3] Record the ACTUAL recovered principal against the position:
+        // impermanent loss can leave the removed LP worth less than the book
+        // `collateralAmount` (recovered + swap-back of the debt leg). Keeping the
+        // old (larger) book value would settle/liquidate against collateral the
+        // vault no longer holds, creating a deficit on close. Writing the
+        // physically-recovered amount keeps ledger == vault.
+        pos.collateralAmount = availableCollateral;
+
         (int24 tickLower, int24 tickUpper) = _deploymentTicks(currentTick, key.tickSpacing, isCurrency0);
         uint160 sqrtLower = TickMath.getSqrtRatioAtTick(tickLower);
         uint160 sqrtUpper = TickMath.getSqrtRatioAtTick(tickUpper);
@@ -392,7 +411,24 @@ contract EswapMarginHookLogic is BaseHook {
         pos.liquidity = newLiquidity;
     }
 
-    function deployCollateral(PoolKey calldata key, address trader) external onlyRouter {
+    /// @dev Tagged payload for self-wrapped `deployCollateral` calls. Mixed into
+    ///      the first word of the unlock payload so it can never collide with the
+    ///      legacy `(Currency, int128, bool)` unpause/seed encoding.
+    uint256 private constant DEPLOY_TAG = uint256(keccak256("DEPLOY_COLLATERAL"));
+
+    function deployCollateral(PoolKey calldata key, address trader) external onlyRouterOrManager {
+        if (!_pmUnlocked()) {
+            // [FIX SELF-CLOSE] Mining flows (live self-close) call the hook
+            // outside a PoolManager unlock. `modifyLiquidity` on the real
+            // PoolManager reverts `ManagerLocked` there, so wrap the deploy
+            // into an unlock: the PoolManager invokes this hook's
+            // `unlockCallback` with the tagged payload, which re-enters
+            // `deployCollateral` (msg.sender == manager, lock now open) and
+            // executes the body directly.
+            manager.unlock(abi.encode(DEPLOY_TAG, key, trader));
+            return;
+        }
+
         Position storage pos = positions[key.toId()][trader];
         if (pos.collateralAmount == 0 || pos.liquidity > 0) return;
 
@@ -430,6 +466,14 @@ contract EswapMarginHookLogic is BaseHook {
         pos.tickLower = tickLower;
         pos.tickUpper = tickUpper;
         pos.liquidity = liquidity;
+    }
+
+    /// @dev Whether the PoolManager's transient unlock lock is currently open.
+    ///      On the real (Exttload) PoolManager the lock is tracked in transient
+    ///      storage; the test/legacy mock reports the standard locked slot as
+    ///      always open via `exttload`/`extsload` overrides.
+    function _pmUnlocked() internal view returns (bool) {
+        return IExttload(address(manager)).exttload(Lock.IS_UNLOCKED_SLOT) != bytes32(0);
     }
 
     function registerMarginOpen(
@@ -504,15 +548,14 @@ contract EswapMarginHookLogic is BaseHook {
         address liquidator,
         uint256 liquidatorReward,
         uint256 traderPayout,
-        uint256 borrowedAmount
+        uint256 borrowedAmount,
+        uint256 extraProceeds
     ) internal {
+        // [FIX C-1] extraProceeds (e.g. the debt currency the LP band returned) is
+        // already held physically by the hook (_netLiquidityDelta took it), so it
+        // joins the payout pool without another PoolManager take.
         if (receivedAmount > 0) {
             manager.take(debtCurrency, address(this), receivedAmount);
-        }
-        if (liquidatorReward > 0) {
-            insuranceFund[debtCurrency] += liquidatorReward;
-            _settleToManager(debtCurrency, liquidatorReward);
-            manager.mint(address(this), uint256(uint160(Currency.unwrap(debtCurrency))), liquidatorReward);
         }
         SolverDebt storage debt = solverDebts[poolId][trader][solver];
         uint256 totalPayout = debt.principal + debt.accumulatedYield;
@@ -522,13 +565,25 @@ contract EswapMarginHookLogic is BaseHook {
         // shortfall. Any gap the insurance fund cannot cover is RECORDED as
         // protocol bad debt instead of reverting — a reverted close/liquidation
         // would strand the position (and the trader's collateral) forever.
-        uint256 payableAmount = receivedAmount;
+        uint256 payableAmount = receivedAmount + extraProceeds;
         if (totalPayout > 0) {
             uint256 shortfall = totalPayout > payableAmount ? totalPayout - payableAmount : 0;
             if (shortfall > 0) {
+                uint256 claimId = uint256(uint160(Currency.unwrap(debtCurrency)));
                 uint256 covered = shortfall > insuranceFund[debtCurrency] ? insuranceFund[debtCurrency] : shortfall;
+                // [FIX C-2] Insurance coverage is claim-backed: on the real
+                // PoolManager a bare take() debits a transient delta against the
+                // hook that never nets, reverting the unlock with
+                // CurrencyNotSettled. Burn the hook's own ERC-6909 claim (+delta)
+                // before the take (-delta) so extraction nets to zero. Coverage is
+                // further capped at the claims actually held so an
+                // under-collateralised insurance ledger books bad debt instead of
+                // reverting (and stranding) the close/liquidation.
+                uint256 claimsHeld = manager.balanceOf(address(this), claimId);
+                if (covered > claimsHeld) covered = claimsHeld;
                 insuranceFund[debtCurrency] -= covered;
                 if (covered > 0) {
+                    manager.burn(address(this), claimId, covered);
                     manager.take(debtCurrency, address(this), covered);
                     payableAmount += covered;
                 }
@@ -542,6 +597,20 @@ contract EswapMarginHookLogic is BaseHook {
                 uint256 solverPayout = totalPayout > payableAmount ? payableAmount : totalPayout;
                 payableAmount -= solverPayout;
                 NativeTokens.transfer(debtCurrency, solver, solverPayout);
+            }
+        }
+        // [FIX H-5] Pay the liquidator their reward OUT of the physically
+        // recovered funds. Previously the reward was minted 100% into the
+        // insurance fund, so keepers earned nothing for liquidating — positions
+        // could sit under-collateralised indefinitely. The solver claim takes
+        // precedence; the trader's book claim already excludes the reward
+        // (callers pass afterSolver - liqReward), so a capped payout here keeps
+        // the ledger fully token-backed.
+        if (liquidator != address(0) && liquidatorReward > 0) {
+            uint256 liqPayout = liquidatorReward > payableAmount ? payableAmount : liquidatorReward;
+            if (liqPayout > 0) {
+                payableAmount -= liqPayout;
+                NativeTokens.transfer(debtCurrency, liquidator, liqPayout);
             }
         }
         // [FIX C-7] Never transfer the trader more than the physical tokens still
@@ -689,6 +758,56 @@ contract EswapMarginHookLogic is BaseHook {
         return Currency.unwrap(boughtCurrency) == Currency.unwrap(_baseCurrency(key));
     }
 
+    /// @dev Unwind-settle a removed LP band. Swaps back only the collateral the
+    ///      hook ACTUALLY holds: the band's collateral-currency return PLUS the
+    ///      share that never left the accounting pool
+    ///      (`collateralAmount - deployedPrincipal`) — never the book
+    ///      `collateralAmount`, which drifts with the price (FIX C-14). When no
+    ///      band was ever deployed, the full book `collateralAmount` sits in the
+    ///      accounting pool and is the correct unwind quantity. Then settles the
+    ///      transient delta. Returns (`receivedAmount`, `bandProceeds`): the
+    ///      unwind-swap output plus the value the band returned in the DEBT
+    ///      currency (FIX C-1 — already held physically, so the caller just adds
+    ///      it to the payout pool).
+    function _unwindBand(
+        PoolKey calldata key,
+        PoolId poolId,
+        BalanceDelta removeDelta,
+        Currency collateralCurrency,
+        uint256 collateralAmount,
+        uint256 deployedPrincipal,
+        bool hadBand
+    ) internal returns (uint256 receivedAmount, uint256 bandProceeds) {
+        bool zeroForOne = Currency.unwrap(collateralCurrency) == Currency.unwrap(key.currency0);
+        uint256 availableCollateral = collateralAmount;
+        if (hadBand) {
+            int128 recoveredCollatInt = zeroForOne ? removeDelta.amount0() : removeDelta.amount1();
+            uint256 recovered = recoveredCollatInt > 0 ? uint256(uint128(recoveredCollatInt)) : 0;
+            uint256 retained = collateralAmount > deployedPrincipal ? collateralAmount - deployedPrincipal : 0;
+            availableCollateral = recovered + retained;
+            if (availableCollateral > collateralAmount) availableCollateral = collateralAmount;
+        }
+
+        BalanceDelta delta;
+        if (availableCollateral > 0) {
+            delta = manager.swap(
+                _resolveUnwindPool(poolId, key),
+                IPoolManager.SwapParams(
+                    zeroForOne, -int256(availableCollateral), EswapMarginLib.sqrtPriceLimit(zeroForOne)
+                ),
+                ""
+            );
+        }
+
+        int128 receivedDelta = zeroForOne ? delta.amount1() : delta.amount0();
+        receivedAmount = receivedDelta > 0 ? uint256(uint128(receivedDelta)) : 0;
+
+        int128 removedDebtInt = zeroForOne ? removeDelta.amount1() : removeDelta.amount0();
+        bandProceeds = removedDebtInt > 0 ? uint256(uint128(removedDebtInt)) : 0;
+
+        _settleTransientDebt(collateralCurrency, availableCollateral);
+    }
+
     function _netLiquidityDelta(PoolKey memory key, BalanceDelta delta) internal {
         _netCurrencyDelta(key.currency0, delta.amount0());
         _netCurrencyDelta(key.currency1, delta.amount1());
@@ -823,49 +942,32 @@ contract EswapMarginHookLogic is BaseHook {
     }
 
     function _checkV4SpotAgainstV3Twap(PoolKey calldata key) internal view {
-        // LIVE-MARKET GUARD (REDEPLOY-3): Every pool-based price source we can
-        // read is unreliable for a "honest trade always passes" guarantee:
-        //   - The accounting (hook) pool is empty by design → slot0 frozen at init
-        //     and never tracks the market.
-        //   - The standard (fill) pool may be thin/illiquid and lag the market.
-        // The authoritative market price is the LIVE Chainlink oracle itself
-        // (latestRoundData, staleness + sequencer guarded). Because the whole
-        // accounting/liquidation path (collateral, borrow, isLiquidatable) is
-        // already oracle-anchored via getAmountInUsd(), the AMM pool price is NOT
-        // a trusted input — so we source the spot reference from the oracle too.
-        // This makes the guard track the live market at ANY price for ANY pair
-        // (WETH or WBTC) and never false-positive on an honest trade, while still
-        // reverting TwapNotConfigured when a feed is missing (requireTwapOracle).
+        // LIVE-MARKET GUARD (REDEPLOY-3, [FIX H-2]): compare the REAL V4 spot
+        // price of the EXECUTION venue — the configured standard (deep fill) pool
+        // — against the Chainlink-anchored TWAP ratio. The accounting (hook) pool
+        // is empty by design (slot0 frozen at init, never tracks the market), so
+        // it carries no honest spot: for accounting-only pairs the guard degrades
+        // to verifying the oracle is configured (requireTwapOracle) and otherwise
+        // passes — the accounting/liquidation path is oracle-anchored anyway via
+        // getAmountInUsd(). When a standard pool IS configured, its live slot0 is a
+        // genuine independent market read, so deviation > maxPriceSwingBps from the
+        // oracle TWAP (e.g. a flash-manipulated or stale fill venue) reverts the
+        // trade instead of silently executing against a bad price.
         uint256 twap0 = priceFeed.getTwapPrice(Currency.unwrap(key.currency0));
         uint256 twap1 = priceFeed.getTwapPrice(Currency.unwrap(key.currency1));
         if (twap0 == 0 || twap1 == 0) {
             if (requireTwapOracle) revert TwapNotConfigured();
             return;
         }
-        // Derive the honest spot sqrtPriceX96 that EswapMarginLib.checkTwap would
-        // compute for a pool whose spot EXACTLY equals the live oracle pair price.
-        // checkTwap computes spotRatio18 from the sqrt then applies the token-decimal
-        // adjustment (d0,d1) before comparing to twapRatio18, so we invert that
-        // adjustment here to build a self-consistent spot against the same oracle.
-        //   rawSpot = sqrtPriceX96^2 * 1e18 / 2^192
-        //   d0 >= d1 : adjusted = rawSpot * 10^(d0-d1)
-        //   d1 >  d0 : adjusted = rawSpot / 10^(d1-d0)
-        // Setting adjusted == twapRatio18 yields deviation ~0 at every price level.
-        uint256 twapRatio18 = (twap0 * 1e18) / twap1;
-        uint8 d0 = tokenDecimals[Currency.unwrap(key.currency0)] == 0
-            ? 18
-            : tokenDecimals[Currency.unwrap(key.currency0)];
-        uint8 d1 = tokenDecimals[Currency.unwrap(key.currency1)] == 0
-            ? 18
-            : tokenDecimals[Currency.unwrap(key.currency1)];
-        uint256 rawSpot18;
-        if (d0 >= d1) {
-            rawSpot18 = twapRatio18 / (10 ** (uint256(d0) - uint256(d1)));
-        } else {
-            rawSpot18 = twapRatio18 * (10 ** (uint256(d1) - uint256(d0)));
+
+        PoolKey memory execKey = standardPoolKeys[key.toId()];
+        if (Currency.unwrap(execKey.currency1) == address(0)) {
+            // Accounting-only pool: no execution venue to protect; the frozen
+            // slot0 would false-positive on any real market move.
+            return;
         }
-        uint256 spotSq = FullMath.mulDiv(rawSpot18, 1 << 192, 1e18);
-        uint160 sqrtPriceX96 = SafeCast.toUint160(Math.sqrt(spotSq));
+
+        (uint160 sqrtPriceX96,,,) = _slot0(execKey.toId());
         if (sqrtPriceX96 == 0) {
             if (requireTwapOracle) revert TwapNotConfigured();
             return;

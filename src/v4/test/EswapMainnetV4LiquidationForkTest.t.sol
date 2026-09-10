@@ -63,8 +63,8 @@ contract ForkPriceFeedMock is IPriceFeed {
 ///   -> a MEV-inflated minAmountOut reverts without damaging the position
 ///   (retryable) -> permissionless keeper liquidation burns the band OUT OF THE
 ///   LIVE POOL, unwinds against real venue liquidity, repays the solver
-///   principal exactly, routes the 3% carve-out to the insurance fund and the
-///   remainder to the trader.
+///   principal exactly, routes the 3% keeper reward to the liquidator (no
+///   insurance carve-out) and the remainder to the trader.
 ///
 /// Scenario B (test_Fork_Liquidation_RealAdverseMove_UnwindsBand):
 ///   the REAL deep-pool price is pushed DOWN toward the band with a genuine
@@ -79,10 +79,15 @@ contract EswapMainnetV4LiquidationForkTest is Test {
     address constant V4_PM_MAINNET = 0x000000000004444c5dc75cB358380D2e3dE08A90; // Ethereum
     address constant V4_PM_UNICHAIN = 0x1F98400000000000000000000000000000000004; // Unichain
 
-    address constant UNICHAIN_USDC = 0x078D782b760474a361dDA0AF3839290b0EF57AD6;
-    address constant UNICHAIN_WETH = 0x4200000000000000000000000000000000000006;
+address constant UNICHAIN_USDC = 0x078D782b760474a361dDA0AF3839290b0EF57AD6;
+    // ONLY native ETH/USDC (NATIVE ETH == address(0) on Uniswap V4). The deep
+    // Unichain venue is the native ETH/USDC fee-500/tick-10 pool (~$5.4M,
+    // L ~= 4.5e16). The WETH-token/USDC venue is deliberately NOT used: it
+    // sits ~66% off the Chainlink TWAP (correctly blocked by TwapManipulated)
+    // and is only ~2e11 deep — far below the mainnet-depth floor below.
+    address constant UNICHAIN_ETH = address(0);
     address constant MAINNET_USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
-    address constant MAINNET_WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+    address constant MAINNET_ETH = address(0);
 
     uint160 constant HIGH_FLAGS = (1 << 159) | (1 << 158) | (1 << 153) | (1 << 152) | (1 << 148);
     uint160 constant LOW_FLAGS = (1 << 13) | (1 << 12) | (1 << 7) | (1 << 6) | (1 << 3);
@@ -95,7 +100,7 @@ contract EswapMainnetV4LiquidationForkTest is Test {
     EswapMarginHook hook;
     EswapRouter router;
     ForkPriceFeedMock priceFeed;
-    address base; // WETH
+    address base; // native ETH (V4 Currency.wrap(0))
     address quote; // USDC
 
     PoolKey hookLocalKey;
@@ -108,7 +113,7 @@ contract EswapMainnetV4LiquidationForkTest is Test {
     address solver = makeAddr("liqForkSolver");
     address keeper = makeAddr("liqForkKeeper");
 
-    function setUp() public {
+function setUp() public {
         string[2] memory rpcCandidates;
         rpcCandidates[0] = vm.envOr("UNICHAIN_RPC_URL", string(""));
         rpcCandidates[1] = vm.envOr("ETH_RPC_URL", string(""));
@@ -116,41 +121,50 @@ contract EswapMainnetV4LiquidationForkTest is Test {
         for (uint256 r = 0; r < 2 && !rpcAvailable; r++) {
             string memory rpcUrl = rpcCandidates[r];
             if (bytes(rpcUrl).length == 0) continue;
-            try vm.createSelectFork(rpcUrl) {
-                this._setupOnActiveFork();
-            } catch {}
+            // NOTE: `vm.createSelectFork` MUST stay at cheatcode level —
+            // Foundry disallows cheatcodes inside try/catch, so wrapping it
+            // here silently swallowed the fork and the suite soft-skipped
+            // instead of testing live. The try only wraps the (non-cheatcode)
+            // external venue-discovery call.
+            vm.createSelectFork(rpcUrl);
+            try this._setupOnActiveFork() {} catch {}
         }
         // No viable venue configured: tests soft-skip.
     }
 
     function _setupOnActiveFork() external {
-        uint256 cid = block.chainid;
+uint256 cid = block.chainid;
         address pmAddr;
         if (cid == 130) {
-            base = UNICHAIN_WETH;
+            base = UNICHAIN_ETH;
             quote = UNICHAIN_USDC;
             pmAddr = V4_PM_UNICHAIN;
         } else if (cid == 1) {
-            base = MAINNET_WETH;
+            base = MAINNET_ETH;
             quote = MAINNET_USDC;
             pmAddr = V4_PM_MAINNET;
         } else {
             return;
         }
-        if (base.code.length == 0 || quote.code.length == 0 || pmAddr.code.length == 0) return;
+        // Native ETH (address(0)) has no code; all other currencies must.
+        if ((base != address(0) && base.code.length == 0) || quote.code.length == 0 || pmAddr.code.length == 0) {
+            return;
+        }
 
         pm = RealIPoolManager(pmAddr);
 
-        // --- Discover the deepest initialized ERC20 pool for this pair ---
+        // --- Discover the deepest initialized native ETH/USDC pool ---
         RealPoolKey memory deepKey;
         bool found;
         uint128 deepest;
         uint24[6] memory fees = [uint24(500), 3000, 100, 500, 3000, 100];
         int24[6] memory spacings = [int24(60), 60, 1, 10, 10, 10];
-        for (uint256 i = 0; i < 6; i++) {
+for (uint256 i = 0; i < 6; i++) {
+            // Canonical V4 key ordering: address(0) native ETH sorts FIRST, so
+            // the live pool is token0=base(ETH), token1=quote(USDC).
             RealPoolKey memory k = RealPoolKey({
-                currency0: RealCurrency.wrap(quote),
-                currency1: RealCurrency.wrap(base),
+                currency0: RealCurrency.wrap(base),
+                currency1: RealCurrency.wrap(quote),
                 fee: fees[i],
                 tickSpacing: spacings[i],
                 hooks: RealIHooks(address(0))
@@ -187,16 +201,17 @@ contract EswapMainnetV4LiquidationForkTest is Test {
         hook = EswapMarginHook(payable(hookAddr));
         router = new EswapRouter(IPoolManager(address(pm)));
         hook.setRouterAndMinCollateralUsd(address(router), 0);
+        router.setSolverWhitelist(solver, true);
 
-        hookRealKey = RealPoolKey({
-            currency0: RealCurrency.wrap(quote),
-            currency1: RealCurrency.wrap(base),
+hookRealKey = RealPoolKey({
+            currency0: RealCurrency.wrap(base),
+            currency1: RealCurrency.wrap(quote),
             fee: 3000,
             tickSpacing: 60,
             hooks: RealIHooks(hookAddr)
         });
         hookLocalKey = PoolKey({
-            currency0: Currency.wrap(quote), currency1: Currency.wrap(base), fee: 3000, tickSpacing: 60, hooks: hookAddr
+            currency0: Currency.wrap(base), currency1: Currency.wrap(quote), fee: 3000, tickSpacing: 60, hooks: hookAddr
         });
 
         (uint160 hpSqrtP,,,) = _slot0(hookRealKey);
@@ -220,13 +235,13 @@ contract EswapMainnetV4LiquidationForkTest is Test {
         priceFeed.setPrice(base, _humanPriceBaseInQuote18());
         priceFeed.setPrice(quote, 1e18);
 
-        deal(quote, trader, 250_000 * 10 ** _tokenDecimals(quote));
-        deal(base, trader, 50 ether);
+deal(quote, trader, 250_000 * 10 ** _tokenDecimals(quote));
+        vm.deal(trader, 50 ether); // native ETH (V4 Currency.wrap(0)) funds
         deal(quote, solver, 250_000 * 10 ** _tokenDecimals(quote));
         // Scenario B pushes the REAL price down: this contract executes the
         // push swap inside its own unlock callback, so it carries inventory.
-        deal(base, keeper, 500 ether);
-        deal(base, address(this), 500 ether);
+        vm.deal(keeper, 500 ether);
+        vm.deal(address(this), 500 ether);
 
         vm.prank(trader);
         RealIERC20(quote).approve(address(router), type(uint256).max);
@@ -236,10 +251,17 @@ contract EswapMainnetV4LiquidationForkTest is Test {
 
     // --- helpers -----------------------------------------------------------
 
-    function _tokenDecimals(address token) internal view returns (uint8 d) {
+function _tokenDecimals(address token) internal view returns (uint8 d) {
+        if (token == address(0)) return 18; // native ETH
         (bool ok, bytes memory ret) = token.staticcall(abi.encodeWithSignature("decimals()"));
         require(ok && ret.length >= 32, "decimals() failed");
         d = uint8(uint256(abi.decode(ret, (uint256))));
+    }
+
+    /// @dev Native-aware BASE balance (native ETH vs ERC-20 token).
+    function _baseBalance(address who) internal view returns (uint256) {
+        if (base == address(0)) return who.balance;
+        return RealIERC20(base).balanceOf(who);
     }
 
     function _slot0(RealPoolKey memory k) internal view returns (uint160 sqrtP, int24 tick, uint24, bool) {
@@ -261,14 +283,17 @@ contract EswapMainnetV4LiquidationForkTest is Test {
         }
     }
 
-    /// @dev 1e18-fixed USD price per WHOLE base unit derived from the live pool.
+/// @dev 1e18-fixed USD price per WHOLE base unit derived from the live pool.
+    ///      Pool is token0=base(ETH), token1=quote(USDC): raw price p =
+    ///      sqrtP^2/2^192 = quote_raw per base_raw; whole-quote per whole-base
+    ///      = p * 10^(dB-dQ); times 1e18 for the 18-dec convention.
     function _humanPriceBaseInQuote18() internal view returns (uint256) {
         (uint160 sqrtP,,,) = _slot0(deepRealKey());
         require(sqrtP > 0, "deep pool uninitialized");
         uint8 dQ = _tokenDecimals(quote);
         uint8 dB = _tokenDecimals(base);
         require(dB >= dQ && dB - dQ <= 18, "unsupported decimals");
-        return FullMath.mulDiv((1 << 192) * (10 ** (dB - dQ)), 1e18, uint256(sqrtP) * uint256(sqrtP));
+        return FullMath.mulDiv(uint256(sqrtP) * uint256(sqrtP), 10 ** (uint256(dB) - dQ + 18), 1 << 192);
     }
 
     function deepRealKey() internal view returns (RealPoolKey memory) {
@@ -303,7 +328,8 @@ contract EswapMainnetV4LiquidationForkTest is Test {
             leverage: 2,
             solver: solver,
             hookData: abi.encode(true, uint8(2), trader),
-            deadline: block.timestamp + 15 minutes
+            deadline: block.timestamp + 15 minutes,
+minAmountOut: 0
         });
         vm.prank(trader);
         router.swapMultiPool(params);
@@ -338,15 +364,17 @@ contract EswapMainnetV4LiquidationForkTest is Test {
         return (o, c, b, lo, up, q);
     }
 
-    /// @dev Common post-liquidation battery: position zeroed, band burned from
-    ///      the LIVE pool, solver made exactly whole, insurance carve-out ==
-    ///      3% of post-solver surplus, trader gets the rest, no stray tokens.
+/// @dev Common post-liquidation battery: position zeroed, band burned from
+    ///      the LIVE pool, solver made exactly whole, [FIX H-5] keeper reward ==
+    ///      3% of post-solver surplus (no insurance carve-out), trader gets the
+    ///      rest, no stray tokens.
     function _assertLiquidatedCleanly(
         uint256 borrowedAtOpen,
         int24 tl,
         int24 tu,
         uint256 solverQuoteBefore,
         uint256 traderQuoteBefore,
+        uint256 keeperQuoteBefore,
         uint256 insuranceBefore,
         uint256 hookWethBefore,
         uint256 hookUsdcBefore,
@@ -363,8 +391,9 @@ contract EswapMainnetV4LiquidationForkTest is Test {
 
         uint256 solverGot = RealIERC20(quote).balanceOf(solver) - solverQuoteBefore;
         uint256 traderGot = RealIERC20(quote).balanceOf(trader) - traderQuoteBefore;
+        uint256 keeperGot = RealIERC20(quote).balanceOf(keeper) - keeperQuoteBefore;
         uint256 insuranceGot = hook.insuranceFund(Currency.wrap(quote)) - insuranceBefore;
-        uint256 received = solverGot + traderGot + insuranceGot;
+        uint256 received = solverGot + traderGot + keeperGot;
 
         // Solver repaid exactly the registered principal (borrowed leg, 0% interest).
         assertEq(solverGot, borrowedAtOpen, "solver made exactly whole");
@@ -375,23 +404,25 @@ contract EswapMainnetV4LiquidationForkTest is Test {
             received, liveExpectedOut, liveExpectedOut * 3 / 100 + 1000, "proceeds near LIVE-price expectation"
         );
 
-        // Insurance carve-out == exactly floor(3% of the post-solver surplus),
-        // matching the hook's integer truncation.
+        // [FIX H-5] The keeper (liquidator) earns exactly floor(3% of the
+        // post-solver surplus) — the liquidation incentive — and NO insurance
+        // carve-out is minted.
         assertEq(
-            insuranceGot, FullMath.mulDiv(traderGot + insuranceGot, 300, 10000), "insurance carve-out == 3% of surplus"
+            keeperGot, FullMath.mulDiv(traderGot + keeperGot, 300, 10000), "keeper reward == 3% of surplus"
         );
+        assertEq(insuranceGot, 0, "no insurance carve-out");
         assertGt(traderGot, 0, "trader residual positive");
 
         // No unbounded token residue in the hook. Residue observed on live
         // mainnet ~= the open-time PROTOCOL FEE share (the router mints
         // claims on the FULL bought bag; the unwind burns all hook-held
-        // claims against the swap debt, stranding ~0.5% as hook-owned WETH)
+        // claims against the swap debt, stranding ~0.5% as hook-owned ETH)
         // plus sub-wei rounding. Bounded at 1% of collateral here. A NET
         // DECREASE is also acceptable: after a mid-band rebalance the unwind
         // may legitimately draw on the hook's residual buffer.
-        uint256 hookWethAfter = RealIERC20(base).balanceOf(address(hook));
+        uint256 hookWethAfter = _baseBalance(address(hook));
         if (hookWethAfter > hookWethBefore) {
-            assertLt(hookWethAfter - hookWethBefore, dustBound, "WETH residue within rounding bound");
+            assertLt(hookWethAfter - hookWethBefore, dustBound, "ETH residue within rounding bound");
         }
         uint256 usdcBound = dustBound * 10 ** _tokenDecimals(quote) / 10 ** _tokenDecimals(base);
         uint256 hookUsdcAfter = RealIERC20(quote).balanceOf(address(hook));
@@ -419,10 +450,11 @@ contract EswapMainnetV4LiquidationForkTest is Test {
         EswapMarginHook.Position memory posView = _posMemory();
         assertFalse(hook.isLiquidatable(posView, hookLocalKey), "healthy at open");
 
-        uint256 solverQuoteBefore = RealIERC20(quote).balanceOf(solver);
+uint256 solverQuoteBefore = RealIERC20(quote).balanceOf(solver);
         uint256 traderQuoteBefore = RealIERC20(quote).balanceOf(trader);
+        uint256 keeperQuoteBefore = RealIERC20(quote).balanceOf(keeper);
         uint256 insuranceBefore = hook.insuranceFund(Currency.wrap(quote));
-        uint256 hookWethBefore = RealIERC20(base).balanceOf(address(hook));
+        uint256 hookWethBefore = _baseBalance(address(hook));
         uint256 hookUsdcBefore = RealIERC20(quote).balanceOf(address(hook));
 
         // --- Crash the oracle 50% (real pool untouched) ---
@@ -454,12 +486,13 @@ contract EswapMainnetV4LiquidationForkTest is Test {
         vm.prank(keeper);
         router.liquidate(address(hook), hookLocalKey, trader, minOut);
 
-        _assertLiquidatedCleanly(
+_assertLiquidatedCleanly(
             borrowed,
             tl,
             tu,
             solverQuoteBefore,
             traderQuoteBefore,
+            keeperQuoteBefore,
             insuranceBefore,
             hookWethBefore,
             hookUsdcBefore,
@@ -468,11 +501,11 @@ contract EswapMainnetV4LiquidationForkTest is Test {
             collateral / 100
         );
 
-        console2.log(
-            "scenario A received(trader+solver+ins):",
+console2.log(
+            "scenario A received(trader+solver+keeper):",
             RealIERC20(quote).balanceOf(trader) - traderQuoteBefore
                 + (RealIERC20(quote).balanceOf(solver) - solverQuoteBefore)
-                + (hook.insuranceFund(Currency.wrap(quote)) - insuranceBefore)
+                + (RealIERC20(quote).balanceOf(keeper) - keeperQuoteBefore)
         );
     }
 
@@ -486,46 +519,49 @@ contract EswapMainnetV4LiquidationForkTest is Test {
         uint256 margin = 50 * 10 ** _tokenDecimals(quote);
         (uint256 collateral, uint256 borrowed, int24 tl, int24 tu,) = _openLong(margin);
 
-        int24 tickBefore = _slot0Tick(deepRealKey());
-        // V4 tick direction for this pair (currency0=USDC, currency1=WETH):
-        // RISING tick == WETH getting CHEAPER (tick tracks token0's price in
-        // token1). So an ADVERSE real move for the long is tick UP, executed
-        // by selling WETH into the live pool. Target cleanly ABOVE the band
-        // top so the band sits out-of-range holding pure WETH when the
-        // liquidation unwinds it (any in-range sweep converts band WETH ->
-        // USDC; the hook's residual claim buffer absorbs small sweeps, but we
-        // keep the state unambiguous here).
-        int24 baseTick = tickBefore > tu ? tickBefore : tu;
-        int24 targetTick = baseTick + 40;
+int24 tickBefore = _slot0Tick(deepRealKey());
+        // Canonical ETH/USDC venue (token0 = native ETH/base, token1 = USDC):
+        // tick = USDC per ETH, so RISING tick == ETH getting MORE expensive.
+        // An ADVERSE real move for the LONG is tick DOWN, executed by SELLING
+        // ETH into the live pool. Target cleanly BELOW the band floor so the
+        // band sits out-of-range holding pure ETH when the liquidation unwinds
+        // it (any in-range sweep converts band ETH -> USDC; the hook's residual
+        // claim buffer absorbs small sweeps, but we keep the state unambiguous).
+        int24 baseTick = tickBefore < tl ? tickBefore : tl;
+        int24 targetTick = baseTick - 40;
 
         {
             uint128 L = StateLibrary.getLiquidity(pm, _deepId());
             (uint160 sqrtP,,,) = _slot0(deepRealKey());
             uint160 sqrtTarget = TickMath.getSqrtRatioAtTick(targetTick);
-            require(sqrtTarget > sqrtP, "push target not above current tick");
-            uint256 wethIn = FullMath.mulDiv(L, uint256(sqrtTarget - sqrtP), 1 << 96);
+            require(sqrtTarget < sqrtP, "push target not below current tick");
+            uint256 ethIn = FullMath.mulDiv(
+                uint256(L), uint256(sqrtP - sqrtTarget), FullMath.mulDiv(uint256(sqrtP), uint256(sqrtTarget), 1 << 96)
+            );
             // Cap at push inventory; recompute achievable depth if needed.
-            uint256 budget = RealIERC20(base).balanceOf(address(this));
-            if (wethIn > budget) {
-                uint256 sqrtRise = FullMath.mulDiv(budget, 1 << 96, L);
-                sqrtTarget = uint160(uint256(sqrtP) + sqrtRise);
-                wethIn = budget;
-            }
-            assertTrue(wethIn > 0, "nonzero push size");
+            uint256 budget = _baseBalance(address(this));
 
-            pm.unlock(abi.encode(true, wethIn, MAX_SQRT_LIMIT));
+            if (ethIn > budget) {
+                uint256 sqrtDrop = FullMath.mulDiv(budget, 1 << 96, uint256(L));
+                sqrtTarget = uint160(uint256(sqrtP) - sqrtDrop);
+                ethIn = budget;
+            }
+            assertTrue(ethIn > 0, "nonzero push size");
+
+            pm.unlock(abi.encode(true, ethIn, sqrtTarget));
 
             int24 tickAfter = _slot0Tick(deepRealKey());
-            console2.log("scenario B adverse ticks moved:", uint256(int256(tickAfter - tickBefore)));
-            assertGt(tickAfter, tickBefore + 10, "REAL adverse move: WETH cheaper");
-            assertGt(tickAfter, tu, "band out-of-range (pure collateral side)");
+            console2.log("scenario B adverse ticks moved:", uint256(int256(tickBefore - tickAfter)));
+            assertLt(tickAfter, tickBefore - 10, "REAL adverse move: ETH cheaper");
+            assertLt(tickAfter, tl, "band out-of-range (pure collateral side)");
         }
 
-        // --- Oracle crash + liquidation on the worsened venue ---
+// --- Oracle crash + liquidation on the worsened venue ---
         uint256 solverQuoteBefore = RealIERC20(quote).balanceOf(solver);
         uint256 traderQuoteBefore = RealIERC20(quote).balanceOf(trader);
+        uint256 keeperQuoteBefore = RealIERC20(quote).balanceOf(keeper);
         uint256 insuranceBefore = hook.insuranceFund(Currency.wrap(quote));
-        uint256 hookWethBefore = RealIERC20(base).balanceOf(address(hook));
+        uint256 hookWethBefore = _baseBalance(address(hook));
         uint256 hookUsdcBefore = RealIERC20(quote).balanceOf(address(hook));
 
         uint256 liveHuman = _humanPriceBaseInQuote18();
@@ -539,12 +575,13 @@ contract EswapMainnetV4LiquidationForkTest is Test {
         vm.prank(keeper);
         router.liquidate(address(hook), hookLocalKey, trader, minOut);
 
-        _assertLiquidatedCleanly(
+_assertLiquidatedCleanly(
             borrowed,
             tl,
             tu,
             solverQuoteBefore,
             traderQuoteBefore,
+            keeperQuoteBefore,
             insuranceBefore,
             hookWethBefore,
             hookUsdcBefore,
@@ -554,13 +591,14 @@ contract EswapMainnetV4LiquidationForkTest is Test {
         );
     }
 
-    /// @dev Pushes the REAL price DOWN (buys BASE) until at least
+/// @dev Pushes the REAL price UP (buys BASE with QUOTE) until at least
     ///      `minConsumedBps` of the position band [tl, tu] has been swept from
-    ///      its collateral (token1) side, measured exactly like the hook's
-    ///      _bandConsumed. Every push swap carries a sqrtPriceLimit parked at
-    ///      the `maxConsumedBps` point, so overshoot is structurally
+    ///      its collateral (token0/ETH) side, measured exactly like the hook's
+    ///      _bandConsumed (isCurrency0: consumed = currentTick - tickLower).
+    ///      Every push swap carries a sqrtPriceLimit parked at the
+    ///      `maxConsumedBps` point, so overshoot is structurally
     ///      impossible regardless of pool-depth estimation error.
-    function _pushDownToConsumption(
+    function _pushToConsumption(
         int24 tl,
         int24 tu,
         uint256 minConsumedBps,
@@ -570,9 +608,9 @@ contract EswapMainnetV4LiquidationForkTest is Test {
         int24 width = tu - tl;
         uint160 sqrtLimit;
         if (maxConsumedBps >= 10000) {
-            sqrtLimit = MIN_SQRT_LIMIT;
+            sqrtLimit = MAX_SQRT_LIMIT;
         } else {
-            int24 limitTick = tu - int24(int256(FullMath.mulDiv(maxConsumedBps, uint256(uint24(width)), 10000)));
+            int24 limitTick = int24(tl + int24(int256(FullMath.mulDiv(maxConsumedBps, uint256(uint24(width)), 10000))));
             sqrtLimit = TickMath.getSqrtRatioAtTick(limitTick);
         }
         uint256 prevChunk = 0;
@@ -583,14 +621,13 @@ contract EswapMainnetV4LiquidationForkTest is Test {
             // Exact-input estimate for buying up to the next checkpoint,
             // halved for a gentle approach; doubles vs previous chunk if stalled.
             (uint160 sqrtP,,,) = _slot0(deepRealKey());
-            require(sqrtP > sqrtLimit, "price already at/below safe limit");
-            int24 goalTick = tu - int24(int256(FullMath.mulDiv(minConsumedBps, uint256(uint24(width)), 10000)));
-            if (goalTick >= tick) goalTick = tick - 1;
-            if (TickMath.getSqrtRatioAtTick(goalTick) >= sqrtP) goalTick = tick - 1;
+            require(sqrtP < sqrtLimit, "price already at/above safe limit");
+            int24 goalTick = int24(tl + int24(int256(FullMath.mulDiv(minConsumedBps, uint256(uint24(width)), 10000))));
+            if (goalTick <= tick) goalTick = tick + 1;
+            if (TickMath.getSqrtRatioAtTick(goalTick) <= sqrtP) goalTick = tick + 1;
             uint160 sqrtGoal = TickMath.getSqrtRatioAtTick(goalTick);
-            if (sqrtGoal < sqrtLimit) sqrtGoal = sqrtLimit;
-            uint256 numer = FullMath.mulDiv(StateLibrary.getLiquidity(pm, _deepId()), sqrtP - sqrtGoal, uint256(sqrtP));
-            uint256 quoteIn = FullMath.mulDiv(numer, 1 << 96, uint256(sqrtGoal)) / 2;
+            if (sqrtGoal > sqrtLimit) sqrtGoal = sqrtLimit;
+            uint256 quoteIn = FullMath.mulDiv(StateLibrary.getLiquidity(pm, _deepId()), uint256(sqrtGoal - sqrtP), 1 << 96) / 2;
             if (quoteIn < prevChunk * 2) quoteIn = prevChunk * 2;
             if (quoteIn == 0) quoteIn = 1;
             if (quoteIn > maxQuoteRaw) quoteIn = maxQuoteRaw;
@@ -601,7 +638,7 @@ contract EswapMainnetV4LiquidationForkTest is Test {
         revert("failed to reach consumption target");
     }
 
-    /// @notice SCENARIO C: stuck-window regression â€” a FAVORABLE move sweeps
+/// @notice SCENARIO C: stuck-window regression â€” a FAVORABLE move sweeps
     ///         part of the collateral band in-range; permissionless rebalance
     ///         must stay inert below the trigger, then re-center above it, and
     ///         the resulting state must still liquidate cleanly end-to-end.
@@ -611,7 +648,7 @@ contract EswapMainnetV4LiquidationForkTest is Test {
         // Cheap trigger: 3% of band width keeps the real-price push affordable.
         hook.setBandConsumptionTriggerBps(300);
 
-        // Inventory for the real-price pushes (buying BASE drives tick DOWN).
+        // Inventory for the real-price pushes (buying BASE with QUOTE drives tick UP).
         deal(quote, address(this), 26_000_000 * 10 ** _tokenDecimals(quote));
 
         uint256 margin = 50 * 10 ** _tokenDecimals(quote);
@@ -620,10 +657,10 @@ contract EswapMainnetV4LiquidationForkTest is Test {
 
         // --- STAGE 1: sub-trigger penetration must remain a no-op ---
         int24 tickAtOpen = _slot0Tick(deepRealKey());
-        assertGt(tickAtOpen, tu, "band starts below price");
-        _pushDownToConsumption(tl, tu, 50, 250, 200_000 * 10 ** _tokenDecimals(quote));
+        assertLt(tickAtOpen, tl, "band starts above price");
+        _pushToConsumption(tl, tu, 50, 250, 200_000 * 10 ** _tokenDecimals(quote));
         int24 tickMid = _slot0Tick(deepRealKey());
-        assertLt(tickMid, tickAtOpen, "price moved favorably");
+        assertGt(tickMid, tickAtOpen, "price moved favorably");
         assertTrue(_inBandConsumedPct(tl, tu, tickMid) < 300, "stage 1 stays sub-trigger");
         vm.prank(keeper);
         router.rebalance(address(hook), hookLocalKey, trader);
@@ -633,7 +670,7 @@ contract EswapMainnetV4LiquidationForkTest is Test {
         assertEq(lqA, liq0, "sub-trigger rebalance leaves LP stake");
 
         // --- STAGE 2: cross the trigger -> re-center above the new price ---
-        _pushDownToConsumption(tl, tu, 400, 10000, 25_000_000 * 10 ** _tokenDecimals(quote));
+        _pushToConsumption(tl, tu, 400, 10000, 25_000_000 * 10 ** _tokenDecimals(quote));
         int24 tickDeep = _slot0Tick(deepRealKey());
         assertTrue(_inBandConsumedPct(tl, tu, tickDeep) >= 400, "stage 2 crosses trigger");
 
@@ -645,16 +682,17 @@ contract EswapMainnetV4LiquidationForkTest is Test {
         assertEq(owner2, trader, "position survives rebalance");
         assertEq(borr2, borrowed, "rebalance never deleverages");
         assertGt(lq2, 0, "band re-deployed with liquidity");
-        assertLe(up2, tickDeep, "new band sits at/below the moved price");
-        assertGt(tickDeep - lo2, 0, "price above new band floor");
+        assertGe(lo2, tickDeep, "new band sits at/above the moved price");
+        assertGt(up2 - tickDeep, 0, "price below new band ceiling");
         assertGt(up2 - lo2, 0, "non-degenerate width");
         assertEq(_liveBandLiquidity(tl, tu), 0, "old band burned from live pool");
 
-        // --- END-TO-END: crash oracle, liquidation must unwind cleanly ---
+// --- END-TO-END: crash oracle, liquidation must unwind cleanly ---
         uint256 solverQuoteBefore = RealIERC20(quote).balanceOf(solver);
         uint256 traderQuoteBefore = RealIERC20(quote).balanceOf(trader);
+        uint256 keeperQuoteBefore = RealIERC20(quote).balanceOf(keeper);
         uint256 insuranceBefore = hook.insuranceFund(Currency.wrap(quote));
-        uint256 hookWethBefore = RealIERC20(base).balanceOf(address(hook));
+        uint256 hookWethBefore = _baseBalance(address(hook));
         uint256 hookUsdcBefore = RealIERC20(quote).balanceOf(address(hook));
 
         uint256 liveHuman = _humanPriceBaseInQuote18();
@@ -667,12 +705,13 @@ contract EswapMainnetV4LiquidationForkTest is Test {
         vm.prank(keeper);
         router.liquidate(address(hook), hookLocalKey, trader, minOut);
 
-        _assertLiquidatedCleanly(
+_assertLiquidatedCleanly(
             borr2,
             lo2,
             up2,
             solverQuoteBefore,
             traderQuoteBefore,
+            keeperQuoteBefore,
             insuranceBefore,
             hookWethBefore,
             hookUsdcBefore,
@@ -682,14 +721,15 @@ contract EswapMainnetV4LiquidationForkTest is Test {
         );
     }
 
-    /// @dev In-band consumption measured from the collateral (token1, upper)
-    ///      side: 0 while price stays above the band (untouched), 10000 once
-    ///      swept through the floor. Mirrors the sweepable fraction only â€”
-    ///      band-exit triggers are covered by the hook's own out-of-range rule.
+/// @dev In-band consumption measured from the collateral (token0/ETH, lower)
+    ///      side: 0 while price stays below the band (untouched), 10000 once
+    ///      swept through the ceiling. Mirrors the hook's _bandConsumed for
+    ///      isCurrency0 (collateral == token0); band-exit triggers are covered
+    ///      by the hook's own out-of-range rule.
     function _inBandConsumedPct(int24 tl, int24 tu, int24 tick) internal pure returns (uint256) {
-        if (tick >= tu) return 0;
-        if (tick <= tl) return 10000;
-        return FullMath.mulDiv(uint256(uint24(tu - tick)), 10000, uint256(uint24(tu - tl)));
+        if (tick <= tl) return 0;
+        if (tick >= tu) return 10000;
+        return FullMath.mulDiv(uint256(uint24(tick - tl)), 10000, uint256(uint24(tu - tl)));
     }
 
     /// @dev Rebuilds a Position view struct from the public mapping getter.
@@ -709,40 +749,60 @@ contract EswapMainnetV4LiquidationForkTest is Test {
         });
     }
 
-    // --- unlock callback: direct REAL-pool push swap (scenario B) ----------
+// --- unlock callback: direct REAL-pool push swap (scenario B) ----------
+
+    receive() external payable {}
 
     function unlockCallback(bytes calldata data) external returns (bytes memory) {
         require(msg.sender == address(pm), "callback: only PM");
         (bool sellBase, uint256 amountIn, uint160 sqrtLimit) = abi.decode(data, (bool, uint256, uint160));
+        // canonical ETH/USDC venue -> token0 = native ETH (base). Sell base =
+        // zeroForOne=true; buy base (sell quote) = zeroForOne=false.
+        bool baseIsToken0 = RealCurrency.unwrap(deepRealKey().currency0) == base;
         BalanceDelta delta;
         if (sellBase) {
-            // Sell BASE (currency1) for QUOTE on the hookless deep venue:
-            // zeroForOne=false, exact-input, full-range limit.
-            delta = pm.swap(deepRealKey(), RealIPoolManager.SwapParams(false, -int256(amountIn), MAX_SQRT_LIMIT), "");
+            // Sell BASE (token0=ETH) for QUOTE on the hookless deep venue:
+            // exact-input; sqrtLimit caps how far the price can fall.
+            delta = pm.swap(
+                deepRealKey(),
+                RealIPoolManager.SwapParams(baseIsToken0, -int256(amountIn), sqrtLimit),
+                ""
+            );
         } else {
-            // Buy BASE with QUOTE: zeroForOne=true (drives tick DOWN), price
+            // Buy BASE with QUOTE: sells token1=USDC (drives tick UP),
             // hard-capped at sqrtLimit so probes can never overshoot.
-            delta = pm.swap(deepRealKey(), RealIPoolManager.SwapParams(true, -int256(amountIn), sqrtLimit), "");
+            delta = pm.swap(
+                deepRealKey(),
+                RealIPoolManager.SwapParams(!baseIsToken0, -int256(amountIn), sqrtLimit),
+                ""
+            );
         }
-        // Collect whichever side came OUT.
+        // Collect whichever side came OUT. (pm.take forwards native ETH via call.)
         if (delta.amount0() > 0) {
             pm.take(deepRealKey().currency0, address(this), uint256(uint128(delta.amount0())));
         }
         if (delta.amount1() > 0) {
             pm.take(deepRealKey().currency1, address(this), uint256(uint128(delta.amount1())));
         }
-        // Pay the input legs: sync + transfer + settle.
+        // Pay whichever input leg is negative (native-aware per currency).
         if (delta.amount0() < 0) {
-            pm.sync(deepRealKey().currency0);
-            RealIERC20(RealCurrency.unwrap(deepRealKey().currency0))
-                .transfer(address(pm), uint256(uint128(-delta.amount0())));
-            pm.settle();
+            _settleLeg(deepRealKey().currency0, uint256(uint128(-delta.amount0())));
         }
         if (delta.amount1() < 0) {
-            pm.sync(deepRealKey().currency1);
-            RealIERC20(base).transfer(address(pm), uint256(uint128(-delta.amount1())));
-            pm.settle();
+            _settleLeg(deepRealKey().currency1, uint256(uint128(-delta.amount1())));
         }
         return "";
+    }
+
+    function _settleLeg(RealCurrency c, uint256 amt) internal {
+        address token = RealCurrency.unwrap(c);
+        if (token == address(0)) {
+            // Native ETH: amount comes from the value sent with settle().
+            pm.settle{value: amt}();
+        } else {
+            pm.sync(c);
+            RealIERC20(token).transfer(address(pm), amt);
+            pm.settle();
+        }
     }
 }

@@ -74,7 +74,8 @@ contract LiveOpenPosition is Script {
                 leverage: leverage,
                 solver: solver,
                 hookData: hookData,
-                deadline: block.timestamp + 15 minutes
+                deadline: block.timestamp + 15 minutes,
+minAmountOut: 0
             }));
         } else {
             IERC20(USDC).approve(routerAddr, type(uint256).max);
@@ -86,7 +87,8 @@ contract LiveOpenPosition is Script {
                 leverage: leverage,
                 solver: solver,
                 hookData: hookData,
-                deadline: block.timestamp + 15 minutes
+                deadline: block.timestamp + 15 minutes,
+minAmountOut: 0
             }));
         }
         vm.stopBroadcast();

@@ -63,7 +63,8 @@ contract LiveShortDebug is Test {
             leverage: leverage,
             solver: LIVE_SOLVER,
             hookData: hookData,
-            deadline: block.timestamp + 15 minutes
+            deadline: block.timestamp + 15 minutes,
+minAmountOut: 0
         });
 
         vm.prank(trader);

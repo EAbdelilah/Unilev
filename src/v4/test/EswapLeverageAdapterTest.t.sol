@@ -113,10 +113,14 @@ contract EswapLeverageAdapterTest is BaseV4Test {
         assertEq(collateral, (19 ether * 9950) / 10000);
     }
 
+    /// @dev [FIX H-3] The minAmountOut is now forwarded into the router and
+    ///      enforced atomically INSIDE the swap — the router's error fires and
+    ///      backs out the whole open (the adapter's post-swap check is now
+    ///      unreachable defence-in-depth).
     function test_Adapter_SlippageGuard_Reverts() public {
         manager.setNextSwapDelta(-50 ether, 48 ether);
 
-        vm.expectRevert(abi.encodeWithSelector(EswapLeverageAdapter.SlippageExceeded.selector, 48 ether, 49 ether));
+        vm.expectRevert(abi.encodeWithSelector(EswapRouter.SwapOutputBelowMinimum.selector, 48 ether, 49 ether));
         adapter.exactInputSingleWithLeverage(address(token0), address(token1), 3000, 5, MARGIN, 49 ether, user);
     }
 

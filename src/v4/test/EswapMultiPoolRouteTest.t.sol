@@ -119,7 +119,8 @@ contract EswapMultiPoolRouteTest is BaseV4Test {
             leverage: leverage,
             solver: solver,
             hookData: abi.encode(true, leverage, trader),
-            deadline: block.timestamp + 15 minutes
+            deadline: block.timestamp + 15 minutes,
+minAmountOut: 0
         });
 
         token0.mint(trader, 100 ether);
@@ -176,7 +177,8 @@ contract EswapMultiPoolRouteTest is BaseV4Test {
             leverage: leverage,
             solver: solver,
             hookData: abi.encode(true, leverage, trader),
-            deadline: block.timestamp + 15 minutes
+            deadline: block.timestamp + 15 minutes,
+minAmountOut: 0
         });
 
         token1.mint(trader, 100 ether);
@@ -212,6 +214,47 @@ contract EswapMultiPoolRouteTest is BaseV4Test {
         assertGt(swapHookData.length, 0);
     }
 
+    /// @dev [FIX C-4] single-pool path: a deterministic 28 ether output below the
+    ///      caller's 28 ether + 1 floor must revert SwapOutputBelowMinimum.
+    function test_Swap_OutputBelowMinimum_Reverts() public {
+        address trader = address(0xABC);
+        address solver = address(0x123);
+        uint256 margin = 10 ether;
+        uint8 leverage = 3;
+
+        _primeHookPosition(trader, true, margin, leverage, 28 ether);
+
+        EswapRouter.SwapParams memory params = EswapRouter.SwapParams({
+            key: key,
+            standardPoolKey: standardPoolKey,
+            zeroForOne: true,
+            amountSpecified: -int128(uint128(margin)),
+            leverage: leverage,
+            solver: solver,
+            hookData: abi.encode(true, leverage, trader),
+            deadline: block.timestamp + 15 minutes,
+            minAmountOut: 28 ether + 1
+        });
+
+        token0.mint(trader, 100 ether);
+        vm.startPrank(trader);
+        token0.approve(address(router), type(uint256).max);
+        vm.stopPrank();
+
+        token0.mint(solver, 100 ether);
+        vm.startPrank(solver);
+        token0.approve(address(router), type(uint256).max);
+        vm.stopPrank();
+
+        // Deterministic single-pool output (28 ether) below the 28 ether + 1 floor.
+        manager.setNextSwapDelta(-int128(uint128(margin)), 28 ether);
+
+        vm.startPrank(trader);
+        vm.expectRevert(abi.encodeWithSelector(EswapRouter.SwapOutputBelowMinimum.selector, 28 ether, 28 ether + 1));
+        router.swap(params);
+        vm.stopPrank();
+    }
+
     function test_OpenAndClose_5xLeveragePosition_MultiPoolRoute() public {
         address trader = address(0xABC);
         address solver = address(0x123);
@@ -229,7 +272,8 @@ contract EswapMultiPoolRouteTest is BaseV4Test {
             leverage: leverage,
             solver: solver,
             hookData: abi.encode(true, leverage, trader),
-            deadline: block.timestamp + 15 minutes
+            deadline: block.timestamp + 15 minutes,
+minAmountOut: 0
         });
 
         token0.mint(trader, margin);

@@ -1,19 +1,21 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {PoolKey} from "./types/PoolKey.sol";
-import {PoolId, PoolIdLibrary} from "./types/PoolId.sol";
-
-interface IEswapMarginHook {
-    function registerSolverDebt(PoolId poolId, address trader, address solver, uint256 principal) external;
-}
-
 /**
  * @title EswapSolverAdapter
- * @notice CoW Swap / URC-4 Intent adapter enabling EIP-712 signed intent settlement & batch position opening.
+ * @notice Bespoke EIP-712 intent adapter (NOT CoW Protocol / GPv2) enabling
+ *         signed intent submission & batch position opening.
+ *
+ * @dev This contract uses its OWN EIP-712 domain and `MarginIntent`/`SpotIntent`
+ *      type hashes, and the intent submit functions only validate signatures and
+ *      bump nonces — they do not open positions or move funds. The former
+ *      `batchOpenPositions` stub was REMOVED ([FIX M-1]): it never executed
+ *      trades, yet read as if it did, so a signed intent could be consumed by a
+ *      front-runner without the trader's position ever opening. For genuine CoW
+ *      Swap compatibility see `EswapCoWSettlement` and the `cow/` library, which
+ *      verify canonical CoW order digests (bound to the real GPv2Settlement).
  */
 contract EswapSolverAdapter {
-    using PoolIdLibrary for PoolKey;
 
     bytes32 public immutable DOMAIN_SEPARATOR;
     bytes32 public constant INTENT_TYPEHASH =
@@ -105,36 +107,6 @@ contract EswapSolverAdapter {
         verifySpotIntent(intent, signature);
         nonces[intent.swapper]++;
         return true;
-    }
-
-    function registerSolverDebt(PoolKey calldata key, address trader, address solver, uint256 principal) external {
-        IEswapMarginHook(payable(hook)).registerSolverDebt(key.toId(), trader, solver, principal);
-    }
-
-    function batchOpenPositions(MarginIntent[] calldata intents, bytes[] calldata signatures)
-        external
-        returns (uint256 count)
-    {
-        require(intents.length == signatures.length, "Length mismatch");
-        for (uint256 i = 0; i < intents.length; i++) {
-            // Inline the intent processing to avoid internal call issues
-            MarginIntent calldata intent = intents[i];
-            bytes calldata sig = signatures[i];
-            if (block.timestamp > intent.deadline) revert DeadlineExpired();
-            if (intent.nonce != nonces[intent.trader]) revert NonceInvalid();
-
-            bytes32 structHash = keccak256(
-                abi.encode(
-                    INTENT_TYPEHASH, intent.trader, intent.leverage, intent.amount, intent.nonce, intent.deadline
-                )
-            );
-            bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, structHash));
-            address recovered = recover(digest, sig);
-            if (recovered != intent.trader || recovered == address(0)) revert InvalidSignature();
-
-            nonces[intent.trader]++;
-            count++;
-        }
     }
 
     function recover(bytes32 hash, bytes memory signature) internal pure returns (address) {

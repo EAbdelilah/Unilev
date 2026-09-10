@@ -58,15 +58,17 @@ contract EswapSettlementTest is BaseV4Test {
 
         token0.mint(filler, 100 ether);
         token1.mint(address(hook), 100 ether);
+        token0.mint(address(hook), 100 ether);
 
         vm.startPrank(filler);
         token0.approve(address(settlement), type(uint256).max);
         vm.stopPrank();
     }
 
-    function _originData(uint256 margin) internal view returns (bytes memory) {
+    function _originData(uint256 margin, uint256 minAmountOut) internal view returns (bytes memory) {
         return abi.encode(
-            key, standardPoolKey, true, int256(margin), uint8(5), address(0), abi.encode(true, uint8(5), trader)
+            key, standardPoolKey, true, int256(margin), uint8(5), address(0),
+            abi.encode(true, uint8(5), trader), minAmountOut
         );
     }
 
@@ -74,10 +76,13 @@ contract EswapSettlementTest is BaseV4Test {
         bytes32 orderId = keccak256("test-order-1");
 
         vm.prank(filler);
-        settlement.fill(orderId, _originData(10 ether), "");
+        settlement.fill(orderId, _originData(10 ether, 0), "");
 
-        (, uint256 collateral,,,,,,,) = hook.positions(key.toId(), address(settlement));
-        assertGt(collateral, 0, "position not opened under settlement");
+        // [FIX H-4] The position must be credited to the RECIPIENT (trader),
+        // never to the settlement contract.
+        (, uint256 collateral,,,,,,,) = hook.positions(key.toId(), trader);
+        assertGt(collateral, 0, "position not opened under recipient");
+        assertEq(settlement.filledRecipient(orderId), trader, "order must record the recipient");
     }
 
     function test_Fill_EmitsEvent() public {
@@ -87,16 +92,16 @@ contract EswapSettlementTest is BaseV4Test {
         emit EswapSettlement.PositionFilled(orderId, trader, address(token0), 10 ether);
 
         vm.prank(filler);
-        settlement.fill(orderId, _originData(10 ether), "");
+        settlement.fill(orderId, _originData(10 ether, 0), "");
     }
 
     function test_Fill_LowLeverage() public {
         bytes32 orderId = keccak256("test-order-3");
 
         vm.prank(filler);
-        settlement.fill(orderId, _originData(10 ether), "");
+        settlement.fill(orderId, _originData(10 ether, 0), "");
 
-        (, uint256 collateral,,,,,,,) = hook.positions(key.toId(), address(settlement));
+        (, uint256 collateral,,,,,,,) = hook.positions(key.toId(), trader);
         assertGt(collateral, 0, "position not opened");
     }
 
@@ -113,5 +118,49 @@ contract EswapSettlementTest is BaseV4Test {
         vm.prank(makeAddr("stranger"));
         vm.expectRevert(abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", makeAddr("stranger")));
         settlement.rescueToken(address(token0), makeAddr("recipient"), 5 ether);
+    }
+
+    /// @dev [FIX H-3] The settlement no longer hardcodes minAmountOut:0 — the
+    ///      floor is forwarded from originData and enforced inside the router's
+    ///      swap, so a sandwiched fill backs out atomically (no position).
+    function test_Fill_SlippageRevertsAboveOutput() public {
+        bytes32 orderId = keccak256("test-order-slippage");
+
+        // margin 10 ether, 5x → notional 50 ether → mock fill output = 48 ether.
+        vm.expectRevert(abi.encodeWithSelector(EswapRouter.SwapOutputBelowMinimum.selector, 48 ether, 49 ether));
+        vm.prank(filler);
+        settlement.fill(orderId, _originData(10 ether, 49 ether), "");
+
+        (address posTrader,,,,,,,,) = hook.positions(key.toId(), address(settlement));
+        assertEq(posTrader, address(0), "no position after slippage revert");
+    }
+
+    /// @dev [FIX H-4] The recipient owns the position after fill; closing it pays
+    ///      the net proceeds STRAIGHT to the recipient (the settlement never
+    ///      holds the position or its proceeds).
+    function test_Close_RecipientReceivesProceedsDirectly() public {
+        bytes32 orderId = keccak256("test-order-close");
+
+        uint256 traderBalBefore = token1.balanceOf(trader);
+
+        vm.prank(filler);
+        settlement.fill(orderId, _originData(10 ether, 0), "");
+
+        (, uint256 collateralForTrader,,,,,,,) = hook.positions(key.toId(), trader);
+        assertGt(collateralForTrader, 0, "recipient must own the position");
+
+        // The recipient closes their own position direct via the router (C-1 rule).
+        vm.prank(trader);
+        router.closePosition(address(hook), key, trader, address(settlement), 0);
+
+        (, uint256 collateralAfter,,,,,,,) = hook.positions(key.toId(), trader);
+        assertEq(collateralAfter, 0, "position must be closed");
+
+        // Close unwinds token1 collateral back into the DEBT currency (token0),
+        // repays the solver, and pays the net remainder to the recipient direct.
+        assertGt(token0.balanceOf(trader), 0, "recipient must receive close proceeds directly");
+        // The settlement only re-holds its SOLVER REPAYMENT (40 ether borrow
+        // principal) — zero trader remainder is captured by it.
+        assertEq(token0.balanceOf(address(settlement)), 40 ether, "settlement must hold only the borrow repayment");
     }
 }

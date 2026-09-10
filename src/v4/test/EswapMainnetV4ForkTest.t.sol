@@ -27,7 +27,7 @@ import {PriceFeedMock} from "./BaseV4Test.t.sol";
 /// wherever the canonical PoolManager 0x000...4444 is deployed.
 ///
 /// Proven on real mainnet state, no mocks of the AMM:
-///  1. A deep native USDC/WETH V4 pool is DISCOVERED (initialized + liquid).
+///  1. A deep native ETH/USDC V4 pool is DISCOVERED (initialized + liquid).
 ///  2. swapMultiPool executes the physical fill ON THAT POOL (its price moves).
 ///  3. deployCollateral stakes the collateral as single-sided LP in the SAME
 ///     deep pool (position-level liquidity > 0).
@@ -40,12 +40,15 @@ contract EswapMainnetV4ForkTest is Test {
     address constant V4_PM_MAINNET = 0x000000000004444c5dc75cB358380D2e3dE08A90; // Ethereum
     address constant V4_PM_UNICHAIN = 0x1F98400000000000000000000000000000000004; // Unichain
 
-    // Unichain mainnet (chainId 130)
+// Unichain mainnet (chainId 130)
     address constant UNICHAIN_USDC = 0x078D782b760474a361dDA0AF3839290b0EF57AD6;
-    address constant UNICHAIN_WETH = 0x4200000000000000000000000000000000000006;
+    // V4 NATIVE ETH == address(0). ONLY the native ETH/USDC venue is used: the
+    // deep Unichain standard pool is ETH/USDC fee-500/tick-10 (~$5.4M), NOT the
+    // WETH-token/USDC one (~2e11, and ~66% off the Chainlink TWAP).
+    address constant UNICHAIN_ETH = address(0);
     // Ethereum mainnet (chainId 1)
     address constant MAINNET_USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
-    address constant MAINNET_WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+    address constant MAINNET_ETH = address(0);
 
     uint160 constant HIGH_FLAGS = (1 << 159) | (1 << 158) | (1 << 153) | (1 << 152) | (1 << 148);
     uint160 constant LOW_FLAGS = (1 << 13) | (1 << 12) | (1 << 7) | (1 << 6) | (1 << 3);
@@ -54,7 +57,7 @@ contract EswapMainnetV4ForkTest is Test {
     EswapMarginHook hook;
     EswapRouter router;
     PriceFeedMock priceFeed;
-    address base; // WETH
+    address base; // native ETH (V4 Currency.wrap(0))
     address quote; // USDC
 
     PoolKey hookLocalKey;
@@ -69,17 +72,21 @@ contract EswapMainnetV4ForkTest is Test {
     function setUp() public {
         // Probe configured RPCs in order and settle on the first chain that
         // hosts the canonical V4 singleton AND a genuinely deep ERC20
-        // WETH/USDC pool. (.env may point at chains with only dust venues.)
+        // native ETH/USDC pool. (.env may point at chains with only dust venues.)
         string[2] memory rpcCandidates;
         rpcCandidates[0] = vm.envOr("UNICHAIN_RPC_URL", string(""));
         rpcCandidates[1] = vm.envOr("ETH_RPC_URL", string(""));
 
-        for (uint256 r = 0; r < 2 && !rpcAvailable; r++) {
+for (uint256 r = 0; r < 2 && !rpcAvailable; r++) {
             string memory rpcUrl = rpcCandidates[r];
             if (bytes(rpcUrl).length == 0) continue;
-            try vm.createSelectFork(rpcUrl) {
-                this._setupOnActiveFork();
-            } catch {}
+            // NOTE: `vm.createSelectFork` MUST stay at cheatcode level —
+            // Foundry disallows cheatcodes inside try/catch, so wrapping it
+            // here silently swallowed the fork and the suite soft-skipped
+            // instead of testing live. The try only wraps the (non-cheatcode)
+            // external venue-discovery call.
+            vm.createSelectFork(rpcUrl);
+            try this._setupOnActiveFork() {} catch {}
         }
         // No viable venue (e.g. only a Polygon RPC configured): tests soft-skip.
     }
@@ -89,18 +96,19 @@ contract EswapMainnetV4ForkTest is Test {
     function _setupOnActiveFork() external {
         uint256 cid = block.chainid;
         address pmAddr;
-        if (cid == 130) {
-            base = UNICHAIN_WETH;
+if (cid == 130) {
+            base = UNICHAIN_ETH;
             quote = UNICHAIN_USDC;
             pmAddr = V4_PM_UNICHAIN;
         } else if (cid == 1) {
-            base = MAINNET_WETH;
+            base = MAINNET_ETH;
             quote = MAINNET_USDC;
             pmAddr = V4_PM_MAINNET;
         } else {
             return;
         }
-        if (base.code.length == 0 || quote.code.length == 0 || pmAddr.code.length == 0) return;
+        // Native ETH (address(0)) has no code; all other currencies must.
+        if ((base != address(0) && base.code.length == 0) || quote.code.length == 0 || pmAddr.code.length == 0) return;
 
         pm = RealIPoolManager(pmAddr);
         console2.log("forked chainId:", cid);
@@ -111,10 +119,12 @@ contract EswapMainnetV4ForkTest is Test {
         uint128 deepest;
         uint24[6] memory fees = [uint24(500), 3000, 100, 500, 3000, 100];
         int24[6] memory spacings = [int24(60), 60, 1, 10, 10, 10];
-        for (uint256 i = 0; i < 6; i++) {
+for (uint256 i = 0; i < 6; i++) {
+            // Canonical V4 key ordering: address(0) native ETH sorts FIRST, so
+            // the live pool is token0=base(ETH), token1=quote(USDC).
             RealPoolKey memory k = RealPoolKey({
-                currency0: RealCurrency.wrap(quote),
-                currency1: RealCurrency.wrap(base),
+                currency0: RealCurrency.wrap(base),
+                currency1: RealCurrency.wrap(quote),
                 fee: fees[i],
                 tickSpacing: spacings[i],
                 hooks: RealIHooks(address(0))
@@ -154,16 +164,17 @@ contract EswapMainnetV4ForkTest is Test {
         hook = EswapMarginHook(payable(hookAddr));
         router = new EswapRouter(IPoolManager(address(pm)));
         hook.setRouterAndMinCollateralUsd(address(router), 0);
+        router.setSolverWhitelist(solver, true);
 
-        hookRealKey = RealPoolKey({
-            currency0: RealCurrency.wrap(quote),
-            currency1: RealCurrency.wrap(base),
+hookRealKey = RealPoolKey({
+            currency0: RealCurrency.wrap(base),
+            currency1: RealCurrency.wrap(quote),
             fee: 3000,
             tickSpacing: 60,
             hooks: RealIHooks(hookAddr)
         });
         hookLocalKey = PoolKey({
-            currency0: Currency.wrap(quote), currency1: Currency.wrap(base), fee: 3000, tickSpacing: 60, hooks: hookAddr
+            currency0: Currency.wrap(base), currency1: Currency.wrap(quote), fee: 3000, tickSpacing: 60, hooks: hookAddr
         });
 
         // The accounting-rail hook pool must trade at the DEEP venue's price —
@@ -187,8 +198,8 @@ contract EswapMainnetV4ForkTest is Test {
         priceFeed.setPrice(quote, 1e18); // stable: $1 per whole unit
 
         // Fund participants with REAL tokens.
-        deal(quote, trader, 250_000 * 10 ** _tokenDecimals(quote));
-        deal(base, trader, 50 ether);
+deal(quote, trader, 250_000 * 10 ** _tokenDecimals(quote));
+        vm.deal(trader, 50 ether); // native ETH (V4 Currency.wrap(0)) funds
         deal(quote, solver, 250_000 * 10 ** _tokenDecimals(quote));
 
         vm.prank(trader);
@@ -199,7 +210,8 @@ contract EswapMainnetV4ForkTest is Test {
 
     // --- helpers -----------------------------------------------------------
 
-    function _tokenDecimals(address token) internal view returns (uint8 d) {
+function _tokenDecimals(address token) internal view returns (uint8 d) {
+        if (token == address(0)) return 18; // native ETH
         (bool ok, bytes memory ret) = token.staticcall(abi.encodeWithSignature("decimals()"));
         require(ok && ret.length >= 32, "decimals() failed");
         d = uint8(uint256(abi.decode(ret, (uint256))));
@@ -230,12 +242,12 @@ contract EswapMainnetV4ForkTest is Test {
         return uint160(((1 << 96) * 1e9) / _sqrt(invRaw));
     }
 
-    /// @dev Human quote-per-base price (18-dec USD convention) derived from the
-    ///      REAL deep pool's slot0. With currency0=quote and currency1=base:
-    ///      R = sqrtP^2/2^192 = base_wei per quote_unit, so a whole base unit
+/// @dev Human quote-per-base price (18-dec USD convention) derived from the
+    ///      REAL deep pool's slot0. With token0=base and token1=quote:
+    ///      R = sqrtP^2/2^192 = quote_raw per base_raw, so a whole base unit
     ///      sells for 10^dB * R / 10^dQ quote units -> in 1e18-fixed:
-    ///      human = 10^(dB - dQ) * 2^192 / sqrtP^2.
-    ///      (Sanity: fee500/ts60 WETH pool with sqrtP=1.758e33 gives ~2030e18.)
+    ///      human = sqrtP^2 * 10^(dB - dQ + 18) / 2^192.
+    ///      (Sanity: fee500/ts60 native ETH pool with sqrtP=1.758e33 gives ~2030e18.)
     function _humanPriceBaseInQuote18() internal view returns (uint256) {
         (uint160 sqrtP,,,) = StateLibrary.getSlot0(pm, RealPoolId.wrap(PoolId.unwrap(standardLocalKey.toId())));
         require(sqrtP > 0, "deep pool uninitialized");
@@ -243,13 +255,13 @@ contract EswapMainnetV4ForkTest is Test {
         uint8 dB = _tokenDecimals(base);
         require(dB >= dQ && dB - dQ <= 18, "unsupported decimals");
         // 1e18-fixed USD price, as consumed by PriceFeedMock.getAmountInUsd.
-        return FullMath.mulDiv((1 << 192) * (10 ** (dB - dQ)), 1e18, uint256(sqrtP) * uint256(sqrtP));
+        return FullMath.mulDiv(uint256(sqrtP) * uint256(sqrtP), 10 ** (uint256(dB) - dQ + 18), 1 << 192);
     }
 
     // --- tests -------------------------------------------------------------
 
     /// @dev The discovered pool must carry genuine third-party liquidity.
-    ///      (Live Ethereum-mainnet fee500/ts10 WETH/USDC sits around L=4.45e16;
+    ///      (Live Ethereum-mainnet fee500/ts10 native ETH/USDC sits around L=4.45e16;
     ///      the setUp depth floor already guarantees at least 1e15.)
     function test_Fork_DeepPool_IsLiquid() public view {
         if (!rpcAvailable) return;
@@ -280,7 +292,8 @@ contract EswapMainnetV4ForkTest is Test {
             leverage: 2,
             solver: solver,
             hookData: abi.encode(true, uint8(2), trader),
-            deadline: block.timestamp + 15 minutes
+            deadline: block.timestamp + 15 minutes,
+minAmountOut: 0
         });
 
         vm.prank(trader);
@@ -305,8 +318,8 @@ contract EswapMainnetV4ForkTest is Test {
         assertGt(collateral, 0, "collateral recorded");
         assertEq(borrowed, margin, "borrow registered (leverage 2 -> margin-sized loan)");
         assertEq(lev, 2);
-        // Fill sells QUOTE to buy BASE (=WETH) -> collateral in base -> LONG.
-        assertTrue(isLong, "bought base=WETH with quote=USDC must record LONG");
+// Fill sells QUOTE to buy BASE (=native ETH) -> collateral in base -> LONG.
+        assertTrue(isLong, "bought base=ETH with quote=USDC must record LONG");
         assertGt(liq, 0, "collateral deployed as single-sided LP");
 
         bytes32 posKey = keccak256(abi.encodePacked(address(hook), tl, tu, bytes32(0)));

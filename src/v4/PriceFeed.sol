@@ -46,11 +46,12 @@ contract PriceFeed {
     address public constant NATIVE_ETH_PRICE_KEY = 0x4200000000000000000000000000000000000006;
 
     uint256 public constant GRACE_PERIOD_TIME = 3600; // 1 h L2 sequencer grace period
-    // 24 h staleness threshold. Unichain Mainnet's official Chainlink feeds
-    // update on a many-hour cadence (observed gaps of 2-20 h), so the 1 h
-    // threshold made every read revert StalePrice. 24 h is the minimum window
-    // that keeps getAmountInUsd/getTwapPrice usable on Unichain today.
-    uint256 public constant MAX_ORACLE_AGE = 86400; // 24 h staleness threshold
+    // [FIX M-2] 1 h staleness threshold (matches the audit-recommended ceiling of
+    // 3,600s). Bounds the maximum oracle lag that position accounting
+    // (collateral/borrow/isLiquidatable) can silently absorb; feeds that pace
+    // slower than this on Unichain must be surfaced as StalePrice and handled by
+    // governance rather than trusted stale. (Lowered from 6 h, down from 24 h.)
+    uint256 public constant MAX_ORACLE_AGE = 3600; // 1 h staleness threshold
 
     error SequencerDown();
     error GracePeriodNotMet();
@@ -148,8 +149,7 @@ contract PriceFeed {
         if (token == address(0)) token = NATIVE_ETH_PRICE_KEY;
         uint256 price18 = _getValidatedPrice(token);
         if (price18 == 0) return 0;
-        uint8 dec = IERC20Decimals(token).decimals();
-        if (token == NATIVE_ETH_PRICE_KEY) dec = 18;
+        uint8 dec = token == NATIVE_ETH_PRICE_KEY ? 18 : IERC20Decimals(token).decimals(); // [FIX L-1] native key first
         return FullMath.mulDiv(amount, price18, 10 ** dec);
     }
 

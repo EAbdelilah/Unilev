@@ -3,9 +3,11 @@ pragma solidity ^0.8.24;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {FullMath} from "@uniswap/v4-core/src/libraries/FullMath.sol";
 
 interface IPriceFeed {
     function getTwapPrice(address token) external view returns (uint256);
+    function getAmountInUsd(address token, uint256 amount) external view returns (uint256);
 }
 
 /**
@@ -125,8 +127,11 @@ contract ArbunPutOption {
         uint256 currentPrice = priceFeed.getTwapPrice(underlyingToken);
         require(currentPrice > 0, "Invalid price from feed");
 
-        // Calculate option notional size in collateral value (assuming collateral is stablecoin USD)
-        uint256 notionalCollateralValue = (quantity * currentPrice) / 1e18;
+        // [FIX H-1] Decimal-correct notional: getAmountInUsd normalizes the raw
+        // `quantity` by the UNDERLYING token's real decimals, so a 6-dec (USDC),
+        // 8-dec (WBTC) or 18-dec (WETH) underlying quantum prices correctly
+        // (previously assumed 18-dec with a hard-coded /1e18).
+        uint256 notionalCollateralValue = priceFeed.getAmountInUsd(underlyingToken, quantity);
 
         // Calculate downpayment requirement (Arbun) and booking fee (Ujrah)
         uint256 requiredDownpayment = (notionalCollateralValue * minDownpaymentBps) / BPS_DIVISOR;
@@ -188,9 +193,12 @@ contract ArbunPutOption {
         require(currentPrice < opt.lockedPrice, "Price has not fallen (no profit)");
 
         // Total locked sell price value in collateral equivalent
-        uint256 notionalCollateralValue = (opt.quantity * opt.lockedPrice) / 1e18;
-        // Current spot purchase value of underlying
-        uint256 currentSpotValue = (opt.quantity * currentPrice) / 1e18;
+        // [FIX H-1] Decimal-correct USD values for the delivered quantity:
+        // currentSpotValue is normalized by the underlying token's real decimals
+        // (getAmountInUsd), and the locked strike is scaled from it by the
+        // locked/oracle price ratio — no hard-coded /1e18 for raw quantums.
+        uint256 currentSpotValue = priceFeed.getAmountInUsd(opt.underlyingToken, opt.quantity);
+        uint256 notionalCollateralValue = FullMath.mulDiv(currentSpotValue, opt.lockedPrice, currentPrice);
 
         // Net profit calculation = locked value - spot value - downpayment
         require(

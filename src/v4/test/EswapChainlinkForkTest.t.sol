@@ -54,7 +54,7 @@ contract SequencerMock {
 ///   T2  getTwapPrice tracks the LIVE market (vs the deep V4 pool spot).
 ///   T3  getAmountInUsd cross-decimal scale — DOCUMENTS KNOWN ISSUE CF-1
 ///       (raw-amount convention silently distorts non-18-decimal tokens).
-///   T4  24h staleness reverts StalePrice on both entrypoints.
+///   T4  1h staleness reverts StalePrice on both entrypoints.
 ///   T5  Answer-bound circuit breaker reverts OraclePriceOutOfBounds.
 ///   T6  Sequencer uptime gating: SequencerDown / GracePeriodNotMet / pass,
 ///       plus the not-configured skip path.
@@ -103,7 +103,9 @@ contract EswapChainlinkForkTest is Test {
     uint8 quoteFeedDec;
 
     // Mirrors PriceFeed.sol public constants (not addressable via ContractName.X).
-    uint256 constant MAX_ORACLE_AGE = 86400;
+    // [FIX M-2] Keep the test's staleness model in lockstep with the contract:
+    // MAX_ORACLE_AGE was tightened 86400 (24h) -> 21600 (6h) -> 3600 (1h).
+    uint256 constant MAX_ORACLE_AGE = 3600;
     uint256 constant GRACE_PERIOD_TIME = 3600;
 
     // ─── helpers ─────────────────────────────────────────────────────────────
@@ -116,9 +118,13 @@ contract EswapChainlinkForkTest is Test {
         for (uint256 r = 0; r < 2 && !rpcAvailable; r++) {
             string memory rpcUrl = rpcCandidates[r];
             if (bytes(rpcUrl).length == 0) continue;
-            try vm.createSelectFork(rpcUrl) {
-                this._setupOnActiveFork();
-            } catch (bytes memory reason) {
+            // NOTE: `vm.createSelectFork` MUST stay at cheatcode level —
+            // Foundry disallows cheatcodes inside try/catch, so wrapping it
+            // here silently swallowed the fork and the suite soft-skipped
+            // instead of testing live. The try only wraps the (non-cheatcode)
+            // external venue-discovery call.
+            vm.createSelectFork(rpcUrl);
+            try this._setupOnActiveFork() {} catch (bytes memory reason) {
                 console2.log("fork probe failed:", rpcUrl);
                 console2.logBytes(reason);
             }
@@ -259,6 +265,18 @@ contract EswapChainlinkForkTest is Test {
     ///      distorting isLiquidatable ratios between position legs.
     function test_GetAmountInUsd_CrossDecimalScale_CF1() public view {
         if (!rpcAvailable) return;
+        // [FIX M-2] Guard on the tightened staleness window: if either feed is
+        // within 30min of the 1h limit at the fork block, skip rather than trip
+        // StalePrice — this test documents decimal normalization, not freshness.
+        (, uint256 updatedAtBase) = _rawAnswer(baseFeed);
+        (, uint256 updatedAtQuote) = _rawAnswer(quoteFeed);
+        if (
+            block.timestamp - updatedAtBase > MAX_ORACLE_AGE - 30 minutes
+                || block.timestamp - updatedAtQuote > MAX_ORACLE_AGE - 30 minutes
+        ) {
+            console2.log("feed near-stale at fork block; skipping cross-decimal test");
+            return;
+        }
 
         uint8 dQ = _tokenDecimals(quote);
         uint8 dB = _tokenDecimals(base);
@@ -278,11 +296,11 @@ contract EswapChainlinkForkTest is Test {
     }
 
     /// @dev T4: staleness — warping beyond MAX_ORACLE_AGE reverts StalePrice.
-    function test_Staleness_24h_Reverts() public {
+    function test_Staleness_1h_Reverts() public {
         if (!rpcAvailable) return;
 
         (, uint256 updatedAtBase) = _rawAnswer(baseFeed);
-        if (block.timestamp - updatedAtBase > MAX_ORACLE_AGE - 2 hours) {
+        if (block.timestamp - updatedAtBase > MAX_ORACLE_AGE - 30 minutes) {
             console2.log("feed already near-stale at fork block; skipping staleness test");
             return;
         }
@@ -304,7 +322,10 @@ contract EswapChainlinkForkTest is Test {
     function test_AnswerBounds_CircuitBreaker() public {
         if (!rpcAvailable) return;
 
-        (int256 raw,) = _rawAnswer(baseFeed);
+        (int256 raw, uint256 updatedAtBase) = _rawAnswer(baseFeed);
+        // Anchor the fork clock AT the feed's last round so a lagged public
+        // RPC fork can never trip the tightened 1h staleness window here.
+        vm.warp(updatedAtBase);
 
         // Wide sane bounds pass.
         priceFeed.setAnswerBounds(base, raw / 2, raw * 2);
@@ -329,6 +350,11 @@ contract EswapChainlinkForkTest is Test {
     function test_SequencerUptime_Gating() public {
         if (!rpcAvailable) return;
 
+        // Anchor the fork clock AT the feed's last round so a lagged public
+        // RPC fork can never trip the tightened 1h staleness window mid-test.
+        (, uint256 updatedAtBase) = _rawAnswer(baseFeed);
+        vm.warp(updatedAtBase);
+
         // Unset: no gating.
         assertEq(priceFeed.sequencerUptimeFeed(), address(0), "unset by default");
         assertGt(priceFeed.getTwapPrice(base), 0, "reads work without seq feed");
@@ -336,7 +362,7 @@ contract EswapChainlinkForkTest is Test {
         seqMock = new SequencerMock();
         priceFeed.setSequencerUptimeFeed(address(seqMock));
 
-        // Up + mature: passes.
+        // Up + mature (mock starts 2h in the past): passes.
         assertGt(priceFeed.getTwapPrice(base), 0, "up+mature passes");
 
         // Down: SequencerDown.
@@ -351,8 +377,10 @@ contract EswapChainlinkForkTest is Test {
         vm.expectRevert(PriceFeed.GracePeriodNotMet.selector);
         priceFeed.getTwapPrice(base);
 
-        // Warp past grace period: passes again.
-        vm.warp(block.timestamp + GRACE_PERIOD_TIME + 1);
+        // Warp exactly the grace period: sequencer unblocks AND the feed is
+        // still exactly within the 1h staleness window (age == MAX_ORACLE_AGE
+        // passes the strict > check).
+        vm.warp(block.timestamp + GRACE_PERIOD_TIME);
         assertGt(priceFeed.getTwapPrice(base), 0, "grace period elapsed");
     }
 

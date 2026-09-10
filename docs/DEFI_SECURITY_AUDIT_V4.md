@@ -40,17 +40,17 @@ The audit focused on:
 | **C-04** | Complete Absence of Slippage Protection (`minAmountOut`) in `EswapRouter.swap()` / `swapMultiPool()` | **Critical** | 100% MEV Sandwich extraction / capital drain on open | **Vulnerable** |
 | **H-01** | `ArbunPutOption` Hardcodes 18 Decimals for Collateral — Trillion-Dollar Overflow for USDC | **High** | Option creation and exercise completely broken for USDC | **Vulnerable** |
 | **H-02** | `_checkV4SpotAgainstV3Twap` Compares Oracle TWAP to Itself (Spot Circuit Breaker Disabled) | **High** | Manipulation of execution standard pool undetectable | **Vulnerable** |
-| **H-03** | Zero Economic Incentive for Third-Party Keepers (`liquidatorReward` Sent to Protocol Fund) | **High** | High risk of unliquidated bad debt if keeper bot pauses | **Design Flaw** |
-| **H-04** | Missing `deployCollateral` Router Entrypoint Leaves Standalone Positions Un-deployed | **High** | Failed initial deployment cannot be re-triggered by user | **Deficiency** |
+| **H-03** | Zero Economic Incentive for Third-Party Keepers (`liquidatorReward` Sent to Protocol Fund) | **High** | High risk of unliquidated bad debt if keeper bot pauses | **Fixed** — `_settle` pays `LIQUIDATION_REWARD_BPS` (300bps) to the `liquidator` from recovered proceeds; insurance mint removed |
+| **H-04** | Missing `deployCollateral` Router Entrypoint Leaves Standalone Positions Un-deployed | **High** | Failed initial deployment cannot be re-triggered by user | **Fixed** — `EswapRouter.deployCollateral` entrypoint added |
 | **M-01** | `EswapRouter` Native ETH Refund Uses Hardcoded `.transfer(2300 gas)` | **Medium** | DoS for smart contract traders / multisigs (Gnosis Safe) | **Vulnerable** |
-| **M-02** | 24-Hour Oracle Staleness Window (`MAX_ORACLE_AGE = 86400s`) | **Medium** | Exploitable stale prices during high market volatility | **Vulnerable** |
-| **M-03** | Impermanent Loss in Concentrated Liquidity Rehypothecation Induces Collateral Deficit | **Medium** | Position close requires more collateral than available | **Vulnerable** |
+| **M-02** | 24-Hour Oracle Staleness Window (`MAX_ORACLE_AGE = 86400s`) | **Medium** | Exploitable stale prices during high market volatility | **Fixed** — `MAX_ORACLE_AGE` tightened to 3,600s (1h) in `PriceFeed.sol:54`; staleness test coverage updated |
+| **M-03** | Impermanent Loss in Concentrated Liquidity Rehypothecation Induces Collateral Deficit | **Medium** | Position close requires more collateral than available | **Fixed** — `rebalancePosition` now writes `pos.collateralAmount = availableCollateral` (actually-recovered principal) |
 | **M-04** | `EswapRouter` Refunds Total Balance Rather Than Transaction Native Surplus | **Medium** | Accidental ETH trapped in Router given to next swapper | **Vulnerable** |
-| **M-05** | `EswapSolverAdapter.registerSolverDebt` Inoperable Due to `onlyRouter` Guard | **Medium** | Reverting dead-code function | **Deficiency** |
+| **M-05** | `EswapSolverAdapter.registerSolverDebt` Inoperable Due to `onlyRouter` Guard | **Medium** | Reverting dead-code function | **Fixed** — unauthenticated public forwarder removed; only the authorized `onlyRouter` hook path remains |
 | **L-01** | Unchecked ERC-20 `decimals()` Call in `PriceFeed.getAmountInUsd` | **Low** | Reverts on non-standard ERC-20 tokens | **Low** |
 | **L-02** | `EswapSettlement.rescueToken` Lacks Protection for Position Tokens | **Low** | Owner error can disrupt in-flight bridge fills | **Low** |
-| **I-01** | `PositionClosed` Event in `EswapSettlement` Emits Hardcoded Zero Payout | **Informational** | Misleading off-chain indexing | **Informational** |
-| **I-02** | Unused Function Parameters in `_settle` (`liquidator`) | **Informational** | Dead code | **Informational** |
+| **I-01** | `PositionClosed` Event in `EswapSettlement` Emits Hardcoded Zero Payout | **Informational** | Misleading off-chain indexing | **Fixed** — event removed in H-04 redesign (settlement never owns/custodies positions) |
+| **I-02** | Unused Function Parameters in `_settle` (`liquidator`) | **Informational** | Dead code | **Fixed** — `liquidator` now consumed for the H-05 keeper reward payout |
 
 ---
 

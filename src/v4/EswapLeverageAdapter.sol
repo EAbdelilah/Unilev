@@ -122,7 +122,11 @@ contract EswapLeverageAdapter is Ownable {
             leverage: leverage,
             solver: solver,
             hookData: abi.encode(true, leverage, recipient),
-            deadline: block.timestamp + router.DEFAULT_DEADLINE_SLACK()
+            deadline: block.timestamp + router.DEFAULT_DEADLINE_SLACK(),
+            // [FIX H-3] Forward the caller's slippage floor into the router so the
+            // output filter is enforced INSIDE the swap (atomic). The post-swap
+            // check below remains as a defence-in-depth assertion.
+            minAmountOut: minAmountOut
         });
 
         bytes memory result = router.swapMultiPoolFor(params, recipient);

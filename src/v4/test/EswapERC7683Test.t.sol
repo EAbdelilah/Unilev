@@ -64,7 +64,8 @@ contract EswapERC7683Test is BaseV4Test {
             -10 ether, // amountSpecified
             uint8(5), // leverage
             address(0x999), // solver
-            bytes("") // hookData
+            bytes(""), // hookData
+            uint256(45 ether) // minAmountOut
         );
 
         EswapRouter.CrossChainOrder memory order = EswapRouter.CrossChainOrder({
@@ -101,7 +102,8 @@ contract EswapERC7683Test is BaseV4Test {
             -10 ether, // amountSpecified (margin size)
             uint8(5), // leverage
             address(0x123), // solver (the caller or specialized solver)
-            abi.encode(true, uint8(5), trader) // hookData with margin flag enabled
+            abi.encode(true, uint8(5), trader), // hookData with margin flag enabled
+            uint256(45 ether) // minAmountOut (48 ether output expected → pass)
         );
 
         EswapRouter.CrossChainOrder memory order = EswapRouter.CrossChainOrder({
@@ -157,5 +159,48 @@ contract EswapERC7683Test is BaseV4Test {
         assertEq(borrowed, 40 ether);
         assertEq(collateral, (48 ether * 9950) / 10000); // 0.5% fee deducted
         assertGt(liquidity, 0, "collateral rehypothecation should be deployed");
+    }
+
+    /// @dev [FIX H-3] The signed minAmountOut must be enforced inside the swap: a
+    ///      floor above the achievable output reverts the WHOLE open atomically.
+    function test_ERC7683_Initiate_SlippageRevertsZeroPosition() public {
+        bytes memory orderData = abi.encode(
+            key,
+            standardPoolKey,
+            true, // zeroForOne
+            -10 ether, // amountSpecified (margin size)
+            uint8(5), // leverage
+            address(0x123), // solver
+            abi.encode(true, uint8(5), trader), // hookData
+            uint256(49 ether) // minAmountOut: mock fill only achieves 48 ether
+        );
+
+        EswapRouter.CrossChainOrder memory order = EswapRouter.CrossChainOrder({
+            settlementContract: address(router),
+            swapper: trader,
+            nonce: 222,
+            originChainId: uint32(block.chainid),
+            initiateDeadline: uint32(block.timestamp + 1 hours),
+            fillDeadline: uint32(block.timestamp + 2 hours),
+            orderData: orderData
+        });
+
+        bytes32 orderHash = router.hashOrder(order);
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", router.DOMAIN_SEPARATOR(), orderHash));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(traderPrivateKey, digest);
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        // Notional 50 ether swapped; mock returns 48 ether output (96%).
+        manager.setNextSwapDelta(-50 ether, 48 ether);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(EswapRouter.SwapOutputBelowMinimum.selector, 48 ether, 49 ether)
+        );
+        vm.prank(address(0x123));
+        router.initiate(order, signature, "");
+
+        // Position must NOT exist: the revert backed out the whole open.
+        (address posTrader,,,,,,,,) = hook.positions(key.toId(), trader);
+        assertEq(posTrader, address(0), "no position may exist after a slippage revert");
     }
 }
