@@ -109,7 +109,9 @@ contract EswapMarginHookLogic is BaseHook {
     error InvalidStandardPoolKey();
 
     // ─── Events ───────────────────────────────────────────────────────────────
-    event HookSwap(PoolId indexed poolId, address indexed trader, int128 amount0, int128 amount1, uint128 liquidityDelta);
+    event HookSwap(
+        PoolId indexed poolId, address indexed trader, int128 amount0, int128 amount1, uint128 liquidityDelta
+    );
     event BaseCurrencySet(PoolId indexed poolId, Currency currency);
     event TradingPairRegistered(PoolId indexed poolId, Currency base, PoolKey standardKey);
     event MultiPoolMarginOpened(
@@ -249,8 +251,9 @@ contract EswapMarginHookLogic is BaseHook {
         // pool, so the trader/solver are still paid their full value. When NO band
         // was ever deployed, the full book `collateralAmount` sits in the
         // accounting pool and is the correct unwind quantity.
-        (uint256 receivedAmount, uint256 bandProceeds) =
-            _unwindBand(key, poolId, removeDelta, collateralCurrency, collateralAmount, rehypPrincipal[poolId][trader], hadBand);
+        (uint256 receivedAmount, uint256 bandProceeds) = _unwindBand(
+            key, poolId, removeDelta, collateralCurrency, collateralAmount, rehypPrincipal[poolId][trader], hadBand
+        );
 
         address actualSolver = positionSolver[poolId][trader];
         SolverDebt storage debt = solverDebts[poolId][trader][actualSolver];
@@ -261,8 +264,18 @@ contract EswapMarginHookLogic is BaseHook {
         if (netToTrader < minAmountOut) revert SlippageExceeded(netToTrader, minAmountOut);
 
         _settle(
-            poolId, trader, collateralCurrency, debtCurrency, collateralAmount, receivedAmount,
-            actualSolver, address(0), 0, netToTrader, pos.borrowedAmount, bandProceeds
+            poolId,
+            trader,
+            collateralCurrency,
+            debtCurrency,
+            collateralAmount,
+            receivedAmount,
+            actualSolver,
+            address(0),
+            0,
+            netToTrader,
+            pos.borrowedAmount,
+            bandProceeds
         );
     }
 
@@ -297,8 +310,9 @@ contract EswapMarginHookLogic is BaseHook {
         // the hook actually holds (band return + accounting-pool remainder),
         // never the book `collateralAmount`, and credit the band's returned DEBT
         // currency value.
-        (uint256 receivedAmount, uint256 bandProceeds) =
-            _unwindBand(key, poolId, removeDelta, collateralCurrency, collateralAmount, rehypPrincipal[poolId][trader], hadBand);
+        (uint256 receivedAmount, uint256 bandProceeds) = _unwindBand(
+            key, poolId, removeDelta, collateralCurrency, collateralAmount, rehypPrincipal[poolId][trader], hadBand
+        );
 
         // Guard on the TOTAL recovered value (swap output + band proceeds): a
         // fully-converted band can leave `receivedAmount == 0` while the LP value
@@ -318,8 +332,18 @@ contract EswapMarginHookLogic is BaseHook {
         uint256 liqReward = (afterSolver * LIQUIDATION_REWARD_BPS) / 10000;
 
         _settle(
-            poolId, trader, collateralCurrency, debtCurrency, collateralAmount, receivedAmount,
-            solver, liquidator, liqReward, afterSolver - liqReward, pos.borrowedAmount, bandProceeds
+            poolId,
+            trader,
+            collateralCurrency,
+            debtCurrency,
+            collateralAmount,
+            receivedAmount,
+            solver,
+            liquidator,
+            liqReward,
+            afterSolver - liqReward,
+            pos.borrowedAmount,
+            bandProceeds
         );
     }
 
@@ -460,8 +484,7 @@ contract EswapMarginHookLogic is BaseHook {
         _netLiquidityDelta(lpPool, addDelta);
 
         int128 principalInt = isCurrency0 ? addDelta.amount0() : addDelta.amount1();
-        rehypPrincipal[key.toId()][trader] =
-            principalInt < 0 ? uint256(int256(-principalInt)) : 0;
+        rehypPrincipal[key.toId()][trader] = principalInt < 0 ? uint256(int256(-principalInt)) : 0;
 
         pos.tickLower = tickLower;
         pos.tickUpper = tickUpper;
@@ -506,7 +529,7 @@ contract EswapMarginHookLogic is BaseHook {
         totalCollateral[boughtCurrency] += positionCollateral;
 
         if (positionCollateral > 0) {
-            uint256 collateralUsd = priceFeed.getAmountInUsd(Currency.unwrap(boughtCurrency), positionCollateral);
+            uint256 collateralUsd = _usdValueOf(Currency.unwrap(boughtCurrency), positionCollateral);
             totalCollateralUSDRunning += collateralUsd;
             positionCollateralUSD[poolId][trader] = collateralUsd;
         }
@@ -516,7 +539,7 @@ contract EswapMarginHookLogic is BaseHook {
         _registerCurrency(inputCurrency);
 
         if (borrowedAmount > 0) {
-            uint256 tradeOIUsd = priceFeed.getAmountInUsd(Currency.unwrap(inputCurrency), borrowedAmount);
+            uint256 tradeOIUsd = _usdValueOf(Currency.unwrap(inputCurrency), borrowedAmount);
             totalOpenInterestUSD += tradeOIUsd;
         }
 
@@ -624,7 +647,7 @@ contract EswapMarginHookLogic is BaseHook {
         }
         _clearCollateralAccounting(trader, collateralCurrency, collateralAmount);
         if (borrowedAmount > 0) {
-            uint256 tradeOIUsd = priceFeed.getAmountInUsd(Currency.unwrap(debtCurrency), borrowedAmount);
+            uint256 tradeOIUsd = _usdValueOf(Currency.unwrap(debtCurrency), borrowedAmount);
             totalOpenInterestUSD = EswapMarginLib.saturatingSub(totalOpenInterestUSD, tradeOIUsd);
             // [FIX] Keep totalBorrowedByToken in sync: it was previously only
             // incremented on open (registerMarginOpen) and never decremented on
@@ -662,7 +685,7 @@ contract EswapMarginHookLogic is BaseHook {
             recoveredCollateral > int256(rehypPrincipal) ? recoveredCollateral - int256(rehypPrincipal) : int256(0);
         if (yieldAmount > 0) {
             if (NativeTokens.isNative(collateralCurrency)) {
-                (bool success, ) = recipient.call{value: uint256(yieldAmount)}("");
+                (bool success,) = recipient.call{value: uint256(yieldAmount)}("");
                 if (!success) {
                     insuranceFund[collateralCurrency] += uint256(yieldAmount);
                 }
@@ -898,6 +921,11 @@ contract EswapMarginHookLogic is BaseHook {
         d = (ok && ret.length >= 32) ? uint8(uint256(abi.decode(ret, (uint256)))) : 18;
     }
 
+    function _usdValueOf(address token, uint256 amount) internal view returns (uint256) {
+        if (address(priceFeed) == address(0)) return 0;
+        return priceFeed.getAmountInUsd(token, amount);
+    }
+
     function protocolFeeFor(address trader) public view returns (uint256) {
         uint256 custom = addressProtocolFeeBps[trader];
         return custom > 0 ? custom : reserveFactor;
@@ -919,7 +947,7 @@ contract EswapMarginHookLogic is BaseHook {
         if (leverage > 1) {
             (bool capsActive, uint256 maxSingleOI, uint256 remainingOI) = _oiCapacity();
             if (capsActive) {
-                uint256 tradeOIUsd = priceFeed.getAmountInUsd(Currency.unwrap(inputCurrency), borrowedAmount);
+                uint256 tradeOIUsd = _usdValueOf(Currency.unwrap(inputCurrency), borrowedAmount);
                 if (tradeOIUsd > maxSingleOI) {
                     revert PositionExceedsSingleCap(tradeOIUsd, maxSingleOI);
                 }
@@ -953,8 +981,15 @@ contract EswapMarginHookLogic is BaseHook {
         // genuine independent market read, so deviation > maxPriceSwingBps from the
         // oracle TWAP (e.g. a flash-manipulated or stale fill venue) reverts the
         // trade instead of silently executing against a bad price.
-        uint256 twap0 = priceFeed.getTwapPrice(Currency.unwrap(key.currency0));
-        uint256 twap1 = priceFeed.getTwapPrice(Currency.unwrap(key.currency1));
+        // [REDEPLOY-3b] The hook is deployable WITHOUT a price feed
+        // (priceFeed == address(0), e.g. a testnet with no Chainlink feeds and
+        // requireTwapOracle=false). A low-level call to address(0) returns EMPTY
+        // returndata, so an unguarded interface call would revert on ABI decode
+        // even though an absent oracle is tolerated when requireTwapOracle=false.
+        // _tryTwap treats the missing feed exactly like a zero TWAP: skipped when
+        // the oracle is not required, TwapNotConfigured when it is.
+        uint256 twap0 = _tryTwap(Currency.unwrap(key.currency0));
+        uint256 twap1 = _tryTwap(Currency.unwrap(key.currency1));
         if (twap0 == 0 || twap1 == 0) {
             if (requireTwapOracle) revert TwapNotConfigured();
             return;
@@ -981,5 +1016,17 @@ contract EswapMarginHookLogic is BaseHook {
             maxPriceSwingBps,
             requireTwapOracle
         );
+    }
+
+    /// @dev Safe oracle read for _checkV4SpotAgainstV3Twap: returns 0 when the
+    ///      feed is unset (address(0)) or the call fails, so an optional oracle
+    ///      can never brick position opens when requireTwapOracle=false.
+    function _tryTwap(address token) internal view returns (uint256) {
+        if (address(priceFeed) == address(0)) return 0;
+        try priceFeed.getTwapPrice(token) returns (uint256 value) {
+            return value;
+        } catch {
+            return 0;
+        }
     }
 }

@@ -726,7 +726,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         if (leverage > 1) {
             (bool capsActive, uint256 maxSingleOI, uint256 remainingOI) = _oiCapacity();
             if (capsActive) {
-                uint256 tradeOIUsd = priceFeed.getAmountInUsd(Currency.unwrap(inputCurrency), borrowedAmount);
+                uint256 tradeOIUsd = _usdValueOf(Currency.unwrap(inputCurrency), borrowedAmount);
                 if (tradeOIUsd > maxSingleOI) {
                     revert PositionExceedsSingleCap(tradeOIUsd, maxSingleOI);
                 }
@@ -831,6 +831,15 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         d = (ok && ret.length >= 32) ? uint8(uint256(abi.decode(ret, (uint256)))) : 18;
     }
 
+    /// @dev Decimal-normalized USD value, or 0 when no oracle is configured.
+    ///      [REDEPLOY-3b] Mirror of the TWAP-guard policy: a feed-less hook
+    ///      (priceFeed == address(0)) skips USD tracking/reverts instead of
+    ///      making an unguarded low-level call to address(0).
+    function _usdValueOf(address token, uint256 amount) internal view returns (uint256) {
+        if (address(priceFeed) == address(0)) return 0;
+        return priceFeed.getAmountInUsd(token, amount);
+    }
+
     /// @dev Effective base currency for a pool (defaults to currency0 when unset).
     function _baseCurrency(PoolKey calldata key) internal view returns (Currency) {
         Currency base = baseCurrency[key.toId()];
@@ -894,7 +903,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
 
             // [FIX M-1] Track USD value at open time so beforeSwap can use O(1) lookup
             if (positionCollateral > 0) {
-                uint256 collateralUsd = priceFeed.getAmountInUsd(Currency.unwrap(boughtCurrency), positionCollateral);
+                uint256 collateralUsd = _usdValueOf(Currency.unwrap(boughtCurrency), positionCollateral);
                 totalCollateralUSDRunning += collateralUsd;
                 positionCollateralUSD[key.toId()][trader] = collateralUsd;
             }
@@ -906,7 +915,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
             _registerCurrency(borrowedToken);
 
             if (borrow > 0) {
-                uint256 tradeOIUsd = priceFeed.getAmountInUsd(Currency.unwrap(borrowedToken), borrow);
+                uint256 tradeOIUsd = _usdValueOf(Currency.unwrap(borrowedToken), borrow);
                 totalOpenInterestUSD += tradeOIUsd;
             }
 
@@ -1178,12 +1187,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     /**
      * @notice Closes a leveraged margin position, settling solver debt and returning profit.
      */
-    function closePosition(
-        PoolKey calldata key,
-        address trader,
-        address solver,
-        uint256 minAmountOut
-    )
+    function closePosition(PoolKey calldata key, address trader, address solver, uint256 minAmountOut)
         external
         onlyRouter
     {

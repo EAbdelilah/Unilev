@@ -1,6 +1,6 @@
 -include .env
 
-.PHONY: all test test-v4 clean deploy-anvil deploy-polygon deploy-unichain deploy-unichain-sepolia
+.PHONY: all test test-v4 clean deploy-anvil deploy-polygon deploy-unichain deploy-unichain-sepolia deploy-unichain-sepolia-full add-pair
 
 all: clean install update build
 
@@ -49,6 +49,13 @@ deploy-unichain :; @forge script scripts/v4/DeployUnichain.s.sol:DeployUnichain 
 
 # Deploy V4 protocol to Unichain Sepolia testnet
 deploy-unichain-sepolia :; @forge script scripts/v4/DeployUnichainSepolia.s.sol:DeployUnichainSepolia --via-ir --rpc-url ${UNICHAIN_SEPOLIA_RPC_URL} --private-key ${PRIVATE_KEY} --broadcast --slow
+
+# Deploy the FULL V4 solver/aggregator pipeline to Unichain Sepolia testnet
+# (EswapCoWSettlement + EswapLeverageAdapter + EswapLeverageQuoter).
+# Mode 1 (default): deploys a fresh lib+hook+router+keeper+adapter stack.
+# Mode 2: set UNICHAIN_SEPOLIA_HOOK_ADDRESS + UNICHAIN_SEPOLIA_ROUTER_ADDRESS in
+# .env to only wire the 3 pipeline contracts to an existing hook/router.
+deploy-unichain-sepolia-full :; @forge script scripts/v4/DeployUnichainSepoliaFull.s.sol:DeployUnichainSepoliaFull --via-ir --rpc-url ${UNICHAIN_SEPOLIA_RPC_URL} --private-key ${PRIVATE_KEY} --broadcast --slow
 
 # Add a NEW trading pair to the LIVE V4 protocol (no redeploy; env-driven, see script header)
 add-pair :; @forge script scripts/v4/AddPair.s.sol:AddPair --via-ir --rpc-url ${UNICHAIN_RPC_URL} --private-key ${PRIVATE_KEY} --broadcast --slow

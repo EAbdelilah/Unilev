@@ -57,7 +57,7 @@ function fmtUsd(v) { return `$${parseFloat(v).toFixed(4)}` }
 function fmtEth(v) { return `${parseFloat(v).toFixed(8)} ETH` }
 
 async function main() {
-    const { provider, wallet, hook, router, pf, hookAddr, solverAddr } = setup()
+    const { provider, wallet, hook, router, pf, hookAddr, solverAddr, ETH } = setup()
 
     // Trader may be a separate wallet from the solver. When TRADER_PK is set,
     // the volume bot signs trades as that account (the borrower), while the
@@ -67,6 +67,27 @@ async function main() {
 
     const traderRouter = router.connect(trader)
     const usdc = new ethers.Contract(USDC, ERC20_ABI, trader)
+
+    // Nonce/send discipline: re-query the pending nonce before every broadcast
+    // and absorb "already known" (the RPC backend set sometimes echoes back a
+    // broadcast that already landed in the mempool — that is success, not
+    // failure).
+    const nextNonce = async () => await provider.getTransactionCount(trader.address, "pending")
+    async function send(promise) {
+        try { return await promise } catch (e) {
+            const msg = String((e?.error?.message) || e?.message || "")
+            if ((e?.code === "UNKNOWN_ERROR" || e?.code === "NONCE_EXPIRED") && /already known/i.test(msg)) {
+                const raw = e?.payload?.params?.[0]
+                if (raw) {
+                    const hash = ethers.Transaction.from(raw).hash
+                    console.log(`  (tx ${hash.slice(0, 18)}… already in mempool — awaiting)`)
+                    await provider.waitForTransaction(hash)
+                    return { hash, wait: async () => provider.waitForTransaction(hash) }
+                }
+            }
+            throw e
+        }
+    }
 
     const poolKey = HOOK_POOL_KEY
     const standardPoolKey = STANDARD_POOL_KEY
@@ -89,12 +110,35 @@ async function main() {
     if (allowance < maxNotional) {
         console.log(`Approving USDC for max notional (${ethers.formatUnits(maxNotional, 6)} USDC)…`)
         if (!DRY_RUN) {
-            const tx = await usdc.approve(router.target, ethers.MaxUint256)
+            const tx = await send(usdc.approve(router.target, ethers.MaxUint256, { nonce: await nextNonce() }))
             await tx.wait()
             console.log(`✅ Approved`)
         } else {
             console.log(`(dry-run: skipped)`)
         }
+    }
+
+    // Native-borrow escrow (C-02): leveraged SHORTs pull the borrow leg from the
+    // SOLVER's escrow on the router, not from the trader's msg.value. Top the
+    // escrow up to cover one session-sized borrow leg, capped by what the
+    // wallet can actually spare (never sink more than 30% of ETH into escrow).
+    if (solverAddr && !DRY_RUN) {
+        const escrow = await router.nativeBorrowEscrow(solverAddr)
+        const ethBal = await provider.getBalance(trader.address)
+        const escrowTarget = ethers.parseUnits("0.00005", 18) // ~2x borrow on a $0.05 SHORT margin
+        if (escrow < escrowTarget) {
+            const gap = escrowTarget - escrow
+            const cap = (ethBal * 30n) / 100n
+            const topUp = gap < cap ? gap : cap
+            if (topUp > 0n) {
+                console.log(`Toping up solver nativeBorrowEscrow by ${ethers.formatEther(topUp)} ETH…`)
+                const tx = await send(router.depositNativeBorrow(solverAddr, { value: topUp, nonce: await nextNonce() }))
+                await tx.wait()
+            } else {
+                console.log(`${YELLOW}(ETH too low to top up escrow — relying on existing escrow / LONG fallback)${RESET}`)
+            }
+        }
+        console.log(`✅ Solver escrow: ${ethers.formatEther(await router.nativeBorrowEscrow(solverAddr))} ETH`)
     }
 
     let tradeCount = 0
@@ -115,7 +159,9 @@ async function main() {
         const maxMarginUsdc = (usdcBal * 50n) / 100n
         const maxMarginUsdCap = ethers.parseUnits(MAX_MARGIN_USD.toString(), 6)
 
-        const ethMarginUsd = Number(ethers.formatUnits(maxMarginEth, 18))
+        // Compare in USD: ETH margin is valued through the price feed (not raw
+        // ETH count vs dollar — that was off by ~2500x on the short side).
+        const ethMarginUsd = Number(ethers.formatUnits(await pf.getAmountInUsd(ETH, maxMarginEth), 18))
         const usdcMarginUsd = Number(ethers.formatUnits(maxMarginUsdc, 6))
 
         // A LONG needs USDC margin+borrow; a SHORT needs ETH margin+borrow.
@@ -174,6 +220,8 @@ async function main() {
             leverage: leverage,
             solver: solverAddr || trader.address,
             hookData: hookData,
+            deadline: Math.floor(Date.now() / 1000) + 600,
+            minAmountOut: 0n,
         }
 
         let msgValue = 0n
@@ -185,7 +233,7 @@ async function main() {
             console.log(`  (dry-run: would call router.swapMultiPool)`)
         } else {
             try {
-                const tx = await traderRouter.swapMultiPool(swapParams, { value: msgValue, gasLimit: 5_000_000n })
+                const tx = await send(traderRouter.swapMultiPool(swapParams, { value: msgValue, gasLimit: 1_000_000n, nonce: await nextNonce() }))
                 const receipt = await tx.wait()
                 console.log(`  ${GREEN}OPENED${RESET} — Tx: ${tx.hash.slice(0, 18)}… Gas: ${receipt.gasUsed}`)
             } catch (e) {
@@ -207,9 +255,9 @@ async function main() {
             console.log(`  (dry-run: would call router.closePosition)`)
         } else {
             try {
-                const closeTx = await traderRouter.closePosition(
-                    hookAddr, poolKey, trader.address, solverAddr || trader.address, 0n, { gasLimit: 5_000_000n }
-                )
+                const closeTx = await send(traderRouter.closePosition(
+                    hookAddr, poolKey, trader.address, solverAddr || trader.address, 0n, { gasLimit: 5_000_000n, nonce: await nextNonce() }
+                ))
                 const closeReceipt = await closeTx.wait()
                 console.log(`  ${GREEN}CLOSED${RESET} — Tx: ${closeTx.hash.slice(0, 18)}… Gas: ${closeReceipt.gasUsed}`)
             } catch (e) {

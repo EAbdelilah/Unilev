@@ -24,9 +24,30 @@ const delay = (ms) => new Promise(r => setTimeout(r, ms))
 const assert = (cond, msg) => { if (!cond) throw new Error(msg) }
 
 async function main() {
-    const { provider, wallet, hook, router, hookAddr, solverAddr } = setup()
+    const { provider, wallet, hook, router, pf, hookAddr, solverAddr } = setup()
     const hookPoolId = poolId(HOOK_POOL_KEY)
     const trader = wallet.address
+
+    // Nonce discipline for live sends: re-query the account's pending nonce
+    // before each tx (this chain's RPC occasionally serves stale cached nonces),
+    // and treat an "already known" broadcast as success (the tx is in the
+    // mempool — await it rather than moving on confused).
+    const nextNonce = async () => await provider.getTransactionCount(trader, "pending")
+    async function send(promise) {
+        try { return await promise } catch (e) {
+            const msg = String((e?.error?.message) || e?.message || "")
+            if ((e?.code === "UNKNOWN_ERROR" || e?.code === "NONCE_EXPIRED") && /already known/i.test(msg)) {
+                const raw = e?.payload?.params?.[0]
+                if (raw) {
+                    const hash = ethers.Transaction.from(raw).hash
+                    console.log(`  (tx ${hash.slice(0, 18)}… already in mempool — awaiting)`)
+                    await provider.waitForTransaction(hash)
+                    return { hash, wait: async () => provider.waitForTransaction(hash) }
+                }
+            }
+            throw e
+        }
+    }
 
     console.log(`${CYAN}=== LIVE SMOKE TEST (new hook ${hookAddr.slice(0, 10)}...) ===${RESET}`)
     console.log(`Trader/Solver: ${trader}`)
@@ -41,7 +62,7 @@ async function main() {
     const usdc = new ethers.Contract(USDC, ERC20_ABI, wallet)
     const allowance = await usdc.allowance(trader, router.target)
     if (allowance < ethers.MaxUint256 / 2n) {
-        const atx = await usdc.approve(router.target, ethers.MaxUint256)
+        const atx = await send(usdc.approve(router.target, ethers.MaxUint256, { nonce: await nextNonce() }))
         await atx.wait()
         console.log("  USDC approved for router")
     }
@@ -56,7 +77,7 @@ async function main() {
 
     try {
         const hookData = ethers.AbiCoder.defaultAbiCoder().encode(["bool", "uint8", "address"], [true, lev, trader])
-        const tx = await router.swapMultiPool({
+        const tx = await send(router.swapMultiPool({
             key: HOOK_POOL_KEY,
             standardPoolKey: STANDARD_POOL_KEY,
             zeroForOne: false,                 // LONG: pay USDC (token1), buy ETH
@@ -64,7 +85,9 @@ async function main() {
             leverage: lev,
             solver: solverAddr,
             hookData,
-        }, { gasLimit: 5_000_000n })
+            deadline: Math.floor(Date.now() / 1000) + 600,
+            minAmountOut: 0n,
+        }, { gasLimit: 5_000_000n, nonce: await nextNonce() }))
         const rcpt = await tx.wait()
         if (rcpt.status !== 1) throw new Error("long open tx reverted")
         console.log(`  Opened LONG: ${tx.hash} gas=${rcpt.gasUsed}`)
@@ -103,7 +126,7 @@ async function main() {
     } catch (e) { bad("rehypPrincipal while open", e) }
 
     try {
-        const tx = await router.closePosition(hookAddr, HOOK_POOL_KEY, trader, solverAddr, 0n, { gasLimit: 5_000_000n })
+        const tx = await send(router.closePosition(hookAddr, HOOK_POOL_KEY, trader, solverAddr, 0n, { gasLimit: 5_000_000n, nonce: await nextNonce() }))
         const rcpt = await tx.wait()
         if (rcpt.status !== 1) throw new Error("close tx reverted")
         console.log(`  Closed LONG: ${tx.hash} gas=${rcpt.gasUsed}`)
@@ -118,23 +141,50 @@ async function main() {
     } catch (e) { bad("Long storage cleared", e) }
 
     // ─── 2. SHORT lifecycle ──────────────────────────────────────────────────
-    console.log(`\n${CYAN}--- SHORT (3x, native ETH margin) ---${RESET}`)
-    const shortMargin = ethers.parseEther("0.00003") // ~$0.07 at $2400 > $0.05 floor
-    const shortBorrow = shortMargin * BigInt(lev - 1)
+    console.log(`\n${CYAN}--- SHORT (2x, native ETH margin) ---${RESET}`)
+    const shortLev = 2
+    // Self-sizing: the SHORT spends BOTH the escrow top-up (if any) AND the full
+    // msg.value (notional) from this wallet — at 2x that is up to 3*margin +
+    // gas when the solver escrow is empty. Pick the cap matching reality.
+    const escrow = await router.nativeBorrowEscrow(solverAddr)
+    const ethBal = await provider.getBalance(trader)
+    const gasReserve = ethers.parseEther("0.0000035")
+    const ethPrice18 = await pf.getTwapPrice(ETH)
+    const minCollateralUsdFloor = 50000000000000000n // $0.05, matches hook config
+    const minMarginFloor = (minCollateralUsdFloor * 10n ** 18n) / ethPrice18
+    const worstCaseCap = ((ethBal + escrow) - gasReserve) / BigInt(shortLev + 1)
+    const fundedCap = (ethBal - gasReserve) / BigInt(shortLev)
+    const escrowCovers = escrow >= worstCaseCap * BigInt(shortLev - 1)
+    const cap = escrowCovers ? fundedCap : worstCaseCap
+    const shortMargin = cap < minMarginFloor ? minMarginFloor : cap
+    const shortBorrow = shortMargin * BigInt(shortLev - 1)
     const shortNotional = shortMargin + shortBorrow
-    console.log(`  margin=${ethers.formatEther(shortMargin)} ETH notional=${ethers.formatEther(shortNotional)} ETH`)
+    console.log(`  margin=${ethers.formatEther(shortMargin)} ETH (2x) notional=${ethers.formatEther(shortNotional)} ETH`)
+
+    // C-02: native-input leverage draws the BORROW leg from the solver's
+    // router escrow, not from the attached msg.value. Pre-fund it for the test.
+    try {
+        const escrow = await router.nativeBorrowEscrow(solverAddr)
+        if (escrow < shortBorrow) {
+            console.log(`  Funding nativeBorrowEscrow(solver) +${ethers.formatEther(shortBorrow - escrow)} ETH`)
+            const fundTx = await send(router.depositNativeBorrow(solverAddr, { value: shortBorrow - escrow, nonce: await nextNonce() }))
+            await fundTx.wait()
+        }
+    } catch (e) { bad("Fund nativeBorrowEscrow", e) }
 
     try {
-        const hookData = ethers.AbiCoder.defaultAbiCoder().encode(["bool", "uint8", "address"], [true, lev, trader])
-        const tx = await router.swapMultiPool({
+        const hookData = ethers.AbiCoder.defaultAbiCoder().encode(["bool", "uint8", "address"], [true, shortLev, trader])
+        const tx = await send(router.swapMultiPool({
             key: HOOK_POOL_KEY,
             standardPoolKey: STANDARD_POOL_KEY,
             zeroForOne: true,                  // SHORT: pay ETH (token0), sell ETH
             amountSpecified: -shortMargin,
-            leverage: lev,
+            leverage: shortLev,
             solver: solverAddr,
             hookData,
-        }, { value: shortNotional, gasLimit: 5_000_000n })
+            deadline: Math.floor(Date.now() / 1000) + 600,
+            minAmountOut: 0n,
+        }, { value: shortNotional, gasLimit: 1_000_000n, nonce: await nextNonce() }))
         const rcpt = await tx.wait()
         if (rcpt.status !== 1) throw new Error("short open tx reverted")
         console.log(`  Opened SHORT: ${tx.hash} gas=${rcpt.gasUsed}`)
@@ -156,7 +206,7 @@ async function main() {
     } catch (e) { bad("Solver debt principal (short)", e) }
 
     try {
-        const tx = await router.closePosition(hookAddr, HOOK_POOL_KEY, trader, solverAddr, 0n, { gasLimit: 5_000_000n })
+        const tx = await send(router.closePosition(hookAddr, HOOK_POOL_KEY, trader, solverAddr, 0n, { gasLimit: 5_000_000n, nonce: await nextNonce() }))
         const rcpt = await tx.wait()
         if (rcpt.status !== 1) throw new Error("close tx reverted")
         console.log(`  Closed SHORT: ${tx.hash} gas=${rcpt.gasUsed}`)
