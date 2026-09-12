@@ -1,0 +1,353 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.24;
+
+import {Test, console2} from "forge-std/Test.sol";
+import {EswapMarginHook} from "../EswapMarginHook.sol";
+import {EswapRouter} from "../EswapRouter.sol";
+import {EswapLeverageAdapter} from "../EswapLeverageAdapter.sol";
+import {PoolKey} from "../types/PoolKey.sol";
+import {PoolId, PoolIdLibrary} from "../types/PoolId.sol";
+import {Currency} from "../types/Currency.sol";
+import {IPoolManager} from "../interfaces/IPoolManager.sol";
+import {PriceFeedMock} from "./BaseV4Test.t.sol";
+import {Mainnet0xRoute} from "./fixtures/Mainnet0xRoute.sol";
+
+// REAL lib/v4-core types against the LIVE Ethereum mainnet PoolManager.
+import {IPoolManager as RealIPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
+import {IUnlockCallback} from "@uniswap/v4-core/src/interfaces/callback/IUnlockCallback.sol";
+import {PoolId as RealPoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
+import {PoolKey as RealPoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
+import {Currency as RealCurrency} from "@uniswap/v4-core/src/types/Currency.sol";
+import {IHooks as RealIHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
+import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
+import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
+import {FullMath} from "@uniswap/v4-core/src/libraries/FullMath.sol";
+import {IERC20 as RealIERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
+
+/// @notice FULL-CYCLE mainnet proof: a REAL 0x mainnet quote's fill calldata is
+///         executed through 0x's ExchangeProxy inside a fork of Ethereum mainnet
+///         (chainId 1), opening a LEVERAGED LONG (USDC -> WETH) through
+///         EswapRouter._multiPoolOpenAggregator, then closing against the REAL
+///         mainnet 3000bp (0.3%, fee 3000 / tickSpacing 60) no-hook USDC/WETH pool (no self-seeded fill liquidity).
+///
+///   open:  REAL 0x quote (api.0x.org) -> adapter exactInputSingleWithLeverageAggregator
+///          -> router executes exchangeProxy.call(quote.data) -> hook accounting
+///   close: router.closePosition -> hook unwind on the real mainnet 3000/60 pool
+///
+/// Why a fork: the fork swallows all execution, so the 0x-taker EOA never
+/// broadcasts a fill on mainnet — zero reputation/blacklist risk while proving
+/// the exact aggregator integration (real route data + real fill venue).
+/// Capital (USDC/WETH) is injected via cheatcodes from the fork's real token
+/// contracts; nothing real moves.
+///
+/// Gating: the fixture (src/v4/test/fixtures/Mainnet0xRoute.sol) is regenerated
+/// by javascript/v4/realApis/gen-mainnet-0x-fixture.js with a REAL quote when
+/// ZERO_X_API_KEY is set. Without a pinned quote the test skips (stub).
+contract EswapMainnet0xFullCycleForkTest is Test, IUnlockCallback {
+    using PoolIdLibrary for PoolKey;
+
+    // Ethereum mainnet (chainId 1).
+    address constant MAINNET_PM = 0x000000000004444c5dc75cB358380D2e3dE08A90;
+    address constant MAINNET_USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+    address constant MAINNET_WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+
+    // Hook flags (deployCodeTo directly at a flags-matching address).
+    uint160 constant HIGH_FLAGS = (1 << 159) | (1 << 158) | (1 << 153) | (1 << 152) | (1 << 148);
+    uint160 constant LOW_FLAGS = (1 << 13) | (1 << 12) | (1 << 7) | (1 << 6) | (1 << 3);
+
+    // Real mainnet v4 USDC/WETH pool is fee 3000 / tickSpacing 60 (no-hook),
+    // live with real liquidity on mainnet (tick ~197984, ~$1987/WETH). It is
+    // BOTH the hook accounting pool's twin AND the close/fill unwind venue.
+    // Probe confirmed: fee 500 absent; fee 3000 ts 60 EXISTS; fee 100 ts 60 EXISTS.
+    int24 constant LP_HALF_WIDTH = 2400;
+
+    RealIPoolManager pm;
+    EswapMarginHook hook;
+    EswapRouter router;
+    EswapLeverageAdapter adapter;
+    PriceFeedMock priceFeed;
+
+    PoolKey hookLocalKey;
+    PoolKey standardLocalKey;
+
+    address trader = makeAddr("mainnet0xTrader");
+    address solver = makeAddr("mainnet0xSolver");
+
+    bool rpcAvailable;
+    bool fixtureReady;
+
+    function unlockCallback(bytes calldata data) external returns (bytes memory) {
+        (RealPoolKey memory key, int24 tl, int24 tu, int128 liq) = abi.decode(data, (RealPoolKey, int24, int24, int128));
+        (BalanceDelta delta,) = pm.modifyLiquidity(
+            key,
+            RealIPoolManager.ModifyLiquidityParams({
+                tickLower: tl, tickUpper: tu, liquidityDelta: liq, salt: bytes32(0)
+            }),
+            ""
+        );
+        if (delta.amount0() < 0) {
+            pm.sync(RealCurrency.wrap(MAINNET_USDC));
+            RealIERC20(MAINNET_USDC).transfer(address(pm), uint256(-int256(delta.amount0())));
+            pm.settle();
+        } else if (delta.amount0() > 0) {
+            pm.take(RealCurrency.wrap(MAINNET_USDC), address(this), uint256(uint128(delta.amount0())));
+        }
+        if (delta.amount1() < 0) {
+            pm.sync(RealCurrency.wrap(MAINNET_WETH));
+            RealIERC20(MAINNET_WETH).transfer(address(pm), uint256(-int256(delta.amount1())));
+            pm.settle();
+        } else if (delta.amount1() > 0) {
+            pm.take(RealCurrency.wrap(MAINNET_WETH), address(this), uint256(uint128(delta.amount1())));
+        }
+        return bytes("");
+    }
+
+    function setUp() public {
+        string memory rpcUrl = vm.envOr("ETH_MAINNET_RPC_URL", string(""));
+        if (bytes(rpcUrl).length == 0) return;
+        vm.createSelectFork(rpcUrl);
+        try this._setupOnActiveFork() {}
+        catch (bytes memory reason) {
+            console2.log("setupOnActiveFork failed:", _reason(reason));
+        }
+    }
+
+    function _reason(bytes memory r) internal pure returns (string memory) {
+        if (r.length >= 68 && bytes4(r) == 0x08c379a0) return abi.decode(_slice(r, 4), (string));
+        return "unknown revert";
+    }
+
+    function _slice(bytes memory b, uint256 from) internal pure returns (bytes memory out) {
+        out = new bytes(b.length - from);
+        for (uint256 i = 0; i < out.length; i++) {
+            out[i] = b[from + i];
+        }
+    }
+
+    function _setupOnActiveFork() external {
+        if (block.chainid != 1) return;
+        if (MAINNET_PM.code.length == 0 || MAINNET_USDC.code.length == 0 || MAINNET_WETH.code.length == 0) return;
+
+        pm = RealIPoolManager(MAINNET_PM);
+        priceFeed = new PriceFeedMock();
+        console2.log("forked Ethereum mainnet (1): PM", MAINNET_PM);
+        console2.log("[step] hook deploy");
+
+        // Deploy hook at flags-valid address and router at the FIXED taker
+        // address the 0x quote is bound to.
+        address hookAddr = address(uint160(HIGH_FLAGS | LOW_FLAGS));
+        deployCodeTo(
+            "EswapMarginHook.sol:EswapMarginHook", abi.encode(address(pm), address(priceFeed), address(this)), hookAddr
+        );
+        hook = EswapMarginHook(payable(hookAddr));
+        console2.log("[step] router deploy");
+        deployCodeTo("EswapRouter.sol:EswapRouter", abi.encode(address(pm)), Mainnet0xRoute.TAKER);
+        router = EswapRouter(payable(Mainnet0xRoute.TAKER));
+        console2.log("[step] wiring");
+        hook.setRouterAndMinCollateralUsd(address(router), 0);
+        router.setSolverWhitelist(solver, true);
+        if (Mainnet0xRoute.EXCHANGE_PROXY != address(0)) {
+            router.setAllowedAggregator(Mainnet0xRoute.EXCHANGE_PROXY, true);
+        }
+
+        hookLocalKey = PoolKey({
+            currency0: Currency.wrap(MAINNET_USDC),
+            currency1: Currency.wrap(MAINNET_WETH),
+            fee: 3000,
+            tickSpacing: 60,
+            hooks: hookAddr
+        });
+        standardLocalKey = PoolKey({
+            currency0: Currency.wrap(MAINNET_USDC),
+            currency1: Currency.wrap(MAINNET_WETH),
+            fee: 3000,
+            tickSpacing: 60,
+            hooks: address(0)
+        });
+
+        RealPoolKey memory stdReal = _realKey(3000, address(0));
+        RealPoolKey memory hookReal = _realKey(3000, hookAddr);
+        (uint160 stdSqrt,,,) = StateLibrary.getSlot0(pm, stdReal.toId());
+        // The real mainnet 3000/60 pool must exist (real fill depth). It does.
+        require(stdSqrt > 0, "real mainnet 3000/60 USDC/WETH pool must be initialized");
+        console2.log("[step] init hook pool");
+        uint160 initSqrt = stdSqrt;
+        (uint160 hookSqrt,,,) = StateLibrary.getSlot0(pm, hookReal.toId());
+        if (hookSqrt == 0) {
+            pm.initialize(hookReal, initSqrt);
+        }
+        console2.log("[step] pool wiring");
+
+        hook.setAuthorizedPool(hookLocalKey.toId(), true);
+        hook.setStandardPoolKey(hookLocalKey.toId(), standardLocalKey);
+        hook.setBaseCurrency(hookLocalKey.toId(), Currency.wrap(MAINNET_WETH));
+        hook.setTokenDecimals(MAINNET_WETH, 18);
+        hook.setTokenDecimals(MAINNET_USDC, 6);
+
+        // Oracle mock tracks the REAL mainnet venue price (stable $1 USDC).
+        priceFeed.setPrice(MAINNET_USDC, 1e18);
+        priceFeed.setPrice(MAINNET_WETH, _humanPriceBaseInQuote18());
+        console2.log("[step] seed pools");
+
+        // Seed the hook accounting pool (deployCollateral target) AND the
+        // standard close venue (real mainnet 3000/60 was initialized but has
+        // ~zero live liquidity — 1269 wei), so the unwind swap has depth.
+        _seedLiquidity(hookReal, stdReal, stdSqrt);
+
+        console2.log("[step] pipeline contracts");
+        adapter = new EswapLeverageAdapter(router);
+        adapter.registerPool(MAINNET_USDC, MAINNET_WETH, 3000, hookLocalKey, standardLocalKey);
+        adapter.registerPool(MAINNET_WETH, MAINNET_USDC, 3000, hookLocalKey, standardLocalKey);
+        adapter.setDefaultSolver(solver);
+
+        // Participants funded with REAL mainnet token contracts (cheatcode inject).
+        deal(MAINNET_USDC, trader, 1_000_000e6);
+        deal(MAINNET_USDC, solver, 1_000_000e6);
+        vm.prank(trader);
+        RealIERC20(MAINNET_USDC).approve(address(router), type(uint256).max);
+        vm.prank(solver);
+        RealIERC20(MAINNET_USDC).approve(address(router), type(uint256).max);
+
+        fixtureReady = Mainnet0xRoute.CALLDATA.length > 0;
+        rpcAvailable = true;
+    }
+
+    function _realKey(uint24 fee, address hooks) internal view returns (RealPoolKey memory k) {
+        k = RealPoolKey({
+            currency0: RealCurrency.wrap(MAINNET_USDC),
+            currency1: RealCurrency.wrap(MAINNET_WETH),
+            fee: fee,
+            tickSpacing: 60,
+            hooks: RealIHooks(hooks)
+        });
+    }
+
+    function _seedLiquidity(RealPoolKey memory hookReal, RealPoolKey memory stdReal, uint160 initSqrt) internal {
+        deal(MAINNET_USDC, address(this), 2_000_000e6);
+        deal(MAINNET_WETH, address(this), 4000 ether);
+        RealIERC20(MAINNET_USDC).approve(address(pm), type(uint256).max);
+        RealIERC20(MAINNET_WETH).approve(address(pm), type(uint256).max);
+
+        // Wide single position centered on the REAL venue price, in BOTH pools.
+        // Bounds must be aligned to tickSpacing (60) → floor the center tick
+        // and keep LP_HALF_WIDTH a multiple of 60 (2400 ticks ≈ ±27% range).
+        uint160 p = initSqrt;
+        int24 tick = TickMath.getTickAtSqrtPrice(p);
+        int24 base = (tick / 60) * 60;
+        int24 lower = base - LP_HALF_WIDTH;
+        int24 upper = base + LP_HALF_WIDTH;
+        int128 liq = int128(int256(1e15));
+
+        pm.unlock(abi.encode(stdReal, lower, upper, liq));
+        pm.unlock(abi.encode(hookReal, lower, upper, liq));
+
+        uint128 stdLiq =
+            StateLibrary.getLiquidity(pm, RealPoolId.wrap(PoolId.unwrap(standardLocalKey.toId())));
+        uint128 hookLiq = StateLibrary.getLiquidity(pm, RealPoolId.wrap(PoolId.unwrap(hookLocalKey.toId())));
+        require(stdLiq > 0, "standard pool liquidity missing");
+        require(hookLiq > 0, "hook pool liquidity missing");
+    }
+
+    // --- helpers -----------------------------------------------------------
+
+    function _humanPriceBaseInQuote18() internal view returns (uint256) {
+        RealPoolId stdRealId = RealPoolId.wrap(PoolId.unwrap(standardLocalKey.toId()));
+        (uint160 sqrtP,,,) = StateLibrary.getSlot0(pm, stdRealId);
+        require(sqrtP > 0, "standard pool uninitialized");
+        return FullMath.mulDiv(1 << 192, 10 ** 30, uint256(sqrtP) * uint256(sqrtP));
+    }
+
+    function _minOut() internal pure returns (uint256) {
+        if (Mainnet0xRoute.MIN_BUY > 0) return Mainnet0xRoute.MIN_BUY;
+        return (Mainnet0xRoute.EXPECTED_BUY * 95) / 100;
+    }
+
+    // --- Tests -------------------------------------------------------------
+
+    function test_Mainnet0x_RouterDeployedAtQuoteTakerAndWhitelisted() public view {
+        if (!fixtureReady) return;
+        assertEq(address(router), Mainnet0xRoute.TAKER, "router at fixed quote taker address");
+        assertTrue(router.allowedAggregators(Mainnet0xRoute.EXCHANGE_PROXY), "exchange proxy whitelisted");
+        assertGt(Mainnet0xRoute.EXCHANGE_PROXY.code.length, 0, "real ExchangeProxy has code on mainnet");
+    }
+
+    /// @dev AGGREGATOR (0x) full cycle on mainnet: REAL quote calldata open on
+    ///      the fork, then close on the real mainnet 3000/60 pool liquidity.
+    function test_Mainnet0x_FullCycle_AggregatorOpen_ThenClose() public {
+        if (!fixtureReady) return;
+        if (Mainnet0xRoute.SELL_AMOUNT == 0) return;
+
+        uint8 leverage = 2;
+        uint256 notional = Mainnet0xRoute.SELL_AMOUNT;
+        uint256 margin = notional / leverage;
+        uint256 solverPrincipal = margin;
+
+        EswapRouter.AggregatorRoute memory route = EswapRouter.AggregatorRoute({
+            exchangeProxy: Mainnet0xRoute.EXCHANGE_PROXY,
+            tokenIn: Mainnet0xRoute.TOKEN_IN,
+            tokenOut: Mainnet0xRoute.TOKEN_OUT,
+            sellAmount: notional,
+            value: Mainnet0xRoute.TX_VALUE,
+            callData: Mainnet0xRoute.CALLDATA
+        });
+
+        uint256 traderStart = RealIERC20(MAINNET_USDC).balanceOf(trader);
+        uint256 routerStartWeth = RealIERC20(MAINNET_WETH).balanceOf(address(router));
+
+        // OPEN through the real 0x quote calldata (executed inside the fork).
+        vm.prank(trader);
+        uint256 collateral = adapter.exactInputSingleWithLeverageAggregator(
+            MAINNET_USDC, MAINNET_WETH, 3000, leverage, margin, _minOut(), trader, route
+        );
+        require(collateral > 0, "aggregator open must produce collateral");
+
+        (address posTrader, uint256 posCollateral, uint256 borrowed, uint8 lev, bool isLong,,,,) =
+            hook.positions(hookLocalKey.toId(), trader);
+        assertEq(posTrader, trader, "0x open credits the recipient");
+        // The hook nets the protocol reserve (default 50 bps) out of the raw
+        // fill output before recording position collateral.
+        uint256 feeBps = hook.protocolFeeFor(trader);
+        uint256 expectedCollateral = collateral - (collateral * feeBps) / 10000;
+        assertEq(posCollateral, expectedCollateral, "hook nets protocol reserve from real fill output");
+        assertEq(lev, leverage, "leverage mismatch");
+        assertEq(borrowed, solverPrincipal, "borrow = margin*(leverage-1)");
+        assertTrue(isLong, "USDC->WETH must be LONG on mainnet");
+
+        (address debtSolver,,) = hook.solverDebts(hookLocalKey.toId(), trader, solver);
+        assertEq(debtSolver, solver, "solver debt registered for the borrow leg");
+        // Router must not keep any WETH (the entire fill output is pinned as
+        // ERC-6909 collateral in the hook — nothing strands in the router).
+        assertEq(
+            RealIERC20(MAINNET_WETH).balanceOf(address(router)) - routerStartWeth,
+            0,
+            "router must not retain fill output"
+        );
+
+        uint256 solverBeforeClose = RealIERC20(MAINNET_USDC).balanceOf(solver);
+
+        // CLOSE on the real mainnet 3000/60 pool liquidity.
+        vm.prank(trader);
+        router.closePosition(address(hook), hookLocalKey, trader, solver, 0);
+
+        (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+            hook.positions(hookLocalKey.toId(), trader);
+        assertEq(cleared, address(0), "position cleared after close");
+        assertEq(collAfter, 0, "collateral cleared after close");
+        assertEq(liqAfter, 0, "LP stake closed after close");
+
+        // Solvent nets back the exact principal lent.
+        assertEq(
+            RealIERC20(MAINNET_USDC).balanceOf(solver) - solverBeforeClose,
+            solverPrincipal,
+            "solver must recover exact principal on close"
+        );
+
+        // Trader round-trip on a flat market: keeps the bulk of margin, no free
+        // money (reserve + venue fees leave the system on a flat loop).
+        uint256 traderFinal = RealIERC20(MAINNET_USDC).balanceOf(trader);
+        uint256 returned = margin + traderFinal - traderStart;
+        assertGt(returned, margin * 88 / 100, "trader recovers >88% of margin after full 0x mainnet cycle");
+        assertLt(returned, margin * 101 / 100, "no free money on flat-price round-trip");
+    }
+}

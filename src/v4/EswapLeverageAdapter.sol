@@ -140,6 +140,60 @@ contract EswapLeverageAdapter is Ownable {
 
         if (amountOut < minAmountOut) revert SlippageExceeded(amountOut, minAmountOut);
 
+emit LeveragedSwapRouted(tokenIn, tokenOut, fee, leverage, amountIn, amountOut);
+    }
+
+    /**
+     * @notice Aggregator-fill entry point: the notional swap leg executes
+     *         through an EXTERNAL aggregator exchange proxy (0x ExchangeProxy,
+     *         ParaSwap Augustus, ...) instead of the standard pool. `route`
+     *         carries a REAL aggregator quote's calldata, bound to the
+     *         router's address and to `route.sellAmount == amountIn * leverage`.
+     * @param route AggregatorRoute: exchangeProxy + quote calldata + expected
+     *              tokens + sellAmount(= notional) + optional native value.
+     */
+    function exactInputSingleWithLeverageAggregator(
+        address tokenIn,
+        address tokenOut,
+        uint24 fee,
+        uint8 leverage,
+        uint256 amountIn,
+        uint256 minAmountOut,
+        address recipient,
+        EswapRouter.AggregatorRoute calldata route
+    ) external returns (uint256 amountOut) {
+        if (recipient == address(0)) revert ZeroAddress();
+
+        PoolRegistration storage reg = _getPool(tokenIn, tokenOut, fee);
+        bool zeroForOne = _isCurrency0(tokenIn, reg.hookPoolKey);
+
+        address solver = defaultSolver;
+
+        EswapRouter.SwapParams memory params = EswapRouter.SwapParams({
+            key: reg.hookPoolKey,
+            standardPoolKey: reg.standardPoolKey,
+            zeroForOne: zeroForOne,
+            amountSpecified: -int256(int256(amountIn)),
+            leverage: leverage,
+            solver: solver,
+            hookData: abi.encode(true, leverage, recipient),
+            deadline: block.timestamp + router.DEFAULT_DEADLINE_SLACK(),
+            // Forward the caller's slippage floor into the router so the output
+            // filter is enforced INSIDE the aggregator fill (atomic).
+            minAmountOut: minAmountOut
+        });
+
+        bytes memory result = router.swapMultiPoolForAggregator(params, recipient, route);
+
+        // router returns abi.encode(BalanceDelta) where BalanceDelta = int256
+        int256 packed = abi.decode(result, (int256));
+        // BalanceDelta packs (delta0 << 128 | delta1) — extract via sign-extend
+        int128 delta0 = int128(int256(packed >> 128));
+        int128 delta1 = int128(uint128(uint256(packed) & 0xffffffffffffffffffffffffffffffff));
+        amountOut = uint256(int256(zeroForOne ? delta1 : delta0));
+
+        if (amountOut < minAmountOut) revert SlippageExceeded(amountOut, minAmountOut);
+
         emit LeveragedSwapRouted(tokenIn, tokenOut, fee, leverage, amountIn, amountOut);
     }
 

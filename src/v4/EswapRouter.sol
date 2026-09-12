@@ -92,6 +92,12 @@ contract EswapRouter is
     // H-4: JIT swapper opt-in — swappers must approve JIT spot swaps
     mapping(address => bool) public jitApprovedSwappers;
 
+    // Aggregator fill venues (0x ExchangeProxy / ParaSwap Augustus / etc.) that
+    // the router may delegate the notional swap leg to. Non-whitelisted proxies
+    // revert — this is the ONLY address allowed to touch margin/borrow funds in
+    // flight, so a compromised/absurd proxy can never be used to steal them.
+    mapping(address => bool) public allowedAggregators;
+
     struct CrossChainOrder {
         address settlementContract;
         address swapper;
@@ -142,7 +148,11 @@ contract EswapRouter is
         MULTI_POOL_SWAP,
         // [CoW] Solver-funded fill: position credited to `trader` (the recovered
         // CoW order owner) while the margin leg is pulled from `marginFunder`.
-        MULTI_POOL_SOLVER_FUNDED
+        MULTI_POOL_SOLVER_FUNDED,
+        // [0x] Aggregator fill: the notional swap leg executes through a
+        // whitelisted external aggregator exchange proxy (real 0x quote
+        // calldata) instead of the standard pool; hook accounting is identical.
+        MULTI_POOL_AGGREGATOR_SWAP
     }
 
     struct AtomicMarginParams {
@@ -162,6 +172,22 @@ contract EswapRouter is
         // [FIX H-5] Minimum acceptable solver output for slippage protection against malicious solvers
         uint256 minSolverOutput;
         address swapper;
+    }
+
+    /// @dev Fill payload for an external aggregator (0x ExchangeProxy, ParaSwap
+    ///      Augustus, ...). `callData` is executed on `exchangeProxy` with the
+    ///      FULL notional (margin + borrow) pre-approved. `tokenIn`/`tokenOut`
+    ///      must exactly match the swap leg; `sellAmount` must equal the
+    ///      internal notional so a stale/mismatched quote can never spend a
+    ///      different input size. `value` is native ETH attached to the call
+    ///      (0 for pure ERC20 routes).
+    struct AggregatorRoute {
+        address exchangeProxy;
+        address tokenIn;
+        address tokenOut;
+        uint256 sellAmount;
+        uint256 value;
+        bytes callData;
     }
 
     constructor(IPoolManager _manager) Ownable(msg.sender) {
@@ -206,6 +232,13 @@ contract EswapRouter is
         jitApprovedSwappers[swapper] = approved;
     }
 
+    function setAllowedAggregator(address exchangeProxy, bool allowed) external onlyOwner {
+        allowedAggregators[exchangeProxy] = allowed;
+        emit AggregatorWhitelistUpdated(exchangeProxy, allowed);
+    }
+
+    event AggregatorWhitelistUpdated(address indexed exchangeProxy, bool allowed);
+
     // M-11: Event for failed collateral deployment
     error InsufficientGasForCollateralDeployment(uint256 available, uint256 required);
 
@@ -223,6 +256,10 @@ contract EswapRouter is
     // delta in both callbacks. Zero disables it (aggregator/intent flows rely on
     // their own fill-time slippage checks against the router quote).
     error SwapOutputBelowMinimum(uint256 outputAmount, uint256 minAmountOut);
+    error AggregatorNotAllowed(address exchangeProxy);
+    error AggregatorNativeLegUnsupported();
+    error AggregatorRouteMismatch();
+    error AggregatorFillFailed();
     event NativeBorrowDeposited(address indexed solver, uint256 amount);
     event NativeBorrowWithdrawn(address indexed solver, uint256 amount);
     uint256 public constant DEFAULT_DEADLINE_SLACK = 15 minutes;
@@ -301,6 +338,24 @@ contract EswapRouter is
         // so the callback can refund the exact excess (msg.value is 0 inside the
         // callback) to the party who actually funded it.
         return manager.unlock(abi.encode(CallType.MULTI_POOL_SWAP, params, trader, msg.value, msg.sender));
+    }
+
+    /// @notice Open a leveraged position where the notional swap leg executes
+    ///         through a whitelisted external aggregator (0x ExchangeProxy...)
+    ///         instead of the standard pool. The `route.callData` comes from a
+    ///         REAL aggregator quote for `route.sellAmount == notional`; the
+    ///         router approves the proxy for the notional, executes the fill, and
+    ///         measures the actual output — then runs the exact same hook
+    ///         accounting as `_multiPoolOpen` (margin/borrow pulls,
+    ///         registerMarginOpen, 6909 collateral mint, solver debt).
+    function swapMultiPoolForAggregator(SwapParams calldata params, address trader, AggregatorRoute calldata route)
+        external
+        payable
+        returns (bytes memory)
+    {
+        return manager.unlock(
+            abi.encode(CallType.MULTI_POOL_AGGREGATOR_SWAP, params, trader, route, msg.value, msg.sender)
+        );
     }
 
     function executeJITSpotSwap(JITSpotParams calldata params) external returns (bytes memory) {
@@ -446,6 +501,10 @@ contract EswapRouter is
             (, SwapParams memory params, address trader, address marginFunder, uint256 ethAttached, address refundRecipient) =
                 abi.decode(data, (CallType, SwapParams, address, address, uint256, address));
             return _multiPoolOpen(params, trader, marginFunder, ethAttached, refundRecipient);
+        } else if (callType == CallType.MULTI_POOL_AGGREGATOR_SWAP) {
+            (, SwapParams memory params, address trader, AggregatorRoute memory route, uint256 ethAttached, address refundRecipient) =
+                abi.decode(data, (CallType, SwapParams, address, AggregatorRoute, uint256, address));
+            return _multiPoolOpenAggregator(params, trader, route, ethAttached, refundRecipient);
         } else if (callType == CallType.CLOSE) {
             (, address hook, PoolKey memory key, address trader, address solver, uint256 minAmountOut) =
                 abi.decode(data, (CallType, address, PoolKey, address, address, uint256));
@@ -861,6 +920,140 @@ contract EswapRouter is
     }
 
     /**
+     * @notice Aggregator-orchestrated multi-pool open: the physical fill executes
+     *         through an external aggregator (0x ExchangeProxy, ParaSwap Augustus,
+     *         ...) that received a REAL quote; the hook pool is used for
+     *         accounting only (position registration + ERC-6909 collateral
+     *         custody). The hook accounting is IDENTICAL to `_multiPoolOpen` —
+     *         only the fill venue changes from the standard pool to the
+     *         aggregator's exchange proxy.
+     *
+     * @dev Delta ledger inside this unlock (router perspective):
+     *        aggregator fill: +outputAgg(output) — routed externally, lands at router
+     *        settle margin:   -margin netted            (transferFrom marginFunder)
+     *        settle borrow:   -borrow netted            (transferFrom solver)
+     *        mint claim:      -outputAgg netted         (6909 to hook, then sync+settle)
+     *      All deltas zero before unlock exits.
+     */
+    function _multiPoolOpenAggregator(
+        SwapParams memory params,
+        address trader,
+        AggregatorRoute memory route,
+        uint256 ethAttached,
+        address refundRecipient
+    ) internal returns (bytes memory) {
+        // [FIX L-4] Reject fills past the signed deadline.
+        if (block.timestamp > params.deadline) revert DeadlineExpired();
+        uint256 marginAmount =
+            uint256(int256(params.amountSpecified < 0 ? -params.amountSpecified : params.amountSpecified));
+        uint256 borrowAmount = marginAmount * uint256(params.leverage - 1);
+        if (params.leverage > 1) {
+            require(params.solver != address(0), "Solver required for leverage");
+            require(registeredSolvers[params.solver], "Solver not whitelisted");
+        }
+        require(allowedAggregators[route.exchangeProxy], "Aggregator not whitelisted");
+
+        // The aggregator route must cover the exact same token pair as the hook
+        // pool and its close venue — the unwind swaps use these same currencies.
+        require(
+            Currency.unwrap(params.standardPoolKey.currency0) == Currency.unwrap(params.key.currency0)
+                && Currency.unwrap(params.standardPoolKey.currency1) == Currency.unwrap(params.key.currency1),
+            "Standard pool currency mismatch"
+        );
+
+        Currency input = params.zeroForOne ? params.key.currency0 : params.key.currency1;
+        Currency output = params.zeroForOne ? params.key.currency1 : params.key.currency0;
+        bool inputNative = Currency.unwrap(input) == address(0);
+        bool outputNative = Currency.unwrap(output) == address(0);
+        uint256 notional = marginAmount + borrowAmount;
+
+        // Route sanity: the quoted input/output pair and sell amount must match
+        // the swap leg — a stale/mismatched quote can never spend an unexpected
+        // input size or leave margin/borrow unspent for the aggregator.
+        if (route.tokenIn != Currency.unwrap(input) || route.tokenOut != Currency.unwrap(output)) {
+            revert AggregatorRouteMismatch();
+        }
+        if (route.sellAmount != notional) revert AggregatorRouteMismatch();
+        // Current aggregator path is ERC20→ERC20 (USDC→WETH etc.); native legs
+        // would require escrow/value handling that differs from the standard pool
+        // path and isn't exercised in the fork proof. Extend as needed.
+        if (inputNative || outputNative) revert AggregatorNativeLegUnsupported();
+
+        // 1. Pull margin from the trader (or the relay-funded marginFunder for
+        //    CoW/solver-funded flows) and the borrow from the solver INTO the
+        //    router, which holds them until the aggregator pulls them in step 2.
+        if (marginAmount > 0) {
+            IERC20(Currency.unwrap(input)).safeTransferFrom(trader, address(this), marginAmount);
+        }
+        if (borrowAmount > 0) {
+            IERC20(Currency.unwrap(input)).safeTransferFrom(params.solver, address(this), borrowAmount);
+        }
+
+        // 2. Approve the aggregator's exchange proxy for the full notional, then
+        //    execute the real fill calldata. The proxy pulls the input ERC20 from
+        //    the router (via allowance) and sends the output ERC20 back to it.
+        IERC20(Currency.unwrap(input)).forceApprove(route.exchangeProxy, notional);
+        uint256 outBefore = IERC20(Currency.unwrap(output)).balanceOf(address(this));
+
+        // Execute the real aggregator fill; check success and decode the revert reason.
+        (bool ok, bytes memory ret) = route.exchangeProxy.call{value: route.value}(route.callData);
+        if (!ok) {
+            if (ret.length >= 68 && bytes4(ret) == 0x08c379a0) {
+                revert(string(abi.decode(_slice(ret, 4), (string))));
+            }
+            revert AggregatorFillFailed();
+        }
+
+        // 3. Measure the actual output delivered by the real aggregator fill.
+        uint256 outputAmount = IERC20(Currency.unwrap(output)).balanceOf(address(this)) - outBefore;
+        require(outputAmount > 0, "Aggregator output zero");
+        // [FIX C-4] Enforce the caller's slippage floor on the executed output.
+        if (outputAmount < params.minAmountOut) revert SwapOutputBelowMinimum(outputAmount, params.minAmountOut);
+
+        // 4. Hook validates the open and records position accounting — identical
+        //    to `_multiPoolOpen`: the hook never sees or cares HOW the fill happened.
+        IEswapHook(params.key.hooks)
+            .registerMarginOpen(params.key, trader, params.leverage, marginAmount, borrowAmount, output, outputAmount);
+
+        // 5. Collateral custody: the aggregator's output sits at the ROUTER (not
+        //    the PM as in the standard pool path). Mint the 6909 claim to the hook
+        //    (router −output), then sync+settle the held ERC20 into the PM to zero
+        //    the router's transient delta.
+        manager.mint(address(params.key.hooks), uint256(uint160(Currency.unwrap(output))), outputAmount);
+        manager.sync(output);
+        IERC20(Currency.unwrap(output)).safeTransfer(address(manager), outputAmount);
+        manager.settle();
+
+        // 6. Register the solver debt guaranteeing repayment before withdrawal.
+        if (borrowAmount > 0) {
+            IEswapHook(params.key.hooks).registerSolverDebt(params.key.toId(), trader, params.solver, borrowAmount);
+        }
+
+        // 7. [FIX M-3/M-4] Refund any native ETH attached at the entrypoint. In
+        //    the aggregator path this is always 0 (ERC20-only route); guard
+        //    defensively and return it to the funder.
+        if (ethAttached > 0) {
+            _safeTransferETH(refundRecipient, ethAttached);
+        }
+
+        if (params.hookData.length > 0) {
+            (bool isMargin,,) = abi.decode(params.hookData, (bool, uint8, address));
+            if (isMargin) {
+                if (gasleft() < MIN_DEPLOY_COLLATERAL_GAS) {
+                    revert InsufficientGasForCollateralDeployment(gasleft(), MIN_DEPLOY_COLLATERAL_GAS);
+                }
+                IEswapHook(params.key.hooks).deployCollateral(params.key, trader);
+            }
+        }
+
+        // Return a BalanceDelta-shaped packed int256 so the adapter decodes the
+        // output exactly like the standard pool path:
+        //   delta0 = -notional (input spent), delta1 = +outputAmount (received)
+        int256 packedDelta = (int256(uint256(-int256(notional))) << 128) | int256(uint256(int256(outputAmount)));
+        return abi.encode(packedDelta);
+    }
+
+    /**
      * @notice Permissionless liquidation entrypoint for keepers.
      * @dev Anyone may trigger the liquidation of an underwater position. The hook
      *      validates the position is actually liquidatable and enforces slippage
@@ -957,5 +1150,12 @@ contract EswapRouter is
         if (amount == 0) return;
         (bool ok, ) = payable(to).call{value: amount}("");
         require(ok, "ETH refund failed");
+    }
+
+    function _slice(bytes memory b, uint256 from) internal pure returns (bytes memory out) {
+        out = new bytes(b.length - from);
+        for (uint256 i = 0; i < out.length; i++) {
+            out[i] = b[from + i];
+        }
     }
 }
