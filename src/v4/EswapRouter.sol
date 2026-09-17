@@ -17,6 +17,7 @@ import {EswapMarginLib} from "./EswapMarginLib.sol";
 
 interface IEswapHook {
     function executeLiquidation(PoolKey calldata key, address trader, uint256 minAmountOut, address liquidator) external;
+    function partialLiquidation(PoolKey calldata key, address trader, uint256 minAmountOut, address liquidator, uint256 liquidationBps) external;
     function rebalancePosition(PoolKey calldata key, address trader) external;
     function deployCollateral(PoolKey calldata key, address trader) external;
     function closePosition(PoolKey calldata key, address trader, address solver, uint256 minAmountOut) external;
@@ -34,6 +35,35 @@ interface IEswapHook {
         uint256 boughtAmount
     ) external;
     function standardPoolKeys(PoolId poolId) external view returns (Currency, Currency, uint24, int24, address);
+}
+
+// [P0#2] Narrowest oracle surface the router needs to compute the live pool
+// market price (Chainlink-anchored 18-decimal exchange rate) for trigger
+// comparisons. Points at the same PriceFeed contract the hook uses, so trigger
+// evaluation and liquidation health share one oracle source.
+interface IPriceFeedForTrigger {
+    function getAmountInUsd(address token, uint256 amount) external view returns (uint256);
+}
+
+// [P0#2] Hook reads needed by the permissionless trigger-order executor:
+// position existence (to distinguish "no position" from "healthy") and live
+// liquidation state (liquidations always win over trigger closes).
+interface IEswapTriggerHookRead {
+    function positions(bytes32 poolId, address trader)
+        external
+        view
+        returns (
+            address trader_,
+            uint256 collateralAmount,
+            uint256 borrowedAmount,
+            uint8 leverage,
+            bool isLong,
+            uint160 liquidationSqrtPrice,
+            int24 tickLower,
+            int24 tickUpper,
+            uint128 liquidity
+        );
+    function isPositionLiquidatable(PoolKey calldata key, address trader) external view returns (bool);
 }
 
 /**
@@ -141,6 +171,9 @@ contract EswapRouter is
         SWAP,
         CLOSE,
         LIQUIDATE,
+        // [P1#3] Liquidates a proportional slice of an underwater position,
+        // keeping the remainder open (see EswapMarginHookLogic.partialLiquidate).
+        PARTIAL_LIQUIDATION,
         REBALANCE,
         ATOMIC_MARGIN,
         JIT_SPOT,
@@ -152,7 +185,16 @@ contract EswapRouter is
         // [0x] Aggregator fill: the notional swap leg executes through a
         // whitelisted external aggregator exchange proxy (real 0x quote
         // calldata) instead of the standard pool; hook accounting is identical.
-        MULTI_POOL_AGGREGATOR_SWAP
+        MULTI_POOL_AGGREGATOR_SWAP,
+        // [P0#1] Permissionless-solver fill: the trader's EIP-712 `LendingIntent`
+        // is verified at the entrypoint and the fill proceeds without the
+        // governance whitelist gate.
+        MULTI_POOL_INTENT_OPEN,
+        // [P2#7] Best-route competition between the standard pool and a
+        // whitelisted aggregator: the router estimates the standard venue's fill
+        // and executes the venue whose guaranteed output is higher, so the trader
+        // is never worse than the standard-pool route.
+        MULTI_POOL_BEST_ROUTE
     }
 
     struct AtomicMarginParams {
@@ -189,6 +231,102 @@ contract EswapRouter is
         uint256 value;
         bytes callData;
     }
+
+    /// @dev [P0#1] Off-chain signed intent authorizing a specific solver to fill
+    ///      ONE leveraged open for `trader` (the recovered EIP-712 signer). This
+    ///      replaces the governance whitelist with the TRADER's own authorization:
+    ///      any solver can fill, but only the solver the trader signed for.
+    ///      `poolId` is the hook (margin) pool, `standardPoolId` the deep-fill
+    ///      pool; both are `PoolId` values (`key.toId()`).
+    struct LendingIntent {
+        bytes32 poolId;
+        bytes32 standardPoolId;
+        bool zeroForOne;
+        int256 amountSpecified;
+        uint8 leverage;
+        address solver;
+        uint256 deadline;
+        uint256 minAmountOut;
+        uint256 nonce;
+    }
+
+    bytes32 public constant LENDING_INTENT_TYPEHASH = keccak256(
+        "LendingIntent(bytes32 poolId,bytes32 standardPoolId,bool zeroForOne,int256 amountSpecified,uint8 leverage,address solver,uint256 deadline,uint256 minAmountOut,uint256 nonce)"
+    );
+
+    // [P0#1] One-flag-per-intent replay protection (trader binds each fill to a
+    // unique nonce the same way ERC-2612 permits bind each transfer).
+    mapping(bytes32 => bool) public filledIntents;
+
+    // [P0#1] Per-solver max borrow per fill; 0 = unlimited. A governance-set
+    // safety rail so a permissionless solver can never ingest an unbounded
+    // single fill even when traders sign for it.
+    mapping(address => uint256) public solverNotionalCap;
+
+    // [P0#1] ERC20 generalisation of `nativeBorrowEscrow`: solvers pre-funded a
+    // token (no per-trade approvals / balance needed at fill time). The router
+    // draws the borrow leg from here FIRST, topping up from a direct
+    // transferFrom only for the remainder. token => solver => amount.
+    mapping(address => mapping(address => uint256)) public erc20BorrowEscrow;
+
+    // ─── [P0#2] Signed limit / stop-loss TriggerOrder ─────────────────────────
+
+    /// @dev A trader-signed conditional close. The executor (anyone) waits until
+    ///      the pool's market price crosses `triggerPrice18` (an 18-decimal
+    ///      exchange rate, `USD(token0 per whole unit) / USD(token1 per whole unit)`)
+    ///      in the direction `aboveOrBelow`, then permissionlessly closes the
+    ///      trader's position with the signed `minAmountOut` floor. The signature
+    ///      pins the exact pool, price, direction, payout floor, nonce and expiry,
+    ///      so neither the executed price nor the payout can deviate from what the
+    ///      trader authored. `executorTipBps` caps the off-chain executor tip
+    ///      (0-1000 = 0-10% of surplus); on-chain enforcement of the split is left
+    ///      to a follow-up so this first cut cannot perturb the close settlement.
+    struct TriggerOrder {
+        bytes32 poolId;
+        uint256 triggerPrice18;
+        bool aboveOrBelow;
+        uint256 minAmountOut;
+        uint256 closeDeadline;
+        uint256 nonce;
+        uint8 executorTipBps;
+    }
+
+    bytes32 public constant TRIGGER_ORDER_TYPEHASH = keccak256(
+        "TriggerOrder(bytes32 poolId,uint256 triggerPrice18,bool aboveOrBelow,uint256 minAmountOut,uint256 closeDeadline,uint256 nonce,uint8 executorTipBps)"
+    );
+
+    /// @dev Oracle source for the live market price. Points at the SAME Chainlink
+    ///      PriceFeed the hook uses so trigger evaluation and liquidation health
+    ///      never read from different oracles. Owner-set; 0 = trigger orders
+    ///      disabled (executeTriggerOrder reverts TriggerPriceFeedNotSet).
+    IPriceFeedForTrigger public triggerPriceFeed;
+
+    /// @dev One armed order per (trader, pool) — a trader arms at most one
+    ///      conditional close per pool at a time; re-arming overwrites.
+    mapping(address => mapping(bytes32 => TriggerOrder)) public armedTriggerOrders;
+
+    /// @dev Consumed (trader, poolId, nonce) keys: an executed trigger order can
+    ///      never be replayed, even if the trader re-arms a different order.
+    mapping(bytes32 => bool) public executedTriggerOrders;
+
+    // [P0#2] Trigger-order errors.
+    error TriggerPriceFeedNotSet();
+    error NoArmedTriggerOrder();
+    error TriggerOrderAlreadyExecuted();
+    error TriggerOrderExpired();
+    error TriggerNotHit();
+    error PositionLiquidatable();
+    error InvalidTriggerOrderSignature();
+    error TriggerOrderPoolMismatch();
+    error NoActivePosition();
+    error TriggerPriceUnavailable();
+
+    event TriggerPriceFeedSet(address indexed feed);
+    event TriggerOrderArmed(
+        address indexed trader, bytes32 indexed poolId, uint256 triggerPrice18, bool aboveOrBelow, uint256 nonce
+    );
+    event TriggerOrderExecuted(address indexed trader, bytes32 indexed poolId, uint256 nonce, address executor);
+    event TriggerOrderCancelled(address indexed trader, bytes32 indexed poolId);
 
     constructor(IPoolManager _manager) Ownable(msg.sender) {
         manager = _manager;
@@ -239,6 +377,38 @@ contract EswapRouter is
 
     event AggregatorWhitelistUpdated(address indexed exchangeProxy, bool allowed);
 
+    // --- [P0#1] Permissionless-solver admin & tooling ---
+
+    /// @notice Per-solver max borrow per fill (0 = unlimited). This is the
+    ///         safety rail that lets governance keep permissionless solvers
+    ///         bounded while traders pick WHO fills.
+    function setSolverNotionalCap(address solver, uint256 cap) external onlyOwner {
+        solverNotionalCap[solver] = cap;
+        emit SolverNotionalCapUpdated(solver, cap);
+    }
+
+    /// @notice [P0#1] ERC20 generalisation of the native borrow escrow: a solver
+    ///         pre-funds `token` so a leveraged ERC20-input fill can draw its
+    ///         borrow leg from escrow (no per-trade approval/balance needed).
+    function depositBorrowEscrow(address token, uint256 amount) external {
+        if (amount == 0) revert BorrowEscrowZero();
+        IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
+        erc20BorrowEscrow[msg.sender][token] += amount;
+        emit BorrowEscrowDeposited(msg.sender, token, amount);
+    }
+
+    function withdrawBorrowEscrow(address token, uint256 amount) external {
+        uint256 bal = erc20BorrowEscrow[msg.sender][token];
+        if (amount > bal) revert InsufficientBorrowEscrow(bal, amount);
+        erc20BorrowEscrow[msg.sender][token] = bal - amount;
+        IERC20(token).safeTransfer(msg.sender, amount);
+        emit BorrowEscrowWithdrawn(msg.sender, token, amount);
+    }
+
+    event BorrowEscrowDeposited(address indexed solver, address indexed token, uint256 amount);
+    event BorrowEscrowWithdrawn(address indexed solver, address indexed token, uint256 amount);
+    event SolverNotionalCapUpdated(address indexed solver, uint256 cap);
+
     // M-11: Event for failed collateral deployment
     error InsufficientGasForCollateralDeployment(uint256 available, uint256 required);
 
@@ -260,6 +430,21 @@ contract EswapRouter is
     error AggregatorNativeLegUnsupported();
     error AggregatorRouteMismatch();
     error AggregatorFillFailed();
+    // [P0#1] Permissionless-solver (LendingIntent) errors.
+    error BorrowEscrowZero();
+    error InsufficientBorrowEscrow(uint256 available, uint256 required);
+    error IntentAlreadyFilled();
+    error IntentPoolMismatch();
+    error IntentStandardPoolMismatch();
+    error IntentDirectionMismatch();
+    error IntentAmountMismatch();
+    error IntentLeverageMismatch();
+    error IntentSolverMismatch();
+    error IntentSlippageBelowSignedFloor();
+    error InvalidIntentSignature();
+    error BorrowExceedsSolverNotionalCap(uint256 borrow, uint256 cap);
+    error SolverNotAuthorized();
+    error NotOwner();
     event NativeBorrowDeposited(address indexed solver, uint256 amount);
     event NativeBorrowWithdrawn(address indexed solver, uint256 amount);
     uint256 public constant DEFAULT_DEADLINE_SLACK = 15 minutes;
@@ -356,6 +541,237 @@ contract EswapRouter is
         return manager.unlock(
             abi.encode(CallType.MULTI_POOL_AGGREGATOR_SWAP, params, trader, route, msg.value, msg.sender)
         );
+    }
+
+    /// @notice [P2#7] Best-route competition: open a leveraged position where the
+    ///         notional fill routes through whichever venue — the deep standard
+    ///         pool OR a whitelisted external aggregator — guarantees the higher
+    ///         output. The trader can never end up with less than the standard
+    ///         pool's fill; the aggregator only wins the route when it genuinely
+    ///         outperforms the standard venue.
+    ///
+    /// @dev Venue selection (inside the unlock):
+    ///        1. Compute the deterministic standard-pool fill estimate for the
+    ///           notional (slot0 price of `params.standardPoolKey`, 0.1% execution
+    ///           discount — the same projection the public `quoteExactInput`
+    ///           quoter gives).
+    ///        2. `params.minAmountOut` is the trader's slippage floor AND their
+    ///           acceptance of the aggregator quote (the amount the aggregator
+    ///           promised to deliver).
+    ///        3. standard estimate >= floor  → STANDARD venue (`_multiPoolOpen`).
+    ///           The aggregator is never executed, so a weak/stale aggregator
+    ///           quote can never force a worse fill.
+    ///        4. floor > standard estimate   → AGGREGATOR venue
+    ///           (`_multiPoolOpenAggregator`). Because the trader's floor already
+    ///           sits ABOVE the standard estimate, the venue's existing fill-time
+    ///           `SwapOutputBelowMinimum` check forces the aggregator to actually
+    ///           beat the standard pool's output or the fill reverts — meaningful
+    ///           on-chain competition, not quote trust.
+    ///      The aggregator proxy must be whitelisted before this entrypoint is
+    ///      usable (checked here and re-checked inside the fill). Margin is pulled
+    ///      from `trader`, borrow from `params.solver` — mirror of
+    ///      `swapMultiPoolForAggregator`.
+    function swapMultiPoolBestRoute(SwapParams calldata params, address trader, AggregatorRoute calldata route)
+        external
+        payable
+        returns (bytes memory)
+    {
+        require(allowedAggregators[route.exchangeProxy], "Aggregator not whitelisted");
+        return manager.unlock(abi.encode(CallType.MULTI_POOL_BEST_ROUTE, params, trader, route, msg.value, msg.sender));
+    }
+
+    /// @notice [P0#1] EIP-712 hash of a signed `LendingIntent`.
+    function hashIntent(LendingIntent calldata intent) public pure returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                LENDING_INTENT_TYPEHASH,
+                intent.poolId,
+                intent.standardPoolId,
+                intent.zeroForOne,
+                intent.amountSpecified,
+                intent.leverage,
+                intent.solver,
+                intent.deadline,
+                intent.minAmountOut,
+                intent.nonce
+            )
+        );
+    }
+
+    /// @notice [P0#1] PERMISSIONLESS solver fill: open a leveraged position on
+    ///         behalf of `trader` where the solver is authorized by the TRADER's
+    ///         off-chain EIP-712 `LendingIntent` signature instead of the
+    ///         governance whitelist. Anyone may CALL this (relay it), but the
+    ///         signature pins the exact pool, direction, margin, leverage, solver
+    ///         and slippage floor — a stale/forged fill can never pass. The signed
+    ///         nonce is consumed, so each intent funds at most one position.
+    ///
+    /// @dev Works like `swapMultiPoolFor` but the solver-authorization gate is
+    ///      replaced by ecrecover of the intent. The caller must still ensure the
+    ///      marginFunder (the recovered trader) has approved this router when the
+    ///      margin leg is an ERC20; native margins attach `msg.value` as usual.
+    ///      The solver's borrow leg is drawn from its ERC20 escrow FIRST (pre-funded
+    ///      via depositBorrowEscrow), falling back to a direct transferFrom.
+    function swapWithIntent(
+        SwapParams calldata params,
+        address trader,
+        LendingIntent calldata intent,
+        bytes calldata signature
+    ) external payable returns (bytes memory) {
+        if (block.timestamp > intent.deadline) revert DeadlineExpired();
+        if (block.timestamp > params.deadline) revert DeadlineExpired();
+
+        // The signed intent must EXACTLY describe this fill — a solver/relayer
+        // can never substitute different execution parameters than the trader
+        // authored, so the whitelist gate becomes unnecessary.
+        if (PoolId.unwrap(params.key.toId()) != intent.poolId) revert IntentPoolMismatch();
+        if (PoolId.unwrap(params.standardPoolKey.toId()) != intent.standardPoolId) revert IntentStandardPoolMismatch();
+        if (params.zeroForOne != intent.zeroForOne) revert IntentDirectionMismatch();
+        if (params.amountSpecified != intent.amountSpecified) revert IntentAmountMismatch();
+        if (params.leverage != intent.leverage) revert IntentLeverageMismatch();
+        if (params.solver != intent.solver) revert IntentSolverMismatch();
+        if (params.minAmountOut < intent.minAmountOut) revert IntentSlippageBelowSignedFloor();
+
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, hashIntent(intent)));
+        address recovered = _recoverSigner(digest, signature);
+        if (recovered == address(0) || recovered != trader) revert InvalidIntentSignature();
+
+        // One intent = one fill: consume the (trader, nonce) pair.
+        bytes32 fillId = keccak256(abi.encode(recovered, intent.nonce));
+        if (filledIntents[fillId]) revert IntentAlreadyFilled();
+        filledIntents[fillId] = true;
+
+        // Governance-set safety rail: bound the max borrow a permissionless
+        // solver can provider per fill, even when traders sign for it.
+        if (params.leverage > 1) {
+            uint256 marginAmount =
+                uint256(int256(params.amountSpecified < 0 ? -params.amountSpecified : params.amountSpecified));
+            uint256 borrowAmount = marginAmount * uint256(params.leverage - 1);
+            uint256 cap = solverNotionalCap[params.solver];
+            if (cap > 0 && borrowAmount > cap) revert BorrowExceedsSolverNotionalCap(borrowAmount, cap);
+        }
+
+        return manager.unlock(abi.encode(CallType.MULTI_POOL_INTENT_OPEN, params, recovered, msg.value, msg.sender));
+    }
+
+    // ─── [P0#2] Signed limit / stop-loss TriggerOrder ────────────────────────
+
+    /// @notice Points the trigger-oracle surface at the Chainlink PriceFeed the
+    ///         hook already uses. Owner-only; disabling (address(0)) turns
+    ///         trigger orders off until a feed is re-set.
+    function setTriggerPriceFeed(IPriceFeedForTrigger _priceFeed) external onlyOwner {
+        triggerPriceFeed = _priceFeed;
+        emit TriggerPriceFeedSet(address(_priceFeed));
+    }
+
+    /// @notice [P0#2] EIP-712 hash of a signed `TriggerOrder`.
+    function hashTriggerOrder(TriggerOrder calldata order) public pure returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                TRIGGER_ORDER_TYPEHASH,
+                order.poolId,
+                order.triggerPrice18,
+                order.aboveOrBelow,
+                order.minAmountOut,
+                order.closeDeadline,
+                order.nonce,
+                order.executorTipBps
+            )
+        );
+    }
+
+    /// @notice [P0#2] The trader arms a conditional close by proving ownership of
+    ///         the EIP-712 signature over the `TriggerOrder`. One order per
+    ///         (trader, pool); re-arming overwrites the previous one.
+    function armTriggerOrder(PoolKey calldata key, TriggerOrder calldata order, bytes calldata signature) external {
+        if (PoolId.unwrap(key.toId()) != order.poolId) revert TriggerOrderPoolMismatch();
+        if (block.timestamp > order.closeDeadline) revert TriggerOrderExpired();
+
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, hashTriggerOrder(order)));
+        address recovered = _recoverSigner(digest, signature);
+        if (recovered == address(0) || recovered != msg.sender) revert InvalidTriggerOrderSignature();
+
+        armedTriggerOrders[msg.sender][order.poolId] = order;
+        emit TriggerOrderArmed(msg.sender, order.poolId, order.triggerPrice18, order.aboveOrBelow, order.nonce);
+    }
+
+    /// @notice [P0#2] PERMISSIONLESS conditional close: any keeper may call this
+    ///         once the pool's market price crosses the armed `TriggerOrder`.
+    ///         Guards, in order:
+    ///          1. An armed order exists, is not expired, and is not replayable.
+    ///          2. The position exists and is NOT liquidatable — liquidation
+    ///             always wins over a trigger close (a liquidatable position is
+    ///             closed by `liquidate`, never by this path).
+    ///          3. The live market price crossed the signed trigger in the signed
+    ///             direction (`aboveOrBelow=true → market >= trigger`, else
+    ///             `market < trigger`).
+    ///         If all pass, the close is executed exactly as the trader signed it
+    ///         (same unlock path as a manual close, same hook settlement), the
+    ///         nonce is consumed and the armed order is cleared.
+    function executeTriggerOrder(address hook, PoolKey calldata key, address trader) external {
+        bytes32 poolId = PoolId.unwrap(key.toId());
+        // Snapshot the armed order into memory: clearing the storage slot below
+        // must not zero the fields we still emit and enforce afterwards.
+        TriggerOrder memory order = armedTriggerOrders[trader][poolId];
+        if (order.closeDeadline == 0) revert NoArmedTriggerOrder();
+        if (block.timestamp > order.closeDeadline) revert TriggerOrderExpired();
+
+        bytes32 executionId = keccak256(abi.encode(trader, order.poolId, order.nonce));
+        if (executedTriggerOrders[executionId]) revert TriggerOrderAlreadyExecuted();
+
+        if (address(triggerPriceFeed) == address(0)) revert TriggerPriceFeedNotSet();
+
+        // The position must exist and be healthy: liquidation preempts triggers.
+        (, uint256 collateral,,,,,,,) = IEswapTriggerHookRead(hook).positions(PoolId.unwrap(key.toId()), trader);
+        if (collateral == 0) revert NoActivePosition();
+        if (IEswapTriggerHookRead(hook).isPositionLiquidatable(key, trader)) revert PositionLiquidatable();
+
+        // The live market price must have crossed the signed trigger.
+        uint256 marketPrice18 = _computeMarketPrice18(key);
+        bool hit = order.aboveOrBelow ? marketPrice18 >= order.triggerPrice18 : marketPrice18 < order.triggerPrice18;
+        if (!hit) revert TriggerNotHit();
+
+        // Consume the nonce and clear the armed slot before the close; both only
+        // persist if the close succeeds (a revert rolls the whole tx back, so on
+        // a failed close the order stays armed and replayable).
+        executedTriggerOrders[executionId] = true;
+        delete armedTriggerOrders[trader][poolId];
+
+        emit TriggerOrderExecuted(trader, order.poolId, order.nonce, msg.sender);
+
+        // The hook ignores the `solver` argument (it repays `positionSolver`),
+        // so pass a zero address — the signed payout floor is what matters.
+        manager.unlock(abi.encode(CallType.CLOSE, hook, key, trader, address(0), order.minAmountOut));
+    }
+
+    /// @notice [P0#2] Trader (or governance) disarms a conditional close.
+    function cancelTriggerOrder(address trader, PoolKey calldata key) external {
+        bytes32 poolId = PoolId.unwrap(key.toId());
+        if (msg.sender != trader && msg.sender != owner()) revert NotOwner();
+        if (armedTriggerOrders[trader][poolId].closeDeadline == 0) revert NoArmedTriggerOrder();
+        delete armedTriggerOrders[trader][poolId];
+        emit TriggerOrderCancelled(trader, poolId);
+    }
+
+    /// @dev [P0#2] Live pool market price as an 18-decimal exchange rate:
+    ///      USD worth of ONE WHOLE token0 divided by USD worth of ONE WHOLE
+    ///      token1 (both via getAmountInUsd(10**decimals), so cross-decimal pairs
+    ///      like USDC/WETH price correctly). Same oracle the hook's liquidation
+    ///      path reads — trigger evaluation and health share one source.
+    ///      Reverts when either leg's feed is missing (0 USD value) so a fake
+    ///      "below trigger" can never fire a stop-loss on an unavailable oracle.
+    function _computeMarketPrice18(PoolKey calldata key) internal view returns (uint256) {
+        address token0 = Currency.unwrap(key.currency0);
+        address token1 = Currency.unwrap(key.currency1);
+        uint256 price0 = triggerPriceFeed.getAmountInUsd(token0, 10 ** _tokenDecimals(token0));
+        uint256 price1 = triggerPriceFeed.getAmountInUsd(token1, 10 ** _tokenDecimals(token1));
+        if (price0 == 0 || price1 == 0) revert TriggerPriceUnavailable();
+        return FullMath.mulDiv(price0, 1e18, price1);
+    }
+
+    function _tokenDecimals(address token) internal view returns (uint8 d) {
+        (bool ok, bytes memory ret) = token.staticcall(abi.encodeWithSignature("decimals()"));
+        d = (ok && ret.length >= 32) ? uint8(uint256(abi.decode(ret, (uint256)))) : 18;
     }
 
     function executeJITSpotSwap(JITSpotParams calldata params) external returns (bytes memory) {
@@ -496,15 +912,29 @@ contract EswapRouter is
         } else if (callType == CallType.MULTI_POOL_SWAP) {
             (, SwapParams memory params, address trader, uint256 ethAttached, address refundRecipient) =
                 abi.decode(data, (CallType, SwapParams, address, uint256, address));
-            return _multiPoolOpen(params, trader, trader, ethAttached, refundRecipient);
+            return _multiPoolOpen(params, trader, trader, ethAttached, refundRecipient, false);
         } else if (callType == CallType.MULTI_POOL_SOLVER_FUNDED) {
             (, SwapParams memory params, address trader, address marginFunder, uint256 ethAttached, address refundRecipient) =
                 abi.decode(data, (CallType, SwapParams, address, address, uint256, address));
-            return _multiPoolOpen(params, trader, marginFunder, ethAttached, refundRecipient);
+            return _multiPoolOpen(params, trader, marginFunder, ethAttached, refundRecipient, false);
         } else if (callType == CallType.MULTI_POOL_AGGREGATOR_SWAP) {
             (, SwapParams memory params, address trader, AggregatorRoute memory route, uint256 ethAttached, address refundRecipient) =
                 abi.decode(data, (CallType, SwapParams, address, AggregatorRoute, uint256, address));
-            return _multiPoolOpenAggregator(params, trader, route, ethAttached, refundRecipient);
+            return _multiPoolOpenAggregator(params, trader, route, ethAttached, refundRecipient, false);
+        } else if (callType == CallType.MULTI_POOL_INTENT_OPEN) {
+            (, SwapParams memory params, address trader, uint256 ethAttached, address refundRecipient) =
+                abi.decode(data, (CallType, SwapParams, address, uint256, address));
+            return _multiPoolOpen(params, trader, trader, ethAttached, refundRecipient, true);
+        } else if (callType == CallType.MULTI_POOL_BEST_ROUTE) {
+            (
+                ,
+                SwapParams memory params,
+                address trader,
+                AggregatorRoute memory route,
+                uint256 ethAttached,
+                address refundRecipient
+            ) = abi.decode(data, (CallType, SwapParams, address, AggregatorRoute, uint256, address));
+            return _bestRouteOpen(params, trader, route, ethAttached, refundRecipient, false);
         } else if (callType == CallType.CLOSE) {
             (, address hook, PoolKey memory key, address trader, address solver, uint256 minAmountOut) =
                 abi.decode(data, (CallType, address, PoolKey, address, address, uint256));
@@ -514,6 +944,18 @@ contract EswapRouter is
             (, address hook, PoolKey memory key, address trader, uint256 minAmountOut, address liquidator) =
                 abi.decode(data, (CallType, address, PoolKey, address, uint256, address));
             IEswapHook(hook).executeLiquidation(key, trader, minAmountOut, liquidator);
+            return "";
+        } else if (callType == CallType.PARTIAL_LIQUIDATION) {
+            (
+                ,
+                address hook,
+                PoolKey memory key,
+                address trader,
+                uint256 minAmountOut,
+                uint256 liquidationBps,
+                address liquidator
+            ) = abi.decode(data, (CallType, address, PoolKey, address, uint256, uint256, address));
+            IEswapHook(hook).partialLiquidation(key, trader, minAmountOut, liquidator, liquidationBps);
             return "";
         } else if (callType == CallType.REBALANCE) {
             (, address hook, PoolKey memory key, address trader) =
@@ -789,13 +1231,18 @@ contract EswapRouter is
      *        is always credited to `trader`; for a standard relay these are the
      *        same address, for CoW solver-funded fills the solver funds the
      *        margin on behalf of the trader.
+     * @param solverAuthorizedByIntent true when this fill arrived via a verified
+     *        EIP-712 `LendingIntent` (triggered at the leading encoding), in
+     *        which case the whitelist gate is bypassed — the trader signed away
+     *        exactly this solver and fill.
      */
     function _multiPoolOpen(
         SwapParams memory params,
         address trader,
         address marginFunder,
         uint256 ethAttached,
-        address refundRecipient
+        address refundRecipient,
+        bool solverAuthorizedByIntent
     ) internal returns (bytes memory) {
         // [FIX L-4] Reject fills past the signed deadline.
         if (block.timestamp > params.deadline) revert DeadlineExpired();
@@ -804,7 +1251,11 @@ contract EswapRouter is
         uint256 borrowAmount = marginAmount * uint256(params.leverage - 1);
         if (params.leverage > 1) {
             require(params.solver != address(0), "Solver required for leverage");
-            require(registeredSolvers[params.solver], "Solver not whitelisted");
+            // [P0#1] Whitelist is now ONE of two authorization legs: governance
+            // registration OR the trader's signed LendingIntent.
+            require(registeredSolvers[params.solver] || solverAuthorizedByIntent, "Solver not authorized");
+            uint256 cap = solverNotionalCap[params.solver];
+            if (cap > 0 && borrowAmount > cap) revert BorrowExceedsSolverNotionalCap(borrowAmount, cap);
         }
 
         // The deep-fill venue must trade the exact same token pair as the hook pool.
@@ -856,14 +1307,36 @@ contract EswapRouter is
                 manager.settle{value: notional}();
             }
         } else {
-            if (marginAmount > 0) {
+            // [GAS] Both legs settle the router's -input delta against the same
+            // synced currency, so ONE sync snapshot + ONE settle books the full
+            // notional. This v4-core builds `paid` as balanceNow - balanceAtSync
+            // against a single "synced currency" slot, so the transfers must
+            // happen AFTER the sync snapshot and BEFORE the settle.
+            if (marginAmount > 0 || borrowAmount > 0) {
                 manager.sync(input);
+            }
+            if (marginAmount > 0) {
                 IERC20(Currency.unwrap(input)).safeTransferFrom(marginFunder, address(manager), marginAmount);
-                manager.settle();
             }
             if (borrowAmount > 0) {
-                manager.sync(input);
-                IERC20(Currency.unwrap(input)).safeTransferFrom(params.solver, address(manager), borrowAmount);
+                // [P0#1] Draw the borrower leg from the solver's pre-funded ERC20
+                // escrow FIRST (no per-trade approval needed), topping up from a
+                // direct transferFrom with whatever the escrow doesn't cover.
+                address inputToken = Currency.unwrap(input);
+                uint256 escrowed = erc20BorrowEscrow[params.solver][inputToken];
+                uint256 fromEscrow = escrowed >= borrowAmount ? borrowAmount : escrowed;
+                if (fromEscrow > 0) {
+                    erc20BorrowEscrow[params.solver][inputToken] = escrowed - fromEscrow;
+                }
+                uint256 fromSolver = borrowAmount - fromEscrow;
+                if (fromEscrow > 0) {
+                    IERC20(inputToken).safeTransfer(address(manager), fromEscrow);
+                }
+                if (fromSolver > 0) {
+                    IERC20(inputToken).safeTransferFrom(params.solver, address(manager), fromSolver);
+                }
+            }
+            if (marginAmount > 0 || borrowAmount > 0) {
                 manager.settle();
             }
         }
@@ -940,7 +1413,8 @@ contract EswapRouter is
         address trader,
         AggregatorRoute memory route,
         uint256 ethAttached,
-        address refundRecipient
+        address refundRecipient,
+        bool solverAuthorizedByIntent
     ) internal returns (bytes memory) {
         // [FIX L-4] Reject fills past the signed deadline.
         if (block.timestamp > params.deadline) revert DeadlineExpired();
@@ -949,7 +1423,11 @@ contract EswapRouter is
         uint256 borrowAmount = marginAmount * uint256(params.leverage - 1);
         if (params.leverage > 1) {
             require(params.solver != address(0), "Solver required for leverage");
-            require(registeredSolvers[params.solver], "Solver not whitelisted");
+            // [P0#1] Whitelist is now ONE of two authorization legs: governance
+            // registration OR the trader's signed LendingIntent.
+            require(registeredSolvers[params.solver] || solverAuthorizedByIntent, "Solver not authorized");
+            uint256 cap = solverNotionalCap[params.solver];
+            if (cap > 0 && borrowAmount > cap) revert BorrowExceedsSolverNotionalCap(borrowAmount, cap);
         }
         require(allowedAggregators[route.exchangeProxy], "Aggregator not whitelisted");
 
@@ -986,7 +1464,19 @@ contract EswapRouter is
             IERC20(Currency.unwrap(input)).safeTransferFrom(trader, address(this), marginAmount);
         }
         if (borrowAmount > 0) {
-            IERC20(Currency.unwrap(input)).safeTransferFrom(params.solver, address(this), borrowAmount);
+            // [P0#1] Draw the borrow leg from the solver's pre-funded ERC20 escrow
+            // FIRST, topping up from a direct transferFrom for the remainder.
+            address inputToken = Currency.unwrap(input);
+            uint256 escrowed = erc20BorrowEscrow[params.solver][inputToken];
+            uint256 fromEscrow = escrowed >= borrowAmount ? borrowAmount : escrowed;
+            if (fromEscrow > 0) {
+                erc20BorrowEscrow[params.solver][inputToken] = escrowed - fromEscrow;
+                IERC20(inputToken).safeTransfer(address(this), fromEscrow);
+            }
+            uint256 fromSolver = borrowAmount - fromEscrow;
+            if (fromSolver > 0) {
+                IERC20(inputToken).safeTransferFrom(params.solver, address(this), fromSolver);
+            }
         }
 
         // 2. Approve the aggregator's exchange proxy for the full notional, then
@@ -1054,6 +1544,86 @@ contract EswapRouter is
     }
 
     /**
+     * @notice [P2#7] Best-route competition: select and execute the venue whose
+     *         guaranteed output is higher — the standard (deep-fill) pool or a
+     *         whitelisted external aggregator.
+     * @dev Competition rule, all enforced on-chain against the live execution
+     *      pool's slot0 price (see `_quoteStandardFill`):
+     *        - standard estimate >  trader's floor   → STANDARD venue. The
+     *          aggregator route is never executed, so a weak/stale aggregator
+     *          quote can neither force a worse fill nor consume gas.
+     *        - trader's floor ≥ standard estimate    → AGGREGATOR venue. The
+     *          floor is then already above the standard estimate, so the
+     *          aggregator's own fill-time slippage check (`SwapOutputBelowMinimum`
+     *          inside `_multiPoolOpenAggregator`) forces its ACTUAL delivered
+     *          output to exceed the standard venue's output or the whole fill
+     *          reverts.
+     *        - standard venue uninitialized          → AGGREGATOR venue with the
+     *          trader's floor (nothing on-chain to compete against).
+     *      Authorizations (solver whitelist/intent) and margin/borrow legs are
+     *      delegated to the chosen venue's internal open, so the standard and
+     *      aggregator executions stay byte-identical to their entrypoints.
+     */
+    function _bestRouteOpen(
+        SwapParams memory params,
+        address trader,
+        AggregatorRoute memory route,
+        uint256 ethAttached,
+        address refundRecipient,
+        bool solverAuthorizedByIntent
+    ) internal returns (bytes memory) {
+        if (block.timestamp > params.deadline) revert DeadlineExpired();
+
+        uint256 marginAmount =
+            uint256(int256(params.amountSpecified < 0 ? -params.amountSpecified : params.amountSpecified));
+        uint256 borrowAmount = marginAmount * uint256(params.leverage - 1);
+        uint256 notional = marginAmount + borrowAmount;
+
+        // Deterministic standard-venue quote at the execution pool's live slot0
+        // (0.1% execution discount, mirroring the public quoter's parity model).
+        (uint256 standardOut, bool standardComputable) =
+            _quoteStandardFill(params.standardPoolKey, params.zeroForOne, notional);
+
+        // Standard wins when it meets the trader's floor (or isn't priceable —
+        // an uninitialized execution pool has nothing to compete against, so the
+        // aggregator fills). Otherwise the trader demands more than the standard
+        // venue can deliver; only the aggregator can fill it, and its floor is
+        // then already above the standard estimate, forcing genuine
+        // outperformance or a revert.
+        if (!standardComputable || standardOut >= params.minAmountOut) {
+            return _multiPoolOpen(params, trader, trader, ethAttached, refundRecipient, solverAuthorizedByIntent);
+        }
+        return _multiPoolOpenAggregator(params, trader, route, ethAttached, refundRecipient, solverAuthorizedByIntent);
+    }
+
+    /// @dev Deterministic spot-depth estimate of a NOTIONAL-sized fill on the
+    ///      given execution pool — the same projection the public `quoteExactInput`
+    ///      quoter uses (slot0 price, 0.1% execution discount). Returns
+    ///      `(0, false)` when the pool is uninitialized so the caller can fall
+    ///      back to the aggregator venue.
+    function _quoteStandardFill(PoolKey memory standardPoolKey, bool zeroForOne, uint256 notional)
+        internal
+        view
+        returns (uint256 output, bool computable)
+    {
+        (uint160 sqrtPriceX96,,,) = StateLibrary.getSlot0(
+            RealIPoolManager(address(manager)), RealPoolId.wrap(PoolId.unwrap(standardPoolKey.toId()))
+        );
+        if (sqrtPriceX96 == 0) return (0, false);
+        if (zeroForOne) {
+            // outputUnits = inputUnits * (sqrtPriceX96^2) / 2^192
+            output = FullMath.mulDiv(notional, uint256(sqrtPriceX96), 1 << 96);
+            output = FullMath.mulDiv(output, uint256(sqrtPriceX96), 1 << 96);
+        } else {
+            // outputUnits = inputUnits * 2^192 / (sqrtPriceX96^2)
+            uint256 temp = FullMath.mulDiv(notional, 1 << 96, uint256(sqrtPriceX96));
+            output = FullMath.mulDiv(temp, 1 << 96, uint256(sqrtPriceX96));
+        }
+        output = (output * 9990) / 10000;
+        return (output, true);
+    }
+
+    /**
      * @notice Permissionless liquidation entrypoint for keepers.
      * @dev Anyone may trigger the liquidation of an underwater position. The hook
      *      validates the position is actually liquidatable and enforces slippage
@@ -1063,6 +1633,20 @@ contract EswapRouter is
      */
     function liquidate(address hook, PoolKey calldata key, address trader, uint256 minAmountOut) external {
         manager.unlock(abi.encode(CallType.LIQUIDATE, hook, key, trader, minAmountOut, msg.sender));
+    }
+
+    /**
+     * @notice [P1#3] Permissionless PARTIAL-liquidation entrypoint for keepers.
+     * @dev Liquidates only `liquidationBps` (1-9999) of an underwater position;
+     *      the remaining stake stays open. Slippage is enforced via `minAmountOut`
+     *      against the unwind slice exactly like the full liquidation path.
+     */
+    function partialLiquidate(address hook, PoolKey calldata key, address trader, uint256 minAmountOut, uint256 liquidationBps)
+        external
+    {
+        manager.unlock(
+            abi.encode(CallType.PARTIAL_LIQUIDATION, hook, key, trader, minAmountOut, liquidationBps, msg.sender)
+        );
     }
 
     /**

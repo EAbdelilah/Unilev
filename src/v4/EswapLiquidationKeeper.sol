@@ -32,6 +32,12 @@ contract EswapLiquidationKeeper is Ownable {
     EswapMarginHook public immutable hook;
     EswapRouter public immutable router;
 
+    // [P1#4] Upper bound on the owner-managed watch list so gas doesn't grow
+    // unboundedly on checkUpkeep/liquidateAll. 200 positions is a full day of
+    // partial-fill liquidations; off-chain discovery via checkData stays
+    // permissionless and uncapped (anyone may submit arbitrary candidate lists).
+    uint256 public constant MAX_WATCHES = 200;
+
     // Oracle-derived slippage tolerance applied when quoting minAmountOut.
     uint256 public slippageBps = 500; // 5% buffer
 
@@ -50,6 +56,7 @@ contract EswapLiquidationKeeper is Ownable {
 
     error PositionNotWatched();
     error AlreadyWatched();
+    error MaxWatchesReached(uint256 max);
     error NoLiquidatablePositions();
 
     constructor(address _hook, address _router) Ownable(msg.sender) {
@@ -76,6 +83,7 @@ contract EswapLiquidationKeeper is Ownable {
     }
 
     function addWatch(PoolKey calldata key, address trader) external onlyOwner validKey(key) {
+        if (watches.length >= MAX_WATCHES) revert MaxWatchesReached(MAX_WATCHES);
         bytes32 id = _watchId(key, trader);
         if (isWatched[id]) revert AlreadyWatched();
         watches.push(Watch(key, trader));
@@ -167,16 +175,17 @@ contract EswapLiquidationKeeper is Ownable {
      *                  liquidatable positions with their oracle-quoted minAmountOut.
      */
     function checkUpkeep(bytes calldata checkData) external view returns (bool upkeepNeeded, bytes memory performData) {
-        PoolKey[] memory keys = new PoolKey[](watches.length);
-        address[] memory traders = new address[](watches.length);
-        uint256 candidates = 0;
+        uint256 len = watches.length; // [P2#10] cache-array-length (ID-278)
+        uint256 candidates;
 
+        PoolKey[] memory keys;
+        address[] memory traders;
         if (checkData.length > 0) {
             (PoolKey[] memory scanKeys, address[] memory scanTraders) = abi.decode(checkData, (PoolKey[], address[]));
-            uint256 n = scanKeys.length;
-            keys = new PoolKey[](n);
-            traders = new address[](n);
-            for (uint256 i = 0; i < n; i++) {
+            len = scanKeys.length;
+            keys = new PoolKey[](len);
+            traders = new address[](len);
+            for (uint256 i = 0; i < len; i++) {
                 if (_isLiquidatable(scanKeys[i], scanTraders[i])) {
                     keys[candidates] = scanKeys[i];
                     traders[candidates] = scanTraders[i];
@@ -184,7 +193,10 @@ contract EswapLiquidationKeeper is Ownable {
                 }
             }
         } else {
-            for (uint256 i = 0; i < watches.length; i++) {
+            if (len == 0) return (false, "");
+            keys = new PoolKey[](len);
+            traders = new address[](len);
+            for (uint256 i = 0; i < len; i++) {
                 if (_isLiquidatable(watches[i].key, watches[i].trader)) {
                     keys[candidates] = watches[i].key;
                     traders[candidates] = watches[i].trader;
@@ -221,16 +233,31 @@ contract EswapLiquidationKeeper is Ownable {
 
     /**
      * @notice Permissionless: liquidates every liquidatable position in the watch list.
-     * @return count Number of liquidations executed.
+     * @dev [P1#4] The watch list is NOT cleared: entries persist across races so a
+     *      later round can still catch positions that weren't liquidatable yet, and
+     *      after a position is gone the index simply reports 0. The returned array
+     *      is indexed 1:1 with `watches` (1 = this round's liquidation succeeded,
+     *      0 = skipped/failed/already gone), so bots can reconcile the outcome of
+     *      every watched slot without relying on event replay.
+     * @return liquidated Per-index flag (uint256 0/1) aligned with `watches`.
      */
-    function liquidateAll() external returns (uint256 count) {
-        for (uint256 i = 0; i < watches.length; i++) {
+    function liquidateAll() external returns (uint256[] memory liquidated) {
+        uint256 len = watches.length; // [P2#10] cache-array-length (ID-279)
+        liquidated = new uint256[](len);
+        uint256 done;
+        for (uint256 i = 0; i < len; i++) {
             if (_isLiquidatable(watches[i].key, watches[i].trader)) {
-                if (_tryLiquidate(watches[i].key, watches[i].trader)) count++;
+                if (_tryLiquidate(watches[i].key, watches[i].trader)) {
+                    liquidated[i] = 1;
+                    done++;
+                }
             }
         }
-        if (count == 0) revert NoLiquidatablePositions();
-        return count;
+        // Keep the old NoLiquidatablePositions guard: a batched call where nothing
+        // was liquidatable is almost always a stale/duplicate keeper invocation, so
+        // reverting (rather than silently returning all-zero) signals that loudly.
+        if (done == 0) revert NoLiquidatablePositions();
+        return liquidated;
     }
 
     /**

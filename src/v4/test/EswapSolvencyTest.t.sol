@@ -116,15 +116,15 @@ contract EswapSolvencyTest is BaseV4Test {
         (address trader, uint256 collateral,,,,,,,) = hook.positions(key.toId(), address(this));
         assertEq(trader, address(0));
         assertEq(collateral, 0);
-        // [FIX H-5] The liquidator earns the 3% liquidation reward OUT of the
-        // recovered surplus (incentivising keepers); the trader keeps the
-        // remainder. Here the trader happens to liquidate themselves, so BOTH
-        // flows pay to this address: 0.03 (liquidator) + 0.97 (trader) = 1 ether.
+        // [FIX H-5b] The 3% liquidation reward is credited to the insurance fund
+        // regardless of who triggers the liquidation. The trader keeps the
+        // remaining 97% of the surplus; insurance books the 3% (0.03 ether).
         assertEq(
-            token0.balanceOf(address(this)) - traderBalBefore, 1 ether,
-            "liquidator reward + trader surplus both reach the caller"
+            token0.balanceOf(address(this)) - traderBalBefore,
+            0.97 ether,
+            "trader keeps 97% of the surplus; 3% goes to the insurance fund"
         );
-        assertEq(hook.insuranceFund(key.currency0), 0, "nothing carved out to the insurance fund");
+        assertEq(hook.insuranceFund(key.currency0), 0.03 ether, "3% liquidation reward lands in the insurance fund");
 
         // No phantom ERC-6909 claim or collateral aggregate should remain after liquidation
         assertEq(hook._claimBalances(address(this), claimId), 0, "claim balance not cleared on liquidation");

@@ -63,8 +63,8 @@ contract ForkPriceFeedMock is IPriceFeed {
 ///   -> a MEV-inflated minAmountOut reverts without damaging the position
 ///   (retryable) -> permissionless keeper liquidation burns the band OUT OF THE
 ///   LIVE POOL, unwinds against real venue liquidity, repays the solver
-///   principal exactly, routes the 3% keeper reward to the liquidator (no
-///   insurance carve-out) and the remainder to the trader.
+///   principal exactly, credits the 3% liquidation reward to the insurance
+///   fund and pays the remainder to the trader (no liquidator carve-out).
 ///
 /// Scenario B (test_Fork_Liquidation_RealAdverseMove_UnwindsBand):
 ///   the REAL deep-pool price is pushed DOWN toward the band with a genuine
@@ -365,8 +365,8 @@ minAmountOut: 0
     }
 
 /// @dev Common post-liquidation battery: position zeroed, band burned from
-    ///      the LIVE pool, solver made exactly whole, [FIX H-5] keeper reward ==
-    ///      3% of post-solver surplus (no insurance carve-out), trader gets the
+///      the LIVE pool, solver made exactly whole, insurance fund receives the
+///      3% liquidation reward (no liquidator carve-out), trader gets the
     ///      rest, no stray tokens.
     function _assertLiquidatedCleanly(
         uint256 borrowedAtOpen,
@@ -393,7 +393,7 @@ minAmountOut: 0
         uint256 traderGot = RealIERC20(quote).balanceOf(trader) - traderQuoteBefore;
         uint256 keeperGot = RealIERC20(quote).balanceOf(keeper) - keeperQuoteBefore;
         uint256 insuranceGot = hook.insuranceFund(Currency.wrap(quote)) - insuranceBefore;
-        uint256 received = solverGot + traderGot + keeperGot;
+        uint256 received = solverGot + traderGot + insuranceGot + keeperGot;
 
         // Solver repaid exactly the registered principal (borrowed leg, 0% interest).
         assertEq(solverGot, borrowedAtOpen, "solver made exactly whole");
@@ -404,13 +404,13 @@ minAmountOut: 0
             received, liveExpectedOut, liveExpectedOut * 3 / 100 + 1000, "proceeds near LIVE-price expectation"
         );
 
-        // [FIX H-5] The keeper (liquidator) earns exactly floor(3% of the
-        // post-solver surplus) — the liquidation incentive — and NO insurance
-        // carve-out is minted.
+        // [FIX H-5b] The insurance fund earns exactly floor(3% of the
+        // post-solver surplus), whoever triggers the liquidation — the
+        // liquidator itself is NOT paid.
+        assertEq(keeperGot, 0, "liquidator is not paid; 3% carves to insurance");
         assertEq(
-            keeperGot, FullMath.mulDiv(traderGot + keeperGot, 300, 10000), "keeper reward == 3% of surplus"
+            insuranceGot, FullMath.mulDiv(traderGot + insuranceGot, 300, 10000), "insurance gets 3% of surplus"
         );
-        assertEq(insuranceGot, 0, "no insurance carve-out");
         assertGt(traderGot, 0, "trader residual positive");
 
         // No unbounded token residue in the hook. Residue observed on live
@@ -506,6 +506,7 @@ console2.log(
             RealIERC20(quote).balanceOf(trader) - traderQuoteBefore
                 + (RealIERC20(quote).balanceOf(solver) - solverQuoteBefore)
                 + (RealIERC20(quote).balanceOf(keeper) - keeperQuoteBefore)
+                + (hook.insuranceFund(Currency.wrap(quote)) - insuranceBefore)
         );
     }
 

@@ -95,13 +95,13 @@ contract EswapLiquidationKeeperTest is BaseV4Test {
         (address trader, uint256 collateral,,,,,,,) = hook.positions(key.toId(), address(this));
         assertEq(trader, address(0), "position should be liquidated");
         assertEq(collateral, 0);
-        // [FIX H-5] The keeper (as the liquidator) earns the 3% reward — keepers MUST
-        // be incentivised to liquidate. Surplus = 30 received − 20 repaid = 10,
-        // reward = 3% = 0.3 ether lands with the keeper contract itself.
-        assertEq(token0.balanceOf(address(keeper)), 0.3 ether, "keeper earns the liquidation reward");
+        // [FIX H-5b] The 3% liquidation reward is routed EXCLUSIVELY to the
+        // insurance fund, whoever triggers the liquidation. Surplus =
+        // 30 received − 20 repaid = 10, reward = 3% = 0.3 ether lands in
+        // the insurance fund; the executing keeper is not paid.
+        assertEq(token0.balanceOf(address(keeper)), 0, "liquidator is not paid; reward goes to insurance");
         assertEq(token0.balanceOf(address(automation)), 0, "automation (trigger) writes nothing");
-        // No carve-out to the insurance fund anymore.
-        assertEq(hook.insuranceFund(key.currency0), 0, "no insurance carve-out");
+        assertEq(hook.insuranceFund(key.currency0), 0.3 ether, "3% liquidation reward lands in the insurance fund");
     }
 
     function test_Keeper_CheckData_OffChainCandidates() public {
@@ -130,12 +130,61 @@ contract EswapLiquidationKeeperTest is BaseV4Test {
         _makeLiquidatable();
         keeper.addWatch(key, address(this));
 
-        uint256 count = keeper.liquidateAll();
-        assertEq(count, 1);
+        uint256[] memory liquidated = keeper.liquidateAll();
+        assertEq(liquidated.length, keeper.watchesLength(), "array is 1:1 with the watch list");
+        assertEq(liquidated[0], 1, "watched slot was liquidated this round");
 
         (address trader, uint256 collateral,,,,,,,) = hook.positions(key.toId(), address(this));
         assertEq(trader, address(0));
         assertEq(collateral, 0);
+
+        // [P1#4] The watch persists across races (nothing deleted on success):
+        // a second call must not double-liquidate, but the slot still reports 0.
+        vm.expectRevert(EswapLiquidationKeeper.NoLiquidatablePositions.selector);
+        keeper.liquidateAll();
+    }
+
+    function test_Keeper_MaxWatches_Cap() public {
+        // 200 legal watches fill the list...
+        for (uint256 i = 0; i < 200; i++) {
+            keeper.addWatch(key, address(uint160(0x1000 + i)));
+        }
+        assertEq(keeper.watchesLength(), 200);
+        // ...the 201st is rejected.
+        vm.expectRevert(abi.encodeWithSelector(EswapLiquidationKeeper.MaxWatchesReached.selector, 200));
+        keeper.addWatch(key, address(uint160(0x9999)));
+        assertEq(keeper.watchesLength(), 200);
+    }
+
+    function test_Keeper_Race_DoubleLiquidate_SecondWins() public {
+        _openShort();
+        _makeLiquidatable();
+        keeper.addWatch(key, address(this));
+
+        // Keeper A liquidates the position...
+        uint256[] memory first = keeper.liquidateAll();
+        assertEq(first[0], 1);
+
+        // Keeper B races the SAME slot afterwards: the position is gone, so the
+        // attempt is a reported 0 / NoLiquidatablePositions — never a revert the
+        // automation cannot handle, never a double payout.
+        vm.expectRevert(EswapLiquidationKeeper.NoLiquidatablePositions.selector);
+        keeper.liquidateAll();
+
+        // Single-position entrypoint behaves identically: no splash revert.
+        vm.expectRevert(EswapLiquidationKeeper.PositionNotLiquidatable.selector);
+        keeper.liquidate(key, address(this));
+    }
+
+    function test_Keeper_Watch_Persists_After_Liquidation() public {
+        _openShort();
+        _makeLiquidatable();
+        keeper.addWatch(key, address(this));
+        keeper.liquidateAll();
+        // [P1#4] The watch survives so the slot can be re-checked / pruned by the
+        // owner at leisure; it is NOT an on-chain enumeration, just a flag list.
+        assertEq(keeper.watchesLength(), 1, "watch list is not emptied on liquidation");
+        assertTrue(keeper.isWatched(keccak256(abi.encode(key.toId(), address(this)))));
     }
 
     function test_Keeper_NoLiquidatablePositions_Reverts() public {

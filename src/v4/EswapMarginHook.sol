@@ -96,12 +96,32 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     /// @dev First-word tag of self-wrapped `deployCollateral` unlock payloads.
     ///      Must match the constant in EswapMarginHookLogic.
     uint256 private constant DEPLOY_TAG = uint256(keccak256("DEPLOY_COLLATERAL"));
+    // [P1#6] Self-wrapped unlock tags for insurance LP staking. Must match the
+    //      constants in EswapMarginHookLogic.
+    uint256 private constant INSURANCE_STAKE_TAG = uint256(keccak256("INSURANCE_STAKE"));
+    uint256 private constant INSURANCE_UNSTAKE_TAG = uint256(keccak256("INSURANCE_UNSTAKE"));
 
     event BaseCurrencySet(PoolId indexed poolId, Currency currency);
     event TradingPairRegistered(PoolId indexed poolId, Currency base, PoolKey standardKey);
     event AddressProtocolFeeSet(address indexed account, uint256 bps);
     event MultiPoolMarginOpened(
         PoolId indexed poolId, address indexed trader, uint8 leverage, uint256 marginAmount, uint256 boughtAmount
+    );
+    event InsuranceStaked(
+        PoolId indexed poolId,
+        Currency currency0,
+        uint256 funded0,
+        Currency currency1,
+        uint256 funded1,
+        uint128 liquidity
+    );
+    event InsuranceUnstaked(
+        PoolId indexed poolId,
+        Currency currency0,
+        uint256 returned0,
+        Currency currency1,
+        uint256 returned1,
+        uint128 liquidity
     );
     event ResidueSwept(Currency indexed currency, address indexed to, uint256 amount);
     event EmergencyPauseToggled(bool indexed paused);
@@ -229,6 +249,18 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     }
     // Per-pool leverage cap (0 = use defaultMaxLeverage)
     mapping(PoolId => uint8) public maxLeverageByPool;
+
+    event MaxLeverageForPoolSet(PoolId indexed poolId, uint8 leverage);
+
+    /// @notice Owner-only per-pool leverage override. `0` clears the override so
+    ///         the pool falls back to `defaultMaxLeverage`. Bounds mirror the
+    ///         default (2..20) validated in `configure`. [P2#9] provides the
+    ///         setter the storage comment promised; read via `_maxLeverageForPool`.
+    function setMaxLeverageForPool(PoolId poolId, uint8 leverage) external onlyOwner {
+        if (leverage != 0 && (leverage < 2 || leverage > 20)) revert InvalidLeverageRange();
+        emit MaxLeverageForPoolSet(poolId, leverage);
+        maxLeverageByPool[poolId] = leverage;
+    }
     uint256 public constant LIQUIDATION_REWARD_BPS = 300; // 3% of recovered output routed to insurance fund
     uint256 public constant MIN_COLLATERAL = 0.01 ether;
     // USD-denominated collateral floor override (18-decimals, e.g. 200000 = $0.20).
@@ -409,6 +441,29 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     bool public requireStandardPoolKey;
     // [FIX C-9] Per-currency cooldown for withdrawInsuranceFund (1 withdrawal/day).
     mapping(Currency => uint256) public lastInsuranceWithdrawal;
+    // [P1#6] Yield-bearing insurance: idle insurance claims staked as full-range
+    // LP liquidity in the deep standard pool accrue swap fees. Ledgers keep the
+    // staked share bounded (INSURANCE_STAKE_MAX_BPS) so shortfall coverage always
+    // has claim-backed funds available.
+    mapping(PoolId => uint128) public insuranceStakedLiquidity;
+    mapping(Currency => uint256) public insuranceStaked;
+    mapping(PoolId => mapping(Currency => uint256)) public insuranceStakedInPool;
+    mapping(PoolId => int24) public insuranceTickLower;
+    mapping(PoolId => int24) public insuranceTickUpper;
+    // [P2#8] Optional direct liquidator incentive: bps of the post-solver
+    // liquidation surplus paid DIRECTLY to the liquidator (debt currency) before
+    // the insurance credit/trader payout. 0 = insurance-only routing (H-5b).
+    // Declared AFTER everything mirrored so the storage layout stays in lockstep
+    // with EswapMarginHookLogic (read by the delegatecall'd settlement).
+    uint256 public liquidatorIncentiveBps;
+
+    event LiquidatorIncentiveSet(uint256 oldBps, uint256 newBps);
+
+    function setLiquidatorIncentiveBps(uint256 bps) external onlyOwner {
+        require(bps < 10000, "incentive out of range");
+        emit LiquidatorIncentiveSet(liquidatorIncentiveBps, bps);
+        liquidatorIncentiveBps = bps;
+    }
 
     function withdrawInsuranceFund(Currency currency, address to, uint256 amount) external onlyOwner {
         // [FIX C-9] Cooldown prevents repeated 50%-cap drains that could gut the
@@ -996,6 +1051,15 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         return EswapMarginLib.isLiquidatable(collateralValueUsd, borrowedValueUsd, pos.leverage);
     }
 
+    /// @notice [P0#2] Storage-backed convenience for external trigger-order
+    ///         keepers: resolves collateral/debt currencies internally and reports
+    ///         whether the trader's position is CURRENTLY liquidatable. False also
+    ///         when no position exists (callers read `positions()` separately to
+    ///         distinguish "no position" from "healthy").
+    function isPositionLiquidatable(PoolKey calldata key, address trader) external view returns (bool) {
+        return isLiquidatable(positions[key.toId()][trader], key);
+    }
+
     function rebalancePosition(PoolKey calldata key, address trader) external onlyRouter {
         _delegateToLogic();
     }
@@ -1022,6 +1086,18 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         external
         onlyRouter
     {
+        _delegateToLogic();
+    }
+
+    /// @notice [P1#3] Liquidates a proportional slice (`liquidationBps`, 1-9999)
+    ///         of an underwater position while keeping the remainder open.
+    function partialLiquidation(
+        PoolKey calldata key,
+        address trader,
+        uint256 minAmountOut,
+        address liquidator,
+        uint256 liquidationBps
+    ) external onlyRouter {
         _delegateToLogic();
     }
 
@@ -1093,6 +1169,18 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     }
 
     function deployCollateral(PoolKey calldata key, address trader) external onlyRouterOrManager {
+        _delegateToLogic();
+    }
+
+    // [P1#6] Owner-triggered yield-bearing insurance: stake idle insurance claims
+    // as full-range LP liquidity in the deep standard pool (see logic) and
+    // unstake/harvest. Delegated to EswapMarginHookLogic which self-wraps the
+    // PoolManager unlock if called outside one.
+    function insuranceStake(PoolKey calldata standardKey, uint128 maxLiquidity) external onlyOwner {
+        _delegateToLogic();
+    }
+
+    function insuranceUnstake(PoolKey calldata standardKey, uint128 liquidity) external onlyOwner {
         _delegateToLogic();
     }
 
@@ -1234,6 +1322,24 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
             }
             return "";
         }
+        if (uint256(firstWord) == INSURANCE_STAKE_TAG) {
+            (, PoolKey memory key, uint128 maxLiquidity) = abi.decode(data, (uint256, PoolKey, uint128));
+            (bool ok, bytes memory ret) = address(hookLogic)
+                .delegatecall(abi.encodeCall(EswapMarginHookLogic.insuranceStake, (key, maxLiquidity)));
+            if (!ok) {
+                assembly ("memory-safe") { revert(add(ret, 32), mload(ret)) }
+            }
+            return "";
+        }
+        if (uint256(firstWord) == INSURANCE_UNSTAKE_TAG) {
+            (, PoolKey memory key, uint128 liquidity) = abi.decode(data, (uint256, PoolKey, uint128));
+            (bool ok, bytes memory ret) =
+                address(hookLogic).delegatecall(abi.encodeCall(EswapMarginHookLogic.insuranceUnstake, (key, liquidity)));
+            if (!ok) {
+                assembly ("memory-safe") { revert(add(ret, 32), mload(ret)) }
+            }
+            return "";
+        }
         (Currency currency, int128 delta, bool isTake) = abi.decode(data, (Currency, int128, bool));
         if (isTake) {
             // [FIX C-3] On the real PoolManager, take() alone records a negative
@@ -1290,7 +1396,8 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         if (
             sig != this.closePosition.selector && sig != this.executeLiquidation.selector
                 && sig != this.rebalancePosition.selector && sig != this.deployCollateral.selector
-                && sig != this.registerMarginOpen.selector
+                && sig != this.registerMarginOpen.selector && sig != this.partialLiquidation.selector
+                && sig != this.insuranceStake.selector && sig != this.insuranceUnstake.selector
         ) {
             revert UnsupportedFeature();
         }

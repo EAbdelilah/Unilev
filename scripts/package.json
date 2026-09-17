@@ -1,0 +1,23 @@
+{
+  "name": "eswap-zero-treasury",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Eswap Zero-Treasury solver engine and aggregator execution pipeline (Unichain, Chain ID 130)",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "cow:bot": "tsx scripts/solvers/cowSolverBot.ts",
+    "cow:bridge": "tsx scripts/adapters/aggregatorCowBridge.ts --watch",
+    "relayer": "tsx scripts/relayers/erc7683Relayer.ts",
+    "test:ztinvariants": "forge test --via-ir --match-path \"test/ZeroTreasuryInvariants.t.sol\""
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "viem": "^2.22.12"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}
