@@ -15,6 +15,20 @@ contract ERC20Mock is ERC20 {
     }
 }
 
+contract ERC20Mock6Decimals is ERC20 {
+    constructor(string memory name, string memory symbol) ERC20(name, symbol) {
+        _mint(msg.sender, 1_000_000 * 1e6);
+    }
+
+    function decimals() public pure override returns (uint8) {
+        return 6;
+    }
+
+    function mint(address to, uint256 amount) external {
+        _mint(to, amount);
+    }
+}
+
 contract PriceFeedMock {
     mapping(address => uint256) public prices;
 
@@ -313,5 +327,54 @@ contract ArbunPutOptionTest is Test {
 
         assertEq(usdc.balanceOf(feeRecipient), feeAmt);
         assertEq(optionContract.ujrahCollected(address(usdc)), 0);
+    }
+
+    function test_OpenAndExerciseHalalShort_USDC_6Decimals() public {
+        ERC20Mock6Decimals usdc6 = new ERC20Mock6Decimals("USD Coin", "USDC");
+        priceFeed.setPrice(address(weth), 3000 * 1e18);
+
+        // For 1 WETH at $3000:
+        // Downpayment: 10% = 300 USDC = 300 * 1e6 = 300_000_000
+        // Ujrah fee: 1% = 30 USDC = 30 * 1e6 = 30_000_000
+        // Total collect: 330 USDC = 330 * 1e6 = 330_000_000
+        uint256 totalCollect = 330 * 1e6;
+        usdc6.mint(trader, totalCollect);
+
+        vm.startPrank(trader);
+        usdc6.approve(address(optionContract), totalCollect);
+        uint256 optionId = optionContract.openHalalShort(address(weth), address(usdc6), 1 ether, 1 days);
+        vm.stopPrank();
+
+        assertEq(optionId, 1);
+        assertEq(usdc6.balanceOf(trader), 0);
+        assertEq(usdc6.balanceOf(address(optionContract)), totalCollect);
+        assertEq(optionContract.ujrahCollected(address(usdc6)), 30 * 1e6);
+
+        // Seed Takaful fund with 10,000 USDC (6 decimals)
+        uint256 seedAmt = 10_000 * 1e6;
+        usdc6.mint(provider, seedAmt);
+        vm.startPrank(provider);
+        usdc6.approve(address(optionContract), seedAmt);
+        optionContract.seedTakafulFund(address(usdc6), seedAmt);
+        vm.stopPrank();
+
+        // Price drops to $2,000
+        priceFeed.setPrice(address(weth), 2000 * 1e18);
+
+        // Trader acquires 1 WETH and delivers it
+        weth.mint(trader, 1 ether);
+        vm.startPrank(trader);
+        weth.approve(address(optionContract), 1 ether);
+        optionContract.exerciseHalalShort(optionId);
+        vm.stopPrank();
+
+        // Trader receives full locked value: 3,000 USDC = 3000 * 1e6
+        assertEq(usdc6.balanceOf(trader), 3000 * 1e6);
+
+        // Takaful fund covered 2700 USDC (3000 - 300 downpayment)
+        assertEq(optionContract.takafulFund(address(usdc6)), (10_000 - 2700) * 1e6);
+
+        // Contract physically holds the delivered 1 WETH
+        assertEq(weth.balanceOf(address(optionContract)), 1 ether);
     }
 }

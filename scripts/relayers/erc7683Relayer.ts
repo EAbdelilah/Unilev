@@ -40,11 +40,12 @@ import {
     type PublicClient,
     type WalletClient,
 } from "viem";
-import { createClients, loadNetworkConfig, chainRpcUrl, ETH_MAINNET, ARBITRUM_ONE, BASE } from "../lib/config.js";
+import { createClients, loadNetworkConfig, chainRpcUrl, ETH_MAINNET, ARBITRUM_ONE, BASE, type ChainClients } from "../lib/config.js";
 import { crossChainOrderEvent, erc20Abi, settlementAbi } from "../lib/abis.js";
 import {
     type CrossChainOrderEvent,
     type SwapParamsData,
+    type PoolKey,
 } from "../lib/types.js";
 
 const ORIGIN_CHAINS: Array<{ chainId: number; name: string }> = [
@@ -67,11 +68,7 @@ interface RelayerState {
 
 export class Erc7683Relayer {
     private readonly cfg = loadNetworkConfig();
-    private readonly destClients: {
-        publicClient: PublicClient<HttpTransport, Chain, Account>;
-        walletClient: WalletClient<HttpTransport, Chain, Account>;
-        account: Account;
-    };
+    private readonly destClients: ChainClients;
     private readonly origins: OriginChain[];
     private readonly stateFile: string;
     private readonly processed = new Set<string>();
@@ -80,8 +77,7 @@ export class Erc7683Relayer {
     constructor() {
         const privateKey = process.env.RELAYER_PRIVATE_KEY;
         if (!privateKey) throw new Error("Missing RELAYER_PRIVATE_KEY");
-        const dw = createClients(this.cfg, privateKey);
-        this.destClients = { publicClient: dw.publicClient, walletClient: dw.walletClient, account: dw.account };
+        this.destClients = createClients(this.cfg, privateKey);
 
         this.origins = ORIGIN_CHAINS.map(({ chainId, name }) => {
             const rpcUrl = chainRpcUrl(`ORIGIN_RPC_${chainId}`, chainId);
@@ -124,9 +120,16 @@ export class Erc7683Relayer {
             "((address,address,uint24,int24,address) key,(address,address,uint24,int24,address) standardPoolKey,bool zeroForOne,int256 amountSpecified,uint8 leverage,address solver,bytes hookData,uint256 minAmountOut)",
         );
         const [swap] = decodeAbiParameters(params, originData);
+        const toPoolKey = (tuple: readonly [Address, Address, number, number, Address]): PoolKey => ({
+            currency0: tuple[0],
+            currency1: tuple[1],
+            fee: tuple[2],
+            tickSpacing: tuple[3],
+            hooks: tuple[4],
+        });
         return {
-            key: swap.key,
-            standardPoolKey: swap.standardPoolKey,
+            key: toPoolKey(swap.key),
+            standardPoolKey: toPoolKey(swap.standardPoolKey),
             zeroForOne: swap.zeroForOne,
             amountSpecified: swap.amountSpecified,
             leverage: Number(swap.leverage),

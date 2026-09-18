@@ -18,7 +18,7 @@ contract PausableTest is TestSetup {
     function test_OnlyOwnerCanUnpause() public {
         vm.prank(deployer);
         market.pause();
-        vm.prank(alice);
+        vm.prank(alice)  ;
         vm.expectRevert();
         market.unpause();
     }
@@ -37,13 +37,16 @@ contract PausableTest is TestSetup {
     }
 
     function test_Pause_ClosePositionReverts() public {
-        address token0 = conf.supportedTokens[0].token;
-        address token1 = conf.supportedTokens[1].token;
-        deal(token0, alice, 1000e6);
+        address token0 = conf.supportedTokens[0].token; // WBTC (8 decimals)
+        address token1 = conf.supportedTokens[1].token; // WETH (18 decimals)
+        // Long(WBTC, WETH) borrows WETH from the pool — seed WETH liquidity
+        depositLiquidity(token1, 100e18);
+        deal(token0, alice, 1e8); // 1 WBTC
         vm.prank(alice);
-        IERC20(token0).approve(address(market), 1000e6);
+        // Positions.openLongPosition does the transferFrom — approve positions, not market
+        IERC20(token0).approve(address(positions), 1e8);
         vm.prank(alice);
-        market.openLongPosition(token0, token1, 3000, 2, 10e6, 0, 0);
+        market.openLongPosition(token0, token1, 3000, 2, 1e6, 0, 0); // 0.01 WBTC collateral
         vm.prank(deployer);
         market.pause();
         vm.prank(alice);
@@ -60,28 +63,35 @@ contract PausableTest is TestSetup {
     }
 
     function test_Unpause_ReactivatesOperations() public {
-        address token0 = conf.supportedTokens[0].token;
-        address token1 = conf.supportedTokens[1].token;
-        deal(token0, alice, 1000e6);
+        address token0 = conf.supportedTokens[0].token; // WBTC (8 decimals)
+        address token1 = conf.supportedTokens[1].token; // WETH (18 decimals)
+        // Long(WBTC, WETH) borrows WETH from the pool — seed WETH liquidity
+        depositLiquidity(token1, 100e18);
+        deal(token0, alice, 1e8); // 1 WBTC
         vm.prank(alice);
-        IERC20(token0).approve(address(market), 1000e6);
+        // Positions.openLongPosition does the transferFrom — approve positions, not market
+        IERC20(token0).approve(address(positions), 1e8);
         vm.prank(deployer);
         market.pause();
         vm.prank(deployer);
         market.unpause();
         vm.prank(alice);
-        market.openLongPosition(token0, token1, 3000, 2, 10e6, 0, 0);
+        market.openLongPosition(token0, token1, 3000, 2, 1e6, 0, 0); // 0.01 WBTC collateral
     }
 
+    /// @dev OZ Pausable reverts with EnforcedPause() on double-pause — verify correct error
     function test_DoublePause_Idempotent() public {
         vm.prank(deployer);
         market.pause();
         vm.prank(deployer);
+        vm.expectRevert(abi.encodeWithSignature("EnforcedPause()"));
         market.pause();
     }
 
+    /// @dev OZ Pausable reverts with ExpectedPause() when unpausing while not paused
     function test_UnpauseWhenNotPaused_Idempotent() public {
         vm.prank(deployer);
+        vm.expectRevert(abi.encodeWithSignature("ExpectedPause()"));
         market.unpause();
     }
 

@@ -106,7 +106,7 @@ contract ZeroTreasuryInvariants is Test {
     // ─── Setup ─────────────────────────────────────────────────────────────
 
     function setUp() public {
-        treasury = address(0xE5A11CE000000000000000000000000000000000001);
+        treasury = makeAddr("treasury");
         string memory rpcUrl = vm.envOr("UNICHAIN_RPC_URL", string(""));
         if (bytes(rpcUrl).length == 0) return;
         vm.createSelectFork(rpcUrl);
@@ -209,8 +209,8 @@ contract ZeroTreasuryInvariants is Test {
         quoter.registerPool(UNICHAIN_USDC, UNICHAIN_WETH, 3000, hookLocalKey, standardLocalKey);
         quoter.registerPool(UNICHAIN_WETH, UNICHAIN_USDC, 3000, hookLocalKey, standardLocalKey);
 
-        solver = address(0x5001C60D00000000000000000000000000000001);
-        relayer = address(0x5001C60D00000000000000000000000000000002);
+        solver = makeAddr("solver");
+        relayer = makeAddr("relayer");
         router.setSolverWhitelist(solver, true);
         router.setSolverWhitelist(address(settlement), true);
 
@@ -397,7 +397,7 @@ contract ZeroTreasuryInvariants is Test {
         if (!rpcAvailable) return;
         for (uint256 i = 0; i < openRecords.length; i++) {
             OpenRecord storage rec = openRecords[i];
-            bytes32 poolId = hookLocalKey.toId();
+            PoolId poolId = hookLocalKey.toId();
             (address debtSolver, uint256 principal,) = hook.solverDebts(poolId, rec.trader, rec.solverOf);
             (, uint256 collateral, uint256 borrowed, , , , , , ) = hook.positions(poolId, rec.trader);
             if (collateral == 0 && borrowed == 0) continue; // fully unwound
@@ -497,21 +497,21 @@ contract LpSeeder is IUnlockCallback {
         view
         returns (uint128)
     {
-        uint160 sa = TickMath.getSqrtRatioAtTick(tl);
-        uint160 sb = TickMath.getSqrtRatioAtTick(tu);
+        uint160 sa = TickMath.getSqrtPriceAtTick(tl);
+        uint160 sb = TickMath.getSqrtPriceAtTick(tu);
         (uint160 s,,,) = StateLibrary.getSlot0(pm, key.toId());
 
         if (s <= sa) {
-            return FullMath.toUint128(FullMath.mulDiv(amount1, 1 << 96, uint256(sb) - sa));
+            return uint128(FullMath.mulDiv(amount1, 1 << 96, uint256(sb) - sa));
         }
         if (s >= sb) {
-            return FullMath.toUint128(
+            return uint128(
                 FullMath.mulDiv(amount0, FullMath.mulDiv(uint256(sa), uint256(sb), 1 << 96), uint256(sb) - sa)
             );
         }
         // in range: L0 and L1 both constrain; take the minimum.
         uint256 l0 = FullMath.mulDiv(amount0, FullMath.mulDiv(uint256(sa), uint256(sb), 1 << 96), uint256(sb) - sa);
         uint256 l1 = FullMath.mulDiv(amount1, 1 << 96, uint256(sb) - uint256(s));
-        return FullMath.toUint128(l0 < l1 ? l0 : l1);
+        return uint128(l0 < l1 ? l0 : l1);
     }
 }

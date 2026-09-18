@@ -38,6 +38,23 @@ function logHeader(title) {
 async function main() {
     const { provider, wallet, hook, router, pf, hookAddr, routerAddr, keeperAddr, solverAddr, ETH, USDC } = setup()
 
+    const nextNonce = async () => await provider.getTransactionCount(wallet.address, "pending")
+    async function send(promise) {
+        try { return await promise } catch (e) {
+            const msg = String((e?.error?.message) || e?.message || "")
+            if ((e?.code === "UNKNOWN_ERROR" || e?.code === "NONCE_EXPIRED") && /already known/i.test(msg)) {
+                const raw = e?.payload?.params?.[0]
+                if (raw) {
+                    const hash = ethers.Transaction.from(raw).hash
+                    console.log(`  (tx ${hash.slice(0, 18)}… already in mempool — awaiting)`)
+                    await provider.waitForTransaction(hash)
+                    return { hash, wait: async () => provider.waitForTransaction(hash) }
+                }
+            }
+            throw e
+        }
+    }
+
     const keeperAbi = [
         "function hook() view returns (address)",
         "function router() view returns (address)",
@@ -55,24 +72,10 @@ async function main() {
     console.log(`Router:            ${routerAddr}`)
     console.log(`Keeper:            ${keeperAddr}`)
 
-    const poolKey = {
-        currency0: ETH,
-        currency1: USDC,
-        fee: 500,
-        tickSpacing: 10,
-        hooks: hookAddr
-    }
-    const standardPoolKey = {
-        currency0: ETH,
-        currency1: USDC,
-        fee: 500,
-        tickSpacing: 10,
-        hooks: ethers.ZeroAddress
-    }
-    const poolId = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(
-        ['address','address','uint24','int24','address'],
-        [ETH, USDC, 500, 10, hookAddr]
-    ))
+    const { HOOK_POOL_KEY, STANDARD_POOL_KEY, poolId: getPoolId } = require("./poolKeys")
+    const poolKey = HOOK_POOL_KEY
+    const standardPoolKey = STANDARD_POOL_KEY
+    const poolId = getPoolId(HOOK_POOL_KEY)
 
     let totalTests = 0
     let passedTests = 0
@@ -106,11 +109,11 @@ async function main() {
     // ─────────────────────────────────────────────────────────────
     // TEST SUITE 2: Full LONG Position Lifecycle (5x Leverage)
     // ─────────────────────────────────────────────────────────────
-    logHeader("2. Live 5x Long Position Lifecycle on ETH/USDC")
-    const longLeverage = 5
-    const longMargin = ethers.parseUnits("0.02", 6) // $0.02 USDC margin
-    const longBorrow = longMargin * BigInt(longLeverage - 1) // $0.08 USDC borrow
-    const longNotional = longMargin + longBorrow // $0.10 USDC notional
+    logHeader("2. Live 3x Long Position Lifecycle on ETH/USDC")
+    const longLeverage = 3
+    const longMargin = ethers.parseUnits("0.06", 6) // $0.06 > $0.05 minCollateral floor
+    const longBorrow = longMargin * BigInt(longLeverage - 1)
+    const longNotional = longMargin + longBorrow
 
     try {
         totalTests++
@@ -133,13 +136,15 @@ async function main() {
             amountSpecified: -longMargin,
             leverage: longLeverage,
             solver: solverAddr,
-            hookData: hookData
+            hookData: hookData,
+            deadline: Math.floor(Date.now() / 1000) + 600,
+            minAmountOut: 0n,
         }
 
-        console.log(`  Opening 5x Long: Margin = ${ethers.formatUnits(longMargin, 6)} USDC, Notional = ${ethers.formatUnits(longNotional, 6)} USDC...`)
-        const openTx = await router.swapMultiPool(swapParams)
+        console.log(`  Opening 3x Long: Margin = ${ethers.formatUnits(longMargin, 6)} USDC, Notional = ${ethers.formatUnits(longNotional, 6)} USDC...`)
+        const openTx = await send(router.swapMultiPool(swapParams, { gasLimit: 5_000_000n, nonce: await nextNonce() }))
         const openReceipt = await openTx.wait()
-        logPass("5x Long Position Opened on Unichain", `Tx: ${openTx.hash.slice(0, 18)}..., Gas: ${openReceipt.gasUsed}`)
+        logPass("3x Long Position Opened on Unichain", `Tx: ${openTx.hash.slice(0, 18)}..., Gas: ${openReceipt.gasUsed}`)
         passedTests++
 
         // Verify on-chain position state
@@ -181,10 +186,10 @@ async function main() {
 
         // Close Long Position
         totalTests++
-        console.log(`  Closing 5x Long Position...`)
-        const closeTx = await router.closePosition(hookAddr, poolKey, wallet.address, solverAddr, 0n)
+        console.log(`  Closing 3x Long Position...`)
+        const closeTx = await send(router.closePosition(hookAddr, poolKey, wallet.address, solverAddr, 0n, { gasLimit: 5_000_000n, nonce: await nextNonce() }))
         const closeReceipt = await closeTx.wait()
-        logPass("5x Long Position Closed Cleanly", `Tx: ${closeTx.hash.slice(0, 18)}..., Gas: ${closeReceipt.gasUsed}`)
+        logPass("3x Long Position Closed Cleanly", `Tx: ${closeTx.hash.slice(0, 18)}..., Gas: ${closeReceipt.gasUsed}`)
         passedTests++
 
         // Await RPC sync
@@ -203,14 +208,21 @@ async function main() {
     // ─────────────────────────────────────────────────────────────
     // TEST SUITE 3: Full SHORT Position Lifecycle (5x Leverage)
     // ─────────────────────────────────────────────────────────────
-    logHeader("3. Live 5x Short Position Lifecycle on ETH/USDC")
-    const shortLeverage = 5
-    const shortMargin = ethers.parseEther("0.000008") // 0.000008 ETH margin (~$0.02)
-    const shortBorrow = shortMargin * BigInt(shortLeverage - 1) // 0.000032 ETH borrow
-    const shortNotional = shortMargin + shortBorrow // 0.000040 ETH notional (~$0.10)
+    logHeader("3. Live 2x Short Position Lifecycle on ETH/USDC")
+    const shortLeverage = 2
+    const shortMargin = ethers.parseEther("0.000028") // ~0.000028 ETH margin (~$0.068)
+    const shortBorrow = shortMargin * BigInt(shortLeverage - 1)
+    const shortNotional = shortMargin + shortBorrow
 
     try {
         totalTests++
+        const escrowCurrent = await router.nativeBorrowEscrow(solverAddr)
+        if (escrowCurrent < shortBorrow) {
+            const topup = shortBorrow - escrowCurrent
+            const ftx = await send(router.depositNativeBorrow(solverAddr, { value: topup, gasLimit: 200_000n, nonce: await nextNonce() }))
+            await ftx.wait()
+        }
+
         const hookData = ethers.AbiCoder.defaultAbiCoder().encode(
             ["bool", "uint8", "address"],
             [true, shortLeverage, wallet.address]
@@ -223,13 +235,15 @@ async function main() {
             amountSpecified: -shortMargin,
             leverage: shortLeverage,
             solver: solverAddr,
-            hookData: hookData
+            hookData: hookData,
+            deadline: Math.floor(Date.now() / 1000) + 600,
+            minAmountOut: 0n,
         }
 
-        console.log(`  Opening 5x Short: Margin = ${ethers.formatEther(shortMargin)} ETH, Notional = ${ethers.formatEther(shortNotional)} ETH...`)
-        const openTx = await router.swapMultiPool(swapParams, { value: shortNotional })
+        console.log(`  Opening 2x Short: Margin = ${ethers.formatEther(shortMargin)} ETH, Notional = ${ethers.formatEther(shortNotional)} ETH...`)
+        const openTx = await send(router.swapMultiPool(swapParams, { value: shortNotional, gasLimit: 5_000_000n, nonce: await nextNonce() }))
         const openReceipt = await openTx.wait()
-        logPass("5x Short Position Opened on Unichain", `Tx: ${openTx.hash.slice(0, 18)}..., Gas: ${openReceipt.gasUsed}`)
+        logPass("2x Short Position Opened on Unichain", `Tx: ${openTx.hash.slice(0, 18)}..., Gas: ${openReceipt.gasUsed}`)
         passedTests++
 
         // Verify on-chain position state
@@ -271,10 +285,10 @@ async function main() {
 
         // Close Short Position
         totalTests++
-        console.log(`  Closing 5x Short Position...`)
-        const closeTx = await router.closePosition(hookAddr, poolKey, wallet.address, solverAddr, 0n)
+        console.log(`  Closing 2x Short Position...`)
+        const closeTx = await send(router.closePosition(hookAddr, poolKey, wallet.address, solverAddr, 0n, { gasLimit: 5_000_000n, nonce: await nextNonce() }))
         const closeReceipt = await closeTx.wait()
-        logPass("5x Short Position Closed Cleanly", `Tx: ${closeTx.hash.slice(0, 18)}..., Gas: ${closeReceipt.gasUsed}`)
+        logPass("2x Short Position Closed Cleanly", `Tx: ${closeTx.hash.slice(0, 18)}..., Gas: ${closeReceipt.gasUsed}`)
         passedTests++
 
         // Await RPC sync

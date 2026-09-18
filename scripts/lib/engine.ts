@@ -36,7 +36,7 @@ export async function checkOpenFit(
  * order's `buyAmount` is profitable before filling.
  */
 export async function quoteLeveragedOutput(
-    client: PublicClient,
+    client: Pick<PublicClient, "readContract">,
     quoter: Address,
     tokenIn: Address,
     tokenOut: Address,
@@ -44,12 +44,12 @@ export async function quoteLeveragedOutput(
     leverage: number,
     amountIn: bigint,
 ): Promise<bigint> {
-    const amountOut = await client.readContract({
+    const amountOut = (await client.readContract({
         address: quoter,
         abi: quoterAbi,
         functionName: "quoteExactInputSingleWithLeverage",
         args: [tokenIn, tokenOut, fee, leverage, amountIn],
-    });
+    })) as bigint;
     if (amountOut <= 0n) {
         throw new Error(`quoteExactInputSingleWithLeverage returned ${amountOut} for ${amountIn} in`);
     }

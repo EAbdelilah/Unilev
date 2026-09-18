@@ -27,8 +27,25 @@ interface IPriceFeed {
  *    pooled into a shared Takaful Mutual Fund. Successful options are paid out collaboratively from this
  *    forfeited-downpayment pool, ensuring self-funded solvency without debt or external financing.
  */
+interface IERC20Decimals {
+    function decimals() external view returns (uint8);
+}
+
 contract ArbunPutOption {
     using SafeERC20 for IERC20;
+
+    function _scaleUsdToCollateral(address collateralToken, uint256 usdAmount18) internal view returns (uint256) {
+        uint8 dec = 18;
+        try IERC20Decimals(collateralToken).decimals() returns (uint8 d) {
+            dec = d;
+        } catch {}
+        if (dec == 18) return usdAmount18;
+        if (dec < 18) {
+            return usdAmount18 / (10 ** (18 - dec));
+        } else {
+            return usdAmount18 * (10 ** (dec - 18));
+        }
+    }
 
     struct Option {
         uint256 id;
@@ -128,10 +145,11 @@ contract ArbunPutOption {
         require(currentPrice > 0, "Invalid price from feed");
 
         // [FIX H-1] Decimal-correct notional: getAmountInUsd normalizes the raw
-        // `quantity` by the UNDERLYING token's real decimals, so a 6-dec (USDC),
-        // 8-dec (WBTC) or 18-dec (WETH) underlying quantum prices correctly
-        // (previously assumed 18-dec with a hard-coded /1e18).
-        uint256 notionalCollateralValue = priceFeed.getAmountInUsd(underlyingToken, quantity);
+        // `quantity` by the UNDERLYING token's real decimals, returning 18-decimal USD.
+        // We scale the 18-decimal USD value to the COLLATERAL token's native decimals
+        // so standard 6-dec tokens like USDC do not suffer trillion-dollar overflow.
+        uint256 notionalUsd = priceFeed.getAmountInUsd(underlyingToken, quantity);
+        uint256 notionalCollateralValue = _scaleUsdToCollateral(collateralToken, notionalUsd);
 
         // Calculate downpayment requirement (Arbun) and booking fee (Ujrah)
         uint256 requiredDownpayment = (notionalCollateralValue * minDownpaymentBps) / BPS_DIVISOR;
@@ -194,11 +212,14 @@ contract ArbunPutOption {
 
         // Total locked sell price value in collateral equivalent
         // [FIX H-1] Decimal-correct USD values for the delivered quantity:
-        // currentSpotValue is normalized by the underlying token's real decimals
-        // (getAmountInUsd), and the locked strike is scaled from it by the
-        // locked/oracle price ratio — no hard-coded /1e18 for raw quantums.
-        uint256 currentSpotValue = priceFeed.getAmountInUsd(opt.underlyingToken, opt.quantity);
-        uint256 notionalCollateralValue = FullMath.mulDiv(currentSpotValue, opt.lockedPrice, currentPrice);
+        // currentSpotUsd is normalized by the underlying token's real decimals (18-dec USD).
+        // The locked strike is scaled from it by the locked/oracle price ratio.
+        // Both values are then scaled to the COLLATERAL token's native decimals.
+        uint256 currentSpotUsd = priceFeed.getAmountInUsd(opt.underlyingToken, opt.quantity);
+        uint256 lockedUsd = FullMath.mulDiv(currentSpotUsd, opt.lockedPrice, currentPrice);
+
+        uint256 currentSpotValue = _scaleUsdToCollateral(opt.collateralToken, currentSpotUsd);
+        uint256 notionalCollateralValue = _scaleUsdToCollateral(opt.collateralToken, lockedUsd);
 
         // Net profit calculation = locked value - spot value - downpayment
         require(
