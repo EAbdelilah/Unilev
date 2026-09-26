@@ -234,30 +234,48 @@ contract PoolManagerCallbackMock is PoolManagerMock {
  */
 contract PoolManagerRealTokenMock is PoolManagerCallbackMock {
     Currency internal _pendingCurrency;
+    uint256 internal _nativeBefore;
     address internal _pendingFrom;
     mapping(address => mapping(address => uint256)) public tokenBalances;
 
     function sync(Currency currency) external override {
         _pendingCurrency = currency;
+        _nativeBefore = address(this).balance;
     }
 
     function settle() external payable override returns (uint256 amount) {
-        address token = Currency.unwrap(_pendingCurrency);
-        // Determine how many tokens were transferred to us since last sync
-        amount = IERC20Mock(token).balanceOf(address(this));
-        settleCount++;
+        amount = _settlePending(msg.sender);
     }
 
-    function settleFor(address) external payable override returns (uint256 amount) {
-        address token = Currency.unwrap(_pendingCurrency);
-        amount = IERC20Mock(token).balanceOf(address(this));
+    function settleFor(address recipient) external payable override returns (uint256 amount) {
+        amount = _settlePending(recipient);
+    }
+
+    /// @dev Mirrors the real PM's `_settle`: for a native synced currency the
+    ///      amount paid is simply the ETH forwarded with the call, since
+    ///      `IERC20Mock(address(0))` has no balanceOf. Without this a native JIT
+    ///      leg can never be exercised in tests.
+    function _settlePending(address) internal returns (uint256 amount) {
+        if (Currency.unwrap(_pendingCurrency) == address(0)) {
+            amount = msg.value;
+        } else {
+            amount = IERC20Mock(Currency.unwrap(_pendingCurrency)).balanceOf(address(this));
+        }
+        _pendingCurrency = Currency.wrap(address(1));
         settleCount++;
     }
 
     function take(Currency currency, address to, uint256 amount) external override {
-        IERC20Mock(Currency.unwrap(currency)).transfer(to, amount);
+        if (Currency.unwrap(currency) == address(0)) {
+            (bool ok,) = payable(to).call{value: amount}("");
+            require(ok, "native take failed");
+        } else {
+            IERC20Mock(Currency.unwrap(currency)).transfer(to, amount);
+        }
         takeCount++;
     }
+
+    receive() external payable {}
 }
 
 interface IERC20Mock {

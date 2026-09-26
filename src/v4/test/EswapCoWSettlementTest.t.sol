@@ -112,7 +112,9 @@ contract EswapCoWSettlementTest is BaseV4Test {
             sellAmount: margin,
             buyAmount: minOut,
             validTo: validTo,
-            appData: keccak256("eswap-cow"),
+            // [AUDIT CRIT-05] appData must carry the signed leverage commitment
+            // the fill is bound to (default 5x matches the `_params(5)` fills).
+            appData: settlement.leverageCommitment(5),
             feeAmount: 0,
             kind: KIND_SELL,
             partiallyFillable: false,
@@ -219,7 +221,7 @@ contract EswapCoWSettlementTest is BaseV4Test {
         (address debtSolver, uint256 principal,) = hook.solverDebts(key.toId(), trader, solver);
         assertEq(debtSolver, solver, "solver debt must be registered");
         assertEq(principal, margin * uint256(leverage - 1), "solver principal mismatch");
-        assertTrue(settlement.filledOrders(abi.encodePacked(settlement.hashOrder(order), trader, order.validTo)));
+        assertTrue(settlement.filledOrders(keccak256(abi.encodePacked(settlement.hashOrder(order), trader, order.validTo))));
     }
 
     function test_Fill_EmitsOrderFilled() public {
@@ -281,6 +283,57 @@ contract EswapCoWSettlementTest is BaseV4Test {
         settlement.fillOrder(order, CowSigning.Scheme.PreSign, sig, _params(5));
     }
 
+    // ─── [AUDIT CRIT-05] Leverage must be committed in the signed appData ─────
+
+    function test_Fill_AppDataWithoutLeverageCommitment_Reverts() public {
+        // Free-form appData (no leverage commitment): the solver must NOT be
+        // able to open the trader's position at any leverage.
+        CowOrder.Data memory order = _order(2 ether, uint32(block.timestamp + 1000), 1 ether);
+        order.appData = keccak256("eswap-cow");
+        bytes memory sig = _signEip712(order, traderPrivateKey);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                EswapCoWSettlement.LeverageCommitmentMismatch.selector,
+                order.appData,
+                settlement.leverageCommitment(5)
+            )
+        );
+        settlement.fillOrder(order, CowSigning.Scheme.Eip712, sig, _params(5));
+    }
+
+    function test_Fill_CommittedLeverageMismatch_Reverts() public {
+        // Trader committed to 3x in appData; solver tries 5x → reject.
+        CowOrder.Data memory order = _order(2 ether, uint32(block.timestamp + 1000), 1 ether);
+        order.appData = settlement.leverageCommitment(3);
+        bytes memory sig = _signEip712(order, traderPrivateKey);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                EswapCoWSettlement.LeverageCommitmentMismatch.selector,
+                order.appData,
+                settlement.leverageCommitment(5)
+            )
+        );
+        settlement.fillOrder(order, CowSigning.Scheme.Eip712, sig, _params(5));
+    }
+
+    function test_Fill_Eip712_OpensPositionAtCommittedLeverage() public {
+        // Exact leverage-commitment match fills normally.
+        uint256 margin = 2 ether;
+        uint8 leverage = 3;
+        CowOrder.Data memory order = _order(margin, uint32(block.timestamp + 1000), 1 ether);
+        order.appData = settlement.leverageCommitment(leverage);
+        bytes memory sig = _signEip712(order, traderPrivateKey);
+
+        settlement.fillOrder(order, CowSigning.Scheme.Eip712, sig, _params(leverage));
+
+        (, uint256 collateral, uint256 borrow, uint8 posLev,,,,,) = hook.positions(key.toId(), trader);
+        assertGt(collateral, 0, "collateral must be minted");
+        assertEq(borrow, margin * uint256(leverage - 1), "borrowed leg matches the committed leverage");
+        assertEq(posLev, leverage, "position leverage matches the commitment");
+    }
+
     function test_Fill_Batch_ThreeOrders() public {
         uint256[] memory keys = new uint256[](3);
         keys[0] = 0xA11CE;
@@ -294,20 +347,65 @@ contract EswapCoWSettlementTest is BaseV4Test {
 
         for (uint256 i = 0; i < 3; i++) {
             CowOrder.Data memory order = _order(1 ether + i, uint32(block.timestamp + 1000), 1 ether);
-            order.appData = keccak256(abi.encode("batch", i));
+            order.appData = settlement.leverageCommitment(2); // batch fills at 2x
             orders[i] = order;
             schemes[i] = CowSigning.Scheme.Eip712;
             sigs[i] = _signEip712(order, keys[i]);
             params[i] = _params(2);
         }
 
-        uint256 count = settlement.fillOrders(orders, schemes, sigs, params);
+        (uint256 count, uint256 failed) = settlement.fillOrders(orders, schemes, sigs, params);
         assertEq(count, 3, "all orders must fill");
+        assertEq(failed, 0, "no order may fail");
 
         for (uint256 i = 0; i < 3; i++) {
             (, uint256 collateral,,,,,,,) = hook.positions(key.toId(), vm.addr(keys[i]));
             assertGt(collateral, 0, "batch fill must open each position");
         }
+    }
+
+    /// @dev [AUDIT HIGH-6] A single failing order must NOT revert the batch: a
+    ///      dust order front-run / expired order cannot grief the other fills.
+    function test_FillOrders_BatchIsolation_FailedOrderSkipped() public {
+        uint256[] memory keys = new uint256[](3);
+        keys[0] = 0xA11CE;
+        keys[1] = 0xB22DF;
+        keys[2] = 0xC33EA;
+
+        CowOrder.Data[] memory orders = new CowOrder.Data[](3);
+        CowSigning.Scheme[] memory schemes = new CowSigning.Scheme[](3);
+        bytes[] memory sigs = new bytes[](3);
+        EswapCoWSettlement.FillParams[] memory params = new EswapCoWSettlement.FillParams[](3);
+
+        for (uint256 i = 0; i < 3; i++) {
+            // [AUDIT HIGH-6] The MIDDLE order is expired: `_validateOrder` runs
+            // inside the try/catch-protected per-order fill, so it must only
+            // increment `failed`, not revert the whole batch.
+            uint32 validTo = i == 1 ? uint32(block.timestamp - 1) : uint32(block.timestamp + 1000);
+            CowOrder.Data memory order = _order(1 ether + i, validTo, 1 ether);
+            order.appData = settlement.leverageCommitment(2);
+            orders[i] = order;
+            schemes[i] = CowSigning.Scheme.Eip712;
+            sigs[i] = _signEip712(order, keys[i]);
+            params[i] = _params(2);
+        }
+
+        (uint256 count, uint256 failed) = settlement.fillOrders(orders, schemes, sigs, params);
+        assertEq(failed, 1, "the expired order must be isolated as failed");
+        assertEq(count, 2, "the healthy orders must still fill");
+
+        (, uint256 c0,,,,,,,) = hook.positions(key.toId(), vm.addr(keys[0]));
+        (, uint256 c2,,,,,,,) = hook.positions(key.toId(), vm.addr(keys[2]));
+        assertGt(c0, 0, "first order's position must be opened despite the sibling failure");
+        assertGt(c2, 0, "third order's position must be opened despite the sibling failure");
+
+        // The failed order must not have been marked filled: it is reusable.
+        CowOrder.Data memory retry = orders[1];
+        retry.validTo = uint32(block.timestamp + 1000);
+        bytes memory retrySig = _signEip712(retry, keys[1]);
+        settlement.fillOrder(retry, CowSigning.Scheme.Eip712, retrySig, _params(2));
+        (, uint256 c1,,,,,,,) = hook.positions(key.toId(), vm.addr(keys[1]));
+        assertGt(c1, 0, "the retried order fills after fixing its expiry");
     }
 
     // ─── Validation / protection ──────────────────────────────────────────

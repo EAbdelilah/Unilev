@@ -5,6 +5,7 @@ import {BaseV4Test, PriceFeedMock, ERC20Mock} from "./BaseV4Test.t.sol";
 import {PoolManagerCallbackMock} from "./mocks/PoolManagerMock.sol";
 import {EswapMarginHook} from "../EswapMarginHook.sol";
 import {EswapRouter} from "../EswapRouter.sol";
+import {EswapRouterExt} from "../EswapRouterExt.sol";
 import {PoolKey} from "../types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "../types/PoolId.sol";
 import {Currency} from "../types/Currency.sol";
@@ -58,6 +59,7 @@ contract EswapAtomicMarginTest is BaseV4Test {
     using PoolIdLibrary for PoolKey;
 
     EswapRouter public router;
+    EswapRouterExt public ext;
     PoolKey public standardPoolKey;
     EswapAtomicMarginTestManager public atomicManager;
 
@@ -76,6 +78,7 @@ contract EswapAtomicMarginTest is BaseV4Test {
         hook = EswapMarginHook(payable(hookAddress));
 
         router = new EswapRouter(atomicManager);
+        ext = new EswapRouterExt(atomicManager, address(router));
 
         key = PoolKey({
             currency0: Currency.wrap(address(token0)),
@@ -109,19 +112,19 @@ contract EswapAtomicMarginTest is BaseV4Test {
         atomicManager.pushNextSwapDelta(13 ether, -12 ether);
 
         // Pre-fund the router and hook with token0/token1 for intermediate transfers
-        token0.mint(address(router), 1000 ether);
-        token1.mint(address(router), 1000 ether);
+        token0.mint(address(ext), 1000 ether);
+        token1.mint(address(ext), 1000 ether);
         token0.mint(address(hook), 1000 ether);
         token1.mint(address(hook), 1000 ether);
 
-        EswapRouter.AtomicMarginParams memory params = EswapRouter.AtomicMarginParams({
+        EswapRouterExt.AtomicMarginParams memory params = EswapRouterExt.AtomicMarginParams({
             key: key, standardPoolKey: standardPoolKey, zeroForOne: true, borrowAmount: borrowAmount, minProfit: 1 ether
         });
 
         uint256 balanceBefore = token0.balanceOf(trader);
 
         vm.prank(trader);
-        uint256 profit = router.atomicMarginTrade(params);
+        uint256 profit = ext.atomicMarginTrade(params);
 
         uint256 balanceAfter = token0.balanceOf(trader);
 
@@ -140,19 +143,19 @@ contract EswapAtomicMarginTest is BaseV4Test {
         atomicManager.pushNextSwapDelta(135 ether, -120 ether);
 
         // Pre-fund router/hook
-        token0.mint(address(router), 1000 ether);
-        token1.mint(address(router), 1000 ether);
+        token0.mint(address(ext), 1000 ether);
+        token1.mint(address(ext), 1000 ether);
         token0.mint(address(hook), 1000 ether);
         token1.mint(address(hook), 1000 ether);
 
-        EswapRouter.AtomicMarginParams memory params = EswapRouter.AtomicMarginParams({
+        EswapRouterExt.AtomicMarginParams memory params = EswapRouterExt.AtomicMarginParams({
             key: key, standardPoolKey: standardPoolKey, zeroForOne: true, borrowAmount: borrowAmount, minProfit: 5 ether
         });
 
         uint256 balanceBefore = token0.balanceOf(trader);
 
         vm.prank(trader);
-        uint256 profit = router.atomicMarginTrade(params);
+        uint256 profit = ext.atomicMarginTrade(params);
 
         uint256 balanceAfter = token0.balanceOf(trader);
 
@@ -171,12 +174,12 @@ contract EswapAtomicMarginTest is BaseV4Test {
         atomicManager.pushNextSwapDelta(9.5 ether, -11 ether);
 
         // Pre-fund router/hook
-        token0.mint(address(router), 1000 ether);
-        token1.mint(address(router), 1000 ether);
+        token0.mint(address(ext), 1000 ether);
+        token1.mint(address(ext), 1000 ether);
         token0.mint(address(hook), 1000 ether);
         token1.mint(address(hook), 1000 ether);
 
-        EswapRouter.AtomicMarginParams memory params = EswapRouter.AtomicMarginParams({
+        EswapRouterExt.AtomicMarginParams memory params = EswapRouterExt.AtomicMarginParams({
             key: key,
             standardPoolKey: standardPoolKey,
             zeroForOne: true,
@@ -187,6 +190,6 @@ contract EswapAtomicMarginTest is BaseV4Test {
         // The transaction must revert to fully protect the trader from any loss or balance reduction
         vm.prank(trader);
         vm.expectRevert("Atomic margin trade unprofitable");
-        router.atomicMarginTrade(params);
+        ext.atomicMarginTrade(params);
     }
 }

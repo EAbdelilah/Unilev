@@ -238,6 +238,19 @@ contract EswapChainlinkForkTest is Test {
     /// @dev T2: oracle TWAP output tracks the live venue within a wide band.
     function test_TwapPrices_TrackLiveMarket() public view {
         if (!rpcAvailable || !deepPoolAvailable) return;
+        // [FIX M-2] Same near-stale guard as T3/T4: at the fork block the live
+        // Unichain USDC/USD feed can exceed the 1h staleness window (feeds
+        // update that slowly during quiet periods). This test documents
+        // oracle↔pool agreement, not feed freshness.
+        (, uint256 updatedAtBase) = _rawAnswer(baseFeed);
+        (, uint256 updatedAtQuote) = _rawAnswer(quoteFeed);
+        if (
+            block.timestamp - updatedAtBase > MAX_ORACLE_AGE - 30 minutes
+                || block.timestamp - updatedAtQuote > MAX_ORACLE_AGE - 30 minutes
+        ) {
+            console2.log("feed near-stale at fork block; skipping market-track test");
+            return;
+        }
 
         uint256 twapBase = priceFeed.getTwapPrice(base);
         uint256 twapQuote = priceFeed.getTwapPrice(quote);

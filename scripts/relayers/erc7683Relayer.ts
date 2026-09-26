@@ -44,6 +44,7 @@ import { createClients, loadNetworkConfig, chainRpcUrl, ETH_MAINNET, ARBITRUM_ON
 import { crossChainOrderEvent, erc20Abi, settlementAbi } from "../lib/abis.js";
 import {
     type CrossChainOrderEvent,
+    type PoolKey,
     type SwapParamsData,
 } from "../lib/types.js";
 
@@ -52,6 +53,17 @@ const ORIGIN_CHAINS: Array<{ chainId: number; name: string }> = [
     { chainId: ARBITRUM_ONE, name: "Arbitrum One" },
     { chainId: BASE, name: "Base" },
 ];
+
+/** `decodeAbiParameters` yields a readonly tuple; `PoolKey` is a named struct. */
+function toPoolKey(decoded: readonly [Address, Address, number, number, Address]): PoolKey {
+    return {
+        currency0: decoded[0],
+        currency1: decoded[1],
+        fee: decoded[2],
+        tickSpacing: decoded[3],
+        hooks: decoded[4],
+    };
+}
 
 interface OriginChain {
     chainId: number;
@@ -81,7 +93,11 @@ export class Erc7683Relayer {
         const privateKey = process.env.RELAYER_PRIVATE_KEY;
         if (!privateKey) throw new Error("Missing RELAYER_PRIVATE_KEY");
         const dw = createClients(this.cfg, privateKey);
-        this.destClients = { publicClient: dw.publicClient, walletClient: dw.walletClient, account: dw.account };
+        this.destClients = {
+            publicClient: dw.publicClient as PublicClient<HttpTransport, Chain, Account>,
+            walletClient: dw.walletClient,
+            account: dw.account,
+        };
 
         this.origins = ORIGIN_CHAINS.map(({ chainId, name }) => {
             const rpcUrl = chainRpcUrl(`ORIGIN_RPC_${chainId}`, chainId);
@@ -125,8 +141,8 @@ export class Erc7683Relayer {
         );
         const [swap] = decodeAbiParameters(params, originData);
         return {
-            key: swap.key,
-            standardPoolKey: swap.standardPoolKey,
+            key: toPoolKey(swap.key),
+            standardPoolKey: toPoolKey(swap.standardPoolKey),
             zeroForOne: swap.zeroForOne,
             amountSpecified: swap.amountSpecified,
             leverage: Number(swap.leverage),

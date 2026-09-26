@@ -106,9 +106,17 @@ contract EswapMainnetEnsoFullCycleForkTest is Test, IUnlockCallback {
     }
 
     function setUp() public {
-        string memory rpcUrl = vm.envOr("ETH_MAINNET_RPC_URL", string(""));
+        string memory rpcUrl = vm.envOr("ETH_MAINNET_RPC_URL", string("https://ethereum-rpc.publicnode.com"));
         if (bytes(rpcUrl).length == 0) return;
-        vm.createSelectFork(rpcUrl);
+        // Pin to the block the Enso route was quoted against. Forking at head
+        // replays a pinned route against today's state, and once the quote's
+        // minAmountOut is unreachable Enso's executor reverts "Insufficient
+        // output" (0xef3dcb2f) even though the route was valid when generated.
+        if (MainnetEnsoRoute.REF_BLOCK != 0) {
+            vm.createSelectFork(rpcUrl, MainnetEnsoRoute.REF_BLOCK);
+        } else {
+            vm.createSelectFork(rpcUrl);
+        }
         try this._setupOnActiveFork() {}
         catch (bytes memory reason) {
             console2.log("setupOnActiveFork failed:", _reason(reason));

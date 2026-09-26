@@ -163,6 +163,40 @@ contract EswapTimelockTest is Test {
         timelock.cancel(address(hook), data, eta);
     }
 
+    function test_Execute_WithinGracePeriod_Passes() public {
+        bytes memory data = abi.encodeWithSignature("setEmergencyPause(bool)", true);
+        uint256 eta = block.timestamp + DELAY;
+
+        vm.prank(admin);
+        timelock.queue(address(hook), data, eta);
+
+        // Just after eta, well before the grace deadline: executes normally.
+        vm.warp(eta + 1 days);
+        timelock.execute(address(hook), data, eta);
+        assertTrue(hook.emergencyPaused());
+    }
+
+    /// @dev [AUDIT LOW-1] A queued transaction must expire once the grace
+    ///      window elapses instead of remaining executable forever.
+    function test_Execute_ExpiredBeyondGrace_Reverts() public {
+        bytes memory data = abi.encodeWithSignature("setEmergencyPause(bool)", true);
+        uint256 eta = block.timestamp + DELAY;
+
+        vm.prank(admin);
+        timelock.queue(address(hook), data, eta);
+
+        vm.warp(eta + timelock.GRACE_PERIOD() + 1);
+        vm.expectRevert(EswapTimelock.TransactionExpired.selector);
+        timelock.execute(address(hook), data, eta);
+
+        // The revert rolls back changes, so the entry remains queued for an
+        // explicit cancel (Compound Timelock semantics).
+        assertTrue(timelock.isQueued(timelock.getTxHash(address(hook), data, eta)));
+        vm.prank(admin);
+        timelock.cancel(address(hook), data, eta);
+        assertFalse(timelock.isQueued(timelock.getTxHash(address(hook), data, eta)));
+    }
+
     // ─── Full Flow: Timelock-Protected setAuthorizedPool ────────────────
 
     function test_Timelock_ProtectsSetAuthorizedPool() public {

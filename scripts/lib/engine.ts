@@ -36,7 +36,7 @@ export async function checkOpenFit(
  * order's `buyAmount` is profitable before filling.
  */
 export async function quoteLeveragedOutput(
-    client: PublicClient,
+    client: Pick<PublicClient, "readContract">,
     quoter: Address,
     tokenIn: Address,
     tokenOut: Address,

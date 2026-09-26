@@ -211,4 +211,92 @@ contract EswapLiquidationKeeperTest is BaseV4Test {
         keeper.addWatch(key, address(this));
         assertEq(keeper.watchesLength(), 1);
     }
+
+    // ─── [AUDIT CRIT-09] Quote must track physical collateral ───────────
+
+    /// @dev Deploys the rehypothecation band via the (mock) PoolManager: the
+    ///      add delta returns (0, -principal) so the hook records `principal`
+    ///      as the deployed LP amount, mimicking a fully deployed band.
+    function _deployBand(uint256 principal) internal {
+        manager.setNextModifyLiquidityDelta(0, -int128(int256(principal)));
+        vm.prank(address(router));
+        hook.deployCollateral(key, address(this));
+        (,,,,,,,, uint128 liq) = hook.positions(key.toId(), address(this));
+        assertGt(liq, 0, "band must be deployed");
+        assertEq(hook.rehypPrincipal(key.toId(), address(this)), principal, "band principal recorded");
+    }
+
+    function test_Keeper_QuoteUsesPhysicalCollateralForBandedPosition() public {
+        _openShort();
+        (, uint256 collateral,,,,,,,) = hook.positions(key.toId(), address(this));
+        assertGt(collateral, 0);
+
+        uint256 quoteNoBand = keeper.quoteMinAmountOut(key, address(this));
+        assertGt(quoteNoBand, 0, "no-band position quotes the full collateral");
+
+        _deployBand(20 ether);
+
+        (, uint256 collateralAfter,,,,,,,) = hook.positions(key.toId(), address(this));
+        assertEq(collateralAfter, collateral, "book collateral is unchanged by the band deploy");
+
+        // [AUDIT CRIT-09] The floor must be capped at the PHYSICAL quota the
+        // unwind can actually swap: the un-deployed remainder only. The band's
+        // collateral leg is recovered as debt-currency bandProceeds by the hook
+        // and is conservatively excluded from the floor.
+        uint256 physical = collateral - 20 ether;
+        uint256 expected = (priceFeed.getAmountInUsd(address(token1), physical) * 1e18);
+        expected /= priceFeed.getAmountInUsd(address(token0), 1e18);
+        expected = (expected * (10000 - keeper.slippageBps())) / 10000;
+
+        uint256 quoteBanded = keeper.quoteMinAmountOut(key, address(this));
+        assertEq(quoteBanded, expected, "quote is capped at the un-deployed (physical) collateral");
+        assertLt(quoteBanded, quoteNoBand, "deploying a band must shrink the physical quote");
+    }
+
+    function test_Keeper_BandedPosition_Liquidation_PassesWithPhysicalQuote() public {
+        _openShort();
+        (, uint256 collateral,,,,,,,) = hook.positions(key.toId(), address(this));
+
+        _deployBand(20 ether);
+
+        // Fund the hook so the unwind settlements can net (mirrors _makeLiquidatable).
+        token0.mint(address(hook), 50 ether);
+        token1.mint(address(hook), 50 ether);
+
+        // Crash the collateral token: the position becomes liquidatable.
+        priceFeed.setPrice(address(token1), 0.5e18);
+        priceFeed.setPrice(address(token0), 1e18);
+
+        // [AUDIT CRIT-09] Simulate a partially-consumed band: impermanent loss
+        // converted the deployed principal to the DEBT currency at a much worse
+        // price — the band removal returns 0 collateral and only `bandProceeds`
+        // debt, while the un-deployed remainder is swapped at the crashed price.
+        uint256 physical = collateral - 20 ether;
+        uint256 swapOut = (physical * 0.5e18) / 1e18; // 50% conversion loss
+        uint256 bandProceeds = 5 ether;
+        uint256 totalSource = swapOut + bandProceeds;
+
+        // Prove the PRE-fix quote (whole book, oracle-priced) overstates the
+        // physical recovery and would have reverted this liquidation.
+        uint256 oldQuote = (priceFeed.getAmountInUsd(address(token1), collateral) * 1e18)
+            / priceFeed.getAmountInUsd(address(token0), 1e18);
+        oldQuote = (oldQuote * (10000 - keeper.slippageBps())) / 10000;
+        assertTrue(oldQuote > totalSource, "pre-fix quote would have reverted the liquidation (SlippageExceeded)");
+
+        // The post-fix quote is bounded by what the unwind physically returns.
+        uint256 newQuote = keeper.quoteMinAmountOut(key, address(this));
+        assertTrue(newQuote <= totalSource, "physical quote must not exceed the unwind's total recovery");
+
+        manager.setNextModifyLiquidityDelta(int128(int256(bandProceeds)), 0);
+        manager.setNextSwapDelta(int128(int256(swapOut)), -int128(int256(physical)));
+
+        keeper.addWatch(key, address(this));
+        uint256[] memory liquidated = keeper.liquidateAll();
+        assertEq(liquidated.length, keeper.watchesLength(), "array is 1:1 with the watch list");
+        assertEq(liquidated[0], 1, "banded-position liquidation must succeed with the physical quote");
+
+        (address trader, uint256 collateralAfter,,,,,,,) = hook.positions(key.toId(), address(this));
+        assertEq(trader, address(0), "position must be liquidated");
+        assertEq(collateralAfter, 0);
+    }
 }

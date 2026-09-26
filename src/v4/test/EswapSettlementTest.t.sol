@@ -105,6 +105,31 @@ contract EswapSettlementTest is BaseV4Test {
         assertGt(collateral, 0, "position not opened");
     }
 
+    function test_Fill_RevertsWhenSettlementNotWhitelisted() public {
+        // fill() sets SwapParams.solver = address(this), so a settlement that is
+        // absent from the router's solver whitelist cannot open a position.
+        // This is why the deploy scripts must call setSolverWhitelist on the
+        // settler: without it every generic/relayer fill reverts.
+        EswapSettlement unlisted = new EswapSettlement(router);
+        assertFalse(router.registeredSolvers(address(unlisted)), "fresh settler must start unregistered");
+
+        token0.mint(filler, 10 ether);
+        vm.startPrank(filler);
+        token0.approve(address(unlisted), type(uint256).max);
+
+        vm.expectRevert("Solver not authorized");
+        unlisted.fill(keccak256("unlisted-order"), _originData(10 ether, 0), "");
+        vm.stopPrank();
+
+        router.setSolverWhitelist(address(unlisted), true);
+        assertTrue(router.registeredSolvers(address(unlisted)), "whitelist call must register the settler");
+
+        vm.prank(filler);
+        unlisted.fill(keccak256("unlisted-order"), _originData(10 ether, 0), "");
+        (, uint256 collateral,,,,,,,) = hook.positions(key.toId(), trader);
+        assertGt(collateral, 0, "position must open once the settler is registered");
+    }
+
     function test_RescueToken() public {
         token0.mint(address(settlement), 5 ether);
 

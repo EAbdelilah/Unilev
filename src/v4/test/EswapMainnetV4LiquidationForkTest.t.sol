@@ -118,7 +118,7 @@ function setUp() public {
         rpcCandidates[0] = vm.envOr("UNICHAIN_RPC_URL", string(""));
         rpcCandidates[1] = vm.envOr("ETH_RPC_URL", string(""));
 
-        for (uint256 r = 0; r < 2 && !rpcAvailable; r++) {
+        for (uint256 r = 0; r < 4 && !rpcAvailable; r++) {
             string memory rpcUrl = rpcCandidates[r];
             if (bytes(rpcUrl).length == 0) continue;
             // NOTE: `vm.createSelectFork` MUST stay at cheatcode level —
@@ -202,6 +202,8 @@ for (uint256 i = 0; i < 6; i++) {
         router = new EswapRouter(IPoolManager(address(pm)));
         hook.setRouterAndMinCollateralUsd(address(router), 0);
         router.setSolverWhitelist(solver, true);
+        // [AUDIT MED-4] rebalance requires trader-or-whitelisted-executor.
+        router.setExecutorWhitelist(keeper, true);
 
 hookRealKey = RealPoolKey({
             currency0: RealCurrency.wrap(base),

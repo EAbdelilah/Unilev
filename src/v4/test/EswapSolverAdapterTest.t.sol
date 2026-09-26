@@ -55,6 +55,32 @@ contract EswapSolverAdapterTest is BaseV4Test {
         adapter.submitIntent(intent, sig);
     }
 
+    /// @dev [AUDIT HIGH-11] A signature flipped to its high-s (malleable) twin
+    ///      must be rejected. It still ecrecovers to the SAME trader, so before
+    ///      the fix this would have been accepted and consumed the intent.
+    function test_MalleableSignature_Reverts() public {
+        EswapSolverAdapter.MarginIntent memory intent = EswapSolverAdapter.MarginIntent({
+            trader: traderAddress, leverage: 3, amount: 1 ether, nonce: 0, deadline: block.timestamp + 1000
+        });
+
+        bytes32 structHash = keccak256(
+            abi.encode(
+                adapter.INTENT_TYPEHASH(), intent.trader, intent.leverage, intent.amount, intent.nonce, intent.deadline
+            )
+        );
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", adapter.DOMAIN_SEPARATOR(), structHash));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(traderPrivateKey, digest);
+
+        // secp256k1 group order n
+        uint256 n = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141;
+        bytes32 sHigh = bytes32(n - uint256(s));
+        uint8 vFlip = v == 27 ? 28 : 27;
+        bytes memory sig = abi.encodePacked(r, sHigh, vFlip);
+
+        vm.expectRevert(EswapSolverAdapter.InvalidSignature.selector);
+        adapter.submitIntent(intent, sig);
+    }
+
     function test_ExpiredDeadline_Reverts() public {
         EswapSolverAdapter.MarginIntent memory intent = EswapSolverAdapter.MarginIntent({
             trader: traderAddress, leverage: 3, amount: 1 ether, nonce: 0, deadline: block.timestamp - 1

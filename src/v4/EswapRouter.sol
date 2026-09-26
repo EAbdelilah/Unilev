@@ -8,11 +8,14 @@ import {Currency} from "./types/Currency.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol"; // [FIX L-2]
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {BalanceDelta, BalanceDeltaLibrary} from "./types/BalanceDelta.sol";
 import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {IPoolManager as RealIPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {PoolId as RealPoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {FullMath} from "@uniswap/v4-core/src/libraries/FullMath.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import {EswapMarginLib} from "./EswapMarginLib.sol";
 
 interface IEswapHook {
@@ -23,8 +26,6 @@ interface IEswapHook {
     function closePosition(PoolKey calldata key, address trader, address solver, uint256 minAmountOut) external;
     function registerSolverDebt(PoolId poolId, address trader, address solver, uint256 principal) external;
     function setStandardPoolKey(PoolId poolId, PoolKey calldata key) external;
-    function clearJITDelta(Currency token, address to, uint256 amount) external;
-    function executeArbunDelivery(PoolKey calldata key, address trader) external;
     function registerMarginOpen(
         PoolKey calldata key,
         address trader,
@@ -35,36 +36,14 @@ interface IEswapHook {
         uint256 boughtAmount
     ) external;
     function standardPoolKeys(PoolId poolId) external view returns (Currency, Currency, uint24, int24, address);
+    function clearJITDelta(Currency token, address to, uint256 amount) external;
 }
 
-// [P0#2] Narrowest oracle surface the router needs to compute the live pool
-// market price (Chainlink-anchored 18-decimal exchange rate) for trigger
-// comparisons. Points at the same PriceFeed contract the hook uses, so trigger
-// evaluation and liquidation health share one oracle source.
-interface IPriceFeedForTrigger {
-    function getAmountInUsd(address token, uint256 amount) external view returns (uint256);
-}
-
-// [P0#2] Hook reads needed by the permissionless trigger-order executor:
-// position existence (to distinguish "no position" from "healthy") and live
-// liquidation state (liquidations always win over trigger closes).
-interface IEswapTriggerHookRead {
-    function positions(bytes32 poolId, address trader)
-        external
-        view
-        returns (
-            address trader_,
-            uint256 collateralAmount,
-            uint256 borrowedAmount,
-            uint8 leverage,
-            bool isLong,
-            uint160 liquidationSqrtPrice,
-            int24 tickLower,
-            int24 tickUpper,
-            uint128 liquidity
-        );
-    function isPositionLiquidatable(PoolKey calldata key, address trader) external view returns (bool);
-}
+// [P0#2] Signed limit / stop-loss trigger orders, ERC-7683 CrossChainOrder
+// initiation, JIT spot swaps and atomic margin trades moved to EswapRouterExt
+// (companion contract) so the core router fits under the EIP-170 code-size cap.
+// Trigger-order execution re-enters PoolManager through the COMPANION's own
+// unlockCallback; signature domains stay pinned to THIS router.
 
 /**
  * @title EswapRouter
@@ -85,7 +64,8 @@ interface IEswapTriggerHookRead {
  *      All (account, currency) transient deltas net to zero before unlock exits.
  */
 contract EswapRouter is
-    Ownable2Step // [FIX L-2]
+    Ownable2Step, // [FIX L-2]
+    ReentrancyGuard
 {
     using PoolIdLibrary for PoolKey;
     using BalanceDeltaLibrary for BalanceDelta;
@@ -116,54 +96,20 @@ contract EswapRouter is
     // still repaid at close, siphoning trader capital).
     mapping(address => uint256) public nativeBorrowEscrow;
 
-    // M-2: ERC-7683 nonce consumption
-    mapping(bytes32 => bool) public filledOrders;
-
-    // H-4: JIT swapper opt-in — swappers must approve JIT spot swaps
-    mapping(address => bool) public jitApprovedSwappers;
-
     // Aggregator fill venues (0x ExchangeProxy / ParaSwap Augustus / etc.) that
     // the router may delegate the notional swap leg to. Non-whitelisted proxies
     // revert — this is the ONLY address allowed to touch margin/borrow funds in
     // flight, so a compromised/absurd proxy can never be used to steal them.
     mapping(address => bool) public allowedAggregators;
 
-    struct CrossChainOrder {
-        address settlementContract;
-        address swapper;
-        uint256 nonce;
-        uint32 originChainId;
-        uint32 initiateDeadline;
-        uint32 fillDeadline;
-        bytes orderData;
-    }
-
-    struct Input {
-        address token;
-        uint256 amount;
-    }
-
-    struct Output {
-        address token;
-        uint256 amount;
-        uint32 chainId;
-        address recipient;
-    }
-
-    struct ResolvedCrossChainOrder {
-        address settlementContract;
-        address swapper;
-        uint256 nonce;
-        uint32 originChainId;
-        uint32 initiateDeadline;
-        uint32 fillDeadline;
-        Input[] swapperInputs;
-        Output[] swapperOutputs;
-    }
-
-    bytes32 public constant CROSS_CHAIN_ORDER_TYPEHASH = keccak256(
-        "CrossChainOrder(address settlementContract,address swapper,uint256 nonce,uint32 originChainId,uint32 initiateDeadline,uint32 fillDeadline,bytes orderData)"
-    );
+    // [AUDIT CRIT-4] Executor whitelist. `swapFor` / `swapMultiPoolFor` pull the
+    // margin leg from an arbitrary caller-supplied `trader`; without a gate, any
+    // attacker who finds a victim with a live router approval can open (and then
+    // liquidate) a position with attacker-picked params, burning the victim's
+    // margin. Only the trader himself or a governance-whitelisted executor
+    // (bridge destination executor, adapter, open-netting relay) may open on
+    // behalf of someone else.
+    mapping(address => bool) public executorWhitelist;
 
     bytes32 public immutable DOMAIN_SEPARATOR;
 
@@ -175,9 +121,6 @@ contract EswapRouter is
         // keeping the remainder open (see EswapMarginHookLogic.partialLiquidate).
         PARTIAL_LIQUIDATION,
         REBALANCE,
-        ATOMIC_MARGIN,
-        JIT_SPOT,
-        ARBUN_DELIVERY,
         MULTI_POOL_SWAP,
         // [CoW] Solver-funded fill: position credited to `trader` (the recovered
         // CoW order owner) while the margin leg is pulled from `marginFunder`.
@@ -189,31 +132,7 @@ contract EswapRouter is
         // [P0#1] Permissionless-solver fill: the trader's EIP-712 `LendingIntent`
         // is verified at the entrypoint and the fill proceeds without the
         // governance whitelist gate.
-        MULTI_POOL_INTENT_OPEN,
-        // [P2#7] Best-route competition between the standard pool and a
-        // whitelisted aggregator: the router estimates the standard venue's fill
-        // and executes the venue whose guaranteed output is higher, so the trader
-        // is never worse than the standard-pool route.
-        MULTI_POOL_BEST_ROUTE
-    }
-
-    struct AtomicMarginParams {
-        PoolKey key;
-        PoolKey standardPoolKey;
-        bool zeroForOne;
-        uint256 borrowAmount;
-        uint256 minProfit;
-    }
-
-    struct JITSpotParams {
-        PoolKey key;
-        bool zeroForOne;
-        int256 amountSpecified;
-        address solver;
-        uint256 solverOutput;
-        // [FIX H-5] Minimum acceptable solver output for slippage protection against malicious solvers
-        uint256 minSolverOutput;
-        address swapper;
+        MULTI_POOL_INTENT_OPEN
     }
 
     /// @dev Fill payload for an external aggregator (0x ExchangeProxy, ParaSwap
@@ -270,63 +189,11 @@ contract EswapRouter is
     mapping(address => mapping(address => uint256)) public erc20BorrowEscrow;
 
     // ─── [P0#2] Signed limit / stop-loss TriggerOrder ─────────────────────────
-
-    /// @dev A trader-signed conditional close. The executor (anyone) waits until
-    ///      the pool's market price crosses `triggerPrice18` (an 18-decimal
-    ///      exchange rate, `USD(token0 per whole unit) / USD(token1 per whole unit)`)
-    ///      in the direction `aboveOrBelow`, then permissionlessly closes the
-    ///      trader's position with the signed `minAmountOut` floor. The signature
-    ///      pins the exact pool, price, direction, payout floor, nonce and expiry,
-    ///      so neither the executed price nor the payout can deviate from what the
-    ///      trader authored. `executorTipBps` caps the off-chain executor tip
-    ///      (0-1000 = 0-10% of surplus); on-chain enforcement of the split is left
-    ///      to a follow-up so this first cut cannot perturb the close settlement.
-    struct TriggerOrder {
-        bytes32 poolId;
-        uint256 triggerPrice18;
-        bool aboveOrBelow;
-        uint256 minAmountOut;
-        uint256 closeDeadline;
-        uint256 nonce;
-        uint8 executorTipBps;
-    }
-
-    bytes32 public constant TRIGGER_ORDER_TYPEHASH = keccak256(
-        "TriggerOrder(bytes32 poolId,uint256 triggerPrice18,bool aboveOrBelow,uint256 minAmountOut,uint256 closeDeadline,uint256 nonce,uint8 executorTipBps)"
-    );
-
-    /// @dev Oracle source for the live market price. Points at the SAME Chainlink
-    ///      PriceFeed the hook uses so trigger evaluation and liquidation health
-    ///      never read from different oracles. Owner-set; 0 = trigger orders
-    ///      disabled (executeTriggerOrder reverts TriggerPriceFeedNotSet).
-    IPriceFeedForTrigger public triggerPriceFeed;
-
-    /// @dev One armed order per (trader, pool) — a trader arms at most one
-    ///      conditional close per pool at a time; re-arming overwrites.
-    mapping(address => mapping(bytes32 => TriggerOrder)) public armedTriggerOrders;
-
-    /// @dev Consumed (trader, poolId, nonce) keys: an executed trigger order can
-    ///      never be replayed, even if the trader re-arms a different order.
-    mapping(bytes32 => bool) public executedTriggerOrders;
-
-    // [P0#2] Trigger-order errors.
-    error TriggerPriceFeedNotSet();
-    error NoArmedTriggerOrder();
-    error TriggerOrderAlreadyExecuted();
-    error TriggerOrderExpired();
-    error TriggerNotHit();
-    error PositionLiquidatable();
-    error InvalidTriggerOrderSignature();
-    error TriggerOrderPoolMismatch();
-    error NoActivePosition();
-    error TriggerPriceUnavailable();
-
-    event TriggerPriceFeedSet(address indexed feed);
-    event TriggerOrderArmed(
-        address indexed trader, bytes32 indexed poolId, uint256 triggerPrice18, bool aboveOrBelow, uint256 nonce
-    );
-    event TriggerOrderExecuted(address indexed trader, bytes32 indexed poolId, uint256 nonce, address executor);
-    event TriggerOrderCancelled(address indexed trader, bytes32 indexed poolId);
+    // Moved to EswapRouterExt: TriggerOrder struct, TRIGGER_ORDER_TYPEHASH,
+    // triggerPriceFeed, armedTriggerOrders, executedTriggerOrders, its errors
+    // and events, and the arm/execute/cancel entrypoints all live on the
+    // companion contract (which re-enters PoolManager for the close through its
+    // own unlockCallback).
 
     constructor(IPoolManager _manager) Ownable(msg.sender) {
         manager = _manager;
@@ -366,16 +233,56 @@ contract EswapRouter is
         emit NativeBorrowWithdrawn(msg.sender, amount);
     }
 
-    function setJitApprovedSwapper(address swapper, bool approved) external onlyOwner {
-        jitApprovedSwappers[swapper] = approved;
-    }
-
     function setAllowedAggregator(address exchangeProxy, bool allowed) external onlyOwner {
         allowedAggregators[exchangeProxy] = allowed;
         emit AggregatorWhitelistUpdated(exchangeProxy, allowed);
     }
 
+    /// @notice [AUDIT CRIT-4] Governance gates who may relay `swapFor` /
+    ///         `swapMultiPoolFor` on behalf of an arbitrary trader.
+    function setExecutorWhitelist(address executor, bool approved) external onlyOwner {
+        executorWhitelist[executor] = approved;
+    }
+
     event AggregatorWhitelistUpdated(address indexed exchangeProxy, bool allowed);
+    event ExecutorWhitelistUpdated(address indexed executor, bool approved);
+
+    // --- EswapRouterExt passthroughs --------------------------------
+    //
+    // The router's companion (EswapRouterExt) hosts the off-core surfaces
+    // (signed trigger orders, JIT spot swaps) so this contract fits EIP-170.
+    // The EswapMarginHook only trusts THIS router (and the PoolManager) as its
+    // caller for close / JIT-delta accounting, so the ext performs those actions
+    // through these two ext-gated passthroughs. Only the designated ext may call
+    // them; they add no public capability that the router itself didn't already
+    // have before the split.
+
+    /// @dev Owner-sets the companion contract address. The ext is deployed AFTER
+    ///      the router (its constructor pins this router's domain), so it cannot
+    ///      be wired in the constructor.
+    address public routerExt;
+
+    function setRouterExt(address _ext) external onlyOwner {
+        routerExt = _ext;
+        emit RouterExtSet(_ext);
+    }
+
+    event RouterExtSet(address indexed ext);
+
+    /// @notice Ext-gated trigger-close: re-enters the PoolManager with the same
+    ///         CLOSE the router's own `closePosition` uses, so the hook sees
+    ///         `msg.sender == address(this)`. `solver` is the ext (executor).
+    function extTriggerClose(address hook, PoolKey calldata key, address trader, uint256 minAmountOut) external {
+        require(msg.sender == routerExt, "EswapRouter: ext only");
+        manager.unlock(abi.encode(CallType.CLOSE, hook, key, trader, msg.sender, minAmountOut));
+    }
+
+    /// @notice Ext-gated JIT-delta release: forwards the hook's `clearJITDelta`
+    ///         from THIS router's address, preserving the hook's onlyRouter gate.
+    function extClearJITDelta(address hook, Currency token, address to, uint256 amount) external {
+        require(msg.sender == routerExt, "EswapRouter: ext only");
+        IEswapHook(hook).clearJITDelta(token, to, amount);
+    }
 
     // --- [P0#1] Permissionless-solver admin & tooling ---
 
@@ -444,7 +351,7 @@ contract EswapRouter is
     error InvalidIntentSignature();
     error BorrowExceedsSolverNotionalCap(uint256 borrow, uint256 cap);
     error SolverNotAuthorized();
-    error NotOwner();
+    error ExecutorUnauthorized();
     event NativeBorrowDeposited(address indexed solver, uint256 amount);
     event NativeBorrowWithdrawn(address indexed solver, uint256 amount);
     uint256 public constant DEFAULT_DEADLINE_SLACK = 15 minutes;
@@ -479,7 +386,9 @@ contract EswapRouter is
     /// the executor relays the call but the position and margin belong to
     /// `trader`, who must have approved this router to pull the margin.
     /// Payable so native-input (ETH) margin trades can attach the margin leg.
+    /// [AUDIT CRIT-4] Only `trader` himself or a whitelisted executor may relay.
     function swapFor(SwapParams calldata params, address trader) external payable returns (bytes memory) {
+        if (msg.sender != trader && !executorWhitelist[msg.sender]) revert ExecutorUnauthorized();
         return _swap(params, trader);
     }
 
@@ -497,7 +406,9 @@ contract EswapRouter is
     }
 
     /// @notice Executor variant of swapMultiPool for bridge/intent relays.
+    /// [AUDIT CRIT-4] Only `trader` himself or a whitelisted executor may relay.
     function swapMultiPoolFor(SwapParams calldata params, address trader) external payable returns (bytes memory) {
+        if (msg.sender != trader && !executorWhitelist[msg.sender]) revert ExecutorUnauthorized();
         return _swapMultiPool(params, trader);
     }
 
@@ -536,48 +447,29 @@ contract EswapRouter is
     function swapMultiPoolForAggregator(SwapParams calldata params, address trader, AggregatorRoute calldata route)
         external
         payable
-        returns (bytes memory)
-    {
-        return manager.unlock(
-            abi.encode(CallType.MULTI_POOL_AGGREGATOR_SWAP, params, trader, route, msg.value, msg.sender)
-        );
-    }
-
-    /// @notice [P2#7] Best-route competition: open a leveraged position where the
-    ///         notional fill routes through whichever venue — the deep standard
-    ///         pool OR a whitelisted external aggregator — guarantees the higher
-    ///         output. The trader can never end up with less than the standard
-    ///         pool's fill; the aggregator only wins the route when it genuinely
-    ///         outperforms the standard venue.
-    ///
-    /// @dev Venue selection (inside the unlock):
-    ///        1. Compute the deterministic standard-pool fill estimate for the
-    ///           notional (slot0 price of `params.standardPoolKey`, 0.1% execution
-    ///           discount — the same projection the public `quoteExactInput`
-    ///           quoter gives).
-    ///        2. `params.minAmountOut` is the trader's slippage floor AND their
-    ///           acceptance of the aggregator quote (the amount the aggregator
-    ///           promised to deliver).
-    ///        3. standard estimate >= floor  → STANDARD venue (`_multiPoolOpen`).
-    ///           The aggregator is never executed, so a weak/stale aggregator
-    ///           quote can never force a worse fill.
-    ///        4. floor > standard estimate   → AGGREGATOR venue
-    ///           (`_multiPoolOpenAggregator`). Because the trader's floor already
-    ///           sits ABOVE the standard estimate, the venue's existing fill-time
-    ///           `SwapOutputBelowMinimum` check forces the aggregator to actually
-    ///           beat the standard pool's output or the fill reverts — meaningful
-    ///           on-chain competition, not quote trust.
-    ///      The aggregator proxy must be whitelisted before this entrypoint is
-    ///      usable (checked here and re-checked inside the fill). Margin is pulled
-    ///      from `trader`, borrow from `params.solver` — mirror of
-    ///      `swapMultiPoolForAggregator`.
-    function swapMultiPoolBestRoute(SwapParams calldata params, address trader, AggregatorRoute calldata route)
-        external
-        payable
+        nonReentrant
         returns (bytes memory)
     {
         require(allowedAggregators[route.exchangeProxy], "Aggregator not whitelisted");
-        return manager.unlock(abi.encode(CallType.MULTI_POOL_BEST_ROUTE, params, trader, route, msg.value, msg.sender));
+        // [FIX] Execute the external aggregator fill BEFORE entering the PoolManager
+        // lock. A real route frequently fills through a Uniswap V4 pool, and the
+        // aggregator calls `PoolManager.unlock()` for that leg; if the router is
+        // already inside its own unlock/callback that nested unlock reverts with
+        // `AlreadyUnlocked` and breaks every V4-leg fill (on Unichain every pool IS
+        // V4). Funding, fill and output measure run here, unlocked; only the hook
+        // accounting that needs the PM (mint/sync/settle) stays in the callback.
+        (uint256 notional, uint256 outputAmount) = _aggregatorPrefill(params, trader, route, false);
+        return manager.unlock(
+            abi.encode(
+                CallType.MULTI_POOL_AGGREGATOR_SWAP,
+                params,
+                trader,
+                outputAmount,
+                notional,
+                msg.value,
+                msg.sender
+            )
+        );
     }
 
     /// @notice [P0#1] EIP-712 hash of a signed `LendingIntent`.
@@ -633,11 +525,10 @@ contract EswapRouter is
         if (params.minAmountOut < intent.minAmountOut) revert IntentSlippageBelowSignedFloor();
 
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, hashIntent(intent)));
-        address recovered = _recoverSigner(digest, signature);
-        if (recovered == address(0) || recovered != trader) revert InvalidIntentSignature();
+        if (!_isValidSignature(trader, digest, signature)) revert InvalidIntentSignature();
 
         // One intent = one fill: consume the (trader, nonce) pair.
-        bytes32 fillId = keccak256(abi.encode(recovered, intent.nonce));
+        bytes32 fillId = keccak256(abi.encode(trader, intent.nonce));
         if (filledIntents[fillId]) revert IntentAlreadyFilled();
         filledIntents[fillId] = true;
 
@@ -651,255 +542,42 @@ contract EswapRouter is
             if (cap > 0 && borrowAmount > cap) revert BorrowExceedsSolverNotionalCap(borrowAmount, cap);
         }
 
-        return manager.unlock(abi.encode(CallType.MULTI_POOL_INTENT_OPEN, params, recovered, msg.value, msg.sender));
+        return manager.unlock(abi.encode(CallType.MULTI_POOL_INTENT_OPEN, params, trader, msg.value, msg.sender));
     }
 
     // ─── [P0#2] Signed limit / stop-loss TriggerOrder ────────────────────────
+    // Trigger-order arm/execute/cancel + ERC-7683 hashOrder moved to
+    // EswapRouterExt (companion contract). The keep-copy of the signature
+    // checker below also serves swapWithIntent.
 
-    /// @notice Points the trigger-oracle surface at the Chainlink PriceFeed the
-    ///         hook already uses. Owner-only; disabling (address(0)) turns
-    ///         trigger orders off until a feed is re-set.
-    function setTriggerPriceFeed(IPriceFeedForTrigger _priceFeed) external onlyOwner {
-        triggerPriceFeed = _priceFeed;
-        emit TriggerPriceFeedSet(address(_priceFeed));
-    }
-
-    /// @notice [P0#2] EIP-712 hash of a signed `TriggerOrder`.
-    function hashTriggerOrder(TriggerOrder calldata order) public pure returns (bytes32) {
-        return keccak256(
-            abi.encode(
-                TRIGGER_ORDER_TYPEHASH,
-                order.poolId,
-                order.triggerPrice18,
-                order.aboveOrBelow,
-                order.minAmountOut,
-                order.closeDeadline,
-                order.nonce,
-                order.executorTipBps
-            )
-        );
-    }
-
-    /// @notice [P0#2] The trader arms a conditional close by proving ownership of
-    ///         the EIP-712 signature over the `TriggerOrder`. One order per
-    ///         (trader, pool); re-arming overwrites the previous one.
-    function armTriggerOrder(PoolKey calldata key, TriggerOrder calldata order, bytes calldata signature) external {
-        if (PoolId.unwrap(key.toId()) != order.poolId) revert TriggerOrderPoolMismatch();
-        if (block.timestamp > order.closeDeadline) revert TriggerOrderExpired();
-
-        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, hashTriggerOrder(order)));
-        address recovered = _recoverSigner(digest, signature);
-        if (recovered == address(0) || recovered != msg.sender) revert InvalidTriggerOrderSignature();
-
-        armedTriggerOrders[msg.sender][order.poolId] = order;
-        emit TriggerOrderArmed(msg.sender, order.poolId, order.triggerPrice18, order.aboveOrBelow, order.nonce);
-    }
-
-    /// @notice [P0#2] PERMISSIONLESS conditional close: any keeper may call this
-    ///         once the pool's market price crosses the armed `TriggerOrder`.
-    ///         Guards, in order:
-    ///          1. An armed order exists, is not expired, and is not replayable.
-    ///          2. The position exists and is NOT liquidatable — liquidation
-    ///             always wins over a trigger close (a liquidatable position is
-    ///             closed by `liquidate`, never by this path).
-    ///          3. The live market price crossed the signed trigger in the signed
-    ///             direction (`aboveOrBelow=true → market >= trigger`, else
-    ///             `market < trigger`).
-    ///         If all pass, the close is executed exactly as the trader signed it
-    ///         (same unlock path as a manual close, same hook settlement), the
-    ///         nonce is consumed and the armed order is cleared.
-    function executeTriggerOrder(address hook, PoolKey calldata key, address trader) external {
-        bytes32 poolId = PoolId.unwrap(key.toId());
-        // Snapshot the armed order into memory: clearing the storage slot below
-        // must not zero the fields we still emit and enforce afterwards.
-        TriggerOrder memory order = armedTriggerOrders[trader][poolId];
-        if (order.closeDeadline == 0) revert NoArmedTriggerOrder();
-        if (block.timestamp > order.closeDeadline) revert TriggerOrderExpired();
-
-        bytes32 executionId = keccak256(abi.encode(trader, order.poolId, order.nonce));
-        if (executedTriggerOrders[executionId]) revert TriggerOrderAlreadyExecuted();
-
-        if (address(triggerPriceFeed) == address(0)) revert TriggerPriceFeedNotSet();
-
-        // The position must exist and be healthy: liquidation preempts triggers.
-        (, uint256 collateral,,,,,,,) = IEswapTriggerHookRead(hook).positions(PoolId.unwrap(key.toId()), trader);
-        if (collateral == 0) revert NoActivePosition();
-        if (IEswapTriggerHookRead(hook).isPositionLiquidatable(key, trader)) revert PositionLiquidatable();
-
-        // The live market price must have crossed the signed trigger.
-        uint256 marketPrice18 = _computeMarketPrice18(key);
-        bool hit = order.aboveOrBelow ? marketPrice18 >= order.triggerPrice18 : marketPrice18 < order.triggerPrice18;
-        if (!hit) revert TriggerNotHit();
-
-        // Consume the nonce and clear the armed slot before the close; both only
-        // persist if the close succeeds (a revert rolls the whole tx back, so on
-        // a failed close the order stays armed and replayable).
-        executedTriggerOrders[executionId] = true;
-        delete armedTriggerOrders[trader][poolId];
-
-        emit TriggerOrderExecuted(trader, order.poolId, order.nonce, msg.sender);
-
-        // The hook ignores the `solver` argument (it repays `positionSolver`),
-        // so pass a zero address — the signed payout floor is what matters.
-        manager.unlock(abi.encode(CallType.CLOSE, hook, key, trader, address(0), order.minAmountOut));
-    }
-
-    /// @notice [P0#2] Trader (or governance) disarms a conditional close.
-    function cancelTriggerOrder(address trader, PoolKey calldata key) external {
-        bytes32 poolId = PoolId.unwrap(key.toId());
-        if (msg.sender != trader && msg.sender != owner()) revert NotOwner();
-        if (armedTriggerOrders[trader][poolId].closeDeadline == 0) revert NoArmedTriggerOrder();
-        delete armedTriggerOrders[trader][poolId];
-        emit TriggerOrderCancelled(trader, poolId);
-    }
-
-    /// @dev [P0#2] Live pool market price as an 18-decimal exchange rate:
-    ///      USD worth of ONE WHOLE token0 divided by USD worth of ONE WHOLE
-    ///      token1 (both via getAmountInUsd(10**decimals), so cross-decimal pairs
-    ///      like USDC/WETH price correctly). Same oracle the hook's liquidation
-    ///      path reads — trigger evaluation and health share one source.
-    ///      Reverts when either leg's feed is missing (0 USD value) so a fake
-    ///      "below trigger" can never fire a stop-loss on an unavailable oracle.
-    function _computeMarketPrice18(PoolKey calldata key) internal view returns (uint256) {
-        address token0 = Currency.unwrap(key.currency0);
-        address token1 = Currency.unwrap(key.currency1);
-        uint256 price0 = triggerPriceFeed.getAmountInUsd(token0, 10 ** _tokenDecimals(token0));
-        uint256 price1 = triggerPriceFeed.getAmountInUsd(token1, 10 ** _tokenDecimals(token1));
-        if (price0 == 0 || price1 == 0) revert TriggerPriceUnavailable();
-        return FullMath.mulDiv(price0, 1e18, price1);
-    }
-
-    function _tokenDecimals(address token) internal view returns (uint8 d) {
-        (bool ok, bytes memory ret) = token.staticcall(abi.encodeWithSignature("decimals()"));
-        d = (ok && ret.length >= 32) ? uint8(uint256(abi.decode(ret, (uint256)))) : 18;
-    }
-
-    function executeJITSpotSwap(JITSpotParams calldata params) external returns (bytes memory) {
-        // Enforce that the caller is the solver
-        require(msg.sender == params.solver, "Only solver can execute JIT");
-        return manager.unlock(abi.encode(CallType.JIT_SPOT, params));
-    }
-
-    function hashOrder(CrossChainOrder calldata order) public pure returns (bytes32) {
-        return keccak256(
-            abi.encode(
-                CROSS_CHAIN_ORDER_TYPEHASH,
-                order.settlementContract,
-                order.swapper,
-                order.nonce,
-                order.originChainId,
-                order.initiateDeadline,
-                order.fillDeadline,
-                keccak256(order.orderData)
-            )
-        );
-    }
-
-    function _recoverSigner(bytes32 digest, bytes calldata signature) internal pure returns (address) {
-        if (signature.length != 65) return address(0);
-        bytes32 r;
-        bytes32 s;
-        uint8 v;
-        assembly {
-            r := calldataload(signature.offset)
-            s := calldataload(add(signature.offset, 0x20))
-            v := byte(0, calldataload(add(signature.offset, 0x40)))
-        }
-        return ecrecover(digest, v, r, s);
-    }
-
-    /**
-     * @notice ERC-7683 Solver Initiation Gateway.
-     * Allows permissionless solvers to fill the trader's off-chain signed intent order.
-     */
-    function initiate(CrossChainOrder calldata order, bytes calldata signature, bytes calldata) external {
-        require(order.settlementContract == address(this), "Invalid settlement contract");
-        require(order.originChainId == block.chainid, "Invalid origin chain");
-        require(block.timestamp <= order.initiateDeadline, "Initiate deadline passed");
-
-        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, hashOrder(order)));
-        address swapper = _recoverSigner(digest, signature);
-        require(swapper == order.swapper && swapper != address(0), "Invalid signature");
-
-        // M-2 FIX: Consume order nonce to prevent replay
-        bytes32 orderHash = keccak256(abi.encode(digest));
-        require(!filledOrders[orderHash], "Order already filled");
-        filledOrders[orderHash] = true;
-
-        (
-            PoolKey memory key,
-            PoolKey memory standardPoolKey,
-            bool zeroForOne,
-            int256 amountSpecified,
-            uint8 leverage,
-            address solver,
-            bytes memory hookData,
-            uint256 minAmountOut
-        ) = abi.decode(order.orderData, (PoolKey, PoolKey, bool, int256, uint8, address, bytes, uint256));
-
-        address activeSolver = solver;
-        if (activeSolver == address(0)) {
-            activeSolver = msg.sender;
-        }
-
-        SwapParams memory params = SwapParams({
-            key: key,
-            standardPoolKey: standardPoolKey,
-            zeroForOne: zeroForOne,
-            amountSpecified: amountSpecified,
-            leverage: leverage,
-            solver: activeSolver,
-            hookData: hookData,
-            deadline: uint256(order.fillDeadline),
-            // [FIX H-3] Signed orders carry an explicit output floor appended to
-            // orderData; it is enforced inside the swap callback. Zero is only
-            // accepted when the signer deliberately omitted/zeroed it.
-            minAmountOut: minAmountOut
-        });
-
-        // Aggregator intents fill on the DEEP standard pool (multi-pool mode):
-        // execution depth comes from Uniswap's existing liquidity. `initiate` is
-        // non-payable (native margins flow via swapMultiPool/swapMultiPoolFor),
-        // so ETH attached to the unlock is always 0 here.
-        manager.unlock(abi.encode(CallType.MULTI_POOL_SWAP, params, swapper, uint256(0), msg.sender));
-    }
-
-    /**
-     * @notice ERC-7683 Order Resolution Interface.
-     * Decodes the cross-chain order's custom parameters for solvers/aggregators to inspect inputs/outputs.
-     */
-    function resolve(CrossChainOrder calldata order, bytes calldata)
-        external
+    /// @dev [AUDIT HIGH-01] Signature verification that (a) rejects ECDSA
+    ///      malleability via OpenZeppelin ECDSA (canonical low-s, v∈{27,28},
+    ///      padded-v normalization), and (b) supports ERC-1271 contract wallets
+    ///      (Safe, Argent, Kernel, ...) through SignatureChecker so two-factor /
+    ///      smart-wallet traders can sign intents. `expectedSigner` is always
+    ///      known at the call sites (trader / msg.sender / order.swapper).
+    function _isValidSignature(address expectedSigner, bytes32 digest, bytes calldata signature)
+        internal
         view
-        returns (ResolvedCrossChainOrder memory resolved)
+        returns (bool)
     {
-        (PoolKey memory key,, bool zeroForOne, int256 amountSpecified, uint8 leverage,,) =
-            abi.decode(order.orderData, (PoolKey, PoolKey, bool, int256, uint8, address, bytes));
-
-        resolved.settlementContract = order.settlementContract;
-        resolved.swapper = order.swapper;
-        resolved.nonce = order.nonce;
-        resolved.originChainId = order.originChainId;
-        resolved.initiateDeadline = order.initiateDeadline;
-        resolved.fillDeadline = order.fillDeadline;
-
-        resolved.swapperInputs = new Input[](1);
-        address inputToken = zeroForOne ? Currency.unwrap(key.currency0) : Currency.unwrap(key.currency1);
-        uint256 marginAmount = uint256(amountSpecified < 0 ? -amountSpecified : amountSpecified);
-        resolved.swapperInputs[0] = Input({token: inputToken, amount: marginAmount});
-
-        resolved.swapperOutputs = new Output[](1);
-        address outputToken = zeroForOne ? Currency.unwrap(key.currency1) : Currency.unwrap(key.currency0);
-        resolved.swapperOutputs[0] = Output({
-            token: outputToken, amount: marginAmount * leverage, chainId: order.originChainId, recipient: order.swapper
-        });
+        if (expectedSigner == address(0)) return false;
+        // Smart contract wallet: delegate to its ERC-1271 validator.
+        if (expectedSigner.code.length > 0) {
+            return SignatureChecker.isValidSignatureNow(expectedSigner, digest, signature);
+        }
+        // EOA: strict ECDSA recovery (low-s canonical form enforced by OZ's
+        // tryRecover, which returns address(0) on any malformed/malleable input).
+        (address recovered, ECDSA.RecoverError err,) = ECDSA.tryRecover(digest, signature);
+        return err == ECDSA.RecoverError.NoError && recovered == expectedSigner;
     }
 
-    function atomicMarginTrade(AtomicMarginParams calldata params) external returns (uint256 profit) {
-        bytes memory result = manager.unlock(abi.encode(CallType.ATOMIC_MARGIN, params, msg.sender));
-        profit = abi.decode(result, (uint256));
-    }
-
+    /**
+     * @notice ERC-7683 (initiate / resolve) and atomic-margin (atomicMarginTrade)
+     *      Moved to EswapRouterExt. initiate forwards fills to this router's
+     *      swapMultiPoolFor; the cross-chain order signature domain stays pinned
+     *      to THIS router (ext mirrors it).
+     */
     function unlockCallback(bytes calldata data) external returns (bytes memory) {
         require(msg.sender == address(manager), "Not manager");
 
@@ -918,23 +596,13 @@ contract EswapRouter is
                 abi.decode(data, (CallType, SwapParams, address, address, uint256, address));
             return _multiPoolOpen(params, trader, marginFunder, ethAttached, refundRecipient, false);
         } else if (callType == CallType.MULTI_POOL_AGGREGATOR_SWAP) {
-            (, SwapParams memory params, address trader, AggregatorRoute memory route, uint256 ethAttached, address refundRecipient) =
-                abi.decode(data, (CallType, SwapParams, address, AggregatorRoute, uint256, address));
-            return _multiPoolOpenAggregator(params, trader, route, ethAttached, refundRecipient, false);
+            (, SwapParams memory params, address trader, uint256 outputAmount, uint256 notional, uint256 ethAttached, address refundRecipient) =
+                abi.decode(data, (CallType, SwapParams, address, uint256, uint256, uint256, address));
+            return _multiPoolOpenAggregator(params, trader, outputAmount, notional, ethAttached, refundRecipient);
         } else if (callType == CallType.MULTI_POOL_INTENT_OPEN) {
             (, SwapParams memory params, address trader, uint256 ethAttached, address refundRecipient) =
                 abi.decode(data, (CallType, SwapParams, address, uint256, address));
             return _multiPoolOpen(params, trader, trader, ethAttached, refundRecipient, true);
-        } else if (callType == CallType.MULTI_POOL_BEST_ROUTE) {
-            (
-                ,
-                SwapParams memory params,
-                address trader,
-                AggregatorRoute memory route,
-                uint256 ethAttached,
-                address refundRecipient
-            ) = abi.decode(data, (CallType, SwapParams, address, AggregatorRoute, uint256, address));
-            return _bestRouteOpen(params, trader, route, ethAttached, refundRecipient, false);
         } else if (callType == CallType.CLOSE) {
             (, address hook, PoolKey memory key, address trader, address solver, uint256 minAmountOut) =
                 abi.decode(data, (CallType, address, PoolKey, address, address, uint256));
@@ -962,125 +630,7 @@ contract EswapRouter is
                 abi.decode(data, (CallType, address, PoolKey, address));
             IEswapHook(hook).rebalancePosition(key, trader);
             return "";
-        } else if (callType == CallType.ATOMIC_MARGIN) {
-            (, AtomicMarginParams memory params, address trader) =
-                abi.decode(data, (CallType, AtomicMarginParams, address));
-            return _atomicMarginCallback(params, trader);
-        } else if (callType == CallType.JIT_SPOT) {
-            (, JITSpotParams memory params) = abi.decode(data, (CallType, JITSpotParams));
-            return _jitSpotCallback(params);
-        } else if (callType == CallType.ARBUN_DELIVERY) {
-            (, address hook, PoolKey memory key, address trader) =
-                abi.decode(data, (CallType, address, PoolKey, address));
-            IEswapHook(hook).executeArbunDelivery(key, trader);
-            return "";
         }
-        return "";
-    }
-
-    function _atomicMarginCallback(AtomicMarginParams memory params, address trader) internal returns (bytes memory) {
-        Currency input = params.zeroForOne ? params.key.currency0 : params.key.currency1;
-        Currency output = params.zeroForOne ? params.key.currency1 : params.key.currency0;
-
-        // 1. Borrow input token from PoolManager singleton (0 Capital, 0% Interest)
-        manager.take(input, address(this), params.borrowAmount);
-
-        // 2. First leg: swap borrowed input token to output token on high-liquidity standard pool
-        manager.sync(input);
-        IERC20(Currency.unwrap(input)).safeTransfer(address(manager), params.borrowAmount);
-        manager.settle();
-
-        BalanceDelta deltaPhysical = manager.swap(
-            params.standardPoolKey,
-            IPoolManager.SwapParams(
-                params.zeroForOne, -int256(params.borrowAmount), EswapMarginLib.sqrtPriceLimit(params.zeroForOne)
-            ),
-            ""
-        );
-
-        int128 receivedOutputDelta = params.zeroForOne ? deltaPhysical.amount1() : deltaPhysical.amount0();
-        require(receivedOutputDelta > 0, "Swap output zero");
-        uint256 receivedOutputAmount = uint256(int256(receivedOutputDelta));
-
-        manager.take(output, address(this), receivedOutputAmount);
-
-        // 3. Second leg: swap output token back to input token on hook pool
-        bool oppositeZeroForOne = !params.zeroForOne;
-        manager.sync(output);
-        IERC20(Currency.unwrap(output)).safeTransfer(address(manager), receivedOutputAmount);
-        manager.settle();
-
-        // Pass empty hookData to EswapMarginHook — second leg is a standard spot swap, no accounting
-        BalanceDelta deltaHook = manager.swap(
-            params.key,
-            IPoolManager.SwapParams(
-                oppositeZeroForOne, -int256(receivedOutputAmount), EswapMarginLib.sqrtPriceLimit(oppositeZeroForOne)
-            ),
-            ""
-        );
-
-        int128 receivedInputDelta = oppositeZeroForOne ? deltaHook.amount1() : deltaHook.amount0();
-        require(receivedInputDelta > 0, "Second swap output zero");
-        uint256 finalInputAmount = uint256(int256(receivedInputDelta));
-
-        manager.take(input, address(this), finalInputAmount);
-
-        // 4. Verify profitability: final amount must recover borrow amount + minimum profit
-        require(finalInputAmount >= params.borrowAmount + params.minProfit, "Atomic margin trade unprofitable");
-        uint256 profit = finalInputAmount - params.borrowAmount;
-
-        // 5. Settle original borrow delta to PoolManager
-        manager.sync(input);
-        IERC20(Currency.unwrap(input)).safeTransfer(address(manager), params.borrowAmount);
-        manager.settle();
-
-        // 6. Pay profit to trader with 0 capital used
-        if (profit > 0) {
-            IERC20(Currency.unwrap(input)).safeTransfer(trader, profit);
-        }
-
-        return abi.encode(profit);
-    }
-
-    function _jitSpotCallback(JITSpotParams memory params) internal returns (bytes memory) {
-        // H-4 FIX: Require swapper to be JIT-approved
-        require(jitApprovedSwappers[params.swapper], "Swapper not JIT-approved");
-
-        Currency input = params.zeroForOne ? params.key.currency0 : params.key.currency1;
-        Currency output = params.zeroForOne ? params.key.currency1 : params.key.currency0;
-
-        // [FIX H-5] Enforce minimum solver output before executing to protect swapper
-        require(params.solverOutput >= params.minSolverOutput, "JIT: solver output below minimum acceptable");
-
-        bytes memory hookData = abi.encode(false, params.solver, params.solverOutput);
-
-        // 1. Execute swap on the Hook pool. The Hook's beforeSwap will absorb the delta.
-        manager.swap(
-            params.key,
-            IPoolManager.SwapParams(
-                params.zeroForOne, params.amountSpecified, EswapMarginLib.sqrtPriceLimit(params.zeroForOne)
-            ),
-            hookData
-        );
-
-        uint256 inputAmount = uint256(params.amountSpecified < 0 ? -params.amountSpecified : params.amountSpecified);
-
-        // 2. Swapper pays the input tokens to the Manager (Settles Router's input debt)
-        manager.sync(input);
-        IERC20(Currency.unwrap(input)).safeTransferFrom(params.swapper, address(manager), inputAmount);
-        manager.settle();
-
-        // 3. Solver pays the output tokens to the Manager FOR the Hook
-        manager.sync(output);
-        IERC20(Currency.unwrap(output)).safeTransferFrom(params.solver, address(manager), params.solverOutput);
-        manager.settleFor(address(params.key.hooks));
-
-        // 4. Router takes the output tokens and sends them to the Swapper
-        manager.take(output, params.swapper, params.solverOutput);
-
-        // 5. Hook takes the input tokens and sends them to the Solver
-        IEswapHook(address(params.key.hooks)).clearJITDelta(input, params.solver, inputAmount);
-
         return "";
     }
 
@@ -1126,7 +676,6 @@ contract EswapRouter is
         Currency input = params.zeroForOne ? params.key.currency0 : params.key.currency1;
         Currency output = params.zeroForOne ? params.key.currency1 : params.key.currency0;
         bool inputNative = Currency.unwrap(input) == address(0);
-        uint256 notional = marginAmount + borrowAmount;
 
         BalanceDelta delta = manager.swap(
             params.key,
@@ -1393,34 +942,31 @@ contract EswapRouter is
     }
 
     /**
-     * @notice Aggregator-orchestrated multi-pool open: the physical fill executes
-     *         through an external aggregator (0x ExchangeProxy, ParaSwap Augustus,
-     *         ...) that received a REAL quote; the hook pool is used for
-     *         accounting only (position registration + ERC-6909 collateral
-     *         custody). The hook accounting is IDENTICAL to `_multiPoolOpen` —
-     *         only the fill venue changes from the standard pool to the
-     *         aggregator's exchange proxy.
-     *
-     * @dev Delta ledger inside this unlock (router perspective):
-     *        aggregator fill: +outputAgg(output) — routed externally, lands at router
-     *        settle margin:   -margin netted            (transferFrom marginFunder)
-     *        settle borrow:   -borrow netted            (transferFrom solver)
-     *        mint claim:      -outputAgg netted         (6909 to hook, then sync+settle)
-     *      All deltas zero before unlock exits.
+     * @notice Aggregator-fill prelude: pulls the margin and solver-funded borrow
+     *         legs into the router, approves the whitelisted exchange proxy,
+     *         executes the REAL quote calldata and measures the delivered output.
+     *         Runs OUTSIDE the PoolManager lock (called by the nonReentrant
+     *         aggregator entrypoint) so routes that fill through a Uniswap V4
+     *         pool can call `PoolManager.unlock()` themselves without hitting
+     *         `AlreadyUnlocked` — every pool on the target chain (Unichain) is
+     *         V4, so an in-lock fill would always revert. The PM-backed
+     *         accounting (mint/sync/settle) still runs inside the unlock
+     *         callback via `_aggregatorSettle`.
+     * @return notional      margin + borrow pulled into the router
+     * @return outputAmount  the output the aggregator actually delivered
      */
-    function _multiPoolOpenAggregator(
+    function _aggregatorPrefill(
         SwapParams memory params,
         address trader,
         AggregatorRoute memory route,
-        uint256 ethAttached,
-        address refundRecipient,
         bool solverAuthorizedByIntent
-    ) internal returns (bytes memory) {
+    ) internal returns (uint256 notional, uint256 outputAmount) {
         // [FIX L-4] Reject fills past the signed deadline.
         if (block.timestamp > params.deadline) revert DeadlineExpired();
         uint256 marginAmount =
             uint256(int256(params.amountSpecified < 0 ? -params.amountSpecified : params.amountSpecified));
         uint256 borrowAmount = marginAmount * uint256(params.leverage - 1);
+        notional = marginAmount + borrowAmount;
         if (params.leverage > 1) {
             require(params.solver != address(0), "Solver required for leverage");
             // [P0#1] Whitelist is now ONE of two authorization legs: governance
@@ -1443,7 +989,6 @@ contract EswapRouter is
         Currency output = params.zeroForOne ? params.key.currency1 : params.key.currency0;
         bool inputNative = Currency.unwrap(input) == address(0);
         bool outputNative = Currency.unwrap(output) == address(0);
-        uint256 notional = marginAmount + borrowAmount;
 
         // Route sanity: the quoted input/output pair and sell amount must match
         // the swap leg — a stale/mismatched quote can never spend an unexpected
@@ -1486,19 +1031,51 @@ contract EswapRouter is
         uint256 outBefore = IERC20(Currency.unwrap(output)).balanceOf(address(this));
 
         // Execute the real aggregator fill; check success and decode the revert reason.
-        (bool ok, bytes memory ret) = route.exchangeProxy.call{value: route.value}(route.callData);
+(bool ok, bytes memory ret) = route.exchangeProxy.call{value: route.value}(route.callData);
         if (!ok) {
-            if (ret.length >= 68 && bytes4(ret) == 0x08c379a0) {
-                revert(string(abi.decode(_slice(ret, 4), (string))));
+            // Propagate ANY revert payload (Error(string) custom errors, panic)
+            // verbatim so the cause is visible to the caller/tooling.
+            if (ret.length >= 4) {
+                assembly {
+                    revert(add(ret, 32), mload(ret))
+                }
             }
             revert AggregatorFillFailed();
         }
 
-        // 3. Measure the actual output delivered by the real aggregator fill.
-        uint256 outputAmount = IERC20(Currency.unwrap(output)).balanceOf(address(this)) - outBefore;
+// 3. Measure the actual output delivered by the real aggregator fill.
+        outputAmount = IERC20(Currency.unwrap(output)).balanceOf(address(this)) - outBefore;
         require(outputAmount > 0, "Aggregator output zero");
+        // [AUDIT CRIT-5] Never leave a dangling allowance to the exchange proxy.
+        // A proxy that consumed less than the approved `notional` would otherwise
+        // keep a live transfer right to the router's collateral across fills; an
+        // attacker could route a later victim's tokens through that leftover
+        // allowance. Reset to 0 unconditionally so every fill re-authorizes fresh.
+        IERC20(Currency.unwrap(input)).forceApprove(route.exchangeProxy, 0);
         // [FIX C-4] Enforce the caller's slippage floor on the executed output.
         if (outputAmount < params.minAmountOut) revert SwapOutputBelowMinimum(outputAmount, params.minAmountOut);
+    }
+
+    /**
+     * @notice Post-fill accounting tail the aggregator paths share: validate the
+     *         open in the hook, pin the deliverable as ERC-6909 collateral in the
+     *         hook, settle the held ERC20 into the PoolManager, register the
+     *         solver debt, refund attached native value and optionally deploy
+     *         rehypothecated collateral. Must run inside a `manager.unlock`
+     *         callback because it uses `mint/sync/settle`.
+     */
+    function _aggregatorSettle(
+        SwapParams memory params,
+        address trader,
+        uint256 outputAmount,
+        uint256 notional,
+        uint256 ethAttached,
+        address refundRecipient
+    ) internal returns (bytes memory) {
+        Currency output = params.zeroForOne ? params.key.currency1 : params.key.currency0;
+        uint256 marginAmount =
+            uint256(int256(params.amountSpecified < 0 ? -params.amountSpecified : params.amountSpecified));
+        uint256 borrowAmount = notional - marginAmount;
 
         // 4. Hook validates the open and records position accounting — identical
         //    to `_multiPoolOpen`: the hook never sees or cares HOW the fill happened.
@@ -1507,7 +1084,7 @@ contract EswapRouter is
 
         // 5. Collateral custody: the aggregator's output sits at the ROUTER (not
         //    the PM as in the standard pool path). Mint the 6909 claim to the hook
-        //    (router −output), then sync+settle the held ERC20 into the PM to zero
+        //    (router -output), then sync+settle the held ERC20 into the PM to zero
         //    the router's transient delta.
         manager.mint(address(params.key.hooks), uint256(uint160(Currency.unwrap(output))), outputAmount);
         manager.sync(output);
@@ -1544,83 +1121,24 @@ contract EswapRouter is
     }
 
     /**
-     * @notice [P2#7] Best-route competition: select and execute the venue whose
-     *         guaranteed output is higher — the standard (deep-fill) pool or a
-     *         whitelisted external aggregator.
-     * @dev Competition rule, all enforced on-chain against the live execution
-     *      pool's slot0 price (see `_quoteStandardFill`):
-     *        - standard estimate >  trader's floor   → STANDARD venue. The
-     *          aggregator route is never executed, so a weak/stale aggregator
-     *          quote can neither force a worse fill nor consume gas.
-     *        - trader's floor ≥ standard estimate    → AGGREGATOR venue. The
-     *          floor is then already above the standard estimate, so the
-     *          aggregator's own fill-time slippage check (`SwapOutputBelowMinimum`
-     *          inside `_multiPoolOpenAggregator`) forces its ACTUAL delivered
-     *          output to exceed the standard venue's output or the whole fill
-     *          reverts.
-     *        - standard venue uninitialized          → AGGREGATOR venue with the
-     *          trader's floor (nothing on-chain to compete against).
-     *      Authorizations (solver whitelist/intent) and margin/borrow legs are
-     *      delegated to the chosen venue's internal open, so the standard and
-     *      aggregator executions stay byte-identical to their entrypoints.
+     * @notice Hoisted aggregator open (accounting only). The external fill already
+     *         ran OUTSIDE the PoolManager lock in `swapMultiPoolForAggregator`, so
+     *         a real route filling through a Uniswap V4 pool (every pool on
+     *         Unichain) can execute its own `PoolManager.unlock()` without
+     *         `AlreadyUnlocked`. `outputAmount`/`notional` are computed by the
+     *         entrypoint's `_aggregatorPrefill` and carried through this callback.
      */
-    function _bestRouteOpen(
+    function _multiPoolOpenAggregator(
         SwapParams memory params,
         address trader,
-        AggregatorRoute memory route,
+        uint256 outputAmount,
+        uint256 notional,
         uint256 ethAttached,
-        address refundRecipient,
-        bool solverAuthorizedByIntent
+        address refundRecipient
     ) internal returns (bytes memory) {
-        if (block.timestamp > params.deadline) revert DeadlineExpired();
-
-        uint256 marginAmount =
-            uint256(int256(params.amountSpecified < 0 ? -params.amountSpecified : params.amountSpecified));
-        uint256 borrowAmount = marginAmount * uint256(params.leverage - 1);
-        uint256 notional = marginAmount + borrowAmount;
-
-        // Deterministic standard-venue quote at the execution pool's live slot0
-        // (0.1% execution discount, mirroring the public quoter's parity model).
-        (uint256 standardOut, bool standardComputable) =
-            _quoteStandardFill(params.standardPoolKey, params.zeroForOne, notional);
-
-        // Standard wins when it meets the trader's floor (or isn't priceable —
-        // an uninitialized execution pool has nothing to compete against, so the
-        // aggregator fills). Otherwise the trader demands more than the standard
-        // venue can deliver; only the aggregator can fill it, and its floor is
-        // then already above the standard estimate, forcing genuine
-        // outperformance or a revert.
-        if (!standardComputable || standardOut >= params.minAmountOut) {
-            return _multiPoolOpen(params, trader, trader, ethAttached, refundRecipient, solverAuthorizedByIntent);
-        }
-        return _multiPoolOpenAggregator(params, trader, route, ethAttached, refundRecipient, solverAuthorizedByIntent);
-    }
-
-    /// @dev Deterministic spot-depth estimate of a NOTIONAL-sized fill on the
-    ///      given execution pool — the same projection the public `quoteExactInput`
-    ///      quoter uses (slot0 price, 0.1% execution discount). Returns
-    ///      `(0, false)` when the pool is uninitialized so the caller can fall
-    ///      back to the aggregator venue.
-    function _quoteStandardFill(PoolKey memory standardPoolKey, bool zeroForOne, uint256 notional)
-        internal
-        view
-        returns (uint256 output, bool computable)
-    {
-        (uint160 sqrtPriceX96,,,) = StateLibrary.getSlot0(
-            RealIPoolManager(address(manager)), RealPoolId.wrap(PoolId.unwrap(standardPoolKey.toId()))
-        );
-        if (sqrtPriceX96 == 0) return (0, false);
-        if (zeroForOne) {
-            // outputUnits = inputUnits * (sqrtPriceX96^2) / 2^192
-            output = FullMath.mulDiv(notional, uint256(sqrtPriceX96), 1 << 96);
-            output = FullMath.mulDiv(output, uint256(sqrtPriceX96), 1 << 96);
-        } else {
-            // outputUnits = inputUnits * 2^192 / (sqrtPriceX96^2)
-            uint256 temp = FullMath.mulDiv(notional, 1 << 96, uint256(sqrtPriceX96));
-            output = FullMath.mulDiv(temp, 1 << 96, uint256(sqrtPriceX96));
-        }
-        output = (output * 9990) / 10000;
-        return (output, true);
+        require(outputAmount > 0, "Aggregator output zero");
+        if (outputAmount < params.minAmountOut) revert SwapOutputBelowMinimum(outputAmount, params.minAmountOut);
+return _aggregatorSettle(params, trader, outputAmount, notional, ethAttached, refundRecipient);
     }
 
     /**
@@ -1650,12 +1168,17 @@ contract EswapRouter is
     }
 
     /**
-     * @notice Permissionless rebalancing entrypoint for keepers.
-     * @dev Re-centers an out-of-range position's concentrated liquidity around the
-     *      current tick. Safe to run permissionless: it only moves liquidity ranges,
-     *      is a no-op when the tick is already in range, and the caller pays gas.
+     * @notice Re-centers an out-of-range position's concentrated liquidity around
+     *         the current tick.
+     * @dev [AUDIT MED-4] NOT permissionless: rebalance removes and re-deploys a
+     *      trader's LP band and rewrites `pos.collateralAmount` to the physically
+     *      recovered value (sensitive when adverse drift causes impermanent loss).
+     *      Only the trader themselves or a governance-whitelisted executor
+     *      (keeper, adapter, bridge relay) may trigger it, eliminating griefing
+     *      gas-burn and forced early liquidation.
      */
     function rebalance(address hook, PoolKey calldata key, address trader) external {
+        require(msg.sender == trader || executorWhitelist[msg.sender], "EswapRouter: rebalance unauthorized");
         manager.unlock(abi.encode(CallType.REBALANCE, hook, key, trader));
     }
 
@@ -1665,10 +1188,6 @@ contract EswapRouter is
         // [FIX C-1] Only the trader themselves can close their own position
         require(msg.sender == trader, "EswapRouter: only the trader can close their own position");
         manager.unlock(abi.encode(CallType.CLOSE, hook, key, trader, solver, minAmountOut));
-    }
-
-    function executeArbunDelivery(address hook, PoolKey calldata key, address trader) external {
-        manager.unlock(abi.encode(CallType.ARBUN_DELIVERY, hook, key, trader));
     }
 
     function _closeCallback(address hook, PoolKey memory key, address trader, address solver, uint256 minAmountOut)
@@ -1734,12 +1253,5 @@ contract EswapRouter is
         if (amount == 0) return;
         (bool ok, ) = payable(to).call{value: amount}("");
         require(ok, "ETH refund failed");
-    }
-
-    function _slice(bytes memory b, uint256 from) internal pure returns (bytes memory out) {
-        out = new bytes(b.length - from);
-        for (uint256 i = 0; i < out.length; i++) {
-            out[i] = b[from + i];
-        }
     }
 }

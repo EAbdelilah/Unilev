@@ -34,7 +34,12 @@ contract PriceFeed {
     mapping(address => int256) public maxAnswers; // circuit-breaker ceiling (raw feed units)
     mapping(address => uint8) public feedDecimals; // decimals of each feed answer
     address public owner;
+    // [AUDIT LOW-7] Two-step ownership: pending owner must accept before taking over.
+    address public pendingOwner;
     address public sequencerUptimeFeed;
+    // [AUDIT MED-12] When true, every feed MUST have min/max bounds configured
+    // (production hardening); when false (legacy default) bounds stay optional.
+    bool public requireBounds;
 
     /// @dev Canonical key used to price NATIVE ETH. Native ether (Currency 0x0)
     ///      has no ERC-20 address, but the protocol prices the ETH leg through
@@ -57,6 +62,8 @@ contract PriceFeed {
     error GracePeriodNotMet();
     error StalePrice();
     error OraclePriceOutOfBounds();
+    error InvalidOwner();
+    error BoundsNotConfigured();
 
     modifier onlyOwner() {
         require(msg.sender == owner, "Not owner");
@@ -69,8 +76,23 @@ contract PriceFeed {
 
     // ─── Admin ────────────────────────────────────────────────────────────────
 
+    /// @notice [AUDIT LOW-7] Begin two-step ownership transfer. Old owner keeps
+    ///         control until `acceptOwner` is called by `newOwner`.
     function setOwner(address newOwner) external onlyOwner {
-        owner = newOwner;
+        if (newOwner == address(0)) revert InvalidOwner();
+        pendingOwner = newOwner;
+    }
+
+    function acceptOwner() external {
+        if (msg.sender != pendingOwner) revert InvalidOwner();
+        pendingOwner = address(0);
+        owner = msg.sender;
+    }
+
+    /// @notice [AUDIT MED-12] Toggle mandatory per-feed answer bounds. Enabling
+    ///         it makes every price read revert until bounds are configured.
+    function setRequireBounds(bool required) external onlyOwner {
+        requireBounds = required;
     }
 
     function setSequencerUptimeFeed(address feed) external onlyOwner {
@@ -110,28 +132,40 @@ contract PriceFeed {
         // L2 sequencer uptime check (skipped if feed not configured yet)
         if (sequencerUptimeFeed != address(0)) {
             (, int256 seqAnswer, uint256 startedAt,,) = ISequencerUptimeFeed(sequencerUptimeFeed).latestRoundData();
-            // answer == 1 → sequencer is DOWN
-            if (seqAnswer == 1) revert SequencerDown();
-            if (block.timestamp - startedAt < GRACE_PERIOD_TIME) revert GracePeriodNotMet();
+            // [AUDIT HIGH-12] Only 0 (UP) and 1 (DOWN) are valid answers; malformed
+            // values must not pass, and a feed that never started must be rejected.
+            if (seqAnswer == 1 || (seqAnswer != 0 && seqAnswer != 1)) revert SequencerDown();
+            if (startedAt == 0 || block.timestamp < startedAt + GRACE_PERIOD_TIME) revert GracePeriodNotMet();
         }
 
         address feed = priceFeeds[token];
         if (feed == address(0)) return 0; // feed not registered → caller skips
 
-        (, int256 price,, uint256 updatedAt,) = AggregatorV3Interface(feed).latestRoundData();
+        (uint80 roundId, int256 price,, uint256 updatedAt, uint80 answeredInRound) =
+            AggregatorV3Interface(feed).latestRoundData();
         require(price > 0, "PriceFeed: non-positive price");
-
-        if (block.timestamp > updatedAt && block.timestamp - updatedAt > MAX_ORACLE_AGE) {
+        // [AUDIT HIGH-8] A future or zero timestamp must never pass silently: it
+        // would let an out-of-band answer skip the staleness bound entirely.
+        if (updatedAt == 0 || updatedAt > block.timestamp) revert StalePrice();
+        if (block.timestamp - updatedAt > MAX_ORACLE_AGE) {
             revert StalePrice();
         }
+        // [AUDIT HIGH-11] Round-completeness check: the reported answer may only
+        // move if a full round has completed since the last published one.
+        if (answeredInRound < roundId) revert StalePrice();
 
-        if (minAnswers[token] > 0 && price <= minAnswers[token]) revert OraclePriceOutOfBounds();
-        if (maxAnswers[token] > 0 && price >= maxAnswers[token]) revert OraclePriceOutOfBounds();
+        valideBounds(token, price);
 
         // Normalise to 18 decimals
         uint8 dec = feedDecimals[token];
         if (dec == 0) dec = 8; // safe default
         price18 = dec <= 18 ? uint256(price) * (10 ** (18 - dec)) : uint256(price) / (10 ** (dec - 18));
+    }
+
+    function valideBounds(address token, int256 price) internal view {
+        if (requireBounds && minAnswers[token] <= 0 && maxAnswers[token] <= 0) revert BoundsNotConfigured();
+        if (minAnswers[token] > 0 && price <= minAnswers[token]) revert OraclePriceOutOfBounds();
+        if (maxAnswers[token] > 0 && price >= maxAnswers[token]) revert OraclePriceOutOfBounds();
     }
 
     // ─── External view ────────────────────────────────────────────────────────
@@ -149,8 +183,19 @@ contract PriceFeed {
         if (token == address(0)) token = NATIVE_ETH_PRICE_KEY;
         uint256 price18 = _getValidatedPrice(token);
         if (price18 == 0) return 0;
-        uint8 dec = token == NATIVE_ETH_PRICE_KEY ? 18 : IERC20Decimals(token).decimals(); // [FIX L-1] native key first
+        // [AUDIT LOW-8] A token that does not implement `decimals()` must not
+        // brick liquidation health checks. Fall back to the feed's own decimals
+        // (usually 8/18) which keeps the USD math bounded even for exotic tokens.
+        uint8 dec = token == NATIVE_ETH_PRICE_KEY ? 18 : _tokenDecimals(token);
         return FullMath.mulDiv(amount, price18, 10 ** dec);
+    }
+
+    function _tokenDecimals(address token) internal view returns (uint8) {
+        try IERC20Decimals(token).decimals() returns (uint8 dec) {
+            return dec;
+        } catch {
+            return 18;
+        }
     }
 
     /**

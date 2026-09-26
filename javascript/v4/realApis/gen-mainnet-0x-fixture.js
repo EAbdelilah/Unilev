@@ -17,12 +17,15 @@
  * Quote sources (tried in order):
  *   1. 0x Swap API     — used when ZERO_X_API_KEY is set (free self-serve:
  *                        https://dashboard.0x.org). Mainnet is key-gated.
- *   2. KyberSwap Agg.  — keyless REST fallback; returns real mainnet route
- *                        calldata with the same {to, data} shape.
+ *   2. 1inch Swap API  — used when ONEINCH_API_KEY is set (free self-serve:
+ *                        https://portal.1inch.dev).
  *
- * If BOTH are unavailable the script writes a compile-able STUB fixture (empty
- * CALLDATA) so the repo always builds; the fork test skips until a real quote
- * is pinned.
+ * Exactly one venue can be forced with ESWAP_FIXTURE_VENUE=0x|1inch
+ * (skips the other venue even if its key is present).
+ *
+ * If all sources are unavailable the script writes a compile-able STUB fixture
+ * (empty CALLDATA) so the repo always builds; the fork test skips until a real
+ * quote is pinned.
  */
 const fs = require("fs")
 const path = require("path")
@@ -35,14 +38,11 @@ try { getAddress = require("ethers").getAddress } catch (_) { /* root node_modul
 const SELL_TOKEN = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48" // USDC  (6 dec)
 const BUY_TOKEN = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2" // WETH  (18 dec)
 const SELL_AMOUNT = "100000000" // 100 USDC (notional for 50 USDC margin @ 2x)
-const SLIPPAGE_BPS = 30
+const SLIPPAGE_BPS = 300
 // The router is deployed at this fixed address in the fork test, so the quote
 // is bound to the exact address that will execute the fill.
 const TAKER = "0x0E5a7a0e5A7A0e5a7A0e5A7a0e5a7a0e5A7a0e5A"
 const CHAIN_ID = 1
-// KyberSwap MetaAggregationRouterV2 (mainnet) — keyless fallback source.
-const KYBER_BUILD = "https://aggregator-api.kyberswap.com/ethereum/api/v1/route/build"
-const KYBER_ROUTES = "https://aggregator-api.kyberswap.com/ethereum/api/v1/routes"
 
 const FIXTURE_PATH = path.join(__dirname, "../../../src/v4/test/fixtures/Mainnet0xRoute.sol")
 
@@ -73,13 +73,15 @@ pragma solidity ^0.8.24;
 library Mainnet0xRoute {
     string constant SOURCE = "stub";
     address constant EXCHANGE_PROXY = address(0);
-    address constant TAKER = ${taker};
-    address constant TOKEN_IN = ${sellToken};
-    address constant TOKEN_OUT = ${buyToken};
+    address constant TAKER = ${toChecksum(TAKER)};
+    address constant TOKEN_IN = ${toChecksum(SELL_TOKEN)};
+    address constant TOKEN_OUT = ${toChecksum(BUY_TOKEN)};
     uint256 constant SELL_AMOUNT = 100000000;
     uint256 constant EXPECTED_BUY = 0;
     uint256 constant MIN_BUY = 0;
     uint256 constant TX_VALUE = 0;
+    // Fork block the quote was bound to (0 => fork at latest head).
+    uint256 constant REF_BLOCK = 0;
     bytes constant CALLDATA = hex"";
 }
 `
@@ -92,8 +94,83 @@ function q(a) {
     return JSON.stringify(a)
 }
 
+// ---- minimal keccak-256 (dependency-free) for EIP-55 checksums -------------
+const RC = [
+    0x0000000000000001n, 0x0000000000008082n, 0x800000000000808an, 0x8000000080008000n,
+    0x000000000000808bn, 0x0000000080000001n, 0x8000000080008081n, 0x8000000000008009n,
+    0x000000000000008an, 0x0000000000000088n, 0x0000000080008009n, 0x000000008000000an,
+    0x000000008000808bn, 0x800000000000008bn, 0x8000000000008089n, 0x8000000000008003n,
+    0x8000000000008002n, 0x8000000000000080n, 0x000000000000800an, 0x800000008000000an,
+    0x8000000080008081n, 0x8000000000008080n, 0x0000000080000001n, 0x8000000080008008n
+]
+const ROT = [
+    [0n, 36n, 3n, 41n, 18n], [1n, 44n, 10n, 45n, 2n],
+    [62n, 6n, 43n, 15n, 61n], [28n, 55n, 25n, 21n, 56n],
+    [27n, 20n, 39n, 8n, 14n]
+]
+const M64 = 0xffffffffffffffffn
+
+function _rol(x, n) {
+    return ((x << n) & M64) | (x >> (64n - n))
+}
+
+function _keccakF(s) {
+    for (let round = 0; round < 24; round++) {
+        const c = [0n, 0n, 0n, 0n, 0n]
+        for (let x = 0; x < 5; x++) for (let y = 0; y < 5; y++) c[x] ^= s[x + 5 * y]
+        for (let x = 0; x < 5; x++) {
+            const d = c[(x + 4) % 5] ^ _rol(c[(x + 1) % 5], 1n)
+            for (let y = 0; y < 5; y++) s[x + 5 * y] ^= d
+        }
+        const b = new Array(25).fill(0n)
+        for (let x = 0; x < 5; x++) for (let y = 0; y < 5; y++) {
+            b[y + 5 * ((2 * x + 3 * y) % 5)] = _rol(s[x + 5 * y], ROT[x][y])
+        }
+        for (let x = 0; x < 5; x++) for (let y = 0; y < 5; y++) {
+            s[x + 5 * y] = b[x + 5 * y] ^ ((~b[((x + 1) % 5) + 5 * y]) & b[((x + 2) % 5) + 5 * y])
+        }
+        s[0] ^= RC[round]
+    }
+}
+
+function keccak256(msgBuf) {
+    const rate = 136
+    const blockLen = Math.ceil((msgBuf.length + 1) / rate) * rate
+    const padded = Buffer.alloc(blockLen)
+    msgBuf.copy(padded)
+    padded[msgBuf.length] = 0x01
+    padded[blockLen - 1] |= 0x80
+    const s = new Array(25).fill(0n)
+    for (let i = 0; i < blockLen; i += rate) {
+        for (let p = 0; p < rate; p++) {
+            const lane = p >> 3
+            s[(lane % 5) + 5 * ((lane / 5) | 0)] ^= BigInt(padded[i + p]) << BigInt(8 * (p & 7))
+        }
+        _keccakF(s)
+    }
+    const out = Buffer.alloc(32)
+    for (let p = 0; p < 32; p++) {
+        const lane = p >> 3
+        out[p] = Number((s[(lane % 5) + 5 * ((lane / 5) | 0)] >> BigInt(8 * (p & 7))) & 0xffn)
+    }
+    return out
+}
+
 function toChecksum(addr) {
-    return getAddress ? getAddress(addr.toLowerCase()) : addr.toLowerCase()
+    const low = addr.toLowerCase().replace(/^0x/, "")
+    const hash = keccak256(Buffer.from(low, "ascii"))
+    let out = "0x"
+    for (let i = 0; i < low.length; i++) {
+        const ch = low.charAt(i)
+        if (/[a-f]/.test(ch)) {
+            const byte = hash[i >> 1]
+            const nibble = i % 2 === 0 ? byte >> 4 : byte & 0x0f
+            out += nibble >= 8 ? ch.toUpperCase() : ch
+        } else {
+            out += ch
+        }
+    }
+    return out
 }
 
 function writeFixture(r) {
@@ -109,113 +186,136 @@ pragma solidity ^0.8.24;
 /// REAL ${r.source} mainnet route (chain ${CHAIN_ID}), USDC -> WETH.
 ///   sellToken     ${SELL_TOKEN}   sellAmount ${r.sellAmount} (notional)
 ///   buyToken      ${BUY_TOKEN}    expected ${r.expectedBuy}  min ${r.minBuy}
+///   refBlock      ${r.blockNumber} (fork pinned here so the quote can never go stale)
 ///   exchangeProxy ${src}
 ///   taker         ${taker}  (router deployed at this address in the fork test)
 /// Executed by EswapRouter._multiPoolOpenAggregator inside the mainnet fork —
 /// no real capital moves, zero reputation/blacklist risk on the quoting EOA.
 library Mainnet0xRoute {
     string constant SOURCE = ${q(r.source)};
-    address constant EXCHANGE_PROXY = ${src};
-    address constant TAKER = ${taker};
-    address constant TOKEN_IN = ${sellToken};
-    address constant TOKEN_OUT = ${buyToken};
+    address constant EXCHANGE_PROXY = ${toChecksum(r.to)};
+    address constant TAKER = ${toChecksum(TAKER)};
+    address constant TOKEN_IN = ${toChecksum(SELL_TOKEN)};
+    address constant TOKEN_OUT = ${toChecksum(BUY_TOKEN)};
     uint256 constant SELL_AMOUNT = ${r.sellAmount};
     uint256 constant EXPECTED_BUY = ${r.expectedBuy};
     uint256 constant MIN_BUY = ${r.minBuy};
     uint256 constant TX_VALUE = ${r.value};
+    // Fork block the quote was bound to (0 => fork at latest head).
+    uint256 constant REF_BLOCK = ${r.blockNumber ?? "0"};
     bytes constant CALLDATA = hex"${r.data.slice(2)}";
 }
 `
     fs.writeFileSync(FIXTURE_PATH, body)
     console.log(`[ok] wrote ${FIXTURE_PATH}`)
     console.log(`     real ${r.source} mainnet route: ${r.sellAmount} -> ${r.expectedBuy} wei WETH (min ${r.minBuy})`)
-    console.log(`     exchangeProxy ${r.to}  calldata ${r.data.slice(0, 18)}... (${r.data.length / 2 - 1} bytes)`)
+    console.log(`     refBlock ${r.blockNumber}  exchangeProxy ${r.to}  calldata ${r.data.slice(0, 18)}... (${r.data.length / 2 - 1} bytes)`)
     return true
 }
 
+// Current mainnet head block (decimal) — fallback pin when the quote source does
+// not report its own block. Uses the configured ETH_MAINNET_RPC_URL; returns
+// null when unavailable so the fixture forks at latest.
+async function latestBlock(env) {
+    const url = (env.ETH_MAINNET_RPC_URL || env.ETH_RPC_URL || "").trim()
+    if (!url) return null
+    try {
+        const res = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ jsonrpc: "2.0", method: "eth_blockNumber", params: [], id: 1 })
+        })
+        const body = await res.json()
+        const hex = body?.result
+        if (typeof hex !== "string") return null
+        return String(BigInt(hex))
+    } catch (e) {
+        console.error("[block] eth_blockNumber failed:", e.message)
+        return null
+    }
+}
+
 async function quote0x(apiKey) {
-    const url = `https://api.0x.org/swap/v1/quote?sellToken=${SELL_TOKEN}&buyToken=${BUY_TOKEN}&sellAmount=${SELL_AMOUNT}&taker=${TAKER}&slippageBps=${SLIPPAGE_BPS}`
-    const res = await fetch(url, { headers: { "0x-api-key": apiKey, "0x-chain-id": String(CHAIN_ID) } })
+    // 0x v2 (allowance-holder) — the current API compatible with contract
+    // takers: the exchange proxy pulls the input via the classic ERC20
+    // allowance (no Permit2 permit signature required), which is exactly what
+    // EswapRouter._aggregatorPrefill sets up. (v1 is deprecated on mainnet and
+    // returns "no Route matched"; the permit2 variant needs a signed permit a
+    // contract router cannot produce.)
+    const url = `https://api.0x.org/swap/allowance-holder/quote?chainId=${CHAIN_ID}&sellToken=${SELL_TOKEN}&buyToken=${BUY_TOKEN}&sellAmount=${SELL_AMOUNT}&taker=${TAKER}&slippageBps=${SLIPPAGE_BPS}`
+    const res = await fetch(url, { headers: { "0x-api-key": apiKey, "0x-version": "v2" } })
     const text = await res.text()
     let body = null
     try { body = JSON.parse(text) } catch (_) { /* non-json */ }
 
-    if (res.status !== 200 || !body?.data || !body?.to) {
-        console.error("[0x] quote failed:", res.status, text.slice(0, 300))
+    if (res.status !== 200 || !body?.transaction?.to || !body?.transaction?.data) {
+        console.error("[0x] v2 allowance-holder quote failed:", res.status, text.slice(0, 300))
         return null
     }
-    const to = body.to.toLowerCase()
-    const data = body.data.startsWith("0x") ? body.data : "0x" + body.data
+    const to = body.transaction.to.toLowerCase()
+    const data = body.transaction.data.startsWith("0x") ? body.transaction.data : "0x" + body.transaction.data
     const expectedBuy = body.buyAmount ?? "0"
     let minBuy = body.minBuyAmount
     if (minBuy === undefined || minBuy === null || Number(minBuy) === 0) {
-        minBuy = String(Math.floor((Number(expectedBuy) * (10000 - SLIPPAGE_BPS * 100)) / 10000))
+        minBuy = String(Math.floor((Number(expectedBuy) * (10000 - SLIPPAGE_BPS)) / 10000))
     }
     if (!/^0x[a-fA-F0-9]{40}$/.test(to) || !/^0x[0-9a-fA-F]+$/.test(data) || Number(expectedBuy) === 0) {
         console.error("[0x] malformed payload", { to })
         return null
     }
-    return { source: "0x-swap-api", to, data, value: Number(body.value ?? "0"), sellAmount: body.sellAmount ?? SELL_AMOUNT, expectedBuy, minBuy }
+    const blockNumber = body.blockNumber ? String(BigInt(body.blockNumber)) : null
+    return { source: "0x-swap-api-v2-allowance-holder", to, data, value: Number(body.transaction.value ?? "0"), sellAmount: body.sellAmount ?? SELL_AMOUNT, expectedBuy, minBuy, blockNumber }
 }
 
-async function quoteKyber() {
-    const routesUrl = `${KYBER_ROUTES}?tokenIn=${SELL_TOKEN}&tokenOut=${BUY_TOKEN}&amountIn=${SELL_AMOUNT}`
-    const rr = await fetch(routesUrl)
-    const rj = await rr.json().catch(() => null)
-    const summary = rj?.data?.routeSummary
-    if (rr.status !== 200 || !summary) {
-        console.error("[kyber] routes failed:", rr.status)
+async function quote1inch(apiKey) {
+    const url = `https://api.1inch.dev/swap/v6.0/${CHAIN_ID}/swap?src=${SELL_TOKEN}&dst=${BUY_TOKEN}&amount=${SELL_AMOUNT}&from=${TAKER}&slippage=${SLIPPAGE_BPS}&disableEstimate=true`
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${apiKey}`, accept: "application/json" } })
+    const text = await res.text()
+    let body = null
+    try { body = JSON.parse(text) } catch (_) { /* non-json */ }
+
+    if (res.status !== 200 || !body?.tx?.to || !body?.tx?.data) {
+        console.error("[1inch] swap failed:", res.status, text.slice(0, 300))
         return null
     }
-    // Far-future deadline so the pinned calldata cannot expire inside the fork.
-    const buildBody = {
-        routeSummary: summary,
-        sender: TAKER,
-        recipient: TAKER,
-        slippageTolerance: SLIPPAGE_BPS,
-        deadline: 4102444800, // 2100-01-01
-        source: "eswap"
-    }
-    const br = await fetch(KYBER_BUILD, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(buildBody)
-    })
-    const bj = await br.json().catch(() => null)
-    const d = bj?.data
-    if (br.status !== 200 || !d?.data || !d?.routerAddress) {
-        console.error("[kyber] build failed:", br.status, JSON.stringify(bj).slice(0, 300))
-        return null
-    }
-    const to = d.routerAddress.toLowerCase()
-    const data = d.data.startsWith("0x") ? d.data : "0x" + d.data
-    const expectedBuy = d.amountOut
-    const minBuy = d.amountOutMin && Number(d.amountOutMin) > 0
-        ? String(d.amountOutMin)
-        : String(Math.floor((Number(expectedBuy) * (10000 - SLIPPAGE_BPS * 100)) / 10000))
+    const to = body.tx.to.toLowerCase()
+    const data = body.tx.data.startsWith("0x") ? body.tx.data : "0x" + body.tx.data
+    const expectedBuy = body.toAmount ?? "0"
+    const minBuy = body.minBuyAmount
+        ? String(body.minBuyAmount)
+        : String(Math.floor((Number(expectedBuy) * (10000 - SLIPPAGE_BPS)) / 10000))
     if (!/^0x[a-fA-F0-9]{40}$/.test(to) || !/^0x[0-9a-fA-F]+$/.test(data) || Number(expectedBuy) === 0) {
-        console.error("[kyber] malformed payload", { to })
+        console.error("[1inch] malformed payload", { to })
         return null
     }
-    return { source: "kyberswap-aggregator", to, data, value: Number(d.transactionValue ?? "0"), sellAmount: d.amountIn ?? SELL_AMOUNT, expectedBuy, minBuy }
+    return { source: "1inch-swap-api", to, data, value: Number(body.tx.value ?? "0"), sellAmount: body.fromAmount ?? SELL_AMOUNT, expectedBuy, minBuy }
 }
 
 async function main() {
     const env = loadEnv()
-    const apiKey = (env.ZERO_X_API_KEY || process.env.ZERO_X_API_KEY || "").trim()
+    const zeroXKey = (env.ZERO_X_API_KEY || process.env.ZERO_X_API_KEY || "").trim()
+    const oneInchKey = (env.ONEINCH_API_KEY || process.env.ONEINCH_API_KEY || "").trim()
+    const venue = (env.ESWAP_FIXTURE_VENUE || process.env.ESWAP_FIXTURE_VENUE || "").trim() || null
 
-    const quote =
-        (apiKey ? await quote0x(apiKey).catch((e) => { console.error("[0x] error:", e.message); return null; }) : null) ||
-        (await quoteKyber().catch((e) => { console.error("[kyber] error:", e.message); return null; }))
+    let quote = null
+    if (!venue || venue === "0x") {
+        if (zeroXKey) quote = await quote0x(zeroXKey).catch((e) => { console.error("[0x] error:", e.message); return null })
+    }
+    if (!quote && (!venue || venue === "1inch")) {
+        if (oneInchKey) quote = await quote1inch(oneInchKey).catch((e) => { console.error("[1inch] error:", e.message); return null })
+    }
 
     if (!quote) {
-        const why = apiKey
-            ? "0x quote failed and KyberSwap fallback failed"
-            : "no ZERO_X_API_KEY (0x mainnet is key-gated) and KyberSwap fallback failed"
+        const why = !zeroXKey && !oneInchKey
+            ? "no ZERO_X_API_KEY or ONEINCH_API_KEY (mainnet is key-gated for 0x/1inch)"
+            : `${zeroXKey ? "0x" : ""}${zeroXKey && oneInchKey ? "+" : ""}${oneInchKey ? "1inch" : ""} quote(s) failed`
         return writeStub(why)
     }
     if (quote.value !== 0) {
         return writeStub(`${quote.source} route has a native ETH leg (value=${quote.value}) — unsupported by the accounting path`)
+    }
+    if (!quote.blockNumber) {
+        quote.blockNumber = await latestBlock(env)
     }
     return writeFixture(quote)
 }

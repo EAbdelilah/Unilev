@@ -39,7 +39,21 @@ library EswapMarginLib {
 
     function liquidationThresholdBps(uint8 leverage) public pure returns (uint256) {
         uint256 reduction = uint256(leverage) * 200;
-        return reduction < 12000 ? 12000 - reduction : 10000;
+        // [FIX CRIT-SYS-01] Floor raised from 100% to 105%: at >=10x the
+        // collateral would otherwise sit at exactly par (100%) at the moment
+        // of liquidation -- guaranteeing the position opens already-bad-debt
+        // (LT >= 100% collat/borrow means the margin is ALREADY worthless at
+        // the very first liquidation tick). 105% keeps a 500 bps equity
+        // cushion above par so a 10x position is liquidated while physically
+        // solvent, and the `LeverageCommitmentMismatch` gate forces the exact
+        // same floor on every solver/keeper path (Router/CoW agree on 105%).
+        //
+        // The branch keys off `leverage`, not `reduction`: keying off `reduction`
+        // only reached the 105% floor at 52.5x, so 10x..52x kept sliding toward
+        // 100% (and 61x+ underflowed `12000 - reduction`, bricking every
+        // `isLiquidatable` read for such a position). Clamping at 10x keeps the
+        // sub-10x curve intact (9x stays 102%) and is underflow-free.
+        return leverage < 10 ? 12000 - reduction : 10500;
     }
 
     function isLiquidatable(uint256 collateralValueUsd, uint256 borrowedValueUsd, uint8 leverage)
@@ -82,10 +96,16 @@ library EswapMarginLib {
 
         uint8 d0 = decimals0 == 0 ? 18 : decimals0;
         uint8 d1 = decimals1 == 0 ? 18 : decimals1;
+        // [AUDIT MED-04] Decimal-gap normalization must not TRUNCATE the spot
+        // leg: `spotRatio18 / 10**(gap)` loses up to ~9% of the ratio for a
+        // 1-digit gap, materially mis-sizing the circuit breaker margin.
+        // Scaling the ORACLE side up by the same factor is exactly equivalent
+        // math and keeps full precision (both legs stay in the same units
+        // before the deviation comparison). FullMath keeps the products safe.
         if (d0 > d1) {
             spotRatio18 = FullMath.mulDiv(spotRatio18, uint256(10) ** (d0 - d1), 1);
         } else if (d1 > d0) {
-            spotRatio18 = spotRatio18 / (uint256(10) ** (d1 - d0));
+            twapRatio18 = FullMath.mulDiv(twapRatio18, uint256(10) ** (d1 - d0), 1);
         }
 
         // [FIX M-10] Deviation is always anchored to the trusted oracle baseline

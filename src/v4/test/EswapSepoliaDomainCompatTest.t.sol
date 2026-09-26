@@ -6,6 +6,13 @@ import {EswapRouter} from "../EswapRouter.sol";
 import {EswapCoWSettlement, CowOrder} from "../EswapCoWSettlement.sol";
 import {CowSigning} from "../cow/CowSigning.sol";
 
+/// @notice Minimal surface of the real CoW Protocol GPv2Settlement, used so the
+///         byte-compat test can read the live contract's own domain separator
+///         instead of recomputing it.
+interface ICowDomainSeparator {
+    function domainSeparator() external view returns (bytes32);
+}
+
 /// @notice BYTE-COMPATIBILITY PROOF against the REAL CoW Protocol deployment on
 ///         Ethereum Sepolia (chainId 11155111).
 ///
@@ -130,6 +137,33 @@ contract EswapSepoliaDomainCompatTest is Test {
         // to the same canonical GPv2 contract, so its domain is exactly this.
         assertEq(unichainSep, EXP_SEP_UNICHAIN_SEPOLIA, "chain-1301 domain mismatch");
         console2.log("Unichain Sepolia (live stack) domain:", vm.toString(unichainSep));
+    }
+
+    /// @notice The decisive byte-compat check: ask the LIVE CoW GPv2Settlement
+    ///         for its OWN domain separator and require ours to equal it.
+    ///
+    /// Every other assertion in this file compares our implementation against a
+    /// value recomputed by the same EIP-712 formula (JS `ethers`
+    /// TypedDataEncoder, or the spec encoding inline above). Those are
+    /// self-consistency checks: they prove our two implementations agree with
+    /// each other and with a hardcoded constant, but NOT that the constant
+    /// matches the contract real CoW solvers actually sign against.
+    ///
+    /// This test closes that gap by reading `domainSeparator()` straight from
+    /// the deployed GPv2Settlement bytecode, making the live deployment — not
+    /// our own arithmetic — the oracle.
+    function test_RealSepolia_LiveCowContract_DomainSeparator_Matches() public view {
+        if (!rpcAvailable) return;
+        bytes32 liveDomain = ICowDomainSeparator(SEPOLIA_GPV2).domainSeparator();
+        assertEq(
+            settlement.domainSeparator(),
+            liveDomain,
+            "our domain must equal the LIVE CoW GPv2Settlement.domainSeparator()"
+        );
+        // And the pinned vector must equal the live answer, so the hardcoded
+        // anchors in cowOrderBook.js cannot silently drift from reality.
+        assertEq(EXP_SEP_ETH_SEPOLIA, liveDomain, "pinned Sepolia domain drifted from the live contract");
+        console2.log("LIVE CoW domainSeparator():", vm.toString(liveDomain));
     }
 
     // ─── Order digest (the bytes real CoW signatures are made over) ───────

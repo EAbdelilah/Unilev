@@ -8,10 +8,15 @@ import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interf
 contract ChainlinkFeedMock is AggregatorV3Interface {
     int256 public price;
     uint256 public updatedAt;
+    uint80 public answeredInRound = 1;
 
     function setMockData(int256 _price, uint256 _updatedAt) external {
         price = _price;
         updatedAt = _updatedAt;
+    }
+
+    function setAnsweredInRound(uint80 _answeredInRound) external {
+        answeredInRound = _answeredInRound;
     }
 
     function decimals() external pure returns (uint8) {
@@ -27,11 +32,11 @@ contract ChainlinkFeedMock is AggregatorV3Interface {
     }
 
     function getRoundData(uint80) external view returns (uint80, int256, uint256, uint256, uint80) {
-        return (1, price, updatedAt, updatedAt, 1);
+        return (1, price, updatedAt, updatedAt, answeredInRound);
     }
 
     function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80) {
-        return (1, price, updatedAt, updatedAt, 1);
+        return (1, price, updatedAt, updatedAt, answeredInRound);
     }
 }
 
@@ -86,6 +91,46 @@ contract EswapOracleTest is Test {
         chainlinkMock.setMockData(2000e8, block.timestamp - 90000);
 
         vm.expectRevert(PriceFeed.StalePrice.selector);
+        priceFeed.getAmountInUsd(TOKEN, 1 ether);
+    }
+
+    /// @dev [AUDIT HIGH-8] An incomplete round (answeredInRound < roundId) must
+    ///      be rejected as stale instead of trusting a half-published answer.
+    function test_UncompletedRound_Reverts() public {
+        chainlinkMock.setMockData(2000e8, block.timestamp);
+        chainlinkMock.setAnsweredInRound(0); // roundId is 1 → incomplete answer
+
+        vm.expectRevert(PriceFeed.StalePrice.selector);
+        priceFeed.getAmountInUsd(TOKEN, 1 ether);
+    }
+
+    /// @dev [AUDIT HIGH-8] A future `updatedAt` must never pass silently: it
+    ///      would bypass the staleness bound with a bogus timestamp.
+    function test_FutureTimestamp_Reverts() public {
+        chainlinkMock.setMockData(2000e8, block.timestamp + 7200);
+
+        vm.expectRevert(PriceFeed.StalePrice.selector);
+        priceFeed.getAmountInUsd(TOKEN, 1 ether);
+    }
+
+    /// @dev [AUDIT HIGH-9] A malformed sequencer answer (not 0/1) must be
+    ///      treated as DOWN, never assumed operational.
+    function test_SequencerMalformedAnswer_Reverts() public {
+        priceFeed.setSequencerUptimeFeed(address(sequencerMock));
+        sequencerMock.setMockData(2, block.timestamp - 7200);
+
+        vm.expectRevert(PriceFeed.SequencerDown.selector);
+        priceFeed.getAmountInUsd(TOKEN, 1 ether);
+    }
+
+    /// @dev [AUDIT HIGH-9] A sequencer feed that never started (startedAt == 0)
+    ///      must be rejected: a huge timestamp-0 elapsed would otherwise bypass
+    ///      the grace period.
+    function test_SequencerUnstarted_Reverts() public {
+        priceFeed.setSequencerUptimeFeed(address(sequencerMock));
+        sequencerMock.setMockData(0, 0); // UP but never initialized
+
+        vm.expectRevert(PriceFeed.GracePeriodNotMet.selector);
         priceFeed.getAmountInUsd(TOKEN, 1 ether);
     }
 

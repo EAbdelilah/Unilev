@@ -77,7 +77,7 @@ contract EswapMainnetV4ForkTest is Test {
         rpcCandidates[0] = vm.envOr("UNICHAIN_RPC_URL", string(""));
         rpcCandidates[1] = vm.envOr("ETH_RPC_URL", string(""));
 
-for (uint256 r = 0; r < 2 && !rpcAvailable; r++) {
+for (uint256 r = 0; r < 4 && !rpcAvailable; r++) {
             string memory rpcUrl = rpcCandidates[r];
             if (bytes(rpcUrl).length == 0) continue;
             // NOTE: `vm.createSelectFork` MUST stay at cheatcode level —

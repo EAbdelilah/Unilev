@@ -20,6 +20,7 @@ import {TickMath} from "../../src/v4/libraries/TickMath.sol";
 import {EswapMarginHook, IPriceFeed} from "../../src/v4/EswapMarginHook.sol";
 import {EswapMarginLib} from "../../src/v4/EswapMarginLib.sol";
 import {EswapRouter} from "../../src/v4/EswapRouter.sol";
+import {EswapRouterExt} from "../../src/v4/EswapRouterExt.sol";
 import {EswapSolverAdapter} from "../../src/v4/EswapSolverAdapter.sol";
 import {EswapLiquidationKeeper} from "../../src/v4/EswapLiquidationKeeper.sol";
 import {EswapCoWSettlement} from "../../src/v4/EswapCoWSettlement.sol";
@@ -104,6 +105,8 @@ contract DeployEthSepoliaFull is Script {
             console.log("Wiring pipeline to EXISTING stack (mode 2)");
             console.log(string.concat("  Hook:   ", vm.toString(address(hook))));
             console.log(string.concat("  Router: ", vm.toString(address(router))));
+            EswapRouterExt routerExt = new EswapRouterExt(IPoolManager(address(pm)), address(router));
+            console.log(string.concat("RouterExt: ", vm.toString(address(routerExt))));
         } else {
             // ------ MODE 1: fresh full-stack deployment -----------------------
             console.log("Deploying FRESH full stack (mode 1)");
@@ -183,6 +186,12 @@ contract DeployEthSepoliaFull is Script {
             // 4. Deploy router + auxiliary stack.
             router = new EswapRouter(IPoolManager(address(pm)));
             console.log(string.concat("Router: ", vm.toString(address(router))));
+            EswapRouterExt routerExt = new EswapRouterExt(IPoolManager(address(pm)), address(router));
+            console.log(string.concat("RouterExt: ", vm.toString(address(routerExt))));
+            router.setRouterExt(address(routerExt));
+            // [AUDIT CRIT-4] The companion relays swapMultiPoolFor on behalf of
+            // cross-chain/atomic traders; whitelist it as a router executor.
+            router.setExecutorWhitelist(address(routerExt), true);
             EswapSolverAdapter solverAdapter = new EswapSolverAdapter(address(router));
             console.log(string.concat("SolverAdapter: ", vm.toString(address(solverAdapter))));
             EswapLiquidationKeeper keeper = new EswapLiquidationKeeper(address(hook), address(router));
@@ -259,6 +268,8 @@ contract DeployEthSepoliaFull is Script {
 
         EswapLeverageAdapter adapter = new EswapLeverageAdapter(router);
         console.log(string.concat("LeverageAdapter: ", vm.toString(address(adapter))));
+        // [AUDIT CRIT-4] The adapter relays swapMultiPoolFor for its recipient.
+        router.setExecutorWhitelist(address(adapter), true);
 
         EswapLeverageQuoter quoter = new EswapLeverageQuoter(router);
         console.log(string.concat("LeverageQuoter: ", vm.toString(address(quoter))));

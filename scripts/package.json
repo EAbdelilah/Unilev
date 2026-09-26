@@ -6,12 +6,17 @@
   "description": "Eswap Zero-Treasury solver engine and aggregator execution pipeline (Unichain, Chain ID 130)",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "cow:bot": "tsx scripts/solvers/cowSolverBot.ts",
-    "cow:bridge": "tsx scripts/adapters/aggregatorCowBridge.ts --watch",
-    "relayer": "tsx scripts/relayers/erc7683Relayer.ts",
+    "cow:bot": "tsx solvers/cowSolverBot.ts",
+    "cow:bridge": "tsx adapters/aggregatorCowBridge.ts --watch",
+    "venues:report": "tsx adapters/venueRegistry.ts",
+    "protocols:check": "tsx test/protocols.check.ts",
+    "relayer": "tsx relayers/erc7683Relayer.ts",
     "test:ztinvariants": "forge test --via-ir --match-path \"test/ZeroTreasuryInvariants.t.sol\""
   },
   "dependencies": {
+    "@1inch/cross-chain-sdk": "^2.2.4",
+    "@1inch/limit-order-protocol": "^2.0.5",
+    "@uniswap/uniswapx-sdk": "^3.1.3",
     "dotenv": "^16.4.7",
     "viem": "^2.22.12"
   },

@@ -21,7 +21,20 @@ import {TickMath} from "../../src/v4/libraries/TickMath.sol";
 import {EswapMarginHook, IPriceFeed} from "../../src/v4/EswapMarginHook.sol";
 import {EswapMarginLib} from "../../src/v4/EswapMarginLib.sol";
 import {EswapRouter} from "../../src/v4/EswapRouter.sol";
+import {EswapRouterExt} from "../../src/v4/EswapRouterExt.sol";
 import {EswapLiquidationKeeper} from "../../src/v4/EswapLiquidationKeeper.sol";
+import {EswapUniswapXSettlement} from "../../src/v4/EswapUniswapXSettlement.sol";
+import {EswapOneInchFusionSettlement} from "../../src/v4/EswapOneInchFusionSettlement.sol";
+import {IReactor} from "../../lib/uniswapx-interfaces/IReactor.sol";
+import {IOrderMixin} from "../../lib/limit-order-protocol/IOrderMixin.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
+/// @dev Minimal admin surface shared by both venue settlers.
+interface EswapSettlementOps {
+    function setOperator(address operator) external;
+
+    function setPendingRecipient(address recipient) external;
+}
 import {PriceFeed} from "../../src/v4/PriceFeed.sol";
 import {HookFlags} from "../../src/v4/libraries/HookFlags.sol";
 
@@ -153,6 +166,15 @@ contract DeployUnichain is Script {
         EswapRouter router = new EswapRouter(IPoolManager(address(pm)));
         console.log("Router deployed at:", address(router));
 
+        // Companion surface holder: ERC-7683 + trigger-order + JIT + atomic
+        // margin, deployed off the core router so EswapRouter fits EIP-170.
+        EswapRouterExt routerExt = new EswapRouterExt(IPoolManager(address(pm)), address(router));
+        console.log("RouterExt deployed at:", address(routerExt));
+        router.setRouterExt(address(routerExt));
+        // [AUDIT CRIT-4] The companion relays swapMultiPoolFor on behalf of
+        // cross-chain/atomic traders; whitelist it as a router executor.
+        router.setExecutorWhitelist(address(routerExt), true);
+
         EswapLiquidationKeeper keeper = new EswapLiquidationKeeper(address(hook), address(router));
         console.log("LiquidationKeeper deployed at:", address(keeper));
 
@@ -181,6 +203,13 @@ contract DeployUnichain is Script {
             address(router),
             vm.envOr("MIN_COLLATERAL_USD", uint256(50000000000000000))
         );
+
+        // Liquidator incentive (BPS of the post-solver surplus). Live old hook
+        // ships 0 = no reward, so nobody liquidates. Default 0 preserves prior
+        // behavior; set LIQUIDATOR_INCENTIVE_BPS in .env to enable it.
+        if (vm.envOr("LIQUIDATOR_INCENTIVE_BPS", uint256(0)) > 0) {
+            hook.setLiquidatorIncentiveBps(vm.envOr("LIQUIDATOR_INCENTIVE_BPS", uint256(0)));
+        }
 
         // --- Initialize the ONLY pool: native ETH / USDC (ETH/USDC) ---
         // currency0 = native ETH (0x0) < currency1 = USDC (0x078D..), so ETH is
@@ -248,8 +277,28 @@ contract DeployUnichain is Script {
         // insuranceWithdrawalCapBps has no live setter beyond its owner default (5000);
         // the old hook reports 5000, which is the constructor default, so no call needed.
 
+        // Demand side: aggregator exchange proxies (OPT-IN). Both demand
+        // entrypoints gate on require(allowedAggregators[route.exchangeProxy]),
+        // so without this a freshly deployed router can execute NO aggregator
+        // route. Env names match javascript/v4/realApis/demandVenues.js. Unset
+        // slots log PENDING; a whitelisted proxy is called with the full
+        // notional pre-approved, so we never guess an address.
+        _whitelistAggregators(router, "Enso", "AGG_ENSO_PROXY_ADDRESS");
+        _whitelistAggregators(router, "Odos", "AGG_ODOS_PROXY_ADDRESS");
+        _whitelistAggregators(router, "Bungee", "AGG_BUNGEE_PROXY_ADDRESS");
+        _whitelistAggregators(router, "Jumper", "AGG_JUMPER_PROXY_ADDRESS");
+        _whitelistAggregators(router, "1inch", "AGG_ONEINCH_ROUTER_ADDRESS");
+
+        // Supply side: venue settlers (OPT-IN, all-or-nothing per settler).
+        // Same env contract as the Sepolia full script.
+        _maybeDeployUniswapXSettlement(router);
+        _maybeDeployOneInchFusionSettlement(router);
+
         vm.stopBroadcast();
 
+        console.log("");
+        console.log("=== Demand-Side Whitelist Status ===");
+        _reportAggregators(router);
         console.log("");
         console.log("=== Deployment Summary ===");
         console.log("Network: Unichain Mainnet (Chain ID 130)");
@@ -258,6 +307,7 @@ contract DeployUnichain is Script {
         console.log(string.concat("MarginLib:   ", vm.toString(libAddr)));
         console.log(string.concat("Hook:        ", vm.toString(address(hook))));
         console.log(string.concat("Router:      ", vm.toString(address(router))));
+        console.log(string.concat("RouterExt:   ", vm.toString(address(routerExt))));
         console.log(string.concat("Keeper:      ", vm.toString(address(keeper))));
         console.log(string.concat("PriceFeed:   ", vm.toString(address(priceFeed))));
         console.log(string.concat("Treasury:    ", vm.toString(treasury)));
@@ -279,6 +329,7 @@ contract DeployUnichain is Script {
         console.log("6. Update .env and run: node javascript/update-dashboard.js");
         console.log(string.concat("   V4_HOOK_ADDRESS=", vm.toString(address(hook))));
         console.log(string.concat("   V4_ROUTER_ADDRESS=", vm.toString(address(router))));
+        console.log(string.concat("   V4_ROUTER_EXT_ADDRESS=", vm.toString(address(routerExt))));
         console.log(string.concat("   V4_KEEPER_ADDRESS=", vm.toString(address(keeper))));
         console.log(string.concat("   V4_PRICEFEED_ADDRESS=", vm.toString(address(priceFeed))));
     }
@@ -287,6 +338,111 @@ contract DeployUnichain is Script {
     ///      {Create2.computeAddress} layout (writes above the free-memory ptr),
     ///      so repeated calls in the salt-mining loop neither clobber scratch
     ///      memory nor grow the arena per iteration => no MemoryOOG.
+    /// @dev Whitelists one demand-side aggregator exchange proxy when its env
+    ///      slot is set. Unset => PENDING and skipped.
+    function _whitelistAggregators(EswapRouter router, string memory label, string memory envName) internal {
+        address proxy = vm.envOr(envName, address(0));
+        if (proxy == address(0)) {
+            console.log(string.concat("  [PENDING] ", label, " (", envName, " unset)"));
+            return;
+        }
+        if (!router.allowedAggregators(proxy)) {
+            router.setAllowedAggregator(proxy, true);
+        }
+        console.log(string.concat("  [ROUTABLE] ", label, " ", vm.toString(proxy)));
+    }
+
+    /// @dev Prints the final on-chain whitelist state for every aggregator slot.
+    function _reportAggregators(EswapRouter router) internal view {
+        _reportAggregator(router, "Enso", "AGG_ENSO_PROXY_ADDRESS");
+        _reportAggregator(router, "Odos", "AGG_ODOS_PROXY_ADDRESS");
+        _reportAggregator(router, "Bungee", "AGG_BUNGEE_PROXY_ADDRESS");
+        _reportAggregator(router, "Jumper", "AGG_JUMPER_PROXY_ADDRESS");
+        _reportAggregator(router, "1inch", "AGG_ONEINCH_ROUTER_ADDRESS");
+    }
+
+    /// @dev Deploys + whitelists the UniswapX settler only when the reactor,
+    ///      both tokens and the cap are all supplied. Partial config logs
+    ///      [PENDING] rather than deploying a settler that reverts every fill.
+    function _maybeDeployUniswapXSettlement(EswapRouter router) internal {
+        address reactor = vm.envOr("UNISWAPX_REACTOR_ADDRESS", address(0));
+        address input = vm.envOr("UNISWAPX_SETTLEMENT_INPUT_TOKEN", address(0));
+        address output = vm.envOr("UNISWAPX_SETTLEMENT_OUTPUT_TOKEN", address(0));
+        uint256 maxFill = vm.envOr("UNISWAPX_SETTLEMENT_MAX_FILL", uint256(0));
+
+        if (reactor == address(0) || input == address(0) || output == address(0) || maxFill == 0) {
+            console.log("  [PENDING] UniswapX settlement (reactor/input/output/maxFill incomplete)");
+            return;
+        }
+
+        EswapUniswapXSettlement settler =
+            new EswapUniswapXSettlement(IReactor(reactor), IERC20(input), IERC20(output), maxFill);
+
+        address operator = vm.envOr("SETTLEMENT_OPERATOR_ADDRESS", address(0));
+        if (operator != address(0)) {
+            EswapSettlementOps(address(settler)).setOperator(operator);
+            console.log(string.concat("  [SETTLER] UniswapX operator -> ", vm.toString(operator)));
+        }
+        address recipient = vm.envOr("UNISWAPX_SETTLEMENT_RECIPIENT", address(0));
+        if (recipient != address(0)) {
+            EswapSettlementOps(address(settler)).setPendingRecipient(recipient);
+            console.log(string.concat("  [SETTLER] UniswapX recipient -> ", vm.toString(recipient)));
+        } else {
+            console.log("  [SETTLER] UniswapX recipient UNSET (validate() reverts until set)");
+        }
+
+        if (!router.registeredSolvers(address(settler))) {
+            router.setSolverWhitelist(address(settler), true);
+        }
+        console.log(string.concat("  [SETTLER] UniswapX ", vm.toString(address(settler))));
+    }
+
+    /// @dev Deploys + whitelists the 1inch classic Fusion settler. maxFill bounds
+    ///      both makingAmount and the fill amount, and caps the LOP allowance.
+    function _maybeDeployOneInchFusionSettlement(EswapRouter router) internal {
+        address lop = vm.envOr("ONEINCH_FUSION_LOP_ADDRESS", address(0));
+        address makerAsset = vm.envOr("ONEINCH_FUSION_MAKER_ASSET", address(0));
+        address takerAsset = vm.envOr("ONEINCH_FUSION_TAKER_ASSET", address(0));
+        uint256 maxFill = vm.envOr("ONEINCH_FUSION_MAX_FILL", uint256(0));
+
+        if (lop == address(0) || makerAsset == address(0) || takerAsset == address(0) || maxFill == 0) {
+            console.log("  [PENDING] 1inch Fusion settlement (lop/maker/taker/maxFill incomplete)");
+            return;
+        }
+
+        EswapOneInchFusionSettlement settler =
+            new EswapOneInchFusionSettlement(IOrderMixin(lop), IERC20(makerAsset), IERC20(takerAsset), maxFill);
+
+        address operator = vm.envOr("SETTLEMENT_OPERATOR_ADDRESS", address(0));
+        if (operator != address(0)) {
+            EswapSettlementOps(address(settler)).setOperator(operator);
+            console.log(string.concat("  [SETTLER] 1inchFusion operator -> ", vm.toString(operator)));
+        }
+
+        if (!router.registeredSolvers(address(settler))) {
+            router.setSolverWhitelist(address(settler), true);
+        }
+        console.log(string.concat("  [SETTLER] 1inchFusion ", vm.toString(address(settler))));
+    }
+
+    function _reportAggregator(EswapRouter router, string memory label, string memory envName) internal view {
+        address proxy = vm.envOr(envName, address(0));
+        if (proxy == address(0)) {
+            console.log(string.concat("  ", label, ": not configured"));
+            return;
+        }
+        console.log(
+            string.concat(
+                "  ",
+                label,
+                ": ",
+                vm.toString(proxy),
+                " whitelisted=",
+                router.allowedAggregators(proxy) ? "true" : "false"
+            )
+        );
+    }
+
     function create2Address(address deployer, bytes32 salt, bytes32 initCodeHash)
         internal
         pure

@@ -20,9 +20,16 @@ import {TickMath} from "../../src/v4/libraries/TickMath.sol";
 import {EswapMarginHook, IPriceFeed} from "../../src/v4/EswapMarginHook.sol";
 import {EswapMarginLib} from "../../src/v4/EswapMarginLib.sol";
 import {EswapRouter} from "../../src/v4/EswapRouter.sol";
+import {EswapRouterExt} from "../../src/v4/EswapRouterExt.sol";
 import {EswapSolverAdapter} from "../../src/v4/EswapSolverAdapter.sol";
 import {EswapLiquidationKeeper} from "../../src/v4/EswapLiquidationKeeper.sol";
 import {EswapCoWSettlement} from "../../src/v4/EswapCoWSettlement.sol";
+import {EswapSettlement} from "../../src/v4/EswapSettlement.sol";
+import {EswapUniswapXSettlement} from "../../src/v4/EswapUniswapXSettlement.sol";
+import {EswapOneInchFusionSettlement} from "../../src/v4/EswapOneInchFusionSettlement.sol";
+import {IReactor} from "../../lib/uniswapx-interfaces/IReactor.sol";
+import {IOrderMixin} from "../../lib/limit-order-protocol/IOrderMixin.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {EswapLeverageAdapter} from "../../src/v4/EswapLeverageAdapter.sol";
 import {EswapLeverageQuoter} from "../../src/v4/EswapLeverageQuoter.sol";
 import {HookFlags} from "../../src/v4/libraries/HookFlags.sol";
@@ -55,6 +62,15 @@ import {HookFlags} from "../../src/v4/libraries/HookFlags.sol";
 ///         Both directions are registered so LONG (margin USDC -> collateral
 ///         WETH) and SHORT (margin WETH -> collateral USDC) route through the
 ///         adapter/quoter.
+
+/// @dev Minimal admin surface shared by both venue settlers, so the deploy
+///      script can configure them without importing each concrete type twice.
+interface EswapSettlementOps {
+    function setOperator(address operator) external;
+
+    function setPendingRecipient(address recipient) external;
+}
+
 contract DeployUnichainSepoliaFull is Script {
     using PoolIdLibrary for PoolKey;
 
@@ -108,6 +124,8 @@ contract DeployUnichainSepoliaFull is Script {
             console.log("Wiring pipeline to EXISTING stack (mode 2)");
             console.log(string.concat("  Hook:   ", vm.toString(address(hook))));
             console.log(string.concat("  Router: ", vm.toString(address(router))));
+            EswapRouterExt routerExt = new EswapRouterExt(IPoolManager(UNICHAIN_SEPOLIA_PM), address(router));
+            console.log(string.concat("RouterExt: ", vm.toString(address(routerExt))));
         } else {
             // ------ MODE 1: fresh full-stack deployment -----------------------
             console.log("Deploying FRESH full stack (mode 1)");
@@ -194,6 +212,12 @@ contract DeployUnichainSepoliaFull is Script {
             // 4. Deploy router + auxiliary stack.
             router = new EswapRouter(IPoolManager(address(pm)));
             console.log(string.concat("Router: ", vm.toString(address(router))));
+            EswapRouterExt routerExt = new EswapRouterExt(IPoolManager(address(pm)), address(router));
+            console.log(string.concat("RouterExt: ", vm.toString(address(routerExt))));
+            router.setRouterExt(address(routerExt));
+            // [AUDIT CRIT-4] The companion relays swapMultiPoolFor on behalf of
+            // cross-chain/atomic traders; whitelist it as a router executor.
+            router.setExecutorWhitelist(address(routerExt), true);
             EswapSolverAdapter solverAdapter = new EswapSolverAdapter(address(router));
             console.log(string.concat("SolverAdapter: ", vm.toString(address(solverAdapter))));
             EswapLiquidationKeeper keeper = new EswapLiquidationKeeper(address(hook), address(router));
@@ -282,8 +306,24 @@ contract DeployUnichainSepoliaFull is Script {
         console.log(string.concat("CoWSettlement: ", vm.toString(address(settlement))));
         console.log(string.concat("  gpv2Settlement: ", vm.toString(address(settlement.gpv2Settlement()))));
 
+        // Generic relayer settlement. This is the destination settler for every
+        // venue whose relayer bridges the notional in and then calls
+        // fill(orderId, originData, fillerData) -- i.e. Across, and any future
+        // relayer that delivers funds to this chain.
+        //
+        // fill() sets SwapParams.solver = address(this) before calling
+        // swapMultiPoolForSolverFunded, so the router's solver whitelist gates
+        // it: without the setSolverWhitelist call below EVERY generic fill
+        // reverts with "Solver not authorized" at EswapRouter.sol:805.
+        // Whitelisting the settler here IS the venue-registration step; the
+        // router's registeredSolvers mapping is the multi-venue registry.
+        EswapSettlement genericSettlement = new EswapSettlement(router);
+        console.log(string.concat("Settlement:     ", vm.toString(address(genericSettlement))));
+
         EswapLeverageAdapter adapter = new EswapLeverageAdapter(router);
         console.log(string.concat("LeverageAdapter: ", vm.toString(address(adapter))));
+        // [AUDIT CRIT-4] The adapter relays swapMultiPoolFor for its recipient.
+        router.setExecutorWhitelist(address(adapter), true);
 
         EswapLeverageQuoter quoter = new EswapLeverageQuoter(router);
         console.log(string.concat("LeverageQuoter: ", vm.toString(address(quoter))));
@@ -319,8 +359,45 @@ contract DeployUnichainSepoliaFull is Script {
         if (!router.registeredSolvers(solver)) {
             router.setSolverWhitelist(solver, true);
         }
+        // The generic settlement opens positions as its own solver, so it needs
+        // the same whitelist entry. CoWSettlement forwards to the router as the
+        // order's designated solver and is gated by that order instead.
+        if (!router.registeredSolvers(address(genericSettlement))) {
+            router.setSolverWhitelist(address(genericSettlement), true);
+        }
+
+        // ------ Venue settlers with non-uniform settlement models (OPT-IN) ---
+        // CoWSettlement and the generic EswapSettlement both settle by opening a
+        // position. UniswapX and 1inch Fusion CANNOT: their protocols require the
+        // filler to deliver output tokens to the order recipient, which cannot
+        // represent an Eswap position. Both are therefore inventory-based fill
+        // sources and are deployed only when their full address set is supplied.
+        _maybeDeployUniswapXSettlement(router);
+        _maybeDeployOneInchFusionSettlement(router);
+
         console.log(string.concat("DefaultSolver: ", vm.toString(adapter.defaultSolver())));
         console.log(string.concat("SolverWhitelisted: ", vm.toString(router.registeredSolvers(solver))));
+        console.log(string.concat("SettlementWhitelisted: ", vm.toString(router.registeredSolvers(address(genericSettlement)))));
+
+        // ------ Demand side: aggregator exchange proxies (OPT-IN) -------------
+        // Both demand entrypoints gate on this whitelist:
+        //   swapFor            -> require(allowedAggregators[route.exchangeProxy])
+        //   swapMultiPoolFor   -> require(allowedAggregators[route.exchangeProxy])
+        // so a freshly deployed router can execute NO aggregator route at all
+        // until the proxy is registered here. Whitelisting the proxy IS the
+        // aggregator-registration step; allowedAggregators is the demand-side
+        // registry.
+        //
+        // Every slot is opt-in and read from the same env names the off-chain
+        // registry uses (javascript/v4/realApis/demandVenues.js). A whitelisted
+        // proxy is invoked with the FULL swap notional pre-approved, so we
+        // never guess an address: unset slots are logged PENDING and skipped,
+        // and a malformed value reverts rather than registering a bad address.
+        _whitelistAggregators(router, "Enso", "AGG_ENSO_PROXY_ADDRESS");
+        _whitelistAggregators(router, "Odos", "AGG_ODOS_PROXY_ADDRESS");
+        _whitelistAggregators(router, "Bungee", "AGG_BUNGEE_PROXY_ADDRESS");
+        _whitelistAggregators(router, "Jumper", "AGG_JUMPER_PROXY_ADDRESS");
+        _whitelistAggregators(router, "1inch", "AGG_ONEINCH_ROUTER_ADDRESS");
 
         vm.stopBroadcast();
 
@@ -332,8 +409,12 @@ contract DeployUnichainSepoliaFull is Script {
         console.log(string.concat("Hook:             ", vm.toString(address(hook))));
         console.log(string.concat("Router:           ", vm.toString(address(router))));
         console.log(string.concat("CoWSettlement:    ", vm.toString(address(settlement))));
+        console.log(string.concat("Settlement:       ", vm.toString(address(genericSettlement))));
         console.log(string.concat("LeverageAdapter:  ", vm.toString(address(adapter))));
         console.log(string.concat("LeverageQuoter:   ", vm.toString(address(quoter))));
+        console.log("");
+        console.log("=== Demand-Side Whitelist Status ===");
+        _reportAggregators(router);
         console.log("");
         console.log("=== Next Steps ===");
         console.log("1. Update root .env (separate from mainnet V4_* keys):");
@@ -342,6 +423,7 @@ contract DeployUnichainSepoliaFull is Script {
             console.log(string.concat("   UNICHAIN_SEPOLIA_ROUTER_ADDRESS=", vm.toString(address(router))));
         }
         console.log(string.concat("   V4_SETTLEMENT_ADDRESS=", vm.toString(address(settlement))));
+        console.log(string.concat("   V4_SETTLEMENT_GENERIC_ADDRESS=", vm.toString(address(genericSettlement))));
         console.log(string.concat("   V4_ADAPTER_ADDRESS=", vm.toString(address(adapter))));
         console.log(string.concat("   V4_QUOTER_ADDRESS=", vm.toString(address(quoter))));
         console.log("");
@@ -349,6 +431,132 @@ contract DeployUnichainSepoliaFull is Script {
         console.log("3. Whitelist solver liquidity / fund test traders with testnet WETH + USDC,");
         console.log("   then drive fills via EswapCoWSettlement.fillOrder and");
         console.log("   EswapLeverageAdapter.exactInputSingleWithLeverage.");
+    }
+
+    /// @dev Whitelists one demand-side aggregator exchange proxy, if its env
+    ///      slot is set. Unset => logged PENDING and skipped. A malformed or
+    ///      zero address reverts instead of registering a bad proxy, because a
+    ///      whitelisted proxy is called with the full notional pre-approved.
+    function _whitelistAggregators(EswapRouter router, string memory label, string memory envName) internal {
+        address proxy = vm.envOr(envName, address(0));
+        if (proxy == address(0)) {
+            console.log(string.concat("  [PENDING] ", label, " (", envName, " unset)"));
+            return;
+        }
+        if (!router.allowedAggregators(proxy)) {
+            router.setAllowedAggregator(proxy, true);
+        }
+        console.log(string.concat("  [ROUTABLE] ", label, " ", vm.toString(proxy)));
+    }
+
+    /// @dev Deploys + whitelists the UniswapX settler, but only when the reactor
+    ///      AND both tokens are supplied. All four slots must be present: a
+    ///      settler with a zero input or output token would accept orders it can
+    ///      never deliver, and the reactor approval is capped per fill.
+    function _maybeDeployUniswapXSettlement(EswapRouter router) internal {
+        address reactor = vm.envOr("UNISWAPX_REACTOR_ADDRESS", address(0));
+        address input = vm.envOr("UNISWAPX_SETTLEMENT_INPUT_TOKEN", address(0));
+        address output = vm.envOr("UNISWAPX_SETTLEMENT_OUTPUT_TOKEN", address(0));
+        uint256 maxFill = vm.envOr("UNISWAPX_SETTLEMENT_MAX_FILL", uint256(0));
+
+        if (reactor == address(0) || input == address(0) || output == address(0) || maxFill == 0) {
+            console.log("  [PENDING] UniswapX settlement (reactor/input/output/maxFill incomplete)");
+            return;
+        }
+
+        EswapUniswapXSettlement settler =
+            new EswapUniswapXSettlement(IReactor(reactor), IERC20(input), IERC20(output), maxFill);
+
+        _configureSettlerOperator(address(settler));
+        _configureUniswapXRecipient(address(settler));
+
+        if (!router.registeredSolvers(address(settler))) {
+            router.setSolverWhitelist(address(settler), true);
+        }
+        console.log(string.concat("  [SETTLER] UniswapX ", vm.toString(address(settler))));
+    }
+
+    /// @dev Both settlers default `operator` to their deployer. Under
+    ///      vm.broadcast that is the broadcasting EOA, which is usually correct,
+    ///      but leaving it implicit hides a permanently unusable settler if the
+    ///      caller ever deploys from a contract. SETTLEMENT_OPERATOR_ADDRESS
+    ///      makes it explicit; when unset the constructor default is kept and
+    ///      reported so the operator is never a silent guess.
+    function _configureSettlerOperator(address settler) internal {
+        address operator = vm.envOr("SETTLEMENT_OPERATOR_ADDRESS", address(0));
+        if (operator != address(0)) {
+            EswapSettlementOps(settler).setOperator(operator);
+            console.log(string.concat("  [SETTLER] operator -> ", vm.toString(operator)));
+        } else {
+            console.log(string.concat("  [SETTLER] operator -> deployer (set SETTLEMENT_OPERATOR_ADDRESS to override)"));
+        }
+    }
+
+    /// @dev validate() requires output.recipient == pendingRecipient, so an unset
+    ///      pendingRecipient makes every order revert UnauthorizedRecipient. Set
+    ///      UNISWAPX_SETTLEMENT_RECIPIENT to the address that should receive fills.
+    function _configureUniswapXRecipient(address settler) internal {
+        address recipient = vm.envOr("UNISWAPX_SETTLEMENT_RECIPIENT", address(0));
+        if (recipient != address(0)) {
+            EswapSettlementOps(settler).setPendingRecipient(recipient);
+            console.log(string.concat("  [SETTLER] uniswapx recipient -> ", vm.toString(recipient)));
+        } else {
+            console.log("  [SETTLER] uniswapx recipient UNSET (set UNISWAPX_SETTLEMENT_RECIPIENT or validate() reverts)");
+        }
+    }
+
+    /// @dev Deploys + whitelists the 1inch classic Fusion settler, but only when
+    ///      the LOP and both tokens are supplied. maxFill bounds both the order's
+    ///      makingAmount and the fill amount, and caps the LOP allowance.
+    function _maybeDeployOneInchFusionSettlement(EswapRouter router) internal {
+        address lop = vm.envOr("ONEINCH_FUSION_LOP_ADDRESS", address(0));
+        address makerAsset = vm.envOr("ONEINCH_FUSION_MAKER_ASSET", address(0));
+        address takerAsset = vm.envOr("ONEINCH_FUSION_TAKER_ASSET", address(0));
+        uint256 maxFill = vm.envOr("ONEINCH_FUSION_MAX_FILL", uint256(0));
+
+        if (lop == address(0) || makerAsset == address(0) || takerAsset == address(0) || maxFill == 0) {
+            console.log("  [PENDING] 1inch Fusion settlement (lop/maker/taker/maxFill incomplete)");
+            return;
+        }
+
+        EswapOneInchFusionSettlement settler =
+            new EswapOneInchFusionSettlement(IOrderMixin(lop), IERC20(makerAsset), IERC20(takerAsset), maxFill);
+
+        _configureSettlerOperator(address(settler));
+
+        if (!router.registeredSolvers(address(settler))) {
+            router.setSolverWhitelist(address(settler), true);
+        }
+        console.log(string.concat("  [SETTLER] 1inchFusion ", vm.toString(address(settler))));
+    }
+
+    /// @dev Re-reads every aggregator slot and prints the final on-chain state,
+    ///      so the deploy log shows what is actually registered rather than what
+    ///      was merely requested.
+    function _reportAggregators(EswapRouter router) internal view {
+        _reportAggregator(router, "Enso", "AGG_ENSO_PROXY_ADDRESS");
+        _reportAggregator(router, "Odos", "AGG_ODOS_PROXY_ADDRESS");
+        _reportAggregator(router, "Bungee", "AGG_BUNGEE_PROXY_ADDRESS");
+        _reportAggregator(router, "Jumper", "AGG_JUMPER_PROXY_ADDRESS");
+        _reportAggregator(router, "1inch", "AGG_ONEINCH_ROUTER_ADDRESS");
+    }
+
+    function _reportAggregator(EswapRouter router, string memory label, string memory envName) internal view {
+        address proxy = vm.envOr(envName, address(0));
+        if (proxy == address(0)) {
+            console.log(string.concat("  ", label, ": not configured"));
+            return;
+        }
+        console.log(
+            string.concat(
+                "  ",
+                label,
+                ": ",
+                vm.toString(proxy),
+                " whitelisted=",
+                router.allowedAggregators(proxy) ? "true" : "false"
+            )
+        );
     }
 
     /// @dev CREATE2 address without deploying. Mirrors OpenZeppelin's

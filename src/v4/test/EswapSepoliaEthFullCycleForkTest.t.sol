@@ -196,6 +196,8 @@ contract EswapSepoliaEthFullCycleForkTest is Test, IUnlockCallback {
         settlement = new EswapCoWSettlement(router, GPV2_SETTLEMENT);
         adapter = new EswapLeverageAdapter(router);
         quoter = new EswapLeverageQuoter(router);
+        // [AUDIT CRIT-4] The adapter relays swapMultiPoolFor for its recipient.
+        router.setExecutorWhitelist(address(adapter), true);
         adapter.registerPool(SEPOLIA_USDC, SEPOLIA_WETH, 3000, hookLocalKey, standardLocalKey);
         adapter.registerPool(SEPOLIA_WETH, SEPOLIA_USDC, 3000, hookLocalKey, standardLocalKey);
         quoter.registerPool(SEPOLIA_USDC, SEPOLIA_WETH, 3000, hookLocalKey, standardLocalKey);
@@ -266,7 +268,7 @@ contract EswapSepoliaEthFullCycleForkTest is Test, IUnlockCallback {
 
     function _order(uint256 margin, uint32 validTo, uint256 minOut, address sell, address buy)
         internal
-        pure
+        view
         returns (CowOrder.Data memory o)
     {
         o = CowOrder.Data({
@@ -276,7 +278,8 @@ contract EswapSepoliaEthFullCycleForkTest is Test, IUnlockCallback {
             sellAmount: margin,
             buyAmount: minOut,
             validTo: validTo,
-            appData: keccak256("eswap-eth-sepolia-full-cycle"),
+            // [AUDIT CRIT-05] Fill must carry the signed leverage commitment.
+            appData: settlement.leverageCommitment(2),
             feeAmount: 0,
             kind: keccak256("sell"),
             partiallyFillable: false,
@@ -379,7 +382,7 @@ contract EswapSepoliaEthFullCycleForkTest is Test, IUnlockCallback {
         assertEq(borrowed, solverPrincipal, "borrow = margin*(leverage-1)");
         assertTrue(isLong, "USDC->WETH order fill must open LONG on 11155111");
         bytes memory uid = abi.encodePacked(digest, owner, order.validTo);
-        assertTrue(settlement.filledOrders(uid), "order UID marked filled");
+        assertTrue(settlement.filledOrders(keccak256(uid)), "order UID marked filled");
 
         uint256 solverBefore = RealIERC20(SEPOLIA_USDC).balanceOf(solver);
 

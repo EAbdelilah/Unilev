@@ -98,6 +98,39 @@ contract EswapEmergencyPauseTest is BaseV4Test {
         hook.setEmergencyPause(true);
     }
 
+    /// @dev [AUDIT MED-03] Re-toggling pause while already paused must NOT reset
+    ///      the 72 h expiry clock: otherwise a compromised owner extends the DoS
+    ///      forever, one toggle at a time.
+    function test_Pause_ReToggleDoesNotExtendExpiry() public {
+        hook.setEmergencyPause(true);
+        uint256 firstExpiry = hook.pauseExpiry();
+
+        vm.warp(block.timestamp + 1 days);
+        hook.setEmergencyPause(true); // re-toggle attempt
+
+        assertEq(hook.pauseExpiry(), firstExpiry, "re-toggle must not push back the pause expiry");
+
+        // The pause still lapses at the ORIGINAL expiry even after re-toggling.
+        vm.warp(firstExpiry);
+        manager.setNextSwapDelta(-50 ether, 48 ether);
+        vm.prank(trader);
+        router.swapMultiPool(
+            EswapRouter.SwapParams({
+                key: key,
+                standardPoolKey: standardPoolKey,
+                zeroForOne: true,
+                amountSpecified: -10 ether,
+                leverage: 5,
+                solver: solver,
+                hookData: abi.encode(true, uint8(5), trader),
+                deadline: block.timestamp + 15 minutes,
+                minAmountOut: 0
+            })
+        );
+        (, uint256 collateral,,,,,,,) = hook.positions(key.toId(), trader);
+        assertGt(collateral, 0, "pause auto-expired at the original deadline despite the re-toggle");
+    }
+
     function test_Pause_UnpauseRestoresTrading() public {
         hook.setEmergencyPause(true);
         manager.setNextSwapDelta(-50 ether, 48 ether);

@@ -41,6 +41,13 @@ contract EswapLiquidationKeeper is Ownable {
     // Oracle-derived slippage tolerance applied when quoting minAmountOut.
     uint256 public slippageBps = 500; // 5% buffer
 
+    // [AUDIT MED-13] Gas floor for automated batch loops. Each liquidation costs
+    // ~315k gas; batching an unbounded leg list can exceed the block gas limit and
+    // revert the ENTIRE run (a single stuck position DoS-ing every other fill).
+    // Loops stop when less than this remains, so the tail of the batch is simply
+    // deferred to the next upkeep round instead of reverting.
+    uint256 public constant MIN_KEEP_GAS = 900_000;
+
     struct Watch {
         PoolKey key;
         address trader;
@@ -134,6 +141,22 @@ contract EswapLiquidationKeeper is Ownable {
      * @dev Mirrors the hook's USD pricing convention so the quote is comparable to
      *      what the unwind swap returns. Returns 0 when no oracle is configured
      *      (TWAP-only testnets), disabling slippage protection for that position.
+     *
+     *      [AUDIT CRIT-09] The floor is capped at the collateral the hook
+     *      PHYSICALLY still holds and will swap during `_unwindBand`:
+     *      `availableCollateral = recovered(band) + retained(never deployed)`.
+     *      The pre-fix quote applied the oracle price to the ENTIRE book
+     *      `pos.collateralAmount`. A position with a deployed rehypothecated LP
+     *      band that suffered impermanent loss converts part of that book into
+     *      the debt currency (recovered WITHOUT swapping), so the book
+     *      overstates the swap output — `executeLiquidation` then reverts with
+     *      `SlippageExceeded` and keeper liquidations of banded positions
+     *      permanently fail. The band's collateral leg is conservatively excluded
+     *      from the floor (simulating the LP removal needs pool state + liquidity
+     *      math); it is recovered as `bandProceeds` in the debt currency and
+     *      credited directly by the hook, so understating is the safe direction:
+     *      `minAmountOut <= totalSource` always holds absent an oracle-vs-pool
+     *      price deviance.
      */
     function quoteMinAmountOut(PoolKey memory key, address trader) public view returns (uint256) {
         EswapMarginHook.Position memory pos = _position(key, trader);
@@ -148,7 +171,18 @@ contract EswapLiquidationKeeper is Ownable {
         address collateralToken = Currency.unwrap(collateralCurrency);
         address receivedToken = Currency.unwrap(debtCurrency);
 
-        uint256 collateralUsd = hook.priceFeed().getAmountInUsd(collateralToken, pos.collateralAmount);
+        // [AUDIT CRIT-09] Quote only the collateral the unwind will actually sell:
+        // the part that was never deployed into the LP band (`collateralAmount -
+        // rehypPrincipal`) plus — conservatively — the band's remaining collateral
+        // leg is omitted. A position without a band guards the full book.
+        uint256 principal = pos.liquidity > 0 ? hook.rehypPrincipal(key.toId(), trader) : 0;
+        uint256 physicalCollateral = pos.collateralAmount;
+        if (principal > 0) {
+            physicalCollateral = pos.collateralAmount >= principal ? pos.collateralAmount - principal : 0;
+            if (physicalCollateral == 0) return 0;
+        }
+
+        uint256 collateralUsd = hook.priceFeed().getAmountInUsd(collateralToken, physicalCollateral);
         uint256 receivedUsdPer18 = hook.priceFeed().getAmountInUsd(receivedToken, 1e18);
         if (receivedUsdPer18 == 0) return 0;
 
@@ -246,6 +280,7 @@ contract EswapLiquidationKeeper is Ownable {
         liquidated = new uint256[](len);
         uint256 done;
         for (uint256 i = 0; i < len; i++) {
+            if (gasleft() < MIN_KEEP_GAS) break; // [AUDIT MED-13] defer tail to next round
             if (_isLiquidatable(watches[i].key, watches[i].trader)) {
                 if (_tryLiquidate(watches[i].key, watches[i].trader)) {
                     liquidated[i] = 1;
@@ -272,6 +307,7 @@ contract EswapLiquidationKeeper is Ownable {
 
     function _liquidateBatch(PoolKey[] memory keys, address[] memory traders, uint256[] memory minOuts) internal {
         for (uint256 i = 0; i < keys.length; i++) {
+            if (gasleft() < MIN_KEEP_GAS) return; // [AUDIT MED-13] stop before OOG-reverting the batch
             _tryLiquidate(keys[i], traders[i], minOuts[i]);
         }
     }

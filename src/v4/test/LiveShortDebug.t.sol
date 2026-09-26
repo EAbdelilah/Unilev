@@ -26,7 +26,7 @@ contract LiveShortDebug is Test {
     address trader;
 
     function setUp() public {
-        vm.createSelectFork(vm.envString("UNICHAIN_RPC_URL"));
+        vm.createSelectFork(vm.envOr("UNICHAIN_RPC_URL", string("https://unichain-rpc.publicnode.com")));
         trader = makeAddr("trader");
         deal(WETH, trader, 10 ether);
         deal(WETH, LIVE_SOLVER, 10 ether);

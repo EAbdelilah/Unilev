@@ -153,6 +153,19 @@ contract EswapSepoliaLiveStackReplay is Test, IUnlockCallback {
         require(ok2 && r2.length >= 32 && abi.decode(r2, (address)) == address(0), "live hook priceFeed != 0");
         require(adapter.defaultSolver() == SOLVER, "live adapter defaultSolver mismatch");
         require(router.registeredSolvers(SOLVER), "live router solver not whitelisted");
+        // [AUDIT CRIT-4] The live Sepolia router predates the executor-whitelist
+        // gate. Replay the post-audit deployer step
+        // (`setExecutorWhitelist(adapter, true)`) by borrowing the owner slot
+        // (Ownable2Step._owner is slot 0) and restoring it immediately, so the
+        // aggregator/adapter relay stays valid against the existing broadcast
+        // stack. Self-verifies via the public getter.
+        {
+            address liveOwner = router.owner();
+            vm.store(address(router), bytes32(uint256(0)), bytes32(uint256(uint160(address(this)))));
+            router.setExecutorWhitelist(address(adapter), true);
+            vm.store(address(router), bytes32(uint256(0)), bytes32(uint256(uint160(liveOwner))));
+            require(router.executorWhitelist(address(adapter)), "live executor whitelist not applied");
+        }
 
         hookLocalKey = PoolKey({
             currency0: Currency.wrap(SEPOLIA_USDC),
@@ -229,7 +242,7 @@ contract EswapSepoliaLiveStackReplay is Test, IUnlockCallback {
 
     function _order(uint256 margin, uint32 validTo, uint256 minOut, address sell, address buy)
         internal
-        pure
+        view
         returns (CowOrder.Data memory o)
     {
         o = CowOrder.Data({
@@ -239,7 +252,8 @@ contract EswapSepoliaLiveStackReplay is Test, IUnlockCallback {
             sellAmount: margin,
             buyAmount: minOut,
             validTo: validTo,
-            appData: keccak256("eswap-live-replay"),
+            // [AUDIT CRIT-05] Fill must carry the signed leverage commitment.
+            appData: settlement.leverageCommitment(2),
             feeAmount: 0,
             kind: keccak256("sell"),
             partiallyFillable: false,
@@ -328,7 +342,7 @@ contract EswapSepoliaLiveStackReplay is Test, IUnlockCallback {
             "solver funded margin + borrow"
         );
         bytes memory uid = abi.encodePacked(digest, owner, order.validTo);
-        assertTrue(settlement.filledOrders(uid), "order UID marked filled");
+        assertTrue(settlement.filledOrders(keccak256(uid)), "order UID marked filled");
     }
 
     // ─── Full-cycle close proofs (LIVE round-trip on both pipelines) ──────

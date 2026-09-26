@@ -5,6 +5,7 @@ import {BaseV4Test, PriceFeedMock, ERC20Mock} from "./BaseV4Test.t.sol";
 import {PoolManagerCallbackMock} from "./mocks/PoolManagerMock.sol";
 import {EswapMarginHook} from "../EswapMarginHook.sol";
 import {EswapRouter} from "../EswapRouter.sol";
+import {EswapRouterExt} from "../EswapRouterExt.sol";
 import {PoolKey} from "../types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "../types/PoolId.sol";
 import {Currency} from "../types/Currency.sol";
@@ -15,6 +16,7 @@ contract EswapERC7683Test is BaseV4Test {
     using PoolIdLibrary for PoolKey;
 
     EswapRouter public router;
+    EswapRouterExt public ext;
     PoolKey public standardPoolKey;
 
     uint256 public traderPrivateKey = 0xA11CE;
@@ -32,6 +34,10 @@ contract EswapERC7683Test is BaseV4Test {
         hook = EswapMarginHook(payable(hookAddress));
 
         router = new EswapRouter(manager);
+        ext = new EswapRouterExt(manager, address(router));
+        // [AUDIT CRIT-4] The ext relays swapMultiPoolFor for the swapper.
+        router.setRouterExt(address(ext));
+        router.setExecutorWhitelist(address(ext), true);
 
         key = PoolKey({
             currency0: Currency.wrap(address(token0)),
@@ -68,7 +74,7 @@ contract EswapERC7683Test is BaseV4Test {
             uint256(45 ether) // minAmountOut
         );
 
-        EswapRouter.CrossChainOrder memory order = EswapRouter.CrossChainOrder({
+        EswapRouterExt.CrossChainOrder memory order = EswapRouterExt.CrossChainOrder({
             settlementContract: address(router),
             swapper: trader,
             nonce: 42,
@@ -78,7 +84,7 @@ contract EswapERC7683Test is BaseV4Test {
             orderData: orderData
         });
 
-        EswapRouter.ResolvedCrossChainOrder memory resolved = router.resolve(order, "");
+        EswapRouterExt.ResolvedCrossChainOrder memory resolved = ext.resolve(order, "");
 
         assertEq(resolved.settlementContract, address(router));
         assertEq(resolved.swapper, trader);
@@ -106,7 +112,7 @@ contract EswapERC7683Test is BaseV4Test {
             uint256(45 ether) // minAmountOut (48 ether output expected → pass)
         );
 
-        EswapRouter.CrossChainOrder memory order = EswapRouter.CrossChainOrder({
+        EswapRouterExt.CrossChainOrder memory order = EswapRouterExt.CrossChainOrder({
             settlementContract: address(router),
             swapper: trader,
             nonce: 101,
@@ -117,7 +123,7 @@ contract EswapERC7683Test is BaseV4Test {
         });
 
         // 1. Calculate EIP-712 Signature
-        bytes32 orderHash = router.hashOrder(order);
+        bytes32 orderHash = ext.hashOrder(order);
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", router.DOMAIN_SEPARATOR(), orderHash));
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(traderPrivateKey, digest);
@@ -148,7 +154,7 @@ contract EswapERC7683Test is BaseV4Test {
 
         // 2. Solver initiates the order permissionlessly
         vm.prank(solver);
-        router.initiate(order, signature, "");
+        ext.initiate(order, signature, "");
 
         // 3. Verify on-chain position created successfully for trader with correct parameters
         (address posTrader, uint256 collateral, uint256 borrowed, uint8 posLeverage,,,,, uint128 liquidity) =
@@ -175,7 +181,7 @@ contract EswapERC7683Test is BaseV4Test {
             uint256(49 ether) // minAmountOut: mock fill only achieves 48 ether
         );
 
-        EswapRouter.CrossChainOrder memory order = EswapRouter.CrossChainOrder({
+        EswapRouterExt.CrossChainOrder memory order = EswapRouterExt.CrossChainOrder({
             settlementContract: address(router),
             swapper: trader,
             nonce: 222,
@@ -185,7 +191,7 @@ contract EswapERC7683Test is BaseV4Test {
             orderData: orderData
         });
 
-        bytes32 orderHash = router.hashOrder(order);
+        bytes32 orderHash = ext.hashOrder(order);
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", router.DOMAIN_SEPARATOR(), orderHash));
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(traderPrivateKey, digest);
         bytes memory signature = abi.encodePacked(r, s, v);
@@ -197,7 +203,7 @@ contract EswapERC7683Test is BaseV4Test {
             abi.encodeWithSelector(EswapRouter.SwapOutputBelowMinimum.selector, 48 ether, 49 ether)
         );
         vm.prank(address(0x123));
-        router.initiate(order, signature, "");
+        ext.initiate(order, signature, "");
 
         // Position must NOT exist: the revert backed out the whole open.
         (address posTrader,,,,,,,,) = hook.positions(key.toId(), trader);

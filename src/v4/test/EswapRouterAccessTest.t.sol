@@ -30,6 +30,9 @@ contract EswapRouterAccessTest is BaseV4Test {
         hook = EswapMarginHook(payable(hookAddress));
 
         router = new EswapRouter(manager);
+        // [AUDIT MED-4] rebalance is restricted to the trader or a whitelisted
+        // executor; whitelist the keeper used by the access tests.
+        router.setExecutorWhitelist(keeper, true);
 
         key = PoolKey({
             currency0: Currency.wrap(address(token0)),

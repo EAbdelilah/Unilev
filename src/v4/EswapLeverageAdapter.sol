@@ -46,12 +46,21 @@ contract EswapLeverageAdapter is Ownable {
 
     address public defaultSolver;
 
+    // [AUDIT HIGH-7] Fallback solver consulted when `defaultSolver` is unset.
+    // Without it a single solver going offline (escrow drained / un-whitelisted)
+    // halts 100% of aggregator-routed trading protocol-wide. `_solver()` picks
+    // the default when available, else the backup, so a halt now requires BOTH
+    // solvers to be unavailable — any chosen solver is still validated against
+    // the router's `registeredSolvers` whitelist (fail-closed).
+    address public backupSolver;
+
     error PoolNotRegistered(address tokenIn, address tokenOut, uint24 fee);
     error ZeroAddress();
     error SlippageExceeded(uint256 received, uint256 minAmountOut);
 
     event PoolRegistered(address indexed tokenIn, address indexed tokenOut, uint24 fee);
     event DefaultSolverSet(address indexed solver);
+    event BackupSolverSet(address indexed solver);
     event LeveragedSwapRouted(
         address indexed tokenIn,
         address indexed tokenOut,
@@ -85,6 +94,28 @@ contract EswapLeverageAdapter is Ownable {
         emit DefaultSolverSet(_solver);
     }
 
+    /// @dev [AUDIT HIGH-7] Owner sets the fallback solver used when the default
+    ///      is unset, so a single solver failure cannot halt aggregator trading.
+    function setBackupSolver(address _solver) external onlyOwner {
+        if (_solver == address(0)) revert ZeroAddress();
+        backupSolver = _solver;
+        emit BackupSolverSet(_solver);
+    }
+
+    // ─── Solver resolution ────────────────────────────────────────────────
+
+    /// @dev Resolves the solver the router will use. [AUDIT HIGH-7] Automatic
+    ///      failover: the default solver is used only while it remains on the
+    ///      router's `registeredSolvers` whitelist; if it is removed or unset,
+    ///      the backup is used instead, so a single solver outage (de-whitelist,
+    ///      escrow drained) cannot halt aggregator trading. The router still
+    ///      enforces the whitelist on the returned address (fail-closed if both
+    ///      are unavailable).
+    function _solver() internal view returns (address) {
+        if (defaultSolver != address(0) && router.registeredSolvers(defaultSolver)) return defaultSolver;
+        return backupSolver;
+    }
+
     // ─── Aggregator Entry Points ────────────────────────────────────────
 
     /**
@@ -112,7 +143,7 @@ contract EswapLeverageAdapter is Ownable {
         PoolRegistration storage reg = _getPool(tokenIn, tokenOut, fee);
         bool zeroForOne = _isCurrency0(tokenIn, reg.hookPoolKey);
 
-        address solver = defaultSolver;
+        address solver = _solver(); // [AUDIT HIGH-7] default → backup fallback
 
         EswapRouter.SwapParams memory params = EswapRouter.SwapParams({
             key: reg.hookPoolKey,
@@ -167,7 +198,7 @@ emit LeveragedSwapRouted(tokenIn, tokenOut, fee, leverage, amountIn, amountOut);
         PoolRegistration storage reg = _getPool(tokenIn, tokenOut, fee);
         bool zeroForOne = _isCurrency0(tokenIn, reg.hookPoolKey);
 
-        address solver = defaultSolver;
+        address solver = _solver(); // [AUDIT HIGH-7] default → backup fallback
 
         EswapRouter.SwapParams memory params = EswapRouter.SwapParams({
             key: reg.hookPoolKey,
@@ -210,10 +241,18 @@ emit LeveragedSwapRouted(tokenIn, tokenOut, fee, leverage, amountIn, amountOut);
 
     /**
      * @notice Batch multiple calls in one transaction (Enso executor pattern).
+     * @dev [AUDIT CRIT-6] Multicall is restricted to `selfPermit` payloads only.
+     *      Arbitrary-selector delegatecall would let a caller execute ANY adapter
+     *      function in the adapter's context, including `exactInputSingle*` with a
+     *      caller-supplied (potentially malicious) aggregator `route.exchangeProxy`.
+     *      Authenticated admin actions (`registerPool`, `setDefaultSolver`) stay
+     *      owner-gated and must NOT be reachable via delegatecall.
      */
     function multicall(bytes[] calldata data) external returns (bytes[] memory results) {
         results = new bytes[](data.length);
         for (uint256 i = 0; i < data.length; i++) {
+            bytes4 selector = bytes4(data[i]);
+            require(selector == this.selfPermit.selector, "unauthorized delegatecall");
             (bool success, bytes memory result) = address(this).delegatecall(data[i]);
             if (!success) {
                 assembly {

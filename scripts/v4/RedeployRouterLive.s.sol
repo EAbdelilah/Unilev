@@ -7,6 +7,7 @@ import {IPoolManager} from "../../src/v4/interfaces/IPoolManager.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {EswapMarginHook} from "../../src/v4/EswapMarginHook.sol";
 import {EswapRouter} from "../../src/v4/EswapRouter.sol";
+import {EswapRouterExt} from "../../src/v4/EswapRouterExt.sol";
 import {EswapLiquidationKeeper} from "../../src/v4/EswapLiquidationKeeper.sol";
 
 /// @notice Live on Unichain mainnet: redeploy ONLY the stale EswapRouter (predates
@@ -41,6 +42,15 @@ contract RedeployRouterLive is Script {
         EswapRouter router = new EswapRouter(IPoolManager(UNICHAIN_PM));
         console.log("Router deployed at:", address(router));
 
+        // Companion surface holder (ERC-7683, trigger orders, JIT, atomic margin)
+        // bound to the fresh core router.
+        EswapRouterExt routerExt = new EswapRouterExt(IPoolManager(UNICHAIN_PM), address(router));
+        console.log("RouterExt deployed at:", address(routerExt));
+        router.setRouterExt(address(routerExt));
+        // [AUDIT CRIT-4] The companion relays swapMultiPoolFor on behalf of
+        // cross-chain/atomic traders; whitelist it as a router executor.
+        router.setExecutorWhitelist(address(routerExt), true);
+
         EswapLiquidationKeeper keeper = new EswapLiquidationKeeper(hookAddr, address(router));
         console.log("Keeper deployed at:", address(keeper));
 
@@ -65,6 +75,7 @@ contract RedeployRouterLive is Script {
 
         console.log("=== Capture these addresses ===");
         console.log(string.concat("V4_ROUTER_ADDRESS=", vm.toString(address(router))));
+        console.log(string.concat("V4_ROUTER_EXT_ADDRESS=", vm.toString(address(routerExt))));
         console.log(string.concat("V4_KEEPER_ADDRESS=", vm.toString(address(keeper))));
         console.log("V4_HOOK_ADDRESS unchanged:", hookAddr);
     }

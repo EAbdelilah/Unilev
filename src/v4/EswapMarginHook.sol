@@ -28,7 +28,8 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {NativeTokens} from "./libraries/NativeTokens.sol"; // [FIX H-1]
 import {EswapMarginLib} from "./EswapMarginLib.sol";
 import {EswapMarginHookLogic} from "./EswapMarginHookLogic.sol";
-import {IPriceFeedLogic} from "./EswapMarginHookLogic.sol";
+import {IPriceFeedLogic} from "./EswapMarginHookLogicStorage.sol";
+import {EswapMarginHookLogic2} from "./EswapMarginHookLogic2.sol";
 
 interface IPriceFeed {
     function getAmountInUsd(address token, uint256 amount) external view returns (uint256);
@@ -88,6 +89,9 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     error ERC6909InsufficientAllowance();
     error UnsupportedFeature();
     error InvalidStandardPoolKey();
+    // [AUDIT CRIT-04] Mirrors EswapMarginHookLogicStorage: a partial liquidation
+    // whose surviving position would still be liquidatable is rejected.
+    error PartialLiquidationLeavesUnhealthyPosition();
     error InvalidBoughtCurrency();
     error InsufficientResidue(uint256 requested, uint256 available);
     error ZeroSweepRecipient();
@@ -126,6 +130,10 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     event ResidueSwept(Currency indexed currency, address indexed to, uint256 amount);
     event EmergencyPauseToggled(bool indexed paused);
     event BadDebtRecorded(Currency indexed currency, uint256 amount);
+    // [AUDIT HIGH-14] Emitted (via the delegatecall'd settlement logic) when a
+    // close/liquidation settles with no solver-debt ledger but an outstanding
+    // `pos.borrowedAmount`. Mirrored here so the hook's ABI exposes it.
+    event SolverDebtFallbackUsed(PoolId indexed poolId, address indexed trader, uint256 borrowedAmount);
     event ConfigSet(ConfigParams params);
     event StandardPoolRequirementSet(bool required);
 
@@ -164,7 +172,6 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     mapping(PoolId => bool) public isAuthorizedPool;
     mapping(PoolId => mapping(address => Position)) public positions;
     mapping(PoolId => mapping(address => uint256)) public rehypPrincipal;
-    mapping(PoolId => mapping(address => bool)) public isSyntheticArbun;
     mapping(PoolId => PoolKey) public standardPoolKeys;
 
     // Dynamic tracking of registered currencies for USD aggregate valuations
@@ -283,8 +290,11 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         priceFeed = _priceFeed;
         owner = initialOwner;
         if (uint160(address(this)) & getHookFlags() != getHookFlags()) revert InvalidHookAddress();
-        EswapMarginHookLogic logic = new EswapMarginHookLogic(_manager, IPriceFeedLogic(address(_priceFeed)));
+        IPriceFeedLogic priceFeedLogic = IPriceFeedLogic(address(_priceFeed));
+        EswapMarginHookLogic2 logicB = new EswapMarginHookLogic2(_manager, priceFeedLogic);
+        EswapMarginHookLogic logic = new EswapMarginHookLogic(_manager, priceFeedLogic, address(logicB));
         hookLogic = address(logic);
+        logic2 = address(logicB);
     }
 
     /**
@@ -386,11 +396,18 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     ///         (beforeSwap margin mode + registerMarginOpen) are blocked.
     ///         Close, liquidate, and rebalance remain operational so existing
     ///         positions can be safely wound down.
+    /// @dev [AUDIT MED-03] The 72 h auto-expiry is a hard cap on each continuous
+    ///      pause: re-toggling `true` while ALREADY paused must NOT reset the
+    ///      expiry clock, otherwise a compromised owner could extend the pause
+    ///      forever one toggle at a time.
     function setEmergencyPause(bool paused) external onlyOwner {
-        emergencyPaused = paused;
         if (paused) {
-            pauseExpiry = block.timestamp + MAX_PAUSE_DURATION;
+            emergencyPaused = true;
+            if (block.timestamp >= pauseExpiry) {
+                pauseExpiry = block.timestamp + MAX_PAUSE_DURATION;
+            }
         } else {
+            emergencyPaused = false;
             pauseExpiry = 0;
         }
         emit EmergencyPauseToggled(paused);
@@ -452,10 +469,24 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     mapping(PoolId => int24) public insuranceTickUpper;
     // [P2#8] Optional direct liquidator incentive: bps of the post-solver
     // liquidation surplus paid DIRECTLY to the liquidator (debt currency) before
-    // the insurance credit/trader payout. 0 = insurance-only routing (H-5b).
+    // the insurance credit/trader payout. Default 0 = insurance-only routing
+    // (H-5b). [AUDIT HIGH-10] The 0 default is a DELIBERATE economics decision,
+    // not an omission: the 3% LIQUIDATION_REWARD_BPS is always credited to the
+    // insurance fund and liquidation liveness is provided by the team-operated
+    // keeper, the solver (whose claim takes precedence over any payout), and —
+    // when the owner opts in via setLiquidatorIncentiveBps — a direct bounty
+    // that makes liquidations permissionless for external MEV/keeper bots.
+    // Raising the default would transfer surplus out of the insurance fund /
+    // trader payouts; owners deploying the protocol are expected to set a
+    // non-zero value if they lack a first-party keeper.
     // Declared AFTER everything mirrored so the storage layout stays in lockstep
     // with EswapMarginHookLogic (read by the delegatecall'd settlement).
     uint256 public liquidatorIncentiveBps;
+    // [EIP-170 split] Second logic contract (close/liquidation/rebalance family).
+    // Written here in the constructor at the SAME relative slot appended to
+    // EswapMarginHookLogicStorage, so EswapMarginHookLogic's fallback (running
+    // against THIS hook's storage via delegatecall) reads the right address.
+    address private logic2;
 
     event LiquidatorIncentiveSet(uint256 oldBps, uint256 newBps);
 
@@ -511,7 +542,12 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
      *      settlement rounding dust, and direct donations.
      */
     function sweepableResidue(Currency currency) public view returns (uint256) {
-        uint256 obligations = totalCollateral[currency] + insuranceFund[currency] + protocolFees[currency];
+        // [AUDIT MED-2] `insuranceStaked` (funds committed to LP as the insurance
+        // band) is claim-backed value on loan to the AMM, NOT residue — a sweep
+        // cap computed on insuranceFund only would let a compromised owner key
+        // extract funds that still back insurance obligations. Include it.
+        uint256 obligations =
+            totalCollateral[currency] + insuranceFund[currency] + insuranceStaked[currency] + protocolFees[currency];
         uint256 held = manager.balanceOf(address(this), uint256(uint160(Currency.unwrap(currency))));
         return held > obligations ? held - obligations : 0;
     }
@@ -535,6 +571,9 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         if (params.reserveFactor > 100) revert FeeTooHigh();
         if (params.maxPriceSwingBps > 2000) revert BpsTooHigh();
         if (params.defaultMaxLeverage < 2 || params.defaultMaxLeverage > 20) revert InvalidLeverageRange();
+        // [AUDIT MED-1] A zero router would brick every onlyRouter path
+        // (position management, settlement, liquidation). Reject it.
+        if (params.router == address(0)) revert ZeroAddress();
 
         treasury = params.treasury;
         router = params.router;
@@ -605,6 +644,8 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
      *      MIN_COLLATERAL floor.
      */
     function setRouterAndMinCollateralUsd(address _router, uint256 _usdFloor) external onlyOwner {
+        // [AUDIT MED-1] Zero router bricks all onlyRouter paths; reject it.
+        if (_router == address(0)) revert ZeroAddress();
         router = _router;
         minCollateralUsd = _usdFloor;
     }
@@ -919,6 +960,13 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         return Currency.unwrap(collateral) == Currency.unwrap(key.currency0) ? key.currency1 : key.currency0;
     }
 
+    // ─── EIP-170: `afterSwap` body lives in EswapMarginHookLogic2 ──────────────
+    // The ~900-byte margin-open accounting body was 24,613 → over the 24,576
+    // runtime cap, so it moved to EswapMarginHookLogic, logic2. This thin stub
+    // must remain DEFINED (a v4 callback can't ride the fallback — BaseHook's
+    // virtual stub would match first) and keeps the path a single call under
+    // the PoolManager's lock via delegatecall. `lastOraclePrice`/HookSwap are
+    // shared storage, so the moved body reads/writes the same slots.
     function afterSwap(
         address,
         PoolKey calldata key,
@@ -926,70 +974,14 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         BalanceDelta delta,
         bytes calldata data
     ) external override onlyPoolManager returns (bytes4, int128) {
-        // Record last oracle sqrtPriceX96 for oracle price-capping test
-        (uint160 sqrtPriceX96,,,) = _slot0(key.toId());
-        if (sqrtPriceX96 > 0) lastOraclePrice[key.toId()] = sqrtPriceX96;
-
-        if (data.length == 0) return (IHooks.afterSwap.selector, 0);
-
-        (bool isMargin,, address trader) = abi.decode(data, (bool, uint8, address));
-        if (isMargin && trader != address(0)) {
-            uint256 borrow = _getKey(BORROW_BASE, trader).tloadUint();
-            // Delta is provided from the swapper's perspective: the received currency
-            // is positive (the output of the swap), regardless of zeroForOne direction.
-            int128 rawAmount = params.zeroForOne ? delta.amount1() : delta.amount0();
-            if (rawAmount <= 0) revert SwapOutputZero();
-            uint256 boughtAmount = uint256(int256(rawAmount));
-            Currency boughtCurrency = params.zeroForOne ? key.currency1 : key.currency0;
-
-            // STEP 2: Custom Accounting & Hook-Held Collateral (ERC-6909)
-            // The Router mints the collateral as ERC-6909 claims held by THIS hook
-            // (the custodian) inside the unlock callback. No mint here: minting in
-            // afterSwap would create an unpayable -amount delta for the hook against
-            // the real PoolManager (CurrencyNotSettled at unlock exit).
-            uint256 protocolReserve = (boughtAmount * protocolFeeFor(trader)) / 10000;
-            uint256 positionCollateral = boughtAmount - protocolReserve;
-
-            protocolFees[boughtCurrency] += protocolReserve;
-            // Hook-side ledger of trader-held collateral claims (mirrors the
-            // ERC-6909 claims the router mints to this hook on the PM singleton).
-            _claimBalances[trader][uint256(uint160(Currency.unwrap(boughtCurrency)))] += positionCollateral;
-            totalCollateral[boughtCurrency] += positionCollateral;
-
-            // [FIX M-1] Track USD value at open time so beforeSwap can use O(1) lookup
-            if (positionCollateral > 0) {
-                uint256 collateralUsd = _usdValueOf(Currency.unwrap(boughtCurrency), positionCollateral);
-                totalCollateralUSDRunning += collateralUsd;
-                positionCollateralUSD[key.toId()][trader] = collateralUsd;
+        (bool ok, bytes memory ret) =
+            logic2.delegatecall(abi.encodeCall(EswapMarginHookLogic2.afterSwap, (msg.sender, key, params, delta, data)));
+        if (!ok) {
+            assembly {
+                revert(add(ret, 32), mload(ret))
             }
-
-            _registerCurrency(boughtCurrency);
-            // Track borrow for protocol-wide health view
-            Currency borrowedToken = params.zeroForOne ? key.currency0 : key.currency1;
-            totalBorrowedByToken[borrowedToken] += borrow;
-            _registerCurrency(borrowedToken);
-
-            if (borrow > 0) {
-                uint256 tradeOIUsd = _usdValueOf(Currency.unwrap(borrowedToken), borrow);
-                totalOpenInterestUSD += tradeOIUsd;
-            }
-
-            positions[key.toId()][trader] = Position({
-                trader: trader,
-                collateralAmount: positionCollateral,
-                borrowedAmount: borrow,
-                leverage: uint8(_getKey(LEVERAGE_BASE, trader).tloadUint()),
-                isLong: _isLong(key, boughtCurrency),
-                liquidationSqrtPrice: 0,
-                tickLower: 0,
-                tickUpper: 0,
-                liquidity: 0
-            });
-
-            _getKey(TRADER_BASE, trader).tstore(address(0));
-            emit HookSwap(key.toId(), trader, delta.amount0(), delta.amount1(), 0);
         }
-        return (IHooks.afterSwap.selector, 0);
+        return abi.decode(ret, (bytes4, int128));
     }
 
     function _checkV4SpotAgainstV3Twap(PoolKey calldata key) internal view {
@@ -1039,8 +1031,10 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
      * @dev Threshold decreases as leverage increases, giving higher-leverage positions more
      *      breathing room before liquidation — improving UX and margin aggregator risk scores.
      *      Formula: 120% - (leverage × 2%), so higher leverage is more forgiving:
-     *        2x → 116%,  3x → 114%,  5x → 110%,  10x → 100% (hard floor).
-     *      The result is floored at 10000 (100%) to always require positive collateral.
+     *        2x → 116%,  3x → 114%,  5x → 110%,  9x → 102%.
+     *      From 10x up the result is clamped to a 10500 bps (105%) floor so the
+     *      collateral is still worth more than the borrow at the first
+     *      liquidation tick (a 100% floor would open already-bad-debt).
      */
     function isLiquidatable(Position memory pos, PoolKey calldata key) public view returns (bool) {
         if (pos.collateralAmount == 0) return false;
@@ -1069,17 +1063,6 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     // ------------------------------------------------------------------------
     function clearJITDelta(Currency token, address to, uint256 amount) external onlyRouter {
         manager.take(token, to, amount);
-    }
-
-    /**
-     * @notice Converts a synthetic Arbun position into physical asset delivery on Uniswap V4.
-     * @dev Fulfills the Shariah Arbun requirement (Qabd) by physically swapping on standardPoolKey.
-     */
-    function executeArbunDelivery(PoolKey calldata key, address trader) external onlyRouter {
-        PoolId poolId = key.toId();
-        Position storage pos = positions[poolId][trader];
-        if (pos.collateralAmount == 0) revert NoActivePosition();
-        isSyntheticArbun[poolId][trader] = false;
     }
 
     function executeLiquidation(PoolKey calldata key, address trader, uint256 minAmountOut, address liquidator)
@@ -1221,7 +1204,12 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
 
     function _isCollateralTokenId(uint256 id) internal view returns (bool) {
         // [FIX H-7] O(1) lookup instead of scanning registeredCurrencies.
-        return isCurrencyRegistered[Currency.wrap(address(uint160(id)))];
+        // [AUDIT HIGH-2] Additionally lock ANY id whose currency has live
+        // collateral ledgered (trader claims minted before/without the lazy
+        // `_registerCurrency` on some path), so no collateral claim id is ever
+        // freely transferable.
+        Currency c = Currency.wrap(address(uint160(id)));
+        return isCurrencyRegistered[c] || totalCollateral[c] > 0;
     }
 
     function approve(address spender, uint256 id, uint256 amount) public override returns (bool) {

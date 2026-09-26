@@ -132,31 +132,31 @@ contract EswapLiquidatorIncentiveTest is BaseV4Test {
         );
     }
 
-    function test_LiquidatorIncentive_Enabled_PartialLiquidation() public {
+    function test_LiquidatorIncentive_PartialLiquidation_UnhealthyRemainder_Reverts() public {
         hook.setLiquidatorIncentiveBps(200); // 2% of the post-solver surplus (partial slice too)
         _openShort();
         _makeLiquidatable();
+        (, uint256 c0, uint256 b0,,) = _readPosition();
 
         uint256 liquidatorBefore = token0.balanceOf(liquidator);
         uint256 traderBefore = token0.balanceOf(address(this));
 
+        // [AUDIT CRIT-04] A 5000-bps partial of this deep-underwater position
+        // would leave the survivor still liquidatable (the cover bonus cannot
+        // restore health), so it must revert — no drip-drain of the position in
+        // small bites; an unhealthy position is only settleable by FULL
+        // liquidation.
         vm.prank(liquidator);
-        router.partialLiquidate(address(hook), key, address(this), 0, 5000); // liquidate 50% of the position
+        vm.expectRevert(EswapMarginHook.PartialLiquidationLeavesUnhealthyPosition.selector);
+        router.partialLiquidate(address(hook), key, address(this), 0, 5000);
 
-        // 50% of the 20 ether debt = 10 ether repaid to the solver; totalSource
-        // 30 => afterSolver = 20. Liquidator incentive = 0.4, insurance = 0.6,
-        // trader = 19. Position SURVIVES with the remaining 10 ether of debt.
-        assertEq(
-            token0.balanceOf(liquidator) - liquidatorBefore, 0.4 ether, "direct incentive paid on the partial slice"
-        );
-        assertEq(hook.insuranceFund(key.currency0), 0.6 ether, "3% of the partial surplus to insurance");
-        assertEq(token0.balanceOf(solver), 10 ether, "proportional solver share repaid");
-        assertEq(token0.balanceOf(address(this)) - traderBefore, 19 ether, "remaining partial payout to trader");
-
-        (address survivor, uint256 survivorCollateral, uint256 survivorBorrow,,) = _readPosition();
-        assertEq(survivor, address(this), "partial liquidation keeps the position open");
-        assertEq(survivorBorrow, 10 ether, "borrowed amount halved");
-        assertTrue(survivorCollateral > 0 && survivorCollateral < 28 ether, "collateral reduced but positive");
+        // Atomic revert: nothing moved, position untouched.
+        assertEq(token0.balanceOf(liquidator) - liquidatorBefore, 0, "no incentive leaked on the reverted partial");
+        assertEq(token0.balanceOf(address(this)) - traderBefore, 0, "trader balance untouched");
+        assertEq(hook.insuranceFund(key.currency0), 0, "no insurance reward on the reverted partial");
+        (, uint256 cAfter, uint256 bAfter,,) = _readPosition();
+        assertEq(cAfter, c0, "collateral intact");
+        assertEq(bAfter, b0, "debt intact");
     }
 
     function test_LiquidatorIncentive_Setter_OnlyOwner_And_Cap() public {

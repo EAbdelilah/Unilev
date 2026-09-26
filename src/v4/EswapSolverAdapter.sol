@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+
 /**
  * @title EswapSolverAdapter
  * @notice Bespoke EIP-712 intent adapter (NOT CoW Protocol / GPv2) enabling
@@ -109,18 +111,11 @@ contract EswapSolverAdapter {
         return true;
     }
 
+    /// @dev [AUDIT HIGH-11] ECDSA recovery via OpenZeppelin, which enforces
+    ///      canonical low-s (EIP-2) and valid v, rejecting malleable signatures.
     function recover(bytes32 hash, bytes memory signature) internal pure returns (address) {
-        if (signature.length != 65) return address(0);
-        bytes32 r;
-        bytes32 s;
-        uint8 v;
-        assembly {
-            r := mload(add(signature, 32))
-            s := mload(add(signature, 64))
-            v := byte(0, mload(add(signature, 96)))
-        }
-        if (v < 27) v += 27;
-        if (v != 27 && v != 28) return address(0);
-        return ecrecover(hash, v, r, s);
+        (address recovered, ECDSA.RecoverError err,) = ECDSA.tryRecover(hash, signature);
+        if (err != ECDSA.RecoverError.NoError) return address(0);
+        return recovered;
     }
 }

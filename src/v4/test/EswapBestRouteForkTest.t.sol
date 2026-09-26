@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {Test, console2} from "forge-std/Test.sol";
 import {EswapMarginHook} from "../EswapMarginHook.sol";
 import {EswapRouter} from "../EswapRouter.sol";
+import {EswapRouterExt} from "../EswapRouterExt.sol";
 import {IPoolManager} from "../interfaces/IPoolManager.sol";
 import {PoolKey} from "../types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "../types/PoolId.sol";
@@ -88,6 +89,7 @@ contract EswapBestRouteForkTest is Test, IUnlockCallback {
     RealIPoolManager pm;
     EswapMarginHook hook;
     EswapRouter router;
+    EswapRouterExt ext;
     MockAggregatorExchange mock;
     PriceFeedMock priceFeed;
 
@@ -129,7 +131,7 @@ contract EswapBestRouteForkTest is Test, IUnlockCallback {
     }
 
     function setUp() public {
-        string memory rpcUrl = vm.envOr("ETH_MAINNET_RPC_URL", string(""));
+        string memory rpcUrl = vm.envOr("ETH_MAINNET_RPC_URL", string("https://ethereum-rpc.publicnode.com"));
         if (bytes(rpcUrl).length == 0) return;
         vm.createSelectFork(rpcUrl);
         _setupOnActiveFork();
@@ -149,11 +151,15 @@ contract EswapBestRouteForkTest is Test, IUnlockCallback {
         );
         hook = EswapMarginHook(payable(hookAddr));
         router = new EswapRouter(IPoolManager(address(pm)));
+        ext = new EswapRouterExt(IPoolManager(address(pm)), payable(address(router)));
         mock = new MockAggregatorExchange();
 
         hook.setRouterAndMinCollateralUsd(address(router), 0);
         router.setSolverWhitelist(solver, true);
         router.setAllowedAggregator(address(mock), true);
+        // [AUDIT CRIT-4] The ext relays swapMultiPoolFor for the trader.
+        router.setRouterExt(address(ext));
+        router.setExecutorWhitelist(address(ext), true);
 
         hookLocalKey = PoolKey({
             currency0: Currency.wrap(MAINNET_USDC),
@@ -292,7 +298,7 @@ contract EswapBestRouteForkTest is Test, IUnlockCallback {
         (EswapRouter.SwapParams memory params, EswapRouter.AggregatorRoute memory route) = _buildParams(0);
 
         vm.prank(trader);
-        router.swapMultiPoolBestRoute(params, trader, route);
+        ext.swapMultiPoolBestRoute(params, trader, route);
 
         assertEq(mock.callCount(), 0, "aggregator must NOT be executed when standard satisfies the floor");
         (address posTrader, uint256 collateral, uint256 borrowed, uint8 lev, bool isLong) = _readPosition();
@@ -316,7 +322,7 @@ contract EswapBestRouteForkTest is Test, IUnlockCallback {
         (EswapRouter.SwapParams memory params, EswapRouter.AggregatorRoute memory route) = _buildParams(floor);
 
         vm.prank(trader);
-        router.swapMultiPoolBestRoute(params, trader, route);
+        ext.swapMultiPoolBestRoute(params, trader, route);
 
         assertEq(mock.callCount(), 1, "aggregator must fill when it promises more than the standard venue");
         assertEq(mock.lastAmountIn(), MARGIN * uint256(LEVERAGE), "aggregator received the full notional");
@@ -347,6 +353,6 @@ contract EswapBestRouteForkTest is Test, IUnlockCallback {
             abi.encodeWithSelector(EswapRouter.SwapOutputBelowMinimum.selector, aggOut, floor)
         );
         vm.prank(trader);
-        router.swapMultiPoolBestRoute(params, trader, route);
+        ext.swapMultiPoolBestRoute(params, trader, route);
     }
 }

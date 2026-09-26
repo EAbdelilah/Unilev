@@ -196,6 +196,8 @@ minAmountOut: 0
 minAmountOut: 0
         });
         address executor = makeAddr("executor");
+        // [AUDIT CRIT-4] Executor relaying requires governance whitelist.
+        router.setExecutorWhitelist(executor, true);
         vm.prank(executor);
         router.swapFor(params, trader);
         (address posTrader, uint256 collateral, uint256 borrowed,,,,,,) =

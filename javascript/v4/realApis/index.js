@@ -18,7 +18,7 @@ const path = require("path")
 dotenv.config({ path: path.resolve(__dirname, "../../../.env") })
 
 const { quote, orderDigest, domainSeparator, uid, fixedOrder, ANCHORS, CHAINS, GPV2, COW_TYPE_HASH, KIND_SELL } = require("./cowOrderBook")
-const { zeroXQuote, ensoQuote, paraswapSupportedNetworks, paraswapPrice, odosQuote, PARASWAP_TOKENS, ODOS_TOKENS, ZX_TOKENS } = require("./aggregators")
+const { zeroXQuote, ensoQuote, paraswapSupportedNetworks, paraswapPrice, odosQuote, oneInchQuote, openOceanQuote, PARASWAP_TOKENS, ODOS_TOKENS, ZX_TOKENS, ONEINCH_TOKENS, OPENOCEAN_TOKENS } = require("./aggregators")
 const { ethers } = require("ethers")
 
 const GREEN = "\x1b[32m", RED = "\x1b[31m", CYAN = "\x1b[36m", YELLOW = "\x1b[33m", DIM = "\x1b[2m", RESET = "\x1b[0m"
@@ -83,11 +83,23 @@ async function main() {
     }`)
 
     // ── 3. Real aggregators ───────────────────────────────────────────────
-    console.log(`\n${CYAN}[3] REAL AGGREGATORS — 0x / Enso / ODOS / ParaSwap${RESET}`)
+    console.log(`\n${CYAN}[3] REAL AGGREGATORS — 0x / Enso / ODOS / ParaSwap / 1inch / OpenOcean${RESET}`)
     console.log(`  0x Swap API (REAL testnet hosts, keyless probing):`)
     for (const cid of [11155111, 421614]) {
         const z = await zeroXQuote({ apiKey: process.env.ZERO_X_API_KEY, chainId: cid, src: ZX_TOKENS[cid].USDC ?? ZX_TOKENS[cid].WETH, dst: ZX_TOKENS[cid].WETH ?? ZX_TOKENS[cid].USDC, amount: ZX_TOKENS[cid].USDC ? "5000000" : "10000000000000000" })
         reportQuote(`    [${cid}] ${ZX_TOKENS[cid].USDC ? "USDC(5)->WETH" : "WETH(0.01)->USDC"}`, z, ZX_TOKENS[cid].USDC ? 6 : 18, "0x")
+    }
+
+    console.log(`  1inch (self-serve key, portal.1inch.dev):`)
+    for (const cid of [1, 130]) {
+        const i = await oneInchQuote({ apiKey: process.env.ONEINCH_API_KEY, chainId: cid, src: ONEINCH_TOKENS[cid].USDC, dst: ONEINCH_TOKENS[cid].WETH, amount: "5000000" })
+        reportQuote(`    [${cid}] USDC(5) -> WETH `, i, 6, "1inch")
+    }
+
+    console.log(`  OpenOcean v3 (keyless):`)
+    for (const cid of [1, 130]) {
+        const o = await openOceanQuote({ chainId: cid, src: OPENOCEAN_TOKENS[cid].USDC, dst: OPENOCEAN_TOKENS[cid].WETH, amount: "5000000" })
+        reportQuote(`    [${cid}] USDC(5) -> WETH `, o, 6, "openocean")
     }
 
     console.log(`  Enso (self-serve key, no 1inch-style gating; developers.enso.build):`)
@@ -118,7 +130,7 @@ async function main() {
     // ── Summary ───────────────────────────────────────────────────────────
     console.log(`\n${CYAN}PHASE A VERDICT${RESET}`)
     console.log(`  solver:      real CoW order-book bytes == EswapCoWSettlement bytes (anchors above); order book reachable; Ethereum Sepolia has no solver liquidity today, Gnosis quotes real prices.`)
-    console.log(`  aggregator:  0x = REAL testnet hosts (sepolia+arbitrum-sepolia), keyless, returns no-Route (Sepolia has no DEX depth); Enso = ${process.env.ENSO_API_KEY ? "REAL_QUOTE path (self-serve key present)" : "AUTH_REQUIRED (set ENSO_API_KEY — free self-serve key)"}; ODOS = API unavailable (Cloudflare tunnel 1033); ParaSwap = mainnet-only, 130 has no liquidity.`)
+    console.log(`  aggregator:  0x = REAL testnet hosts (sepolia+arbitrum-sepolia), keyless, returns no-Route (Sepolia has no DEX depth); 1inch = ${process.env.ONEINCH_API_KEY ? "REAL_QUOTE path (key present)" : "AUTH_REQUIRED (set ONEINCH_API_KEY — free self-serve key)"}; Enso = ${process.env.ENSO_API_KEY ? "REAL_QUOTE path (self-serve key present)" : "AUTH_REQUIRED (set ENSO_API_KEY — free self-serve key)"}; ODOS = API unavailable (Cloudflare tunnel 1033); OpenOcean = keyless but Cloudflare bot-challenged; ParaSwap = mainnet-only, 130 has no liquidity.`)
     console.log(`  Phase B:     mirror stack on 11155111 (` + `ETH_SEPOLIA_RPC_URL=${process.env.ETH_SEPOLIA_RPC_URL || "unset"}` + `) — token/GPv2 facts verified; on-chain deploy needs Sepolia ETH (deployer has 0).`)
 }
 

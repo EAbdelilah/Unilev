@@ -20,7 +20,7 @@ contract ProbePools is Test {
     address constant HOOK = 0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8;
 
     function setUp() public {
-        vm.createSelectFork(vm.envString("UNICHAIN_RPC_URL"));
+        vm.createSelectFork(vm.envOr("UNICHAIN_RPC_URL", string("https://unichain-rpc.publicnode.com")));
     }
 
     function _probePool(address c0, address c1, uint24 fee, int24 ts, address hooks, string memory label) internal {

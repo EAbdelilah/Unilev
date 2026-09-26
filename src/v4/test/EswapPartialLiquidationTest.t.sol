@@ -88,45 +88,41 @@ contract EswapPartialLiquidationTest is BaseV4Test {
         return t;
     }
 
-    function test_PartialLiquidate_ShrinksInPlace() public {
-        _openShort();
-        uint256 c0 = _collateral(); // 28 ether net of the 50-bps protocol reserve
-        _makeLiquidatable();
-
-        router.partialLiquidate(address(hook), key, address(this), 0, 5000);
-
-        // 5000 bps slice + 500 bps cover: seized = c0 * 0.5 * 1.05.
-        uint256 liqCollateral = FullMath.mulDiv(FullMath.mulDiv(c0, 5000, 10000), 10500, 10000);
-        assertEq(_collateral(), c0 - liqCollateral, "collateral should slim to remaining stake");
-        assertEq(_borrowed(), 10 ether, "debt should be sliced by exactly the requested bps");
-        // Position survives.
-        address trader = _trader();
-        assertEq(trader, address(this), "position must remain open after a partial");
-        // Reward (300 bps of post-solver surplus = 0.3 * (30-10) = 0.6) to insurance.
-        assertEq(hook.insuranceFund(key.currency0), 0.6 ether, "insurance accrues the liquidation reward");
-    }
-
-    function test_PartialLiquidate_TwoSlices_ThenFullLiquidation() public {
+    function test_PartialLiquidate_UnhealthyRemainder_Reverts() public {
         _openShort();
         uint256 c0 = _collateral();
+        uint256 b0 = _borrowed();
         _makeLiquidatable();
 
-        router.partialLiquidate(address(hook), key, address(this), 0, 5000);
-        uint256 c1 = _collateral();
+        // [AUDIT CRIT-04] The 5000-bps slice would leave the survivor still
+        // liquidatable (the 500-bps cover cannot lift a 0.7-ratio position back
+        // over the 3x maintenance threshold), so the whole partial must revert.
+        vm.expectRevert(EswapMarginHook.PartialLiquidationLeavesUnhealthyPosition.selector);
         router.partialLiquidate(address(hook), key, address(this), 0, 5000);
 
-        uint256 liq1 = FullMath.mulDiv(FullMath.mulDiv(c0, 5000, 10000), 10500, 10000);
-        uint256 liq2 = FullMath.mulDiv(FullMath.mulDiv(c1, 5000, 10000), 10500, 10000);
-        assertEq(_collateral(), c0 - liq1 - liq2, "two slices leave only the residual stake");
-        assertEq(_borrowed(), 5 ether, "two slices halve the debt");
-        assertTrue(hook.isPositionLiquidatable(key, address(this)), "residual position is still underwater");
+        // Atomic: the position is exactly where it was before the call.
+        assertEq(_collateral(), c0, "collateral untouched by the rejected partial");
+        assertEq(_borrowed(), b0, "debt untouched by the rejected partial");
+    }
 
-        // Repeated partial-liquidation is safe because full liquidation re-checks.
+    function test_PartialLiquidate_LiquidatablePosition_RequiresFullLiquidation() public {
+        _openShort();
+        uint256 c0 = _collateral();
+        uint256 b0 = _borrowed();
+        _makeLiquidatable();
+
+        // No partial slice can restore this position to health ⟹ repeated
+        // drip-partials are impossible; the keeper must use full liquidation.
+        vm.expectRevert(EswapMarginHook.PartialLiquidationLeavesUnhealthyPosition.selector);
+        router.partialLiquidate(address(hook), key, address(this), 0, 5000);
+        assertEq(_collateral(), c0);
+        assertEq(_borrowed(), b0);
+
         _makeLiquidatable();
         router.liquidate(address(hook), key, address(this), 0);
 
         address trader = _trader();
-        assertEq(trader, address(0), "full liquidation clears the residual position");
+        assertEq(trader, address(0), "full liquidation clears the entire position");
         assertEq(_collateral(), 0);
         assertEq(_borrowed(), 0);
     }
@@ -166,9 +162,14 @@ contract EswapPartialLiquidationTest is BaseV4Test {
     function test_PartialLiquidate_CloseRemainderAfterPartial() public {
         _openShort();
         _makeLiquidatable();
-        router.partialLiquidate(address(hook), key, address(this), 0, 5000);
 
-        // Trader closes the surviving stake via the normal close path.
+        // [AUDIT CRIT-04] A partial that cannot restore the remainder to health
+        // is rejected; the trader is never sandbagged though — the standard
+        // close path still releases the position on their own terms.
+        vm.expectRevert(EswapMarginHook.PartialLiquidationLeavesUnhealthyPosition.selector);
+        router.partialLiquidate(address(hook), key, address(this), 0, 5000);
+        assertGt(_collateral(), 0, "position still open after the rejected partial");
+
         router.closePosition(address(hook), key, address(this), address(0), 0);
 
         address trader = _trader();

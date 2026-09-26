@@ -104,9 +104,15 @@ contract EswapMainnet0xFullCycleForkTest is Test, IUnlockCallback {
     }
 
     function setUp() public {
-        string memory rpcUrl = vm.envOr("ETH_MAINNET_RPC_URL", string(""));
+        string memory rpcUrl = vm.envOr("ETH_MAINNET_RPC_URL", string("https://ethereum-rpc.publicnode.com"));
         if (bytes(rpcUrl).length == 0) return;
-        vm.createSelectFork(rpcUrl);
+        // Pin the fork at the block the REAL quote originated from so the pinned
+        // aggregates/slippage can never go stale with live price movement.
+        if (Mainnet0xRoute.REF_BLOCK != 0) {
+            vm.createSelectFork(rpcUrl, Mainnet0xRoute.REF_BLOCK);
+        } else {
+            vm.createSelectFork(rpcUrl);
+        }
         try this._setupOnActiveFork() {}
         catch (bytes memory reason) {
             console2.log("setupOnActiveFork failed:", _reason(reason));

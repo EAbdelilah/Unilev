@@ -18,6 +18,7 @@ import {TickMath} from "../../src/v4/libraries/TickMath.sol";
 import {EswapMarginHook, IPriceFeed} from "../../src/v4/EswapMarginHook.sol";
 import {EswapMarginLib} from "../../src/v4/EswapMarginLib.sol";
 import {EswapRouter} from "../../src/v4/EswapRouter.sol";
+import {EswapRouterExt} from "../../src/v4/EswapRouterExt.sol";
 import {EswapSolverAdapter} from "../../src/v4/EswapSolverAdapter.sol";
 import {EswapLiquidationKeeper} from "../../src/v4/EswapLiquidationKeeper.sol";
 import {HookFlags} from "../../src/v4/libraries/HookFlags.sol";
@@ -123,6 +124,12 @@ contract DeployUnichainSepolia is Script {
         // 5. Deploy router
         EswapRouter router = new EswapRouter(IPoolManager(address(pm)));
         console.log("Router deployed at:", address(router));
+        EswapRouterExt routerExt = new EswapRouterExt(IPoolManager(address(pm)), address(router));
+        console.log("RouterExt deployed at:", address(routerExt));
+        router.setRouterExt(address(routerExt));
+        // [AUDIT CRIT-4] The companion relays swapMultiPoolFor on behalf of
+        // cross-chain/atomic traders; whitelist it as a router executor.
+        router.setExecutorWhitelist(address(routerExt), true);
 
         // 6. Deploy solver adapter (aggregator convenience wrapper)
         EswapSolverAdapter adapter = new EswapSolverAdapter(address(router));

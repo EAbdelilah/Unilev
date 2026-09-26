@@ -25,6 +25,9 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
 
+      - name: Patch v4-core pragma (solc 0.8.27)
+        run: node scripts/patch-v4-core.cjs
+
       - name: Forge build
         run: forge build --via-ir
         timeout-minutes: 15

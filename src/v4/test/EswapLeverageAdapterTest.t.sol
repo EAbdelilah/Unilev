@@ -5,11 +5,25 @@ import {BaseV4Test, PriceFeedMock, ERC20Mock} from "./BaseV4Test.t.sol";
 import {PoolManagerCallbackMock} from "./mocks/PoolManagerMock.sol";
 import {EswapMarginHook} from "../EswapMarginHook.sol";
 import {EswapRouter} from "../EswapRouter.sol";
-import {EswapLeverageAdapter} from "../EswapLeverageAdapter.sol";
+import {EswapLeverageAdapter, IERC20Permit} from "../EswapLeverageAdapter.sol";
 import {EswapLeverageQuoter} from "../EswapLeverageQuoter.sol";
 import {PoolKey} from "../types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "../types/PoolId.sol";
 import {Currency} from "../types/Currency.sol";
+
+/// @dev [AUDIT CRIT-6] Minimal permit-capable token recording the call, used to
+///      prove `multicall` routes ONLY selfPermit payloads through delegatecall.
+contract PermitTracker is IERC20Permit {
+    address public recordedOwner;
+    address public recordedSpender;
+    uint256 public recordedValue;
+
+    function permit(address owner, address spender, uint256 value, uint256, uint8, bytes32, bytes32) external {
+        recordedOwner = owner;
+        recordedSpender = spender;
+        recordedValue = value;
+    }
+}
 
 contract EswapLeverageAdapterTest is BaseV4Test {
     using PoolIdLibrary for PoolKey;
@@ -37,6 +51,8 @@ contract EswapLeverageAdapterTest is BaseV4Test {
         router = new EswapRouter(manager);
         adapter = new EswapLeverageAdapter(router);
         quoter = new EswapLeverageQuoter(router);
+        // [AUDIT CRIT-4] The adapter relays swapMultiPoolFor for its recipient.
+        router.setExecutorWhitelist(address(adapter), true);
 
         key = PoolKey({
             currency0: Currency.wrap(address(token0)),
@@ -152,6 +168,50 @@ contract EswapLeverageAdapterTest is BaseV4Test {
         adapter.setDefaultSolver(address(0));
     }
 
+    // ─── [AUDIT HIGH-7] defaultSolver SPOF → backup fallback ────────────
+
+    function test_Adapter_BackupSolver_OnlyOwner_And_Zero() public {
+        vm.prank(makeAddr("stranger"));
+        vm.expectRevert(abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", makeAddr("stranger")));
+        adapter.setBackupSolver(makeAddr("evilBackup"));
+
+        vm.expectRevert(EswapLeverageAdapter.ZeroAddress.selector);
+        adapter.setBackupSolver(address(0));
+    }
+
+    function test_Adapter_FallsBackToBackupSolverWhenDefaultUnwhitelisted() public {
+        // [AUDIT HIGH-7] The default solver is REMOVED from the router whitelist
+        // (its failure mode): the adapter must transparently route through the
+        // backup instead of halting 100% of aggregator trading.
+        address backup = makeAddr("backupSolver");
+        router.setSolverWhitelist(backup, true);
+        token0.mint(backup, 100 ether);
+        vm.startPrank(backup);
+        token0.approve(address(router), type(uint256).max);
+        vm.stopPrank();
+        adapter.setBackupSolver(backup);
+        router.setSolverWhitelist(solver, false);
+
+        manager.setNextSwapDelta(-50 ether, 48 ether);
+        uint256 amountOut =
+            adapter.exactInputSingleWithLeverage(address(token0), address(token1), 3000, 5, MARGIN, 0, user);
+        assertEq(amountOut, 48 ether, "backup solver must service the leveraged swap");
+
+        (, uint256 collateral, uint256 borrowed, uint8 posLeverage,,,,,) = hook.positions(key.toId(), user);
+        assertGt(collateral, 0);
+        assertEq(borrowed, 40 ether, "borrow leg routed through the backup solver");
+        assertEq(posLeverage, 5);
+    }
+
+    function test_Adapter_NoSolverConfigured_RouterReverts() public {
+        // Default de-whitelisted and no backup registered: the router rejects
+        // loudly rather than the adapter silently routing capital (fail-closed).
+        router.setSolverWhitelist(solver, false);
+        manager.setNextSwapDelta(-50 ether, 48 ether);
+        vm.expectRevert(bytes("Solver required for leverage"));
+        adapter.exactInputSingleWithLeverage(address(token0), address(token1), 3000, 5, MARGIN, 0, user);
+    }
+
     function test_Adapter_PoolNotRegistered_Reverts() public {
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -174,6 +234,47 @@ contract EswapLeverageAdapterTest is BaseV4Test {
         assertEq(hk.fee, 3000);
         assertEq(sk.hooks, address(0));
         assertEq(sk.fee, 500);
+    }
+
+    // ─── [AUDIT CRIT-6] Multicall restricted to selfPermit ─────────────
+
+    function test_Adapter_Multicall_RejectsArbitrarySelector() public {
+        // Swaps delegatecalled through the adapter could bind a caller-controlled
+        // route/exchangeProxy — must be unreachable via multicall.
+        bytes[] memory data = new bytes[](1);
+        data[0] = abi.encodeWithSelector(
+            adapter.exactInputSingleWithLeverage.selector, address(token0), address(token1), 3000, 5, MARGIN, 0, user
+        );
+        vm.expectRevert(bytes("unauthorized delegatecall"));
+        adapter.multicall(data);
+    }
+
+    function test_Adapter_Multicall_RejectsOwnerActions() public {
+        // Admin actions must NOT be reachable via delegatecall from any caller.
+        bytes[] memory data = new bytes[](1);
+        data[0] = abi.encodeWithSelector(adapter.setDefaultSolver.selector, makeAddr("evilSolver"));
+        vm.expectRevert(bytes("unauthorized delegatecall"));
+        adapter.multicall(data);
+
+        data[0] = abi.encodeWithSelector(
+            adapter.registerPool.selector, address(token0), address(token1), 100, standardPoolKey, standardPoolKey
+        );
+        vm.expectRevert(bytes("unauthorized delegatecall"));
+        adapter.multicall(data);
+    }
+
+    function test_Adapter_Multicall_AllowsSelfPermitOnly() public {
+        PermitTracker permitToken = new PermitTracker();
+
+        bytes[] memory data = new bytes[](1);
+        data[0] = abi.encodeWithSelector(
+            adapter.selfPermit.selector, address(permitToken), 1234, block.timestamp + 1, 27, bytes32(0), bytes32(0)
+        );
+        adapter.multicall(data);
+
+        assertEq(permitToken.recordedSpender(), address(router), "router must be the permitted spender");
+        assertEq(permitToken.recordedOwner(), address(this), "owner is the multicall initiator (delegatecall)");
+        assertEq(permitToken.recordedValue(), 1234);
     }
 
     // ─── Quoter: Indicative Quote ───────────────────────────────────────

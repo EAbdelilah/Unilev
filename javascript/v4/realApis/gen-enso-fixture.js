@@ -136,6 +136,7 @@ pragma solidity ^0.8.24;
 /// routingStrategy=router, fromAddress/receiver = the fixed taker below.
 ///   sellToken ${SELL_TOKEN}   sellAmount ${r.sellAmount} (notional)
 ///   buyToken  ${BUY_TOKEN}    expected ${r.expectedBuy}  min ${r.minBuy}
+///   refBlock      ${r.refBlock ?? 0} (fork pinned here so the quote can never go stale)
 ///   exchangeProxy ${src} (EnsoRouter V2 = ${toChecksum(ENSO_ROUTER_V2_MAINNET)})
 ///   taker         ${taker}  (router deployed at this address in the fork test)
 /// Executed by EswapRouter._multiPoolOpenAggregator inside the mainnet fork —
@@ -149,6 +150,7 @@ library MainnetEnsoRoute {
     uint256 constant SELL_AMOUNT = ${r.sellAmount};
     uint256 constant EXPECTED_BUY = ${r.expectedBuy};
     uint256 constant MIN_BUY = ${r.minBuy};
+    uint256 constant REF_BLOCK = ${r.refBlock ?? 0};
     uint256 constant TX_VALUE = ${r.value};
     bytes constant CALLDATA = hex"${r.data.slice(2)}";
 }
@@ -158,6 +160,29 @@ library MainnetEnsoRoute {
     console.log(`     real ${r.source} mainnet bundle: ${r.sellAmount} -> ${r.expectedBuy} wei WETH (min ${r.minBuy})`)
     console.log(`     exchangeProxy ${r.to}  calldata ${r.data.slice(0, 18)}... (${r.data.length / 2 - 1} bytes)`)
     return true
+}
+
+// Current Ethereum mainnet head block (decimal). Pinning the fork here is what
+// keeps the pinned Enso calldata from going stale: an unpinned fork executes the
+// route against today's state, and once the quote's minAmountOut is no longer
+// reachable Enso's own executor reverts "Insufficient output".
+async function latestBlock(env) {
+    const url = (env.ETH_MAINNET_RPC_URL || env.ETH_RPC_URL || "").trim()
+    if (!url) return null
+    try {
+        const res = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ jsonrpc: "2.0", method: "eth_blockNumber", params: [], id: 1 })
+        })
+        const body = await res.json()
+        const hex = body?.result
+        if (typeof hex !== "string") return null
+        return String(BigInt(hex))
+    } catch (e) {
+        console.error("[block] eth_blockNumber failed:", e.message)
+        return null
+    }
 }
 
 async function quoteEnso(apiKey) {
@@ -249,6 +274,7 @@ async function main() {
     if (quote.value !== 0) {
         return writeStub(`Enso bundle has a native ETH leg (value=${quote.value}) — unsupported by the accounting path`)
     }
+    quote.refBlock = await latestBlock(env)
     return writeFixture(quote)
 }
 

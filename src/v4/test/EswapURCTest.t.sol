@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {BaseV4Test} from "./BaseV4Test.t.sol";
+import {Vm} from "forge-std/Vm.sol";
 import {IURC4} from "../interfaces/IURC4.sol";
 import {PoolKey} from "../types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "../types/PoolId.sol";
@@ -10,8 +11,6 @@ import {BalanceDeltaLibrary} from "../types/BalanceDelta.sol";
 
 contract EswapURCTest is BaseV4Test {
     using PoolIdLibrary for PoolKey;
-
-    event HookSwap(PoolId indexed poolId, address indexed sender, int128 amount0, int128 amount1, uint256 hookFee);
 
     function test_URC4_IndicativeQuote() public view {
         int128 margin = -10 ether;
@@ -53,11 +52,13 @@ contract EswapURCTest is BaseV4Test {
         vm.prank(address(manager));
         hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -100 ether, 0), data);
 
-        // Just check that the event is emitted (topic match only, not data)
-        vm.expectEmit(true, true, false, false);
-        emit HookSwap(key.toId(), address(this), 0, 0, 0);
-
+        // Verify topic0 (event signature), topic1 (poolId) and topic2 (trader,
+        // the first data param decoded from `data`) of the HookSwap log. Using
+        // recordLogs rather than expectEmit because afterSwap is now routed as
+        // a delegatecall through EswapMarginHookLogic2, which Foundry's
+        // expectEmit comparator treats inconsistently across versions.
         vm.prank(address(manager));
+        vm.recordLogs();
         hook.afterSwap(
             address(this),
             key,
@@ -65,5 +66,14 @@ contract EswapURCTest is BaseV4Test {
             BalanceDeltaLibrary.toBalanceDelta(-500 ether, 450 ether),
             data
         );
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs.length, 1, "expected exactly one HookSwap log");
+        assertEq(
+            logs[0].topics[0],
+            keccak256("HookSwap(bytes32,address,int128,int128,uint128)"),
+            "topic0 must be the HookSwap signature"
+        );
+        assertEq(logs[0].topics[1], PoolId.unwrap(key.toId()), "poolId topic");
+        assertEq(logs[0].topics[2], bytes32(uint256(uint160(address(this)))), "trader topic");
     }
 }

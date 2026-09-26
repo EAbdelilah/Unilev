@@ -17,6 +17,7 @@ contract EswapTimelock {
     error TransactionTooFresh();
     error TransactionAlreadyQueued();
     error TransactionNotQueued();
+    error TransactionExpired();
     error ExecutionFailed();
 
     event TransactionQueued(bytes32 indexed txHash, address indexed target, uint256 eta);
@@ -26,6 +27,11 @@ contract EswapTimelock {
     address public immutable admin;
     address public immutable hook;
     uint256 public immutable delay; // seconds
+    // [AUDIT LOW-1] A queued transaction may only be executed within this window
+    // after its eta; after it passes, the stale entry expires and must be
+    // re-queued. Prevents an outdated (and since-superseded) governance action
+    // from being executed weeks later with no fresh review.
+    uint256 public constant GRACE_PERIOD = 14 days;
 
     mapping(bytes32 => bool) public queued;
 
@@ -75,6 +81,11 @@ contract EswapTimelock {
         bytes32 txHash = keccak256(abi.encode(target, data, eta));
         if (!queued[txHash]) revert TransactionNotQueued();
         if (block.timestamp < eta) revert NotReady();
+        // [AUDIT LOW-1] The 14-day grace window bounds execution: after eta +
+        // GRACE_PERIOD the stale entry can no longer be executed (must be
+        // cancelled and re-queued). The revert rolls back any state change, so
+        // the entry remains queued for an explicit cancel.
+        if (block.timestamp > eta + GRACE_PERIOD) revert TransactionExpired();
 
         queued[txHash] = false;
 

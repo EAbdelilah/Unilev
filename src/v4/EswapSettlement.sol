@@ -7,6 +7,7 @@ import {Currency} from "./types/Currency.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {NativeTokens} from "./libraries/NativeTokens.sol";
 
 /**
  * @title EswapSettlement
@@ -39,6 +40,7 @@ contract EswapSettlement is Ownable {
 error ZeroAddress();
     error OrderAlreadyFilled();
     error CloseFailed();
+    error InvalidNotional();
 
     event PositionFilled(
         bytes32 indexed orderId, address indexed recipient, address indexed tokenIn, uint256 marginAmount
@@ -73,6 +75,7 @@ error ZeroAddress();
         bytes calldata /* fillerData */
     )
         external
+        payable
     {
         // M-3 FIX: Prevent duplicate fills
         if (filledOrders[orderId]) revert OrderAlreadyFilled();
@@ -100,11 +103,20 @@ error ZeroAddress();
         uint256 marginAmount = uint256(amountSpecified < 0 ? -amountSpecified : amountSpecified);
         uint256 borrowAmount = marginAmount * uint256(leverage - 1);
         uint256 notional = marginAmount + borrowAmount;
-        address inputToken = zeroForOne ? Currency.unwrap(key.currency0) : Currency.unwrap(key.currency1);
+        Currency inputCurrency = zeroForOne ? key.currency0 : key.currency1;
+        address inputToken = Currency.unwrap(inputCurrency);
 
-        IERC20(inputToken).safeTransferFrom(msg.sender, address(this), notional);
-
-        IERC20(inputToken).forceApprove(address(router), notional);
+        // [AUDIT MED-05] A native-ETH order leg must not hit the ERC-20 pull
+        // path (SafeERC20 on address(0x0) always reverts, bricking bridge fills
+        // for native pairs). Native cannot be transferFrom'd, so the filler
+        // funds it via msg.value exactly equal to the notional; ERC-20 legs
+        // keep the transferFrom pull.
+        if (NativeTokens.isNative(inputCurrency)) {
+            if (msg.value != notional) revert InvalidNotional();
+        } else {
+            IERC20(inputToken).safeTransferFrom(msg.sender, address(this), notional);
+            IERC20(inputToken).forceApprove(address(router), notional);
+        }
 
         EswapRouter.SwapParams memory params = EswapRouter.SwapParams({
             key: key,

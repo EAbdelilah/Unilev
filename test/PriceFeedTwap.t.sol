@@ -45,6 +45,19 @@ contract PriceFeedTwapTest is Test {
     address public owner;
 
     function setUp() public {
+        // Every address in this file is Polygon MAINNET (WBTC 0x1BFD..., USDC
+        // 0x3c49...), and the Uniswap V3 pools are Polygon pools, so this suite
+        // is only meaningful on a Polygon fork. It previously relied on an
+        // ambient --fork-url, so running it without one (or against the wrong
+        // chain) surfaced as 8 bogus "call to non-contract address" failures
+        // that looked like PriceFeed bugs. Select the fork explicitly and skip
+        // cleanly when no Polygon RPC is configured.
+        string memory polygonRpc = vm.envOr("POLYGON_RPC_URL", string(""));
+        if (bytes(polygonRpc).length == 0) {
+            vm.skip(true);
+        }
+        vm.createSelectFork(polygonRpc);
+
         owner = address(this);
 
         priceFeed = new PriceFeedL1();
