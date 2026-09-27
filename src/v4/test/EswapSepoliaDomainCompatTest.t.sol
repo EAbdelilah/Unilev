@@ -96,7 +96,7 @@ contract EswapSepoliaDomainCompatTest is Test {
     // ─── Environment sanity ───────────────────────────────────────────────
 
     function test_RealSepolia_CanonicalCoWDeployment_Present() public {
-        if (!rpcAvailable) return;
+        if (!rpcAvailable) { vm.skip(true); return; }
         assertGt(SEPOLIA_GPV2.code.length, 0, "canonical CoW GPv2Settlement must be deployed on Sepolia");
         assertGt(SEPOLIA_USDC.code.length, 0, "real Sepolia USDC must have bytecode");
         assertGt(SEPOLIA_WETH.code.length, 0, "real Sepolia WETH must have bytecode");
@@ -105,8 +105,8 @@ contract EswapSepoliaDomainCompatTest is Test {
 
     // ─── Domain separator ─────────────────────────────────────────────────
 
-    function test_RealSepolia_DomainSeparator_MatchesCanonicalVector() public view {
-        if (!rpcAvailable) return;
+    function test_RealSepolia_DomainSeparator_MatchesCanonicalVector() public {
+        if (!rpcAvailable) { vm.skip(true); return; }
         assertEq(settlement.domainSeparator(), EXP_SEP_ETH_SEPOLIA, "canonical chain-11155111 domain");
         // Independent re-derivation with the spec formula for cross-checking.
         bytes32 expected = keccak256(
@@ -152,8 +152,8 @@ contract EswapSepoliaDomainCompatTest is Test {
     /// This test closes that gap by reading `domainSeparator()` straight from
     /// the deployed GPv2Settlement bytecode, making the live deployment — not
     /// our own arithmetic — the oracle.
-    function test_RealSepolia_LiveCowContract_DomainSeparator_Matches() public view {
-        if (!rpcAvailable) return;
+    function test_RealSepolia_LiveCowContract_DomainSeparator_Matches() public {
+        if (!rpcAvailable) { vm.skip(true); return; }
         bytes32 liveDomain = ICowDomainSeparator(SEPOLIA_GPV2).domainSeparator();
         assertEq(
             settlement.domainSeparator(),
@@ -169,7 +169,7 @@ contract EswapSepoliaDomainCompatTest is Test {
     // ─── Order digest (the bytes real CoW signatures are made over) ───────
 
     function test_RealSepolia_OrderDigest_MatchesCanonicalVector() public {
-        if (!rpcAvailable) return;
+        if (!rpcAvailable) { vm.skip(true); return; }
         CowOrder.Data memory order = _order();
         bytes32 digest = settlement.hashOrder(order);
         assertEq(digest, EXP_DIGEST, "order digest must equal the canonical off-chain vector");
@@ -177,7 +177,7 @@ contract EswapSepoliaDomainCompatTest is Test {
     }
 
     function test_RealSepolia_Uid_MatchesCanonicalShape() public {
-        if (!rpcAvailable) return;
+        if (!rpcAvailable) { vm.skip(true); return; }
         CowOrder.Data memory order = _order();
         bytes memory uid = settlement.uidOf(order, vm.addr(traderPk));
         assertEq(uid.length, 56, "CoW UID must be digest(32)|owner(20)|validTo(4)");
@@ -188,7 +188,7 @@ contract EswapSepoliaDomainCompatTest is Test {
     // ─── Real-domain signature semantics ──────────────────────────────────
 
     function test_RealSepolia_Eip712Sign_RecoversOnRealDomain() public {
-        if (!rpcAvailable) return;
+        if (!rpcAvailable) { vm.skip(true); return; }
         CowOrder.Data memory order = _order();
         bytes memory sig = _signEip712(order, traderPk);
         (address owner, bytes32 digest, bytes memory uid) = settlement.verify(order, CowSigning.Scheme.Eip712, sig);

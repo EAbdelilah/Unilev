@@ -294,8 +294,8 @@ contract EswapSepoliaPipelineForkTest is Test, IUnlockCallback {
 
     // --- Tests -------------------------------------------------------------
 
-    function test_Sepolia_StandardVenue_HasLiquidity() public view {
-        if (!rpcAvailable) return;
+    function test_Sepolia_StandardVenue_HasLiquidity() public {
+        if (!rpcAvailable) { vm.skip(true); return; }
         RealPoolId id = RealPoolId.wrap(PoolId.unwrap(standardLocalKey.toId()));
         assertGt(StateLibrary.getLiquidity(pm, id), 0, "standard pool must have seeded liquidity");
     }
@@ -303,7 +303,7 @@ contract EswapSepoliaPipelineForkTest is Test, IUnlockCallback {
     /// @dev AGGREGATOR connection: quote via quoter, execute via adapter,
     ///      position must open under the recipient with the solver lending.
     function test_Sepolia_AggregatorConnection_LeveragedSwap() public {
-        if (!rpcAvailable) return;
+        if (!rpcAvailable) { vm.skip(true); return; }
 
         uint256 margin = 50e6; // $50 USDC
         uint8 leverage = 2;
@@ -328,7 +328,7 @@ contract EswapSepoliaPipelineForkTest is Test, IUnlockCallback {
     /// @dev SOLVER (CoW) connection: trader's EIP-712 CoW order is filled by the
     ///      settlement, solver funds margin + borrow, position under the owner.
     function test_Sepolia_SolverConnection_CoWFillOrder() public {
-        if (!rpcAvailable) return;
+        if (!rpcAvailable) { vm.skip(true); return; }
 
         uint256 margin = 50e6; // $50 USDC margin
         uint8 leverage = 2;

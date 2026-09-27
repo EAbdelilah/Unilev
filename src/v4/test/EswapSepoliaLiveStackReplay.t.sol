@@ -264,8 +264,8 @@ contract EswapSepoliaLiveStackReplay is Test, IUnlockCallback {
 
     // ─── Tests (each against the broadcast stack) ─────────────────────────
 
-    function test_Replay_Stack_IsLiveBroadcast() public view {
-        if (!rpcAvailable) return;
+    function test_Replay_Stack_IsLiveBroadcast() public {
+        if (!rpcAvailable) { vm.skip(true); return; }
         assertEq(hook.router(), address(router), "hook must point at broadcast router");
         require(hook.requireTwapOracle() == false, "requireTwapOracle false");
         require(address(hook.priceFeed()) == address(0), "priceFeed zero");
@@ -284,7 +284,7 @@ contract EswapSepoliaLiveStackReplay is Test, IUnlockCallback {
     ///      broadcast adapter/router/hook. Open works with the live
     ///      feed-less TWAP-guard config (REDEPLOY-3b).
     function test_Replay_AggregatorConnection_LeveragedSwap() public {
-        if (!rpcAvailable) return;
+        if (!rpcAvailable) { vm.skip(true); return; }
 
         uint256 margin = 50e6; // $50 USDC
         uint8 leverage = 2;
@@ -311,7 +311,7 @@ contract EswapSepoliaLiveStackReplay is Test, IUnlockCallback {
     /// @dev SOLVER (CoW) connection: trader's EIP-712 CoW order filled at the
     ///      broadcast settlement; solver funds margin + borrow.
     function test_Replay_SolverConnection_CoWFillOrder() public {
-        if (!rpcAvailable) return;
+        if (!rpcAvailable) { vm.skip(true); return; }
 
         uint256 margin = 50e6;
         uint8 leverage = 2;
@@ -351,7 +351,7 @@ contract EswapSepoliaLiveStackReplay is Test, IUnlockCallback {
     ///      close via the router. Solver nets principal exactly; trader
     ///      recovers the bulk of margin (only protocol + venue fees).
     function test_Replay_FullCycle_Aggregator_OpenThenClose() public {
-        if (!rpcAvailable) return;
+        if (!rpcAvailable) { vm.skip(true); return; }
 
         uint256 margin = 50e6; // $50 USDC
         uint8 leverage = 2;
@@ -406,7 +406,7 @@ contract EswapSepoliaLiveStackReplay is Test, IUnlockCallback {
     ///      settlement, then round-trip closed by the order owner through the
     ///      router. Solver nets principal; order owner recovers the bulk of margin.
     function test_Replay_FullCycle_CoWSolver_OpenThenClose() public {
-        if (!rpcAvailable) return;
+        if (!rpcAvailable) { vm.skip(true); return; }
 
         address owner = vm.addr(traderPk);
         uint256 margin = 50e6;

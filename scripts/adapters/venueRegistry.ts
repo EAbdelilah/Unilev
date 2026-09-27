@@ -77,6 +77,7 @@ function loadIntent(path: string): LeverageIntent {
         return v;
     };
     return {
+        originChainId: Number(raw.originChainId),
         tokenIn: str("tokenIn") as `0x${string}`,
         tokenOut: str("tokenOut") as `0x${string}`,
         fee: Number(raw.fee),

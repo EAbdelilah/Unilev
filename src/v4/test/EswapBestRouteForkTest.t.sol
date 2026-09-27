@@ -289,7 +289,7 @@ contract EswapBestRouteForkTest is Test, IUnlockCallback {
     ///      venue fills and the (whitelisted but weaker) aggregator is never
     ///      executed. A stale/predatory aggregator quote cannot force a worse fill.
     function test_BestRoute_StandardWins_AggregatorNeverTouched() public {
-        if (!rpcAvailable) return;
+        if (!rpcAvailable) { vm.skip(true); return; }
         uint256 standardEst = _standardEstimate();
         // The aggregator "promises" (and would deliver) far less than the pool.
         mock.setOutputAmount(standardEst / 10);
@@ -313,7 +313,7 @@ contract EswapBestRouteForkTest is Test, IUnlockCallback {
     ///      ACTUALLY delivers it → the AGGREGATOR venue fills and the position
     ///      books the better output (proven against the standard estimate).
     function test_BestRoute_AggregatorWins_WhenItBeatsStandardEstimate() public {
-        if (!rpcAvailable) return;
+        if (!rpcAvailable) { vm.skip(true); return; }
         uint256 standardEst = _standardEstimate();
         uint256 floor = (standardEst * 10050) / 10000; // trader demands +0.5% over standard
         uint256 aggOut = (standardEst * 10100) / 10000; // aggregator genuinely delivers +1%
@@ -341,7 +341,7 @@ contract EswapBestRouteForkTest is Test, IUnlockCallback {
     ///      fill reverts instead of stranding the trader on a worse route. The
     ///      competition floor is structural: no persistent worse-than-standard fill.
     function test_BestRoute_AggregatorUnderdelivers_Reverts() public {
-        if (!rpcAvailable) return;
+        if (!rpcAvailable) { vm.skip(true); return; }
         uint256 standardEst = _standardEstimate();
         uint256 floor = (standardEst * 10050) / 10000; // aggregator chosen (floor > standard estimate)
         uint256 aggOut = (standardEst * 9950) / 10000; // actually delivers LESS than the pool

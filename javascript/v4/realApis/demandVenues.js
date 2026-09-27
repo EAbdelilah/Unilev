@@ -38,7 +38,7 @@ const DEMAND_VENUE_ENV = {
 const DEMAND_VENUES = [
     { id: "enso", label: "Enso", api: "https://api.enso.finance/api/v1/shortcuts/quote", style: "proxy" },
     { id: "odos", label: "Odos", api: "https://api.odos.xyz/api/v2/quote", style: "proxy+resolver" },
-    { id: "bungee", label: "Bungee", api: "https://api.bungee.exchange/v1/quote", style: "proxy" },
+    { id: "bungee", label: "Bungee", api: "https://public-backend.socket.tech/v3/swap/quote", style: "proxy" },
     { id: "jumper", label: "Jumper (Li.Fi)", api: "https://li.quest/v1/quote", style: "proxy" },
     { id: "oneinch", label: "1inch Router", api: "https://api.1inch.dev/swap/v6.0/130/quote", style: "proxy" },
 ];

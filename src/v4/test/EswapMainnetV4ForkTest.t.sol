@@ -263,8 +263,8 @@ function _tokenDecimals(address token) internal view returns (uint8 d) {
     /// @dev The discovered pool must carry genuine third-party liquidity.
     ///      (Live Ethereum-mainnet fee500/ts10 native ETH/USDC sits around L=4.45e16;
     ///      the setUp depth floor already guarantees at least 1e15.)
-    function test_Fork_DeepPool_IsLiquid() public view {
-        if (!rpcAvailable) return;
+    function test_Fork_DeepPool_IsLiquid() public {
+        if (!rpcAvailable) { vm.skip(true); return; }
         uint128 liq = StateLibrary.getLiquidity(pm, RealPoolId.wrap(PoolId.unwrap(standardLocalKey.toId())));
         assertGt(liq, 1e15, "live third-party liquidity floor");
     }
@@ -273,7 +273,7 @@ function _tokenDecimals(address token) internal view returns (uint8 d) {
     ///      settlement proof: the real singleton reverts CurrencyNotSettled if
     ///      any transient delta leaks out of the unlock.
     function test_Fork_DeepPool_Open_LP_Close_RoundTrip() public {
-        if (!rpcAvailable) return;
+        if (!rpcAvailable) { vm.skip(true); return; }
 
         RealPoolId deepId = RealPoolId.wrap(PoolId.unwrap(standardLocalKey.toId()));
         (uint160 pBefore,,,) = StateLibrary.getSlot0(pm, deepId);

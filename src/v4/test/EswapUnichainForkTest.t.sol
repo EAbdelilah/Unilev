@@ -117,7 +117,7 @@ contract EswapUnichainForkTest is Test {
     }
 
     function test_Unichain_TWAP_CircuitBreaker() public {
-        if (!rpcAvailable) return;
+        if (!rpcAvailable) { vm.skip(true); return; }
         // LIVE-MARKET GUARD (REDEPLOY-3): the guard is oracle-anchored, so an
         // on-chain pool spot that diverges from the oracle NO LONGER fires a revert.
         // Scenario: oracle TWAP = 3000, but we forcibly set the V4 pool spot to 4000
@@ -142,7 +142,7 @@ contract EswapUnichainForkTest is Test {
     }
 
     function test_Unichain_OpenProfitableLong() public {
-        if (!rpcAvailable) return;
+        if (!rpcAvailable) { vm.skip(true); return; }
         // Restore correct spot price (3000 USDC per WETH, decimals-aware)
         uint160 correctSqrtPrice = Currency.unwrap(key.currency0) == UNICHAIN_WETH
             ? 4339505179874779489431521

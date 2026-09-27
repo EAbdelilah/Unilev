@@ -9,7 +9,7 @@
  *   - ParaSwap `/prices` (v5.2)                   (keyless; testnets dropped)
  *   - 1inch    `/swap/v6.0/{chain}/quote`        (self-serve key: portal.1inch.dev)
  *   - OpenOcean `/v3/{chain}/swap_quote`         (keyless)
- *   - Bungee    `/v1/quote`                      (keyless, cross-chain)
+ *   - Bungee   `/v3/swap/quote` (Socket Swap V3) (keyless on public-backend)
  *   - Jumper    `/v1/quote` (LI.FI)               (keyless, cross-chain)
  *
  * Every probe maps its real HTTP response to a normalized verdict:
@@ -197,44 +197,56 @@ async function openOceanQuote({ chainId, src, dst, amount, slippageBps }) {
     return { ok: false, type: "HTTP_" + r.status, description: (r.text || JSON.stringify(r.body ?? {})).slice(0, 200), chainId }
 }
 
-/** Bungee (Socket / BungeeX) quote — keyless, cross-chain capable.
- *  endpoint: backend.bungee.exchange/v1/quote. REAL_QUOTE on data.bungeeQuote. */
+/** Bungee / Socket Swap V3 quote — keyless on the public backend.
+ *
+ *  The legacy `*.bungee.exchange/v1/quote` hosts now sit behind a Cloudflare
+ *  challenge (403 + HTML), which is why the old client could only ever report
+ *  API_UNAVAILABLE. Socket's current Swap V3 API is the supported replacement
+ *  (docs.socket.tech/integrate/migration-guide) and its `public-backend` host
+ *  needs no key at all, so there is nothing to wait on.
+ *
+ *  Verified live on Unichain (USDC->WETH, 5 USDC): HTTP 200, four routes, and
+ *  every route's `txData.object.to` equals its own `approval.spenderAddress`.
+ *  That address is Socket's documented Allowance Holder for Unichain and is
+ *  identical across all 29 listed chains (deterministic CREATE2), so unlike a
+ *  per-route executor it is a stable thing to consider whitelisting.
+ */
 async function bungeeQuote({ chainId, src, dst, amount, slippageBps }) {
-    const payload = {
-        chainId,
-        fromChainId: chainId,
-        toChainId: chainId,
-        fromTokenAddress: src,
-        toTokenAddress: dst,
-        fromAmount: String(amount),
-        slippageTolerance: (slippageBps ?? 50) / 100,
-        enableTrueFee: false,
-        referrerAddress: REPORTING_ADDR,
-        userAddr: REPORTING_ADDR,
-    }
-    const r = await getJson("https://backend.bungee.exchange/v1/quote", {
-        method: "POST",
-        headers: { "content-type": "application/json", accept: "application/json" },
-        body: JSON.stringify(payload),
+    const query = new URLSearchParams({
+        userOps: "tx",
+        originChainId: String(chainId),
+        destinationChainId: String(chainId),
+        inputToken: src,
+        outputToken: dst,
+        inputAmount: String(amount),
+        userAddress: REPORTING_ADDR,
+        receiverAddress: REPORTING_ADDR,
+        slippage: String((slippageBps ?? 50) / 100),
+    })
+    const r = await getJson(`https://public-backend.socket.tech/v3/swap/quote?${query.toString()}`, {
+        headers: { accept: "application/json" },
     })
     if (r.status === 0) return { ok: false, type: "API_UNREACHABLE", description: r.error }
-    if (r.status === 200 && r.body?.data?.bungeeQuote) {
-        return {
-            ok: true,
-            type: "REAL_QUOTE",
-            toAmount: r.body.data.bungeeQuote.destAmount ?? r.body.data.bungeeQuote.toTokenAmount,
-            estimatedGas: r.body.data.bungeeQuote.estimatedGas,
-            chainId,
-            via: "bungee/v1",
+    if (r.status === 200 && r.body?.success) {
+        const result = Array.isArray(r.body.result) ? r.body.result[0] : r.body.result
+        const best = result?.routes?.[0]
+        if (best?.output?.amount) {
+            return {
+                ok: true,
+                type: "REAL_QUOTE",
+                toAmount: best.output.amount,
+                toAmountMin: best.output.minAmountOut,
+                chainId,
+                target: best.txData?.object?.to,
+                approvalSpender: best.approval?.spenderAddress,
+                via: "socket/v3/swap",
+            }
         }
+        return { ok: false, type: "NO_LIQUIDITY", description: "200 with no route", chainId }
     }
-    // Verified live on Unichain: backend.bungee.exchange returns a Cloudflare
-    // challenge page (403 + HTML), not JSON. Reported as API_UNAVAILABLE rather
-    // than a quote verdict.
-    if (r.status === 403 && /cloudflare|just a moment|challenge/i.test(r.text || "")) {
-        return { ok: false, type: "API_UNAVAILABLE", description: "Cloudflare challenge (403) at probe time", chainId }
-    }
-    if (r.status === 400 || r.status === 404) {
+    // Socket returns 400 with a plain `message` for validation errors, which is a
+    // routing verdict (unsupported chain, unknown token) rather than an outage.
+    if (r.status === 400) {
         return { ok: false, type: "NO_LIQUIDITY", description: (r.body?.message ?? r.text).slice(0, 200), chainId }
     }
     return { ok: false, type: "HTTP_" + r.status, description: (r.text || JSON.stringify(r.body ?? {})).slice(0, 200), chainId }

@@ -71,6 +71,12 @@ export const SIGNING_SCHEME_TO_ENUM: Record<string, CowScheme> = {
  * EswapLeverageAdapter — the bridge formats this as an EIP-1271 CoW order.
  */
 export interface LeverageIntent {
+    /**
+     * Chain the collateral and inputs actually sit on. Across needs a genuine
+     * origin chain distinct from the Unichain destination; a same-chain intent
+     * is not bridgeable and belongs to a demand-side venue.
+     */
+    originChainId: number;
     tokenIn: Address;
     tokenOut: Address;
     fee: number;

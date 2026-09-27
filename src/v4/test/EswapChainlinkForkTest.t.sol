@@ -227,8 +227,8 @@ contract EswapChainlinkForkTest is Test {
     // ─── tests ───────────────────────────────────────────────────────────────
 
     /// @dev T1: AddPair-style registration lands in the right mapping slots.
-    function test_RealFeeds_RegistrationState() public view {
-        if (!rpcAvailable) return;
+    function test_RealFeeds_RegistrationState() public {
+        if (!rpcAvailable) { vm.skip(true); return; }
         assertEq(priceFeed.priceFeeds(base), baseFeed, "base feed registered");
         assertEq(priceFeed.priceFeeds(quote), quoteFeed, "quote feed registered");
         assertEq(priceFeed.feedDecimals(base), baseFeedDec, "base feed decimals");
@@ -236,7 +236,7 @@ contract EswapChainlinkForkTest is Test {
     }
 
     /// @dev T2: oracle TWAP output tracks the live venue within a wide band.
-    function test_TwapPrices_TrackLiveMarket() public view {
+    function test_TwapPrices_TrackLiveMarket() public {
         if (!rpcAvailable || !deepPoolAvailable) return;
         // [FIX M-2] Same near-stale guard as T3/T4: at the fork block the live
         // Unichain USDC/USD feed can exceed the 1h staleness window (feeds
@@ -276,8 +276,8 @@ contract EswapChainlinkForkTest is Test {
     ///      valued at exactly its oracle USD price. Before the fix the formula
     ///      divided by a fixed 1e18, understating 6-dec tokens by 10**12 and
     ///      distorting isLiquidatable ratios between position legs.
-    function test_GetAmountInUsd_CrossDecimalScale_CF1() public view {
-        if (!rpcAvailable) return;
+    function test_GetAmountInUsd_CrossDecimalScale_CF1() public {
+        if (!rpcAvailable) { vm.skip(true); return; }
         // [FIX M-2] Guard on the tightened staleness window: if either feed is
         // within 30min of the 1h limit at the fork block, skip rather than trip
         // StalePrice — this test documents decimal normalization, not freshness.
@@ -310,7 +310,7 @@ contract EswapChainlinkForkTest is Test {
 
     /// @dev T4: staleness — warping beyond MAX_ORACLE_AGE reverts StalePrice.
     function test_Staleness_1h_Reverts() public {
-        if (!rpcAvailable) return;
+        if (!rpcAvailable) { vm.skip(true); return; }
 
         (, uint256 updatedAtBase) = _rawAnswer(baseFeed);
         if (block.timestamp - updatedAtBase > MAX_ORACLE_AGE - 30 minutes) {
@@ -333,7 +333,7 @@ contract EswapChainlinkForkTest is Test {
 
     /// @dev T5: answer-bound circuit breaker.
     function test_AnswerBounds_CircuitBreaker() public {
-        if (!rpcAvailable) return;
+        if (!rpcAvailable) { vm.skip(true); return; }
 
         (int256 raw, uint256 updatedAtBase) = _rawAnswer(baseFeed);
         // Anchor the fork clock AT the feed's last round so a lagged public
@@ -361,7 +361,7 @@ contract EswapChainlinkForkTest is Test {
     /// @dev T6: sequencer uptime gating (mocked — neither chain publishes a
     ///      real feed yet; PriceFeed skips while unset).
     function test_SequencerUptime_Gating() public {
-        if (!rpcAvailable) return;
+        if (!rpcAvailable) { vm.skip(true); return; }
 
         // Anchor the fork clock AT the feed's last round so a lagged public
         // RPC fork can never trip the tightened 1h staleness window mid-test.
@@ -399,7 +399,7 @@ contract EswapChainlinkForkTest is Test {
 
     /// @dev T7: unregistered tokens return 0 (caller decides how to handle).
     function test_UnregisteredToken_ReturnsZero() public {
-        if (!rpcAvailable) return;
+        if (!rpcAvailable) { vm.skip(true); return; }
         address stranger = makeAddr("noFeedToken");
         assertEq(priceFeed.getTwapPrice(stranger), 0, "twap zero for unknown");
         assertEq(priceFeed.getAmountInUsd(stranger, 1e18), 0, "usd zero for unknown");
@@ -414,7 +414,7 @@ contract EswapChainlinkForkTest is Test {
     ///      regresses to hardcoding decimals, this test documents the blast
     ///      radius.
     function test_AddPairScript_HardcodedDecimals_CF2() public {
-        if (!rpcAvailable) return;
+        if (!rpcAvailable) { vm.skip(true); return; }
         if (baseFeedDec == 18) {
             console2.log("CF-2: feed already 18-dec on this chain; hazard N/A");
             return;

@@ -49,15 +49,26 @@ export class AcrossVenue extends Erc7683Venue {
         if (this.cfg.extraAddresses.spokePool === undefined) {
             throw new Error("[across] ACROSS_SPOKE_POOL_ADDRESS not configured");
         }
-        // Exact-input across the full leveraged notional: the origin leg is
-        // bridged in, and the destination settler opens margin+borrow.
+        // Across is a bridge, so origin and destination can never be the same
+        // chain: a 130->130 quote is rejected with "No bridge routes found for
+        // 130 -> 130". Collateral sits on the user's origin chain and is bridged
+        // in; the destination leg opens margin+borrow on Unichain. Same-chain
+        // flows belong to the demand-side venues, not here.
+        const originChainId = intent.originChainId;
+        const destinationChainId = UNICHAIN_CHAIN_ID;
+        if (originChainId === destinationChainId) {
+            throw new Error(
+                `[across] origin and destination are both ${destinationChainId}; ` +
+                    `Across cannot bridge a chain to itself, use a demand-side venue instead`,
+            );
+        }
         return {
             tradeType: "exactInput",
             amount: intent.amountIn.toString(),
             inputToken: intent.tokenIn,
             outputToken: intent.tokenOut,
-            originChainId: UNICHAIN_CHAIN_ID,
-            destinationChainId: UNICHAIN_CHAIN_ID,
+            originChainId,
+            destinationChainId,
             depositor: intent.owner,
         };
     }
@@ -97,12 +108,24 @@ export class AcrossVenue extends Erc7683Venue {
         if (!res.ok) {
             throw new Error(`Across quote rejected (${res.status}): ${text}`);
         }
-        // Documented response fields: swapTx (prebuilt origin deposit calldata),
-        // estimatedProfit, and a quoted output amount. There is NO orderId, so
-        // the order deliberately stays orderbook-routed.
-        const parsed = JSON.parse(text) as { swapTx?: unknown };
-        if (typeof parsed.swapTx !== "string" || !parsed.swapTx.startsWith("0x")) {
-            throw new Error(`Across quote response missing prebuilt swapTx: ${text.slice(0, 200)}`);
+        // Verified live on Unichain (Ethereum USDC -> Unichain WETH, 5 USDC):
+        // `swapTx` is an OBJECT { ecosystem, simulationSuccess, chainId, to,
+        // data, gas } whose `data` is the hex calldata, NOT a hex string, and
+        // there is no top-level `orderId` or `estimatedProfit` -- the amounts
+        // live under expectedOutputAmount / minOutputAmount. The quote is
+        // therefore orderbook-routed, and the relayer supplies its own order id.
+        const parsed = JSON.parse(text) as {
+            swapTx?: { to?: string; data?: string; value?: string };
+            expectedOutputAmount?: string;
+            minOutputAmount?: string;
+            id?: string;
+        };
+        const swapTx = parsed.swapTx;
+        if (typeof swapTx !== "object" || typeof swapTx.data !== "string" || !swapTx.data.startsWith("0x")) {
+            throw new Error(`Across quote response missing prebuilt swapTx.data: ${text.slice(0, 200)}`);
+        }
+        if (typeof swapTx.to !== "string" || !swapTx.to.startsWith("0x")) {
+            throw new Error(`Across quote response missing swapTx.to: ${text.slice(0, 200)}`);
         }
         return text;
     }

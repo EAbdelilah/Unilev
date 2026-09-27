@@ -435,15 +435,15 @@ minAmountOut: 0
 
     // --- tests -------------------------------------------------------------
 
-    function test_Fork_DeepPool_IsLiquid() public view {
-        if (!rpcAvailable) return;
+    function test_Fork_DeepPool_IsLiquid() public {
+        if (!rpcAvailable) { vm.skip(true); return; }
         uint128 liq = StateLibrary.getLiquidity(pm, _deepId());
         assertGt(liq, 1e15, "live third-party liquidity floor");
     }
 
     /// @notice SCENARIO A: oracle-crash liquidation, live band uncrossed.
     function test_Fork_Liquidation_OracleCrash_UnwindsBand() public {
-        if (!rpcAvailable) return;
+        if (!rpcAvailable) { vm.skip(true); return; }
 
         uint256 margin = 50 * 10 ** _tokenDecimals(quote);
         (uint256 collateral, uint256 borrowed, int24 tl, int24 tu,) = _openLong(margin);
@@ -517,7 +517,7 @@ console2.log(
     ///         tick rises), THEN the oracle crash + liquidation completes the
     ///         forced unwind against the worsened venue price.
     function test_Fork_Liquidation_RealAdverseMove_UnwindsBand() public {
-        if (!rpcAvailable) return;
+        if (!rpcAvailable) { vm.skip(true); return; }
 
         uint256 margin = 50 * 10 ** _tokenDecimals(quote);
         (uint256 collateral, uint256 borrowed, int24 tl, int24 tu,) = _openLong(margin);
@@ -646,7 +646,7 @@ _assertLiquidatedCleanly(
     ///         must stay inert below the trigger, then re-center above it, and
     ///         the resulting state must still liquidate cleanly end-to-end.
     function test_Fork_Rebalance_RecentersPartiallyConsumedBand() public {
-        if (!rpcAvailable) return;
+        if (!rpcAvailable) { vm.skip(true); return; }
 
         // Cheap trigger: 3% of band width keeps the real-price push affordable.
         hook.setBandConsumptionTriggerBps(300);

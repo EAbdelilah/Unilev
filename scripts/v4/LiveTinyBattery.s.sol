@@ -15,8 +15,12 @@ import {Currency} from "../../src/v4/types/Currency.sol";
 ///         and LONG 1x/2x/5x against the deep native ETH/USDC 500/10 pool — exactly
 ///         mirroring the dashboard's browser-trader flow (trader pays margin/signs;
 ///         the configured solver EOA funds leveraged-LONG borrows).
-///         Requires hook minCollateralUsd lowered (done: $0.001) so sub-$0.05
-///         margins clear the floor.
+///         The hook's USD floor comes from MIN_COLLATERAL_USD in .env, which
+///         DeployUnichain.s.sol applies via setRouterAndMinCollateralUsd.
+///         Currently 1000000000000000 = $0.001, so sub-$0.05 margins clear it.
+///         NOTE: this is a config value, not proof of a live deployment. Until
+///         DeployUnichain.s.sol is actually broadcast, V4_HOOK_ADDRESS below
+///         points at nothing and this script cannot run.
 ///         Env: TINY_TRADER_PK, V4_HOOK_ADDRESS, V4_ROUTER_ADDRESS, V4_SOLVER_ADDRESS,
 ///         MARGIN_USD (default 0.01 ether = $0.01).
 contract LiveTinyBattery is Script {

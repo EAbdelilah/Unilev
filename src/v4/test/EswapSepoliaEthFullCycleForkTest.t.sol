@@ -290,8 +290,8 @@ contract EswapSepoliaEthFullCycleForkTest is Test, IUnlockCallback {
 
     // --- Tests -------------------------------------------------------------
 
-    function test_EthSepolia_StackWiresAgainstReal11155111Singletons() public view {
-        if (!rpcAvailable) return;
+    function test_EthSepolia_StackWiresAgainstReal11155111Singletons() public {
+        if (!rpcAvailable) { vm.skip(true); return; }
         assertEq(address(pm), SEPOLIA_PM, "real PoolManager");
         assertTrue(GPV2_SETTLEMENT.code.length > 0, "canonical GPv2 deployed on 11155111");
         assertEq(adapter.defaultSolver(), solver, "adapter default solver wired");
@@ -303,7 +303,7 @@ contract EswapSepoliaEthFullCycleForkTest is Test, IUnlockCallback {
 
     /// @dev AGGREGATOR full cycle on 11155111: quote -> open -> close.
     function test_EthSepolia_FullCycle_Aggregator_OpenThenClose() public {
-        if (!rpcAvailable) return;
+        if (!rpcAvailable) { vm.skip(true); return; }
 
         uint256 margin = 50e6; // $50 USDC
         uint8 leverage = 2;
@@ -357,7 +357,7 @@ contract EswapSepoliaEthFullCycleForkTest is Test, IUnlockCallback {
 
     /// @dev SOLVER (CoW) full cycle on 11155111: EIP-712 order -> fill -> close.
     function test_EthSepolia_FullCycle_CoWSolver_OpenThenClose() public {
-        if (!rpcAvailable) return;
+        if (!rpcAvailable) { vm.skip(true); return; }
 
         uint256 margin = 50e6;
         uint8 leverage = 2;
