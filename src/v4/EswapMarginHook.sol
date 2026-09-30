@@ -73,6 +73,15 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     error OpenInterestExceedsCapacity(uint256 newTotalOI, uint256 maxTotalOI);
     error NotOwner();
     error ZeroAddress();
+    /// @dev [EIP-3860] A logic contract address was supplied with no runtime
+    ///      code (EOA, undeployed, or self-destructed). Deploying the logic
+    ///      contracts inline used to make this structurally impossible.
+    error LogicNotDeployed();
+    /// @dev [EIP-3860] A supplied logic contract is bound to a different
+    ///      PoolManager than this hook. Its delegatecall'd logic reads
+    ///      `manager` from ITS OWN immutable, so a mismatch would silently
+    ///      route every settlement through the wrong PoolManager.
+    error LogicManagerMismatch();
     error PositionAlreadyOpen();
     error ReentrantSwap();
     error NoActivePosition();
@@ -285,16 +294,50 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         return keccak256(abi.encode(base, trader));
     }
 
-    constructor(IPoolManager _manager, IPriceFeed _priceFeed, address initialOwner) BaseHook(_manager) {
+    /// @dev [EIP-3860 split] `_hookLogic` / `_hookLogic2` are DEPLOYED SEPARATELY
+    ///      and passed in, rather than `new`-ed inline. Deploying them inline
+    ///      put both children's initcode in this contract's initcode: 19,728 +
+    ///      24,662 = 44,390 bytes on top of the hook's own code, producing a
+    ///      68,676-byte initcode against the EIP-3860 49,152-byte limit, so the
+    ///      hook was undeployable on any EVM enforcing initcode limits.
+    ///
+    ///      Wiring them as constructor arguments instead drops the initcode to
+    ///      roughly the runtime size (~24 KB) and keeps `hookLogic` `immutable`
+    ///      (a code constant read, not an SLOAD).
+    ///
+    ///      Deployment order is therefore: `EswapMarginHookLogic2` first, then
+    ///      `EswapMarginHookLogic` (which takes the logic2 address), then this
+    ///      hook.
+    ///
+    ///      The alternative considered — a one-time `initializeLogic()` owner
+    ///      setter — was rejected because `logic2` lives in a storage layout
+    ///      deliberately kept in lockstep with the delegatecall'd settlement
+    ///      (see `logic2` below), and because it would leave a window in which a
+    ///      live hook has null logic. Constructor arguments are atomic.
+    constructor(
+        IPoolManager _manager,
+        IPriceFeed _priceFeed,
+        address _hookLogic,
+        address _hookLogic2,
+        address initialOwner
+    ) BaseHook(_manager) {
         if (initialOwner == address(0)) revert ZeroAddress();
+        if (_hookLogic == address(0) || _hookLogic2 == address(0)) revert ZeroAddress();
+        if (_hookLogic == _hookLogic2) revert ZeroAddress();
+        if (_hookLogic.code.length == 0 || _hookLogic2.code.length == 0) revert LogicNotDeployed();
+        // The delegatecall'd logic reads `manager` from its own immutable, so a
+        // mismatch would route every settlement through a foreign PoolManager.
+        if (address(EswapMarginHookLogic(payable(_hookLogic)).manager()) != address(_manager)) {
+            revert LogicManagerMismatch();
+        }
+        if (address(EswapMarginHookLogic2(payable(_hookLogic2)).manager()) != address(_manager)) {
+            revert LogicManagerMismatch();
+        }
         priceFeed = _priceFeed;
         owner = initialOwner;
         if (uint160(address(this)) & getHookFlags() != getHookFlags()) revert InvalidHookAddress();
-        IPriceFeedLogic priceFeedLogic = IPriceFeedLogic(address(_priceFeed));
-        EswapMarginHookLogic2 logicB = new EswapMarginHookLogic2(_manager, priceFeedLogic);
-        EswapMarginHookLogic logic = new EswapMarginHookLogic(_manager, priceFeedLogic, address(logicB));
-        hookLogic = address(logic);
-        logic2 = address(logicB);
+        hookLogic = _hookLogic;
+        logic2 = _hookLogic2;
     }
 
     /**

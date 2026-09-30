@@ -73,6 +73,23 @@ export const cowSettlementAbi = [
             { name: "orderUid", type: "bytes" },
         ],
     },
+    {
+        // [AUDIT CRIT-05] Canonical appData for a leveraged fill. Off-chain code
+        // must set order.appData to this value for the chosen leverage, otherwise
+        // fillOrder reverts LeverageCommitmentMismatch.
+        type: "function",
+        name: "leverageCommitment",
+        stateMutability: "pure",
+        inputs: [{ name: "leverage", type: "uint8" }],
+        outputs: [{ name: "", type: "bytes32" }],
+    },
+    {
+        type: "function",
+        name: "APP_DATA_LEVERAGE_TAG",
+        stateMutability: "view",
+        inputs: [],
+        outputs: [{ name: "", type: "bytes32" }],
+    },
 ] as const;
 
 /** EswapMarginHook view surface used by the dashboard. */
@@ -84,6 +101,17 @@ export const marginHookAbi = [
         inputs: [
             {"name":"","type":"bytes32"},
         ],
+        outputs: [
+            {"name":"","type":"uint8"},
+        ],
+        stateMutability: "view",
+    },
+    {
+        // Fallback cap when a pool has no override. Live Unichain value is 5;
+        // the hook reverts InvalidLeverageRange() outside 2..20 at init.
+        type: "function",
+        name: "defaultMaxLeverage",
+        inputs: [],
         outputs: [
             {"name":"","type":"uint8"},
         ],

@@ -11,6 +11,7 @@ import {BalanceDeltaLibrary} from "../types/BalanceDelta.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {PriceFeedMock} from "./BaseV4Test.t.sol";
 import {PoolManagerMock} from "./mocks/PoolManagerMock.sol";
+import {EswapHookDeployLib} from "./EswapHookDeployLib.sol";
 
 /// @title Probes the $0.01 margin boundary on a real Unichain MAINNET fork.
 /// @notice Answers one question empirically: with a $0.01 USD floor configured,
@@ -65,7 +66,8 @@ contract EswapMainnetOneCentMarginForkTest is Test {
         priceFeed.setPrice(UNICHAIN_USDC, 1e30);
 
         address hookAddress = address(uint160((1 << 159) | (1 << 158) | (1 << 153) | (1 << 152) | (1 << 148)));
-        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(manager, priceFeed, address(this)), hookAddress);
+        (address _hookLogic, address _hookLogic2) = EswapHookDeployLib.deployLogic(address(manager), address(priceFeed));
+        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(manager, priceFeed, _hookLogic, _hookLogic2, address(this)), hookAddress);
         hook = EswapMarginHook(payable(hookAddress));
 
         // THE VARIABLE UNDER TEST: a $0.01 USD-denominated floor, which is what

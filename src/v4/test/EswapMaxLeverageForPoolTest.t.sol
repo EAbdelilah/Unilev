@@ -10,6 +10,7 @@ import {PoolId, PoolIdLibrary} from "../types/PoolId.sol";
 import {Currency} from "../types/Currency.sol";
 import {IPoolManager} from "../interfaces/IPoolManager.sol";
 import {BalanceDeltaLibrary} from "../types/BalanceDelta.sol";
+import {EswapHookDeployLib} from "./EswapHookDeployLib.sol";
 
 /// [P2#9] Per-pool maximum-leverage override (closes slither ID-22: the storage
 /// comment promised a setter that never existed). Owner writes an override that
@@ -28,7 +29,8 @@ contract EswapMaxLeverageForPoolTest is BaseV4Test {
         token1 = new ERC20Mock("Token 1", "TK1");
 
         address hookAddress = address(uint160((1 << 159) | (1 << 158) | (1 << 153) | (1 << 152) | (1 << 148)));
-        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(manager, priceFeed, address(this)), hookAddress);
+        (address _hookLogic, address _hookLogic2) = EswapHookDeployLib.deployLogic(address(manager), address(priceFeed));
+        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(manager, priceFeed, _hookLogic, _hookLogic2, address(this)), hookAddress);
         hook = EswapMarginHook(payable(hookAddress));
 
         router = new EswapRouter(manager);

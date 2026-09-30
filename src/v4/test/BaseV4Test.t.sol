@@ -10,6 +10,7 @@ import {PoolId, PoolIdLibrary} from "../types/PoolId.sol";
 import {Currency} from "../types/Currency.sol";
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {EswapHookDeployLib} from "./EswapHookDeployLib.sol";
 
 contract ERC20Mock is ERC20 {
     constructor(string memory name, string memory symbol) ERC20(name, symbol) {
@@ -57,7 +58,8 @@ contract BaseV4Test is Test {
         token1 = new ERC20Mock("Token 1", "TK1");
 
         address hookAddress = address(uint160((1 << 159) | (1 << 158) | (1 << 153) | (1 << 152) | (1 << 148)));
-        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(manager, priceFeed, address(this)), hookAddress);
+        (address _hookLogic, address _hookLogic2) = EswapHookDeployLib.deployLogic(address(manager), address(priceFeed));
+        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(manager, priceFeed, _hookLogic, _hookLogic2, address(this)), hookAddress);
         hook = EswapMarginHook(payable(hookAddress));
 
         key = PoolKey({

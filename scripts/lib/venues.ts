@@ -28,12 +28,21 @@
  */
 import type { Address, Hex } from "viem";
 import type { ChainClients, NetworkConfig } from "./config.js";
-import { quoterAbi } from "./abis.js";
+import { poolIdOf } from "./config.js";
+import { marginHookAbi, quoterAbi } from "./abis.js";
 import type { DestinationSettlementModel } from "./protocols.js";
 import type { FillParams, LeverageIntent, PoolKey } from "./types.js";
 
 /** How an order reaches its filler. Mirrors `BridgeRoute` from aggregatorCowBridge. */
 export type VenueRoute = "orderbook" | "direct";
+
+/**
+ * Absolute ceiling the hook accepts at init (`EswapMarginHook` reverts
+ * `InvalidLeverageRange()` outside 2..20). The cap that actually applies to a
+ * trade is `defaultMaxLeverage` (5 live) or a lower per-pool override -- use
+ * `effectiveMaxLeverage()` for that, never this constant on its own.
+ */
+export const PROTOCOL_MAX_LEVERAGE = 20;
 
 /** Identifiers for the registered solver networks. */
 export const SUPPLY_VENUE_IDS = ["cow", "uniswapx", "across", "oneinchfusion"] as const;
@@ -180,6 +189,7 @@ export abstract class BaseSupplyVenue<TPayload = unknown> implements SupplyVenue
     async handle(intent: LeverageIntent, route: VenueRoute): Promise<VenueDispatchResult> {
         this.assertConfigured();
         this.validateIntent(intent);
+        await this.assertLeverageWithinPoolCap(intent);
         const order = await this.buildOrder(intent);
         const reference = await this.quoteReference(intent);
         if (route === "direct") {
@@ -190,12 +200,79 @@ export abstract class BaseSupplyVenue<TPayload = unknown> implements SupplyVenue
         return { venue: this.info.id, route, reference, apiResponse };
     }
 
+    /**
+     * Reads the leverage cap the hook will actually enforce for this pool.
+     *
+     * `EswapMarginHook._maxLeverageForPool` returns the per-pool override when
+     * set, else `defaultMaxLeverage` (5 on the live Unichain deployment, and the
+     * hook reverts `InvalidLeverageRange()` outside 2..20 at init). The 20 in
+     * `PROTOCOL_MAX_LEVERAGE` below is therefore only the protocol's absolute
+     * ceiling, never the effective cap.
+     */
+    protected async effectiveMaxLeverage(poolKey: PoolKey): Promise<number> {
+        const override = (await this.deps.clients.publicClient.readContract({
+            address: this.deps.cfg.hook,
+            abi: marginHookAbi,
+            functionName: "maxLeverageByPool",
+            args: [poolIdOf(poolKey)],
+        })) as number;
+        if (override > 0) return Number(override);
+        return Number(
+            await this.deps.clients.publicClient.readContract({
+                address: this.deps.cfg.hook,
+                abi: marginHookAbi,
+                functionName: "defaultMaxLeverage",
+            }),
+        );
+    }
+
     /** Venue-neutral guard rails applied before any encoding or network call. */
     protected validateIntent(intent: LeverageIntent): void {
         if (intent.amountIn <= 0n) throw new Error("intent.amountIn must be positive");
-        if (intent.leverage < 1 || intent.leverage > 20) {
+        if (intent.leverage < 1 || intent.leverage > PROTOCOL_MAX_LEVERAGE) {
             throw new Error(`intent.leverage out of range: ${intent.leverage}`);
         }
         if (intent.minAmountOut <= 0n) throw new Error("intent.minAmountOut must be positive");
+    }
+
+    /**
+     * Pool-scoped leverage check, run in `handle()` before an order is encoded.
+     *
+     * Without this, an intent above the pool's effective cap is accepted here,
+     * the trader's margin is escrowed into the venue (CoW vault / settler), and
+     * the order is then PERMANENTLY UNFILLABLE: the on-chain open reverts
+     * `MaxLeverageExceeded()` for every solver until `validTo` expires. That is
+     * a real loss of capital availability, so the cap is checked up front.
+     */
+    protected async assertLeverageWithinPoolCap(intent: LeverageIntent): Promise<void> {
+        // A quoter is needed to resolve the pool, but the live deployment never
+        // registered one, so fall back to the hook's global default rather than
+        // refusing every trade. The fallback is conservative: it uses the lowest
+        // cap in play, so an override-RAISED pool would be under-served (the
+        // trader retries) rather than over-served with an unfillable order.
+        let cap: number;
+        try {
+            const { hookPoolKey } = await this.poolKeysFor(intent.tokenIn, intent.tokenOut, intent.fee);
+            cap = await this.effectiveMaxLeverage(hookPoolKey);
+        } catch (err) {
+            cap = Number(
+                await this.deps.clients.publicClient.readContract({
+                    address: this.deps.cfg.hook,
+                    abi: marginHookAbi,
+                    functionName: "defaultMaxLeverage",
+                }),
+            );
+            console.warn(
+                `[${this.info.id}] pool cap lookup failed, falling back to defaultMaxLeverage ${cap}: ` +
+                    `${(err as Error).message}`,
+            );
+        }
+        if (intent.leverage > cap) {
+            throw new Error(
+                `[${this.info.id}] leverage ${intent.leverage} exceeds the pool's effective cap ${cap} ` +
+                    `(EswapMarginHook would revert MaxLeverageExceeded(), leaving the order unfillable ` +
+                    `and the margin escrowed until validTo)`,
+            );
+        }
     }
 }

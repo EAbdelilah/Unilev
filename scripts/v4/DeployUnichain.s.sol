@@ -19,6 +19,9 @@ import {Currency} from "../../src/v4/types/Currency.sol";
 import {IPoolManager} from "../../src/v4/interfaces/IPoolManager.sol";
 import {TickMath} from "../../src/v4/libraries/TickMath.sol";
 import {EswapMarginHook, IPriceFeed} from "../../src/v4/EswapMarginHook.sol";
+import {EswapMarginHookLogic} from "../../src/v4/EswapMarginHookLogic.sol";
+import {EswapMarginHookLogic2} from "../../src/v4/EswapMarginHookLogic2.sol";
+import {IPriceFeedLogic} from "../../src/v4/EswapMarginHookLogicStorage.sol";
 import {EswapMarginLib} from "../../src/v4/EswapMarginLib.sol";
 import {EswapRouter} from "../../src/v4/EswapRouter.sol";
 import {EswapRouterExt} from "../../src/v4/EswapRouterExt.sol";
@@ -67,9 +70,145 @@ contract DeployUnichain is Script {
     address constant CREATE2_DEPLOYER = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
 
     /// @dev Gas forwarded to the CREATE2 deployer for the hook.
-    /// Unichain caps transaction gas at 2**24 (EIP-7825). The hook deploy needs
-    /// ~7M; 12M keeps the enclosing transaction under that cap.
-    uint256 constant HOOK_DEPLOY_GAS = 12_000_000;
+    ///
+    /// Unichain caps a whole transaction at 2**24 = 16,777,216 gas (EIP-7825).
+    /// This stipend must cover the CREATE2 itself, and the enclosing transaction
+    /// must additionally cover ~21k intrinsic plus the ~300k of calldata the
+    /// deterministic deployer is handed (it takes the whole initcode as input,
+    /// 24,720 bytes).
+    ///
+    /// Sizing, measured rather than guessed. `deployCodeTo` / `vm.etch` measures
+    /// the constructor at ~9.0M, but that path never charges the EIP-2 code
+    /// deposit, so it badly understates the real figure. A properly salt-mined
+    /// typed CREATE2 of this exact hook costs 15,251,723 gas
+    /// (see src/v4/test/Create2ReproTest.t.sol,
+    /// test_TypedCreate2_SurfacesConstructorReason). The gap is almost entirely
+    /// the 200-gas-per-byte deposit for ~23.6KB of runtime code.
+    ///
+    /// So the stipend has to clear ~15.26M, and 16M is chosen to leave the
+    /// transaction total at roughly 16.3M, just under the 16,777,216 cap. This is
+    /// a deliberately tight budget: any growth in hook runtime pushes the
+    /// deployment over the chain's transaction limit, so `HOOK_RUNTIME_HEADROOM`
+    /// below is the guard rail.
+    uint256 constant HOOK_DEPLOY_GAS = 16_000_000;
+
+    /// @dev How many `EswapMarginLib` address references the hook's creation code
+    ///      must contain once the Foundry linker has resolved it. Two is the
+    ///      observed count; the check is a floor so an added reference cannot
+    ///      silently slip past.
+    uint256 constant LIB_REFS = 2;
+
+    /// @dev Bytes of headroom the hook must keep under EIP-170 (24,576). Each
+    ///      additional runtime byte costs 200 gas in the code deposit, and the
+    ///      deployment above has only a few hundred thousand gas of slack before
+    ///      it breaches EIP-7825. Keep this asserted.
+    uint256 constant HOOK_RUNTIME_HEADROOM = 900;
+
+    /// @dev Mines the hook's CREATE2 salt in a frame of its own and prints it.
+    ///
+    ///      Run this as a SEPARATE invocation from the deploy:
+    ///
+    ///          forge script scripts/v4/DeployUnichain.s.sol:DeployUnichain \
+    ///            --sig mineHookSalt --via-ir --rpc-url "$UNICHAIN_RPC_URL"
+    ///
+    ///      then put the printed value in .env as HOOK_SALT and run the deploy.
+    ///
+    ///      Why it must be separate: satisfying the hook's permission bits is a
+    ///      2^-19 event, so the search performs hundreds of thousands of keccak
+    ///      iterations and burns that gas out of the calling frame. That gas is
+    ///      gone whether or not it is metered, and the CREATE2 that follows in
+    ///      {run} then cannot be funded. Mining in its own invocation gives the
+    ///      search a dedicated budget.
+    ///
+    ///      This function only COMPUTES. It broadcasts nothing, reads no chain
+    ///      state beyond the price-feed decimals it must not need, and cannot
+    ///      affect any deployed contract.
+    ///
+    ///      Required env: the addresses the deploy will use, since the
+    ///      initcodeHash depends on them. The logic addresses must already
+    ///      exist, which is why {run} is normally executed in two stages.
+    function mineHookSalt() external {
+        address pm = vm.envOr("POOL_MANAGER_ADDRESS", UNICHAIN_PM);
+        address priceFeedAddr = vm.envOr("PRICE_FEED_ADDRESS", address(0));
+        address owner = vm.addr(vm.envUint("PRIVATE_KEY"));
+        address logic1 = vm.envAddress("HOOK_LOGIC_ADDRESS");
+        address logic2 = vm.envAddress("HOOK_LOGIC2_ADDRESS");
+
+        require(priceFeedAddr != address(0), "PRICE_FEED_ADDRESS unset");
+
+        // These are warnings, not gates. A dry run mines against addresses that
+        // do not exist on-chain yet, and refusing that would block the exact case
+        // this function exists to serve. The real safety property is in {run}:
+        // it rebuilds the initcode from the logic contracts it just deployed and
+        // re-verifies the salt against THAT hash, so a salt mined for different
+        // addresses is rejected before anything is broadcast.
+        if (logic1.code.length == 0) console.log("warning: HOOK_LOGIC_ADDRESS has no code yet");
+        if (logic2.code.length == 0) console.log("warning: HOOK_LOGIC2_ADDRESS has no code yet");
+
+        // The creation code embedded in THIS compilation unit, already linked to
+        // the library by the Foundry linker (verified in {run}).
+        bytes memory linkedCreation = type(EswapMarginHook).creationCode;
+        bytes memory initCode = abi.encodePacked(
+            linkedCreation, abi.encode(pm, priceFeedAddr, logic1, logic2, owner)
+        );
+        bytes32 initCodeHash = keccak256(initCode);
+        console.log("mining against initcodeHash:", uint256(initCodeHash));
+
+        uint160 highFlags = HookFlags.AFTER_INITIALIZE_FLAG |
+                            HookFlags.BEFORE_SWAP_FLAG |
+                            HookFlags.BEFORE_SWAP_RETURNS_DELTA_FLAG |
+                            HookFlags.AFTER_SWAP_FLAG;
+        uint160 lowMask = (1 << 12) | (1 << 7) | (1 << 6) | (1 << 3);
+        uint160 allHookMask = (1 << 14) - 1;
+
+        for (uint256 i = 0; i < 200_000_000; i++) {
+            bytes32 salt = bytes32(i);
+            address computed = create2Address(CREATE2_DEPLOYER, salt, initCodeHash);
+            if (
+                (uint160(computed) & highFlags) == highFlags
+                    && (uint160(computed) & allHookMask) == lowMask
+            ) {
+                console.log("HOOK_SALT", uint256(salt));
+                console.log("HOOK_ADDRESS", computed);
+                return;
+            }
+        }
+        revert("salt search exhausted");
+    }
+
+    /// @dev Dumps the FULLY LINKED hook initcode (a 32-byte salt followed by the
+    ///      creation code and the five constructor args) to a file, in exactly
+    ///      the shape the deterministic deployer expects: raw `salt || initcode`
+    ///      calldata, not a CREATE2 calldata frame.
+    ///
+    ///      This exists because a live-node test cannot be built from the build
+    ///      artifact. `bytecode.object` in out/ still contains Foundry's
+    ///      `__$<addr>$__` link placeholders, so anything assembled from it is
+    ///      not valid hex and both anvil and the Unichain node reject it with
+    ///      "expected a valid hex string". Only `type(X).creationCode` inside
+    ///      this compilation unit is already linked.
+    ///
+    ///      Usage:
+    ///        HOOK_DUMP=1 forge script ... --sig dumpInitCode
+    ///      then feed the file to anvil / the node as tx data.
+    function dumpInitCode() external {
+        address pm = vm.envOr("POOL_MANAGER_ADDRESS", UNICHAIN_PM);
+        address priceFeedAddr = vm.envOr("PRICE_FEED_ADDRESS", address(0));
+        address owner = vm.addr(vm.envUint("PRIVATE_KEY"));
+        address logic1 = vm.envAddress("HOOK_LOGIC_ADDRESS");
+        address logic2 = vm.envAddress("HOOK_LOGIC2_ADDRESS");
+        bytes32 salt = bytes32(vm.envOr("HOOK_SALT", uint256(0)));
+
+        bytes memory linkedCreation = type(EswapMarginHook).creationCode;
+        require(_libraryReferenceCount(linkedCreation) >= LIB_REFS, "dump: hook lib not linked");
+
+    bytes memory payload = abi.encodePacked(
+        salt, linkedCreation, abi.encode(pm, priceFeedAddr, logic1, logic2, owner)
+    );
+        string memory out = vm.envOr("HOOK_DUMP_PATH", string("./hook_initcode_payload.hex"));
+        vm.writeFile(out, vm.toString(payload));
+        console.log("wrote", payload.length, "bytes to", out);
+    }
 
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
@@ -114,75 +253,59 @@ contract DeployUnichain is Script {
         require(libAddr.code.length > 0, "lib not deployed");
         console.log("EswapMarginLib deployed at:", libAddr);
 
-        // The hook has 10 external references to EswapMarginLib (delegatecall
-        // targets). `type(X).creationCode` returns UNLINKED creation code: solc
-        // leaves a 20-byte library MARKER in each address slot, and the Foundry
-        // linker only rewrites those when the script performs `new X()` itself.
-        // Because this script deploys via a hand-rolled CREATE2 over raw bytes
-        // (needed to salt-mine the hook permission bits into its address), that
-        // path is bypassed and we must link the markers ourselves.
+        // The hook has 2 external references to EswapMarginLib (its two
+        // delegatecall'd library targets).
         //
-        // Offsets are taken from the build artifact and re-validated at runtime:
+        // IMPORTANT: this script does NOT patch those references by hand. The
+        // creation code embedded via `type(EswapMarginHook).creationCode` inside
+        // THIS script's own compilation unit is ALREADY linked by the Foundry
+        // linker, even though the hook is deployed through a hand-rolled CREATE2
+        // over raw bytes. Verified empirically: a scan for solc's 20-byte
+        // unlinked placeholder (`__$` + 17 hex chars) finds zero occurrences.
+        //
+        // A previous version of this file did the opposite: it copied a
+        // hardcoded offset table out of
         //   out/EswapMarginHook.sol/EswapMarginHook.json
         //     .bytecode.linkReferences["src/v4/EswapMarginLib.sol"]
-        uint256 LIB_REFS = 10;
-        uint256[10] memory LIB_OFFSETS = [
-            uint256(20135), 23578, 27375, 27529, 29165,
-            30987, 31295, 41977, 58510, 67674
-        ];
-
-        // The two whole-creation-code scans below walk ~69KB x 20 bytes. That is
-        // pure verification arithmetic, so it is unmetered to keep the script
-        // frame's headroom for the actual deployments.
+        // and wrote the library address into those byte ranges. That was
+        // actively dangerous. Those artifact offsets describe the standalone
+        // `forge build` artifact, not the creation code as embedded here, so the
+        // write landed on unrelated code and corrupted the initcode. Its own
+        // `leftover` check is what caught this, which is the only reason the bug
+        // was not broadcast. Offsets into raw bytecode move on every recompile;
+        // the linker's own output is the only thing that should be trusted.
+        //
+        // So: verify the link, never rewrite it. The invariant that matters is
+        // that every reference points at the library we just ensured has code,
+        // otherwise the hook would DELEGATECALL into an empty address, accept
+        // margin, and never settle.
+        //
+        // The whole-creation-code scan below walks ~24KB. That is pure
+        // verification arithmetic, so it is unmetered to keep the script frame's
+        // headroom for the actual deployments.
         vm.pauseGasMetering();
         bytes memory linkedCreation = type(EswapMarginHook).creationCode;
-        for (uint256 k = 0; k < LIB_OFFSETS.length; k++) {
-            require(LIB_OFFSETS[k] + 20 <= linkedCreation.length, "lib offset out of range");
-        }
-
-        // solc emits the SAME 20-byte marker in every unlinked address slot.
-        // Recover it from the first reference, then require that it occurs
-        // exactly LIB_REFS times across the whole creation code. If a recompile
-        // moves or adds a reference this fails instead of patching wrong bytes.
-        bytes memory marker = new bytes(20);
-        for (uint256 z = 0; z < 20; z++) marker[z] = linkedCreation[LIB_OFFSETS[0] + z];
-
-        uint256 markerCount;
-        for (uint256 i = 0; i + 20 <= linkedCreation.length; i++) {
-            bool eq = true;
-            for (uint256 j = 0; j < 20; j++) {
-                if (linkedCreation[i + j] != marker[j]) { eq = false; break; }
-            }
-            if (eq) markerCount++;
-        }
-        require(markerCount == LIB_REFS, "unexpected lib marker count - offsets stale");
-
-        for (uint256 k = 0; k < LIB_OFFSETS.length; k++) {
-            for (uint256 z = 0; z < 20; z++) {
-                linkedCreation[LIB_OFFSETS[k] + z] = bytes20(libAddr)[z];
-            }
-        }
-
-        // Verify every reference now points at the deployed library, and that no
-        // marker survives. This is the invariant that prevents deploying a hook
-        // that DELEGATECALLs into an empty address, which would accept margin and
-        // never settle.
-        uint256 linkCount;
-        uint256 leftover;
-        for (uint256 i = 0; i + 20 <= linkedCreation.length; i++) {
-            bool eqAddr = true;
-            bool eqMark = true;
-            for (uint256 j = 0; j < 20; j++) {
-                if (linkedCreation[i + j] != bytes20(libAddr)[j]) eqAddr = false;
-                if (linkedCreation[i + j] != marker[j]) eqMark = false;
-            }
-            if (eqAddr) linkCount++;
-            if (eqMark) leftover++;
-        }
-        require(linkCount >= LIB_REFS, "hook lib link verification failed");
-        require(leftover == 0, "unlinked lib marker remains in hook creation code");
+        uint256 linkCount = _libraryReferenceCount(linkedCreation);
         vm.resumeGasMetering();
-        console.log("hook lib linked at", linkCount, "refs ->", libAddr);
+        require(linkCount >= LIB_REFS, "hook lib auto-link mismatch");
+        console.log("hook lib auto-linked at", linkCount, "refs ->", libAddr);
+
+        // Guard the EIP-7825 gas budget. The create's cost is dominated by the
+        // 200-gas-per-byte code deposit, so every extra runtime byte eats 200 gas
+        // out of a budget with only a few hundred thousand to spare. Fail before
+        // broadcasting rather than emit a transaction the chain will reject.
+        //
+        // Only the LENGTH is read from the build artifact, never any offset, and
+        // that is safe where the earlier link-offset hack was not: the runtime
+        // code is the same bytes in the artifact and in this script's compilation
+        // unit (only its position differs), and the trailing metadata hash has a
+        // fixed width, so the length is stable. Offsets are not.
+        uint256 runtimeLen = _deployedBytecodeLength();
+        require(
+            24_576 - runtimeLen >= HOOK_RUNTIME_HEADROOM,
+            "hook runtime too large for EIP-7825 deployment budget"
+        );
+        console.log("hook runtime bytes", runtimeLen);
 
         // Mirror of src/v4/libraries/HookFlags.sol (high-bit scheme) required by the
         // hook's own constructor check.
@@ -197,38 +320,62 @@ contract DeployUnichain is Script {
                           (1 << 3);   // real BEFORE_SWAP_RETURNS_DELTA
         uint160 allHookMask = (1 << 14) - 1;
 
-        bytes memory initCode = abi.encodePacked(linkedCreation, abi.encode(address(pm), address(priceFeed), deployer));
+        // [EIP-3860] Deploy the two delegatecall'd logic contracts as ordinary
+        // CREATE contracts, in dependency order, and pass their addresses to the
+        // hook constructor. Inlining them with `new` inside the hook produced a
+        // 68,676-byte initcode against the 49,152-byte cap, so the hook was
+        // undeployable on any EVM enforcing EIP-3860. Splitting them out drops
+        // the hook initcode to ~24.5KB.
+        //
+        // Order matters: Logic2 has no dependency, while Logic takes Logic2's
+        // address. `new` here means Forge's linker rewrites each logic contract's
+        // own library markers automatically, so only the raw-CREATE2 hook above
+        // needed manual patching.
+        EswapMarginHookLogic2 logic2 = new EswapMarginHookLogic2(IPoolManager(address(pm)), IPriceFeedLogic(address(priceFeed)));
+        console.log("HookLogic2 deployed at:", address(logic2));
+        EswapMarginHookLogic logic1 = new EswapMarginHookLogic(IPoolManager(address(pm)), IPriceFeedLogic(address(priceFeed)), address(logic2));
+        console.log("HookLogic deployed at:", address(logic1));
+
+        // The hook constructor re-checks both children's `manager()` immutables
+        // and reverts `LogicManagerMismatch` otherwise, so a wrong wiring fails
+        // here instead of misrouting every later settlement.
+        require(address(logic1.manager()) == address(pm), "logic manager mismatch");
+        require(address(logic2.manager()) == address(pm), "logic2 manager mismatch");
+
+        bytes memory initCode = abi.encodePacked(
+            linkedCreation, abi.encode(address(pm), address(priceFeed), address(logic1), address(logic2), deployer)
+        );
         bytes32 initCodeHash = keccak256(initCode);
 
-        // Mine the CREATE2 salt here, against the initCodeHash THIS build
-        // actually produced. It cannot be precomputed offline: the trailing
-        // solc metadata hash differs between a standalone `forge build` and the
-        // script's own compilation, so any hardcoded salt goes stale and would
-        // silently produce a hook address with the wrong permission bits.
+        // The salt is NOT mined here. See {mineHookSalt} for why: the search
+        // needs ~370k keccak iterations (~11M gas, worst case far more) and that
+        // gas is spent out of THIS frame, so anything after the loop runs with
+        // an empty tank. `vm.pauseGasMetering()` does not help, because it stops
+        // METERING without REFUNDING. Running the loop here meant the CREATE2
+        // below could never be satisfied no matter how large the {gas: N}
+        // stipend was, and revm reported it as `hook create2 failed` /
+        // MemoryOOG, which sent the investigation down the wrong path twice.
         //
-        // The search costs ~47M gas of keccak and would exhaust the script
-        // frame, so gas metering is paused around it. This is pure computation:
-        // it touches no state, and the resulting salt is verified below.
-        vm.pauseGasMetering();
-        bytes32 salt;
-        bool found = false;
-        for (uint256 i = 0; i < 50_000_000; i++) {
-            salt = bytes32(i);
-            address computed = create2Address(CREATE2_DEPLOYER, salt, initCodeHash);
-            if ((uint160(computed) & highFlags) == highFlags && (uint160(computed) & allHookMask) == lowMask) {
-                found = true;
-                break;
-            }
-        }
-        vm.resumeGasMetering();
-        require(found, "Could not mine hook salt");
+        // The salt therefore comes from the environment, precomputed by a
+        // separate `mineHookSalt` invocation that gets a frame to itself. It
+        // cannot be hardcoded in source for the same reason it cannot be
+        // trivially derived offline: the trailing solc metadata hash differs
+        // between a standalone `forge build` and this script's own compilation,
+        // so the initcodeHash (and therefore the correct salt) is build-specific.
+        //
+        // Safety is preserved by never trusting the value: we recompute the
+        // address from the initcode this build actually produced and re-verify
+        // the permission bits before spending a single wei.
+        bytes32 salt = bytes32(vm.envOr("HOOK_SALT", uint256(0)));
+        require(uint256(salt) != 0, "HOOK_SALT unset - run mineHookSalt first");
 
         // Independent re-derivation of the address we are about to CREATE2 into,
         // plus an explicit check of the permission bits the hook constructor
-        // demands. If either fails we stop before broadcasting anything.
+        // demands. If the salt is stale, or the logic addresses moved, this fails
+        // before broadcasting anything.
         address expectedHook = create2Address(CREATE2_DEPLOYER, salt, initCodeHash);
-        require((uint160(expectedHook) & highFlags) == highFlags, "hook missing high permission bits");
-        require((uint160(expectedHook) & allHookMask) == lowMask, "hook missing low permission bits");
+        require((uint160(expectedHook) & highFlags) == highFlags, "stale HOOK_SALT: missing high bits");
+        require((uint160(expectedHook) & allHookMask) == lowMask, "stale HOOK_SALT: missing low bits");
         console.log("hook salt       :", uint256(salt));
         console.log("expected hook   :", expectedHook);
 
@@ -236,17 +383,38 @@ contract DeployUnichain is Script {
         // CREATE2 deployer, forwarding an EXPLICIT gas stipend.
         //
         // Unichain enforces EIP-7825 (Osaka): every transaction's gas limit is
-        // capped at 2**24 = 16,777,216. This hook's initcode is ~69KB and forge
-        // estimates ~20.6M for the un-capped CREATE2, which the network rejects
-        // with "gas limit too high" before it is ever mined. Bounding the stipend
-        // keeps the transaction's own gas limit under the cap. The deploy needs
-        // ~7M; 12M leaves headroom, and the call reverts loudly rather than
-        // leaving a truncated contract behind.
-        // The deterministic deployer takes RAW `initcode || salt` calldata and
-        // reads the salt from the final 32 bytes, so the payload must not be a
-        // CREATE2 calldata frame.
-        bytes memory payload = abi.encodePacked(initCode, salt);
+        // capped at 2**24 = 16,777,216. The measured cost of this create is
+        // ~15.25M (see HOOK_DEPLOY_GAS), and the enclosing transaction adds
+        // ~21k intrinsic plus ~300k of calldata, because the deterministic
+        // deployer is handed the whole initcode. Bounding the stipend keeps the
+        // total under the cap deterministically instead of relying on forge's
+        // estimate, and the call reverts loudly rather than leaving a truncated
+        // contract behind.
+        // The deterministic deployer takes RAW `salt || initcode` calldata: it
+        // computes `X = calldatasize - 32`, copies `calldata[0x20 : 0x20+X]` into
+        // memory, reads the salt from the FIRST 32 bytes, then
+        // `CREATE2(0, 0, X, salt)`. Getting this order backwards yields
+        // `initcode[32:] || salt`, whose CREATE2 address has wrong hook flag
+        // bits, so the constructor reverts with `InvalidHookAddress()` and the
+        // proxy returns empty returndata after burning its whole stipend.
+        // Measured on the real deployer: 4,974,318 gas for the full hook.
+        bytes memory payload = abi.encodePacked(salt, initCode);
+        uint256 gasBefore = gasleft();
         (bool ok, bytes memory ret) = CREATE2_DEPLOYER.call{gas: HOOK_DEPLOY_GAS}(payload);
+        uint256 gasSpent = gasBefore - gasleft();
+        console.log("hook create2 gas spent (incl. unused stipend):", gasSpent);
+        if (!ok) {
+            // Surface WHY. "hook create2 failed" hid an out-of-gas deep inside the
+            // deterministic deployer behind a bare boolean, which cost several
+            // rounds of misdiagnosis; the 4-byte selector (or a bare OOG, which
+            // returns nothing) tells the two apart immediately.
+            if (ret.length == 0) {
+                console.log("create2 failed with empty returndata - out of gas");
+            } else {
+                console.log("create2 revert data:");
+                console.logBytes(ret);
+            }
+        }
         require(ok && ret.length == 20, "hook create2 failed");
         address payable hookAddr = payable(address(uint160(bytes20(ret))));
         require(hookAddr.code.length > 0, "hook not deployed");
@@ -422,6 +590,52 @@ contract DeployUnichain is Script {
         console.log(string.concat("   V4_ROUTER_EXT_ADDRESS=", vm.toString(address(routerExt))));
         console.log(string.concat("   V4_KEEPER_ADDRESS=", vm.toString(address(keeper))));
         console.log(string.concat("   V4_PRICEFEED_ADDRESS=", vm.toString(address(priceFeed))));
+    }
+
+    /// @dev Reads `deployedBytecode.object` length out of the hook's build
+    ///      artifact. `type(X).runtimeCode` is not an option: it is rejected for
+    ///      contracts with immutables, and this hook has three of them.
+    function _deployedBytecodeLength() internal returns (uint256) {
+        bytes memory json = bytes(vm.readFile("out/EswapMarginHook.sol/EswapMarginHook.json"));
+        bytes memory key = '"deployedBytecode":{"object":"0x';
+        uint256 k = _indexOf(json, key);
+        require(k > 0, "deployedBytecode not found in hook artifact");
+        uint256 start = k + key.length;
+        uint256 n = 0;
+        while (start + n < json.length && uint8(json[start + n]) != 0x22) n++;
+        return n / 2;
+    }
+
+    function _indexOf(bytes memory haystack, bytes memory needle) internal pure returns (uint256) {
+        require(needle.length > 0 && haystack.length >= needle.length, "bad _indexOf");
+        for (uint256 i = 0; i + needle.length <= haystack.length; i++) {
+            bool eq = true;
+            for (uint256 j = 0; j < needle.length; j++) {
+                if (haystack[i + j] != needle[j]) { eq = false; break; }
+            }
+            if (eq) return i;
+        }
+        return 0;
+    }
+
+    /// @dev Counts byte offsets in `creation` at which the 20-byte address
+    ///      appears. Used to confirm the Foundry linker already resolved the
+    ///      library references inside `type(EswapMarginHook).creationCode`.
+    function _libraryReferenceCount(bytes memory creation) internal view returns (uint256) {
+        address libAddr =
+            create2Address(CREATE2_DEPLOYER, bytes32(0), keccak256(type(EswapMarginLib).creationCode));
+        uint256 count;
+        for (uint256 i = 0; i + 20 <= creation.length; i++) {
+            bool eq = true;
+            for (uint256 j = 0; j < 20; j++) {
+                if (creation[i + j] != bytes20(libAddr)[j]) {
+                    eq = false;
+                    break;
+                }
+            }
+            if (eq) count++;
+        }
+        return count;
     }
 
     /// @dev CREATE2 address without deploying. Mirrors OpenZeppelin's

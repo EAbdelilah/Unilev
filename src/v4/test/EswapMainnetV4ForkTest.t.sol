@@ -19,6 +19,7 @@ import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {FullMath} from "@uniswap/v4-core/src/libraries/FullMath.sol";
 import {IERC20 as RealIERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {PriceFeedMock} from "./BaseV4Test.t.sol";
+import {EswapHookDeployLib} from "./EswapHookDeployLib.sol";
 
 /// @notice END-TO-END fork proof against the LIVE Uniswap V4 singleton and a
 ///         REAL deep third-party pool.
@@ -158,9 +159,8 @@ for (uint256 i = 0; i < 6; i++) {
         // --- Deploy hook + router against the live singleton ---
         address hookAddr = address(uint160(HIGH_FLAGS | LOW_FLAGS));
         priceFeed = new PriceFeedMock();
-        deployCodeTo(
-            "EswapMarginHook.sol:EswapMarginHook", abi.encode(address(pm), address(priceFeed), address(this)), hookAddr
-        );
+        (address _hookLogic, address _hookLogic2) = EswapHookDeployLib.deployLogic(address(pm), address(priceFeed));
+        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(address(pm), address(priceFeed), _hookLogic, _hookLogic2, address(this)), hookAddr);
         hook = EswapMarginHook(payable(hookAddr));
         router = new EswapRouter(IPoolManager(address(pm)));
         hook.setRouterAndMinCollateralUsd(address(router), 0);

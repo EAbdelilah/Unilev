@@ -18,6 +18,7 @@ import {BalanceDelta, BalanceDeltaLibrary} from "@uniswap/v4-core/src/types/Bala
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {FullMath} from "@uniswap/v4-core/src/libraries/FullMath.sol";
 import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
+import {EswapHookDeployLib} from "./EswapHookDeployLib.sol";
 
 /// @dev Proves the rehypothecation lifecycle with the FIXED yield distribution:
 ///      Deploys a local hook (compiled from the current src, which includes the
@@ -72,11 +73,8 @@ contract RehypothecationForkTest is Test {
             address(EswapMarginHook(payable(0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8)).priceFeed());
 
         // Deploy a fresh hook at the flag-address required by PoolManager.
-        deployCodeTo(
-            "EswapMarginHook.sol:EswapMarginHook",
-            abi.encode(PM, liveFeed, address(this)),
-            address(uint160(NEW_HOOK_ADDR_RAW))
-        );
+        (address _hookLogic, address _hookLogic2) = EswapHookDeployLib.deployLogic(address(PM), address(liveFeed));
+        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(PM, liveFeed, _hookLogic, _hookLogic2, address(this)), address(uint160(NEW_HOOK_ADDR_RAW)));
         newHook = EswapMarginHook(payable(address(uint160(NEW_HOOK_ADDR_RAW))));
         newHookAddr = address(newHook);
 

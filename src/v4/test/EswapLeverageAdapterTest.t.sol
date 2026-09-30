@@ -10,6 +10,7 @@ import {EswapLeverageQuoter} from "../EswapLeverageQuoter.sol";
 import {PoolKey} from "../types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "../types/PoolId.sol";
 import {Currency} from "../types/Currency.sol";
+import {EswapHookDeployLib} from "./EswapHookDeployLib.sol";
 
 /// @dev [AUDIT CRIT-6] Minimal permit-capable token recording the call, used to
 ///      prove `multicall` routes ONLY selfPermit payloads through delegatecall.
@@ -45,7 +46,8 @@ contract EswapLeverageAdapterTest is BaseV4Test {
         token1 = new ERC20Mock("Token 1", "TK1");
 
         address hookAddress = address(uint160((1 << 159) | (1 << 158) | (1 << 153) | (1 << 152) | (1 << 148)));
-        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(manager, priceFeed, address(this)), hookAddress);
+        (address _hookLogic, address _hookLogic2) = EswapHookDeployLib.deployLogic(address(manager), address(priceFeed));
+        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(manager, priceFeed, _hookLogic, _hookLogic2, address(this)), hookAddress);
         hook = EswapMarginHook(payable(hookAddress));
 
         router = new EswapRouter(manager);

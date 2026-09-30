@@ -16,6 +16,9 @@ import {Currency} from "../../src/v4/types/Currency.sol";
 import {IPoolManager} from "../../src/v4/interfaces/IPoolManager.sol";
 import {TickMath} from "../../src/v4/libraries/TickMath.sol";
 import {EswapMarginHook, IPriceFeed} from "../../src/v4/EswapMarginHook.sol";
+import {EswapMarginHookLogic} from "../../src/v4/EswapMarginHookLogic.sol";
+import {EswapMarginHookLogic2} from "../../src/v4/EswapMarginHookLogic2.sol";
+import {IPriceFeedLogic} from "../../src/v4/EswapMarginHookLogicStorage.sol";
 import {EswapMarginLib} from "../../src/v4/EswapMarginLib.sol";
 import {EswapRouter} from "../../src/v4/EswapRouter.sol";
 import {EswapRouterExt} from "../../src/v4/EswapRouterExt.sol";
@@ -81,7 +84,7 @@ contract DeployUnichainSepolia is Script {
             }
             if (eq) linkCount++;
         }
-        require(linkCount >= 8, "hook lib auto-link mismatch (re-derive salt=0 lib address)");
+        require(linkCount >= 2, "hook lib auto-link mismatch (re-derive salt=0 lib address)");
 
         uint160 highFlags = HookFlags.AFTER_INITIALIZE_FLAG |
                         HookFlags.BEFORE_SWAP_FLAG |
@@ -96,7 +99,15 @@ contract DeployUnichainSepolia is Script {
                           (1 << 3);   // real BEFORE_SWAP_RETURNS_DELTA
         uint160 allHookMask = (1 << 14) - 1;
 
-        bytes memory initCode = abi.encodePacked(linkedCreation, abi.encode(address(pm), address(0), deployer));
+        // [EIP-3860] The split hook constructor takes the two logic addresses
+        // instead of `new`ing them inline (inlining produced a 68,676-byte
+        // initcode vs the 49,152-byte cap). Deploy Logic2 first, then Logic.
+        EswapMarginHookLogic2 logic2 = new EswapMarginHookLogic2(IPoolManager(address(pm)), IPriceFeedLogic(address(0)));
+        EswapMarginHookLogic logic1 = new EswapMarginHookLogic(IPoolManager(address(pm)), IPriceFeedLogic(address(0)), address(logic2));
+
+        bytes memory initCode = abi.encodePacked(
+            linkedCreation, abi.encode(address(pm), address(0), address(logic1), address(logic2), deployer)
+        );
         bytes32 initCodeHash = keccak256(initCode);
 
         bytes32 salt;

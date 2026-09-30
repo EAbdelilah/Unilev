@@ -18,6 +18,7 @@ import {PoolKey as RealPoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {PoolId as RealPoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {Currency as RealCurrency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {IHooks as RealIHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
+import {EswapHookDeployLib} from "./EswapHookDeployLib.sol";
 
 /// @notice [P1#6] Yield-bearing insurance fund: idle insurance claims are staked
 ///         as full-range LP liquidity in each pool's deep STANDARD venue, so the
@@ -59,11 +60,8 @@ contract EswapInsuranceYieldTest is Test {
         assertLt(uint256(uint160(address(token0))), uint256(uint160(address(token1))));
 
         realHookAddr = address(uint160(HIGH_FLAGS | LOW_FLAGS));
-        deployCodeTo(
-            "EswapMarginHook.sol:EswapMarginHook",
-            abi.encode(address(realManager), address(priceFeed), address(this)),
-            realHookAddr
-        );
+        (address _hookLogic, address _hookLogic2) = EswapHookDeployLib.deployLogic(address(realManager), address(priceFeed));
+        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(address(realManager), address(priceFeed), _hookLogic, _hookLogic2, address(this)), realHookAddr);
         realHook = EswapMarginHook(payable(realHookAddr));
 
         router = new EswapRouter(IPoolManager(address(realManager)));

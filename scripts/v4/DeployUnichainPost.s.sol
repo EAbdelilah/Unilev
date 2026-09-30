@@ -18,11 +18,12 @@ interface IWETH9 {
 
 /// @notice Post-deploy config for the ETH/USDC-only Unichain deployment:
 ///         1. Whitelist the solver on the router
-///         2. Set minCollateralUsd to $0.05 (matches the earlier live config)
+///         2. Set minCollateralUsd from MIN_COLLATERAL_USD (default 1e16 = $0.01)
 ///         3. Wrap a slice of the deployer's native ETH into WETH (short input)
 ///         4. Max-approve the router for WETH + USDC from the deployer/solver
 ///         Env: HOOK_ADDRESS, ROUTER_ADDRESS, USDC_ADDRESS, SOLVER_ADDRESS,
-///         WRAP_ETH_AMOUNT (raw wei, default 500000000000000 = 0.0005).
+///         MIN_COLLATERAL_USD, WRAP_ETH_AMOUNT (raw wei, default
+///         500000000000000 = 0.0005).
 contract DeployUnichainPost is Script {
     address constant WETH = 0x4200000000000000000000000000000000000006;
     address constant USDC = 0x078D782b760474a361dDA0AF3839290b0EF57AD6;
@@ -49,9 +50,15 @@ contract DeployUnichainPost is Script {
             console.log("Solver already whitelisted:", solver);
         }
 
-        // 2. Min collateral = $0.05 (18-decimals)
-        hook.setRouterAndMinCollateralUsd(routerAddr, 50000000000000000);
-        console.log("minCollateralUsd set to $0.05");
+        // 2. Min collateral floor, 18-decimals. Read from env so the deployed
+        //    value and the test expectation cannot drift apart: the intended
+        //    live floor is $0.01 == 1e16 raw units, which accepts a 10,000-raw
+        //    unit (=$0.01) margin and still rejects $0.0001 (100 raw units)
+        //    with CollateralTooLow(). A previously hardcoded $0.05 (5e16) was
+        //    5x too permissive for the one-cent battery.
+        uint256 minCollateralUsd = vm.envOr("MIN_COLLATERAL_USD", uint256(1e16));
+        hook.setRouterAndMinCollateralUsd(routerAddr, minCollateralUsd);
+        console.log("minCollateralUsd set to raw:", minCollateralUsd);
 
         // 3. Wrap native ETH -> WETH for short-borrow funding
         if (wrapAmount > 0) {

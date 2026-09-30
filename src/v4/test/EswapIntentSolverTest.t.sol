@@ -10,6 +10,7 @@ import {PoolId, PoolIdLibrary} from "../types/PoolId.sol";
 import {Currency} from "../types/Currency.sol";
 import {IPoolManager} from "../interfaces/IPoolManager.sol";
 import {BalanceDelta, BalanceDeltaLibrary} from "../types/BalanceDelta.sol";
+import {EswapHookDeployLib} from "./EswapHookDeployLib.sol";
 
 /// @title EswapIntentSolverTest
 /// @notice [P0#1] Permissionless solver tests:
@@ -38,7 +39,8 @@ contract EswapIntentSolverTest is BaseV4Test {
         token1 = new ERC20Mock("Token 1", "TK1");
 
         address hookAddress = address(uint160((1 << 159) | (1 << 158) | (1 << 153) | (1 << 152) | (1 << 148)));
-        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(manager, priceFeed, address(this)), hookAddress);
+        (address _hookLogic, address _hookLogic2) = EswapHookDeployLib.deployLogic(address(manager), address(priceFeed));
+        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(manager, priceFeed, _hookLogic, _hookLogic2, address(this)), hookAddress);
         hook = EswapMarginHook(payable(hookAddress));
 
         router = new EswapRouter(manager);
@@ -279,6 +281,154 @@ contract EswapIntentSolverTest is BaseV4Test {
 
         assertEq(router.erc20BorrowEscrow(solver, address(token0)), 0, "escrow drained");
         assertEq(token0.balanceOf(solver), 60 ether, "the 20 ether shortfall came from the solver wallet");
+    }
+
+    // --- Escrow-capitalised permissionless solver (the CoW/aggregator leg) ----
+    //
+    // `swapMultiPoolForSolverFunded` is what `EswapCoWSettlement.fillOrder` calls.
+    // It carries NO Eswap LendingIntent, so before the escrow leg existed an
+    // anonymous CoW solver could never open a leveraged position: it was neither
+    // governance-whitelisted nor intent-authorised, and `require(...)` reverted
+    // with "Solver not authorized". Funding the borrow leg out of the solver's
+    // own bond is what makes the orderbook route permissionless.
+
+    /// @dev Builds the same SwapParams the CoW settlement contract would pass.
+    function _cowParams() internal view returns (EswapRouter.SwapParams memory) {
+        return EswapRouter.SwapParams({
+            key: key,
+            standardPoolKey: standardPoolKey,
+            zeroForOne: true,
+            amountSpecified: -10 ether, // margin 10 ether
+            leverage: 5, // borrow = 40 ether
+            solver: solver,
+            hookData: abi.encode(true, uint8(5), trader),
+            deadline: block.timestamp + 1 hours,
+            minAmountOut: 45 ether
+        });
+    }
+
+    function test_CowSolverFunded_Unwhitelisted_NoEscrow_Reverts() public {
+        // Baseline: with no whitelist, no intent and no bond there is no
+        // authorisation leg left, so the CoW route was closed.
+        assertFalse(router.registeredSolvers(solver), "solver must NOT be whitelisted");
+        vm.prank(trader);
+        token0.approve(address(router), type(uint256).max);
+
+        _mockFill();
+        vm.expectRevert(EswapRouter.SolverNotAuthorized.selector);
+        router.swapMultiPoolForSolverFunded(_cowParams(), trader, trader);
+    }
+
+    function test_CowSolverFunded_Unwhitelisted_UnderCollateralised_Reverts() public {
+        // Bond covers only part of the notional: still rejected, because a
+        // partial bond leaves an uncollateralised remainder leg.
+        vm.startPrank(solver);
+        token0.approve(address(router), type(uint256).max);
+        router.depositBorrowEscrow(address(token0), 39 ether); // one short of 40
+        vm.stopPrank();
+
+        vm.prank(trader);
+        token0.approve(address(router), type(uint256).max);
+
+        _mockFill();
+        vm.expectRevert(EswapRouter.SolverNotAuthorized.selector);
+        router.swapMultiPoolForSolverFunded(_cowParams(), trader, trader);
+    }
+
+    function test_CowSolverFunded_Unwhitelisted_FullyCollateralised_Opens() public {
+        // The new leg: an unwhitelisted, non-intent solver whose bond covers the
+        // whole notional opens the position. No per-address governance entry.
+        assertFalse(router.registeredSolvers(solver), "solver must NOT be whitelisted");
+
+        // Bond EXACTLY the borrow leg (40 ether). The margin leg is a separate
+        // direct `transferFrom` from `marginFunder`, so it must NOT be bonded.
+        vm.startPrank(solver);
+        token0.approve(address(router), type(uint256).max);
+        router.depositBorrowEscrow(address(token0), 40 ether);
+        vm.stopPrank();
+
+        vm.prank(trader);
+        token0.approve(address(router), type(uint256).max);
+
+        _mockFill();
+        router.swapMultiPoolForSolverFunded(_cowParams(), trader, solver);
+
+        (address posTrader, uint256 collateral, uint256 borrowed, uint8 posLeverage,,,,, uint128 liquidity) =
+            hook.positions(key.toId(), trader);
+        assertEq(posTrader, trader, "position credited to the CoW order owner");
+        assertEq(posLeverage, 5);
+        assertEq(borrowed, 40 ether, "full notional borrowed from the bond");
+        assertEq(collateral, (48 ether * 9950) / 10000);
+        assertGt(liquidity, 0, "collateral rehypothecation deployed");
+
+        // The solver is recorded as the position's solver, which is what routes
+        // the rehypothecation yield to them on close/liquidation.
+        assertEq(hook.positionSolver(key.toId(), trader), solver, "bonded solver recorded for yield routing");
+
+        // The borrow leg was drawn entirely from the already-escrowed tokens, so
+        // the ONLY fill-time `transferFrom` was the 10 ether margin. Walk the
+        // solver's wallet: 100 (minted) - 40 (escrow deposit) - 10 (margin leg)
+        // = 50, i.e. the 40 ether notional was never pulled a second time.
+        assertEq(router.erc20BorrowEscrow(solver, address(token0)), 0, "borrow leg consumed from bond");
+        assertEq(token0.balanceOf(solver), 50 ether, "notional not re-pulled from the wallet at fill time");
+    }
+
+    function test_CowSolverFunded_Whitelisted_StillWorksWithoutEscrow() public {
+        // Regression: the legacy governance-whitelist leg is unchanged.
+        router.setSolverWhitelist(solver, true);
+
+        vm.startPrank(solver);
+        token0.approve(address(router), type(uint256).max);
+        vm.stopPrank();
+        vm.prank(trader);
+        token0.approve(address(router), type(uint256).max);
+
+        _mockFill();
+        router.swapMultiPoolForSolverFunded(_cowParams(), trader, trader);
+
+        (,, uint256 borrowed,,,,,,) = hook.positions(key.toId(), trader);
+        assertEq(borrowed, 40 ether);
+    }
+
+    function test_CowSolverFunded_EscrowSolver_RespectsNotionalCap() public {
+        // Per-fill cap still binds a bonded solver: capitalisation admits the
+        // solver, it does not exempt it from governance's exposure rail.
+        router.setSolverNotionalCap(solver, 30 ether);
+
+        vm.startPrank(solver);
+        token0.approve(address(router), type(uint256).max);
+        router.depositBorrowEscrow(address(token0), 50 ether);
+        vm.stopPrank();
+
+        vm.prank(trader);
+        token0.approve(address(router), type(uint256).max);
+
+        _mockFill();
+        vm.expectRevert(abi.encodeWithSelector(EswapRouter.BorrowExceedsSolverNotionalCap.selector, 40 ether, 30 ether));
+        router.swapMultiPoolForSolverFunded(_cowParams(), trader, trader);
+    }
+
+    function test_CowSolverFunded_EscrowIsPerFillNotReusable() public {
+        // The bond is SPENT per fill, so cumulative exposure can never exceed
+        // cumulative deposits. One 40 ether bond funds exactly one 40 ether
+        // borrow; a second fill without a fresh deposit is rejected.
+        vm.startPrank(solver);
+        token0.approve(address(router), type(uint256).max);
+        router.depositBorrowEscrow(address(token0), 40 ether);
+        vm.stopPrank();
+
+        vm.prank(trader);
+        token0.approve(address(router), type(uint256).max);
+
+        _mockFill();
+        router.swapMultiPoolForSolverFunded(_cowParams(), trader, solver);
+        assertEq(router.erc20BorrowEscrow(solver, address(token0)), 0, "bond spent, not held against the position");
+
+        // Second fill: escrow is now empty, so the solver is no longer capitalised
+        // and the uncollateralised remainder leg is refused.
+        _mockFill();
+        vm.expectRevert(EswapRouter.SolverNotAuthorized.selector);
+        router.swapMultiPoolForSolverFunded(_cowParams(), trader, trader);
     }
 
     function test_Erc20BorrowEscrow_DepositWithdraw_RoundTrip() public {

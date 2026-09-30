@@ -9,6 +9,7 @@ import {EswapSettlement} from "../EswapSettlement.sol";
 import {PoolKey} from "../types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "../types/PoolId.sol";
 import {Currency} from "../types/Currency.sol";
+import {EswapHookDeployLib} from "./EswapHookDeployLib.sol";
 
 contract EswapSettlementTest is BaseV4Test {
     using PoolIdLibrary for PoolKey;
@@ -27,7 +28,8 @@ contract EswapSettlementTest is BaseV4Test {
         token1 = new ERC20Mock("Token 1", "TK1");
 
         address hookAddress = address(uint160((1 << 159) | (1 << 158) | (1 << 153) | (1 << 152) | (1 << 148)));
-        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(manager, priceFeed, address(this)), hookAddress);
+        (address _hookLogic, address _hookLogic2) = EswapHookDeployLib.deployLogic(address(manager), address(priceFeed));
+        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(manager, priceFeed, _hookLogic, _hookLogic2, address(this)), hookAddress);
         hook = EswapMarginHook(payable(hookAddress));
 
         router = new EswapRouter(manager);
@@ -107,9 +109,11 @@ contract EswapSettlementTest is BaseV4Test {
 
     function test_Fill_RevertsWhenSettlementNotWhitelisted() public {
         // fill() sets SwapParams.solver = address(this), so a settlement that is
-        // absent from the router's solver whitelist cannot open a position.
-        // This is why the deploy scripts must call setSolverWhitelist on the
-        // settler: without it every generic/relayer fill reverts.
+        // neither governance-registered, nor intent-authorised, nor holding a
+        // matching `erc20BorrowEscrow` bond cannot open a position. This settler
+        // is funded via `transferFrom` at fill time rather than a pre-funded
+        // borrow-leg bond, so it must be whitelisted: without the
+        // `setSolverWhitelist` call below every generic/relayer fill reverts.
         EswapSettlement unlisted = new EswapSettlement(router);
         assertFalse(router.registeredSolvers(address(unlisted)), "fresh settler must start unregistered");
 
@@ -117,7 +121,7 @@ contract EswapSettlementTest is BaseV4Test {
         vm.startPrank(filler);
         token0.approve(address(unlisted), type(uint256).max);
 
-        vm.expectRevert("Solver not authorized");
+        vm.expectRevert(EswapRouter.SolverNotAuthorized.selector);
         unlisted.fill(keccak256("unlisted-order"), _originData(10 ether, 0), "");
         vm.stopPrank();
 

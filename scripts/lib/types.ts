@@ -1,3 +1,4 @@
+import { keccak256, encodePacked, toHex } from "viem";
 import type { Address, Hex } from "viem";
 
 /**
@@ -48,6 +49,42 @@ export const KIND_SELL = "0xf3b277728b3fee749481eb3e0b3b48980dbbab78658fc419025c
 export const KIND_BUY = "0x6ed88e868af0a1983e3886d5f3e95a2fafbd6c3450bc229e27342283dc429ccc" as const;
 export const BALANCE_ERC20 = "0x5a28e9363bb942b639270062aa6bb295f434bcdfc42c97267bf003f272060dc9" as const;
 export const RECEIVER_SAME_AS_OWNER = "0x0000000000000000000000000000000000000000" as const;
+
+/**
+ * [AUDIT CRIT-05] Mirrors `EswapCoWSettlement.APP_DATA_LEVERAGE_TAG`.
+ *
+ * `EswapCoWSettlement.fillOrder` reverts `LeverageCommitmentMismatch` unless the
+ * order's `appData` equals `leverageCommitment(params.leverage)`. Every off-chain
+ * producer of a CoW order MUST therefore set `appData` from
+ * `leverageCommitment(leverage)` below — a free-form/static appData (e.g.
+ * `keccak256("eswap-cow-bridge")`) makes the order unfillable at ANY leverage.
+ */
+export const APP_DATA_LEVERAGE_TAG = keccak256(toHex("eswap-cow-leverage-v1"));
+
+/**
+ * Canonical off-chain mirror of `EswapCoWSettlement.leverageCommitment(uint8)`.
+ *
+ * Solidity: `keccak256(abi.encodePacked(APP_DATA_LEVERAGE_TAG, leverage))` where
+ * `leverage` is `uint8`, so it contributes exactly ONE byte to the preimage --
+ * a 33-byte preimage in total, NOT the 64 bytes a 32-byte-padded ABI encoding
+ * would produce.
+ *
+ * `scripts/test/cowCommitment.check.ts` asserts this equals the on-chain value
+ * for every leverage in 1..20 (vectors copied from
+ * `src/v4/test/EswapCoWSettlementTest.t.sol`), so the two cannot silently drift.
+ * Run: `cd scripts && npx tsx test/cowCommitment.check.ts`
+ */
+export function leverageCommitment(leverage: number): Hex {
+    if (!Number.isInteger(leverage) || leverage < 0 || leverage > 0xff) {
+        throw new Error(`leverage must be a uint8 (0..255), got ${leverage}`);
+    }
+    const leverageByte = `0x${leverage.toString(16).padStart(2, "0")}` as Hex;
+    // `bytes1` (not `uint8`) because abi.encodePacked writes a uint8 as a single
+    // raw byte with no sign-padding. encodePacked must be given explicit
+    // (types, values) pairs -- the variadic/array-of-values forms both throw in
+    // viem 2.56.
+    return keccak256(encodePacked(["bytes32", "bytes1"], [APP_DATA_LEVERAGE_TAG, leverageByte]));
+}
 
 /** CoW signature scheme index, matching `CowSigning.Scheme` (Eip712=0, EthSign=1, Eip1271=2, PreSign=3). */
 export const CowScheme = {

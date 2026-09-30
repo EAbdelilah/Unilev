@@ -10,6 +10,7 @@ import {CowSigning} from "../cow/CowSigning.sol";
 import {PoolKey} from "../types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "../types/PoolId.sol";
 import {Currency} from "../types/Currency.sol";
+import {EswapHookDeployLib} from "./EswapHookDeployLib.sol";
 
 /// @dev ERC-1271 verifier that accepts any inner signature (test stand-in for a
 ///      smart-contract wallet).
@@ -57,7 +58,8 @@ contract EswapCoWSettlementTest is BaseV4Test {
         token1 = new ERC20Mock("Token 1", "TK1");
 
         address hookAddress = address(uint160((1 << 159) | (1 << 158) | (1 << 153) | (1 << 152) | (1 << 148)));
-        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(manager, priceFeed, address(this)), hookAddress);
+        (address _hookLogic, address _hookLogic2) = EswapHookDeployLib.deployLogic(address(manager), address(priceFeed));
+        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(manager, priceFeed, _hookLogic, _hookLogic2, address(this)), hookAddress);
         hook = EswapMarginHook(payable(hookAddress));
 
         router = new EswapRouter(manager);
@@ -300,6 +302,49 @@ contract EswapCoWSettlementTest is BaseV4Test {
             )
         );
         settlement.fillOrder(order, CowSigning.Scheme.Eip712, sig, _params(5));
+    }
+
+    /// @dev [AUDIT CRIT-05] Pins the on-chain appData commitment to literal
+    ///      values so the off-chain producer (`leverageCommitment()` in
+    ///      `scripts/lib/types.ts`, plus the ethers mirror in
+    ///      `javascript/v4/realApis/cowOrderBook.js`) cannot silently drift.
+    ///      Every off-chain order builder sets `appData` from this commitment;
+    ///      if the tag or packing ever changes on-chain, this test fails and
+    ///      forces the off-chain mirrors to be updated in lockstep.
+    function test_AppDataLeverageCommitment_MatchesOffchainMirror() public view {
+        assertEq(
+            settlement.APP_DATA_LEVERAGE_TAG(),
+            keccak256("eswap-cow-leverage-v1"),
+            "APP_DATA_LEVERAGE_TAG drifted from the off-chain mirror"
+        );
+
+        // keccak256(abi.encodePacked(TAG, uint8(leverage))) — 33-byte preimage.
+        bytes32[6] memory levs = [bytes32(uint256(1)), bytes32(uint256(2)), bytes32(uint256(3)), bytes32(uint256(5)), bytes32(uint256(10)), bytes32(uint256(20))];
+        bytes32[6] memory expected = [
+            bytes32(0xe7d4bba9e5fc12c4267c2a71d03f126150b2ca090eed8ec302d617feedd83e7d),
+            bytes32(0x5288929f74bcddb4e022c5b200ba5cef148a80cec9f2f76e2425fd90fad71440),
+            bytes32(0x29311fe0d9acd6141a7f8f05a333769d3bd63bb47694b90e65c668159e4ce073),
+            bytes32(0x9b0cb28eb51f758fc741c939cb2533401ffe905f9c75c16dd83082ddd5d3ca4a),
+            bytes32(0x8c2b61c82aa73aab48db7f34770bfb80cd938251c51dcae30ef95e208ca3327e),
+            bytes32(0xa070c0d19e203c748cd5e7074f7dc10c1cb6441779df057b773fd9aa57232641)
+        ];
+
+        for (uint256 i = 0; i < levs.length; i++) {
+            uint8 lev = uint8(uint256(levs[i]));
+            assertEq(
+                settlement.leverageCommitment(lev),
+                expected[i],
+                string.concat("leverageCommitment(", vm.toString(uint256(lev)), ") drifted from the off-chain mirror")
+            );
+            // Distinct leverage must never collide (otherwise one signed
+            // commitment would authorise several leverages).
+            for (uint256 j = i + 1; j < levs.length; j++) {
+                assertTrue(
+                    settlement.leverageCommitment(lev) != settlement.leverageCommitment(uint8(uint256(levs[j]))),
+                    "leverage commitments must be collision-free"
+                );
+            }
+        }
     }
 
     function test_Fill_CommittedLeverageMismatch_Reverts() public {

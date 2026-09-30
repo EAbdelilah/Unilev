@@ -544,8 +544,13 @@ contract EswapMarginHookLogic2 is BaseHook, EswapMarginHookLogicStorage {
         }
         _clearCollateralAccounting(trader, collateralCurrency, collateralAmount);
         if (borrowedAmount > 0) {
-            uint256 tradeOIUsd = _usdValueOf(Currency.unwrap(debtCurrency), borrowedAmount);
-            totalOpenInterestUSD = EswapMarginLib.saturatingSub(totalOpenInterestUSD, tradeOIUsd);
+            // [PHASE-0 FIX] Never-reverting open-interest release. The old
+            // `_usdValueOf(...)` call here reverted `StalePrice` /
+            // `OraclePriceOutOfBounds`, unwinding the ENTIRE settlement —
+            // including the payout transfer above — and stranding the trader's
+            // collateral whenever the feed was unhealthy. A counter decrement
+            // must never be able to block a trader's exit.
+            _releaseOpenInterest(Currency.unwrap(debtCurrency), borrowedAmount);
             // [FIX] Keep totalBorrowedByToken in sync: it was previously only
             // incremented on open (registerMarginOpen) and never decremented on
             // close/liquidation, so the ledger drifted upward over time.
@@ -664,8 +669,10 @@ contract EswapMarginHookLogic2 is BaseHook, EswapMarginHookLogicStorage {
         pos.borrowedAmount = pos.borrowedAmount > liqDebt ? pos.borrowedAmount - liqDebt : 0;
 
         if (liqDebt > 0) {
-            uint256 liqDebtUsd = _usdValueOf(Currency.unwrap(debtCurrency), liqDebt);
-            totalOpenInterestUSD = EswapMarginLib.saturatingSub(totalOpenInterestUSD, liqDebtUsd);
+            // [PHASE-0 FIX] Never-reverting open-interest release: this is a
+            // counter decrement, and letting the live feed revert here blocked
+            // the liquidation itself.
+            _releaseOpenInterest(Currency.unwrap(debtCurrency), liqDebt);
             totalBorrowedByToken[debtCurrency] = EswapMarginLib.saturatingSub(totalBorrowedByToken[debtCurrency], liqDebt);
         }
         if (unwindAmount > 0 && collateralAmount > 0) {
@@ -920,6 +927,24 @@ contract EswapMarginHookLogic2 is BaseHook, EswapMarginHookLogicStorage {
     function _usdValueOf(address token, uint256 amount) internal view returns (uint256) {
         if (address(priceFeed) == address(0)) return 0;
         return priceFeed.getAmountInUsd(token, amount);
+    }
+
+    /// @dev [PHASE-0 FIX] Release `amount` of `token` from the open-interest
+    ///      counter WITHOUT ever reverting. `PriceFeed._getValidatedPrice`
+    ///      reverts `StalePrice` / `OraclePriceOutOfBounds`, so a bare
+    ///      `getAmountInUsd` on the close/liquidation path made an entire
+    ///      settlement revert — stranding the trader's collateral and blocking
+    ///      the exit — over what is only a counter update. Degrades to no-op when
+    ///      the feed is unhealthy, leaving `totalOpenInterestUSD` conservatively
+    ///      HIGH and therefore under-allocating OI capacity. Deliberately NOT
+    ///      used on the open path, where a stale feed must still hard-block entry.
+    function _releaseOpenInterest(address token, uint256 amount) internal {
+        if (amount == 0 || address(priceFeed) == address(0)) return;
+        try priceFeed.getAmountInUsd(token, amount) returns (uint256 usd) {
+            totalOpenInterestUSD = EswapMarginLib.saturatingSub(totalOpenInterestUSD, usd);
+        } catch {
+            return;
+        }
     }
 
     function _getKey(bytes32 base, address trader) internal pure returns (bytes32) {

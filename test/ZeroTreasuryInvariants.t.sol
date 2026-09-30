@@ -28,6 +28,7 @@ import {FullMath} from "@uniswap/v4-core/src/libraries/FullMath.sol";
 import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {EswapHookDeployLib} from "../src/v4/test/EswapHookDeployLib.sol";
 
 /// @notice Zero-Treasury Solver Engine invariant suite.
 ///
@@ -138,7 +139,8 @@ contract ZeroTreasuryInvariants is Test {
 
         // Hook + router on the LIVE singleton.
         address hookAddr = address(uint160(HIGH_FLAGS | LOW_FLAGS));
-        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(address(pm), address(priceFeed), treasury), hookAddr);
+        (address _hookLogic, address _hookLogic2) = EswapHookDeployLib.deployLogic(address(pm), address(priceFeed));
+        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(address(pm), address(priceFeed), _hookLogic, _hookLogic2, treasury), hookAddr);
         hook = EswapMarginHook(payable(hookAddr));
         router = new EswapRouter(LocalIPoolManager(address(pm)));
 

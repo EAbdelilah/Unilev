@@ -24,6 +24,7 @@ import {
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {PoolModifyLiquidityTest} from "@uniswap/v4-core/src/test/PoolModifyLiquidityTest.sol";
 import {PoolSwapTest} from "@uniswap/v4-core/src/test/PoolSwapTest.sol";
+import {EswapHookDeployLib} from "./EswapHookDeployLib.sol";
 
 /**
  * @title EswapV4CoreProofTest
@@ -66,11 +67,8 @@ contract EswapV4CoreProofTest is BaseV4Test {
         // BEFORE_SWAP=1<<7, AFTER_SWAP=1<<6, BEFORE_SWAP_RETURNS_DELTA=1<<3)
         // that the real PoolManager inspects.
         realHookAddr = address(uint160(HIGH_FLAGS | LOW_FLAGS));
-        deployCodeTo(
-            "EswapMarginHook.sol:EswapMarginHook",
-            abi.encode(address(realManager), address(priceFeed), address(this)),
-            realHookAddr
-        );
+        (address _hookLogic, address _hookLogic2) = EswapHookDeployLib.deployLogic(address(realManager), address(priceFeed));
+        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(address(realManager), address(priceFeed), _hookLogic, _hookLogic2, address(this)), realHookAddr);
         realHook = EswapMarginHook(payable(realHookAddr));
         realHook.setRouterAndMinCollateralUsd(address(this), 0);
         // Note: RealPoolId must be cast to the local mock PoolId type to call the hook's setAuthorizedPool

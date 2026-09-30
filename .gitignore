@@ -16,3 +16,6 @@ Shariah_Compliance_Arabic.pdf
 Shariah_Compliance_Case.pdf
 shariah_arabic.html
 shariah_compliance.html
+
+# Unichain V4 deployment-specific addresses (contains no secrets, but is per-deployment)
+.env.local.v4

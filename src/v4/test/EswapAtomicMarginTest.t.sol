@@ -11,6 +11,7 @@ import {PoolId, PoolIdLibrary} from "../types/PoolId.sol";
 import {Currency} from "../types/Currency.sol";
 import {IPoolManager} from "../interfaces/IPoolManager.sol";
 import {BalanceDelta, BalanceDeltaLibrary} from "../types/BalanceDelta.sol";
+import {EswapHookDeployLib} from "./EswapHookDeployLib.sol";
 
 contract EswapAtomicMarginTestManager is PoolManagerCallbackMock {
     BalanceDelta[] public nextDeltas;
@@ -72,9 +73,8 @@ contract EswapAtomicMarginTest is BaseV4Test {
         token1 = new ERC20Mock("Token 1", "TK1");
 
         address hookAddress = address(uint160((1 << 159) | (1 << 158) | (1 << 153) | (1 << 152) | (1 << 148)));
-        deployCodeTo(
-            "EswapMarginHook.sol:EswapMarginHook", abi.encode(atomicManager, priceFeed, address(this)), hookAddress
-        );
+        (address _hookLogic, address _hookLogic2) = EswapHookDeployLib.deployLogic(address(atomicManager), address(priceFeed));
+        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(atomicManager, priceFeed, _hookLogic, _hookLogic2, address(this)), hookAddress);
         hook = EswapMarginHook(payable(hookAddress));
 
         router = new EswapRouter(atomicManager);

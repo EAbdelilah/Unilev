@@ -36,10 +36,14 @@ async function wait(p, hash, label) {
     const settlement = new ethers.Contract(SETTLEMENT, art.abi, wallet);
 
     const validTo = Math.floor(Date.now() / 1000) + 900;
+    // [AUDIT CRIT-05] appData MUST equal settlement.leverageCommitment(leverage),
+    // otherwise fillOrder reverts LeverageCommitmentMismatch. Read it from the
+    // contract so the script cannot drift from the on-chain tag.
+    const appData = await settlement.leverageCommitment(LEVERAGE);
     const order = {
         sellToken: USDC, buyToken: WETH, receiver: ethers.ZeroAddress,
         sellAmount: BigInt(MARGIN), buyAmount: 1n, validTo,
-        appData: ethers.keccak256(ethers.toUtf8Bytes("eswap-eth-sepolia-live-cow-cycle")),
+        appData,
         feeAmount: 0n, kind: KIND_SELL, partiallyFillable: false,
         sellTokenBalance: ethers.keccak256(ethers.toUtf8Bytes("erc20")),
         buyTokenBalance: ethers.keccak256(ethers.toUtf8Bytes("erc20"))

@@ -11,6 +11,7 @@ import {Currency} from "../types/Currency.sol";
 import {IPoolManager} from "../interfaces/IPoolManager.sol";
 import {PoolManagerMock} from "./mocks/PoolManagerMock.sol";
 import {ERC20Mock} from "./BaseV4Test.t.sol";
+import {EswapHookDeployLib} from "./EswapHookDeployLib.sol";
 
 contract EswapTimelockTest is Test {
     using PoolIdLibrary for PoolKey;
@@ -31,7 +32,8 @@ contract EswapTimelockTest is Test {
         priceFeed = new PriceFeedMock();
 
         address hookAddress = address(uint160((1 << 159) | (1 << 158) | (1 << 153) | (1 << 152) | (1 << 148)));
-        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(manager, priceFeed, address(this)), hookAddress);
+        (address _hookLogic, address _hookLogic2) = EswapHookDeployLib.deployLogic(address(manager), address(priceFeed));
+        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(manager, priceFeed, _hookLogic, _hookLogic2, address(this)), hookAddress);
         hook = EswapMarginHook(payable(hookAddress));
 
         timelock = new EswapTimelock(address(hook), admin, DELAY);

@@ -13,6 +13,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {PriceFeedMock} from "./BaseV4Test.t.sol";
 import {PoolManagerMock} from "./mocks/PoolManagerMock.sol";
 import {TickMath} from "../libraries/TickMath.sol";
+import {EswapHookDeployLib} from "./EswapHookDeployLib.sol";
 
 contract EswapUnichainForkTest is Test {
     using PoolIdLibrary for PoolKey;
@@ -65,7 +66,8 @@ contract EswapUnichainForkTest is Test {
 
         // Deploy Hook
         address hookAddress = address(uint160((1 << 159) | (1 << 158) | (1 << 153) | (1 << 152) | (1 << 148)));
-        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(manager, priceFeed, address(this)), hookAddress);
+        (address _hookLogic, address _hookLogic2) = EswapHookDeployLib.deployLogic(address(manager), address(priceFeed));
+        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(manager, priceFeed, _hookLogic, _hookLogic2, address(this)), hookAddress);
         hook = EswapMarginHook(payable(hookAddress));
 
         hook.setRouterAndMinCollateralUsd(router, 0);

@@ -24,6 +24,7 @@ import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {FullMath} from "@uniswap/v4-core/src/libraries/FullMath.sol";
 import {IERC20 as RealIERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
+import {EswapHookDeployLib} from "./EswapHookDeployLib.sol";
 
 /// @notice FULL-CYCLE mainnet proof: a REAL Enso bundle (enso:route USDC -> WETH,
 ///         routingStrategy=router) is executed through Enso's Router (the
@@ -147,9 +148,8 @@ contract EswapMainnetEnsoFullCycleForkTest is Test, IUnlockCallback {
         // Deploy hook at flags-valid address and router at the FIXED taker
         // address the Enso bundle is bound to (fromAddress/receiver).
         address hookAddr = address(uint160(HIGH_FLAGS | LOW_FLAGS));
-        deployCodeTo(
-            "EswapMarginHook.sol:EswapMarginHook", abi.encode(address(pm), address(priceFeed), address(this)), hookAddr
-        );
+        (address _hookLogic, address _hookLogic2) = EswapHookDeployLib.deployLogic(address(pm), address(priceFeed));
+        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(address(pm), address(priceFeed), _hookLogic, _hookLogic2, address(this)), hookAddr);
         hook = EswapMarginHook(payable(hookAddr));
         console2.log("[step] router deploy");
         deployCodeTo("EswapRouter.sol:EswapRouter", abi.encode(address(pm)), MainnetEnsoRoute.TAKER);

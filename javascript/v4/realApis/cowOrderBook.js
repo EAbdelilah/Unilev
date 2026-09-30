@@ -83,6 +83,17 @@ function verifyAnchors() {
     return { ok: failed.length === 0, failed }
 }
 
+/** [AUDIT CRIT-05] Mirrors EswapCoWSettlement.APP_DATA_LEVERAGE_TAG. */
+const APP_DATA_LEVERAGE_TAG = ethers.id("eswap-cow-leverage-v1");
+/** Mirrors EswapCoWSettlement.leverageCommitment(uint8): keccak256(tag ++ uint8(lev)). */
+function leverageCommitment(lev) {
+    return ethers.keccak256(
+        ethers.concat([APP_DATA_LEVERAGE_TAG, ethers.toBeHex(lev, 1)]),
+    );
+}
+
+const PROBE_LEVERAGE = 1;
+
 function fixedOrder() {
     return {
         sellToken: CHAINS[11155111].tokens.USDC,
@@ -91,7 +102,9 @@ function fixedOrder() {
         sellAmount: "5000000",
         buyAmount: "2000000000000000",
         validTo: 2100000000,
-        appData: ethers.id("eswap-real-cow-sepolia"),
+        // Canonical leverage commitment, so this probe order is actually fillable
+        // rather than carrying a static tag that fillOrder would reject.
+        appData: leverageCommitment(PROBE_LEVERAGE),
         feeAmount: 0,
         kind: "sell",
         partiallyFillable: false,

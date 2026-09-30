@@ -22,6 +22,7 @@ import {BalanceDeltaLibrary} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
 import {IERC20 as RealIERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IPriceFeed} from "../EswapMarginHook.sol";
 import {TickMath} from "../libraries/TickMath.sol";
+import {EswapHookDeployLib} from "./EswapHookDeployLib.sol";
 
 /// @dev Production-faithful oracle mock for CROSS-DECIMAL pairs. Mirrors
 ///      PriceFeedL1.getPriceFeed semantics: ONE human-scaled map
@@ -195,9 +196,8 @@ for (uint256 i = 0; i < 6; i++) {
 
         address hookAddr = address(uint160(HIGH_FLAGS | LOW_FLAGS));
         priceFeed = new ForkPriceFeedMock();
-        deployCodeTo(
-            "EswapMarginHook.sol:EswapMarginHook", abi.encode(address(pm), address(priceFeed), address(this)), hookAddr
-        );
+        (address _hookLogic, address _hookLogic2) = EswapHookDeployLib.deployLogic(address(pm), address(priceFeed));
+        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(address(pm), address(priceFeed), _hookLogic, _hookLogic2, address(this)), hookAddr);
         hook = EswapMarginHook(payable(hookAddr));
         router = new EswapRouter(IPoolManager(address(pm)));
         hook.setRouterAndMinCollateralUsd(address(router), 0);

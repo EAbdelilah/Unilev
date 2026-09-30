@@ -12,6 +12,7 @@ import {IPoolManager} from "../interfaces/IPoolManager.sol";
 import {BalanceDeltaLibrary} from "../types/BalanceDelta.sol";
 import {TickMath} from "../libraries/TickMath.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {EswapHookDeployLib} from "./EswapHookDeployLib.sol";
 
 contract ERC20MockYield is ERC20 {
     constructor(string memory name, string memory symbol) ERC20(name, symbol) {
@@ -61,7 +62,8 @@ contract EswapSolverYieldTest is Test {
         token1 = new ERC20MockYield("Token 1", "TK1");
 
         address hookAddress = address(uint160((1 << 159) | (1 << 158) | (1 << 153) | (1 << 152) | (1 << 148)));
-        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(manager, priceFeed, address(this)), hookAddress);
+        (address _hookLogic, address _hookLogic2) = EswapHookDeployLib.deployLogic(address(manager), address(priceFeed));
+        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(manager, priceFeed, _hookLogic, _hookLogic2, address(this)), hookAddress);
         hook = EswapMarginHook(payable(hookAddress));
 
         key = PoolKey({

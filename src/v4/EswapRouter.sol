@@ -416,9 +416,14 @@ contract EswapRouter is
     ///         position credited to `trader` (the recovered CoW order owner)
     ///         while the MARGIN leg is pulled from `marginFunder` (the CoW
     ///         solver). Lets CoW solvers fund intents without the trader ever
-    ///         approving this router. The borrowed leg is still pulled from
-    ///         `params.solver` and the solver must remain whitelisted for
-    ///         leverage > 1.
+    ///         approving this router. The borrowed leg is pulled from
+    ///         `params.solver`, which for leverage > 1 must be EITHER
+    ///         governance-whitelisted OR fully capitalised in
+    ///         `erc20BorrowEscrow[params.solver][borrowToken]` for the whole
+    ///         `borrowAmount`. The escrow leg is what makes the orderbook
+    ///         permissionless: an anonymous CoW solver can bond the notional and
+    ///         fill without a per-address allowlist entry, and receives the
+    ///         position's rehypothecation yield as `positionSolver`.
     function swapMultiPoolForSolverFunded(SwapParams calldata params, address trader, address marginFunder)
         external
         payable
@@ -668,14 +673,35 @@ contract EswapRouter is
             }
         }
 
-        // H-3 FIX: Validate solver is whitelisted
-        if (params.leverage > 1) {
-            require(registeredSolvers[params.solver], "Solver not whitelisted");
-        }
-
         Currency input = params.zeroForOne ? params.key.currency0 : params.key.currency1;
         Currency output = params.zeroForOne ? params.key.currency1 : params.key.currency0;
         bool inputNative = Currency.unwrap(input) == address(0);
+
+        // H-3 FIX: the borrow-leg solver must be EITHER governance-whitelisted OR
+        // fully collateralised in `erc20BorrowEscrow` for this borrow token.
+        //
+        // [P0#1] The borrow leg is drawn from the solver's own pre-funded escrow
+        // first (see the draw below), so an escrow that covers the whole notional
+        // makes the solver capitalised rather than credit-exposed: they post the
+        // tokens, the hook records them as `positionSolver[poolId][trader]`, they
+        // are repaid principal out of the position, and the position's
+        // rehypothecation yield is routed to them. An undercapitalised solver
+        // therefore loses exactly the notional they chose to bond and nothing
+        // else — default is bounded by the bond, not by an allowlist.
+        //
+        // That is what lets permissionless external solvers (CoW orderbook
+        // solvers, searchers) fund borrows with no per-address governance entry,
+        // which is what makes aggregator-sourced demand liquid. It also means a
+        // collateralised solver needs NO per-trade `approve` (the whole notional
+        // comes out of escrow, so the `transferFrom` remainder is zero).
+        //
+        // The whitelist is retained for the two cases escrow cannot cover: the
+        // uncollateralised remainder leg, and native-margin borrows.
+        if (params.leverage > 1 && !registeredSolvers[params.solver]) {
+            if (inputNative) revert SolverNotAuthorized();
+            uint256 escrowed = erc20BorrowEscrow[params.solver][Currency.unwrap(input)];
+            if (escrowed < borrowAmount) revert SolverNotAuthorized();
+        }
 
         BalanceDelta delta = manager.swap(
             params.key,
@@ -800,9 +826,34 @@ contract EswapRouter is
         uint256 borrowAmount = marginAmount * uint256(params.leverage - 1);
         if (params.leverage > 1) {
             require(params.solver != address(0), "Solver required for leverage");
-            // [P0#1] Whitelist is now ONE of two authorization legs: governance
-            // registration OR the trader's signed LendingIntent.
-            require(registeredSolvers[params.solver] || solverAuthorizedByIntent, "Solver not authorized");
+            // [P0#1] The whitelist is now ONE of THREE authorization legs:
+            //   1. governance registration, or
+            //   2. the trader's signed LendingIntent (`solverAuthorizedByIntent`), or
+            //   3. FULL capitalisation in `erc20BorrowEscrow` for the borrow token.
+            //
+            // Leg 3 is what lets EXTERNAL, ANONYMOUS solvers fund the borrow leg
+            // with no per-address governance entry — the CoW orderbook case. A CoW
+            // solver bidding on an order cannot produce an Eswap LendingIntent
+            // signature, so without leg 3 it could only ever fill if governance
+            // pre-whitelisted it, which is impossible for an anonymous solver set.
+            //
+            // Leg 3 is capitalised, not credit: the whole notional comes out of the
+            // solver's own pre-funded escrow (drawn before any `transferFrom`, so a
+            // collateralised solver needs no per-trade approval), the hook records
+            // them as `positionSolver[poolId][trader]`, they are repaid principal
+            // out of the position, and the position's rehypothecation yield is
+            // routed to them. An undercapitalised solver forfeits exactly the
+            // notional they chose to bond and nothing else, so default is bounded
+            // by the bond rather than by an allowlist. The escrow is spent per
+            // fill, so cumulative exposure can never exceed cumulative deposits.
+            //
+            // Native-margin borrows are excluded: escrow is ERC20-only, so a native
+            // leg has no collateral to test and stays whitelist/intent only.
+            if (!registeredSolvers[params.solver] && !solverAuthorizedByIntent) {
+                address borrowToken = Currency.unwrap(params.zeroForOne ? params.key.currency0 : params.key.currency1);
+                if (borrowToken == address(0)) revert SolverNotAuthorized();
+                if (erc20BorrowEscrow[params.solver][borrowToken] < borrowAmount) revert SolverNotAuthorized();
+            }
             uint256 cap = solverNotionalCap[params.solver];
             if (cap > 0 && borrowAmount > cap) revert BorrowExceedsSolverNotionalCap(borrowAmount, cap);
         }
@@ -969,9 +1020,19 @@ contract EswapRouter is
         notional = marginAmount + borrowAmount;
         if (params.leverage > 1) {
             require(params.solver != address(0), "Solver required for leverage");
-            // [P0#1] Whitelist is now ONE of two authorization legs: governance
-            // registration OR the trader's signed LendingIntent.
-            require(registeredSolvers[params.solver] || solverAuthorizedByIntent, "Solver not authorized");
+            // [P0#1] Third authorization leg, mirroring `_multiPoolOpen`: FULL
+            // capitalisation in `erc20BorrowEscrow` for the borrow token. This is
+            // the leg that lets an external, anonymous solver fund an
+            // aggregator-sourced leveraged fill without a per-address whitelist
+            // entry — the whole notional comes out of the solver's own bond, and
+            // the position's rehypothecation yield is routed back to them via
+            // `positionSolver`. Native legs have no escrow to test, so they stay
+            // whitelist/intent only.
+            if (!registeredSolvers[params.solver] && !solverAuthorizedByIntent) {
+                address borrowToken = Currency.unwrap(params.zeroForOne ? params.key.currency0 : params.key.currency1);
+                if (borrowToken == address(0)) revert SolverNotAuthorized();
+                if (erc20BorrowEscrow[params.solver][borrowToken] < borrowAmount) revert SolverNotAuthorized();
+            }
             uint256 cap = solverNotionalCap[params.solver];
             if (cap > 0 && borrowAmount > cap) revert BorrowExceedsSolverNotionalCap(borrowAmount, cap);
         }

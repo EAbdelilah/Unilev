@@ -5,7 +5,9 @@
   "type": "module",
   "description": "Eswap Zero-Treasury solver engine and aggregator execution pipeline (Unichain, Chain ID 130)",
   "scripts": {
-    "typecheck": "tsc --noEmit",
+      "typecheck": "tsc --noEmit",
+      "test:cow-commitment": "tsx test/cowCommitment.check.ts",
+      "test:leverage-cap": "tsx test/leverageCap.check.ts",
     "cow:bot": "tsx solvers/cowSolverBot.ts",
     "cow:bridge": "tsx adapters/aggregatorCowBridge.ts --watch",
     "venues:report": "tsx adapters/venueRegistry.ts",

@@ -48,10 +48,17 @@ contract EswapCoWSettlement is CowSigning {
     address public immutable gpv2Settlement;
 
     struct FillParams {
-        // Leverage multiplier applied to the trader's margin.
+        // Leverage multiplier applied to the trader's margin. The order's
+        // appData must commit this exact value (`leverageCommitment`).
         uint8 leverage;
-        // Solver funding the margin AND the borrowed leg (must be whitelisted
-        // on the EswapRouter for leverage > 1).
+        // Solver funding the margin AND the borrowed leg. For leverage > 1 the
+        // EswapRouter requires this address to be EITHER governance-whitelisted
+        // OR to hold a pre-funded `erc20BorrowEscrow` bond covering the whole
+        // borrow notional in the input token. The escrow leg is what makes the
+        // orderbook route permissionless: an anonymous CoW solver can bond the
+        // notional and fill with no per-address allowlist entry, and is recorded
+        // as the position's `positionSolver`, which routes the position's
+        // rehypothecation yield to it.
         address solver;
         // Hook-enabled pool where the position is registered.
         PoolKey key;

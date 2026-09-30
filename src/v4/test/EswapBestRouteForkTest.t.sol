@@ -23,6 +23,7 @@ import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {FullMath} from "@uniswap/v4-core/src/libraries/FullMath.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {IERC20 as RealIERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {EswapHookDeployLib} from "./EswapHookDeployLib.sol";
 
 /// @dev [P2#7] Controlled aggregator fill venue: a whitelisted exchange proxy whose
 ///      fill output is CALLER-SET (`setOutputAmount`). It pulls `amountIn` of
@@ -146,9 +147,8 @@ contract EswapBestRouteForkTest is Test, IUnlockCallback {
 
         // Hook at flags-valid address; router and mock aggregator as fresh deploys.
         address hookAddr = address(uint160(HIGH_FLAGS | LOW_FLAGS));
-        deployCodeTo(
-            "EswapMarginHook.sol:EswapMarginHook", abi.encode(address(pm), address(priceFeed), address(this)), hookAddr
-        );
+        (address _hookLogic, address _hookLogic2) = EswapHookDeployLib.deployLogic(address(pm), address(priceFeed));
+        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(address(pm), address(priceFeed), _hookLogic, _hookLogic2, address(this)), hookAddr);
         hook = EswapMarginHook(payable(hookAddr));
         router = new EswapRouter(IPoolManager(address(pm)));
         ext = new EswapRouterExt(IPoolManager(address(pm)), payable(address(router)));

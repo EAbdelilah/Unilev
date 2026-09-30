@@ -14,7 +14,6 @@
  * The borrow leg is funded by the external CoW solver, so this route is
  * zero-treasury.
  */
-import { keccak256 } from "viem";
 import { cowSettlementAbi } from "../lib/abis.js";
 import type { VenueConfig } from "../lib/venueConfig.js";
 import { describeVenue, VENUE_SPECS } from "../lib/venueConfig.js";
@@ -27,15 +26,13 @@ import {
     BALANCE_ERC20,
     CowScheme,
     KIND_SELL,
+    leverageCommitment,
     RECEIVER_SAME_AS_OWNER,
     SIGNING_SCHEME_TO_ENUM,
     type CowOrderData,
     type FillParams,
     type LeverageIntent,
 } from "../lib/types.js";
-
-/** appData hash identifying Eswap orders on the CoW orderbook. */
-export const DEFAULT_APP_DATA = keccak256(new TextEncoder().encode("eswap-cow-bridge"));
 
 function cowSpec() {
     const spec = VENUE_SPECS.find((s) => s.id === "cow");
@@ -57,11 +54,28 @@ export class CowVenue extends BaseSupplyVenue<CowOrderData> {
      * Formats an incoming aggregator intent as an EIP-712/EIP-1271 CoW order.
      * `receiver = address(0)` (proceeds to the order signer), so the position is
      * credited to the recovered order owner exactly like a native CoW order.
+     *
+     * [AUDIT CRIT-05] `appData` is ALWAYS derived from the intent's leverage via
+     * `leverageCommitment()`. `EswapCoWSettlement.fillOrder` reverts
+     * `LeverageCommitmentMismatch` unless `order.appData == leverageCommitment(
+     * params.leverage)`, so a static/free-form tag renders the order unfillable.
      */
     async buildOrder(
         intent: LeverageIntent,
         nowSec: number = Math.floor(Date.now() / 1000),
     ): Promise<VenueOrder<CowOrderData>> {
+        if (intent.leverage < 1 || intent.leverage > 20) {
+            throw new Error(`intent.leverage out of range: ${intent.leverage}`);
+        }
+        if (intent.appData !== undefined) {
+            const expected = leverageCommitment(intent.leverage);
+            if (intent.appData.toLowerCase() !== expected.toLowerCase()) {
+                throw new Error(
+                    `intent.appData ${intent.appData} does not match the required leverage commitment ` +
+                    `${expected} for leverage ${intent.leverage}; a non-committed appData cannot be filled`,
+                );
+            }
+        }
         const validTo = nowSec + (intent.validToOffsetSec ?? 3600);
         if (validTo > 0xffffffff) throw new Error("validTo overflows uint32");
         return {
@@ -73,7 +87,7 @@ export class CowVenue extends BaseSupplyVenue<CowOrderData> {
                 sellAmount: intent.amountIn,
                 buyAmount: intent.minAmountOut,
                 validTo,
-                appData: intent.appData ?? DEFAULT_APP_DATA,
+                appData: leverageCommitment(intent.leverage),
                 feeAmount: 0n,
                 kind: KIND_SELL,
                 partiallyFillable: false,

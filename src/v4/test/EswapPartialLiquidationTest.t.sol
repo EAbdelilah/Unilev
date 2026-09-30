@@ -11,6 +11,7 @@ import {Currency} from "../types/Currency.sol";
 import {IPoolManager} from "../interfaces/IPoolManager.sol";
 import {BalanceDeltaLibrary} from "../types/BalanceDelta.sol";
 import {FullMath} from "@uniswap/v4-core/src/libraries/FullMath.sol";
+import {EswapHookDeployLib} from "./EswapHookDeployLib.sol";
 
 /// @notice [P1#3] Partial-liquidation coverage: a proportional slice of an
 ///         underwater position is liquidated while the remainder stays open.
@@ -27,7 +28,8 @@ contract EswapPartialLiquidationTest is BaseV4Test {
         token1 = new ERC20Mock("Token 1", "TK1");
 
         address hookAddress = address(uint160((1 << 159) | (1 << 158) | (1 << 153) | (1 << 152) | (1 << 148)));
-        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(manager, priceFeed, address(this)), hookAddress);
+        (address _hookLogic, address _hookLogic2) = EswapHookDeployLib.deployLogic(address(manager), address(priceFeed));
+        deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(manager, priceFeed, _hookLogic, _hookLogic2, address(this)), hookAddress);
         hook = EswapMarginHook(payable(hookAddress));
 
         router = new EswapRouter(manager);
