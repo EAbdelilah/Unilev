@@ -28,8 +28,23 @@ import {
   encodeFunctionData,
   formatEther,
 } from 'viem'
-import { ADDRESSES, broadcastEnabled, type MarketConfig } from './config'
+import { ADDRESSES, broadcastEnabled, SLIPPAGE, type MarketConfig } from './config'
 import type { Quote } from './quoter'
+
+/**
+ * Apply a slippage floor to an expected amount.
+ *
+ * The result is never zero: for a dust notional the bps discount can round to 0,
+ * and a zero floor silently disables the contract's protection while still
+ * *looking* like protection is in place. Mirrors the contract's
+ * `minOutWithSlippage`, so the off-chain and on-chain floors agree.
+ */
+export function slippageFloor(expected: bigint, slippageBps: number): bigint {
+  if (slippageBps <= 0) throw new Error(`slippageBps must be positive, got ${slippageBps}`)
+  if (slippageBps >= 10_000) throw new Error(`slippageBps must be < 10_000, got ${slippageBps}`)
+  const floored = (expected * BigInt(10_000 - Math.trunc(slippageBps))) / 10_000n
+  return floored === 0n ? 1n : floored
+}
 
 // ─── Executor ABI ────────────────────────────────────────────────────────────
 
@@ -76,7 +91,7 @@ export const EXECUTOR_ABI = [
   },
   {
     type: 'function',
-    name: 'healthCheck',
+    name: 'canaryExecute',
     stateMutability: 'nonpayable',
     inputs: [
       { name: 'marginIn', type: 'uint256' },
@@ -86,6 +101,101 @@ export const EXECUTOR_ABI = [
       { name: 'opened', type: 'uint256' },
       { name: 'closed', type: 'uint256' },
     ],
+  },
+  {
+    type: 'function',
+    name: 'setCanarySlippageBps',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'openBps', type: 'uint256' },
+      { name: 'closeBps', type: 'uint256' },
+    ],
+    outputs: [],
+  },
+  {
+    type: 'function',
+    name: 'minOutWithSlippage',
+    stateMutability: 'pure',
+    inputs: [
+      { name: 'expectedOut', type: 'uint256' },
+      { name: 'slippageBps', type: 'uint256' },
+    ],
+    outputs: [{ type: 'uint256' }],
+  },
+  {
+    type: 'function',
+    name: 'dryRunArbitrage',
+    stateMutability: 'nonpayable',
+    // Declared POSITIONALLY, with no component names.
+    //
+    // viem resolves struct inputs by matching component names against the object
+    // it is given. `Plan` has a nested `hookPoolKey` tuple, and the plan object
+    // also carries sibling fields with the same names (`currency0`, `fees`,
+    // `hook`…). With named components viem cannot decide which field belongs to
+    // which level of the struct and throws before the call is ever built, so the
+    // entry used to be missing from this ABI entirely and callers reached for a
+    // private copy. A positional ABI has no ambiguity, so the production ABI can
+    // carry the real signature and there is exactly one source of truth.
+    inputs: [
+      {
+        name: 'plan',
+        type: 'tuple',
+        components: [
+          { type: 'address' },
+          { type: 'uint256' },
+          { type: 'address' },
+          { type: 'uint24' },
+          { type: 'uint8' },
+          { type: 'uint256' },
+          { type: 'uint256' },
+          { type: 'uint256' },
+          { type: 'address' },
+          {
+            type: 'tuple',
+            components: [
+              { type: 'address' },
+              { type: 'address' },
+              { type: 'uint24' },
+              { type: 'int24' },
+              { type: 'address' },
+            ],
+          },
+          { type: 'address' },
+          { type: 'address' },
+          { type: 'bytes' },
+          { type: 'uint256' },
+          { type: 'uint256' },
+          { type: 'uint256' },
+        ],
+      },
+    ],
+    outputs: [
+      { name: 'venueOut', type: 'int256' },
+      { name: 'repay', type: 'uint256' },
+      { name: 'touchedStandardPool', type: 'uint256' },
+      { name: 'profit', type: 'uint256' },
+    ],
+  },
+  {
+    type: 'function',
+    name: 'canarySlippageBps',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ type: 'uint256' }],
+  },
+  {
+    type: 'function',
+    name: 'canaryCloseSlippageBps',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ type: 'uint256' }],
+  },
+  {
+    type: 'function',
+    name: 'flashMode',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ type: 'uint8' }],
   },
   {
     type: 'function',
@@ -118,6 +228,8 @@ export const EXECUTOR_ABI = [
       },
       { name: 'solver', type: 'address' },
       { name: 'feeTier', type: 'uint24' },
+      { name: 'quoter', type: 'address' },
+      { name: 'quoteMargin', type: 'uint256' },
     ],
     outputs: [],
   },
@@ -170,9 +282,10 @@ export const EXECUTOR_ABI = [
       { indexed: false, name: 'premium', type: 'uint256' },
       { indexed: false, name: 'opened', type: 'uint256' },
       { indexed: false, name: 'closed', type: 'uint256' },
-      { indexed: false, name: 'venueOut', type: 'uint256' },
-      { indexed: false, name: 'profit', type: 'uint256' },
-    ],
+{ indexed: false, name: 'venueOut', type: 'uint256' },
+    { indexed: false, name: 'pnl', type: 'int256' },
+    { indexed: false, name: 'enforced', type: 'bool' },
+  ],
   },
   {
     type: 'event',
@@ -238,6 +351,25 @@ export interface Refusal {
 
 export type SubmissionResult = SimulationResult | BroadcastResult | Refusal
 
+/**
+ * Result of a contract-side dry run.
+ *
+ * `venueOut` is SIGNED: a negative value means the venue took that much of the
+ * flash asset rather than returning it. It is the normal result for a same-pool
+ * unwind, and reading it as an unsigned amount turns a loss into an apparent
+ * multi-billion-unit windfall.
+ */
+export interface DryRunResult {
+  /** Flash-asset amount the venue returned. Negative = the venue cost us. */
+  venueOut: bigint
+  /** Principal + premium the flash loan must be repaid with. */
+  repay: bigint
+  /** 1 if the unwind touched the same pool the hook fills through. */
+  touchedStandardPool: bigint
+  /** Contract-measured profit in flash-asset base units. */
+  profit: bigint
+}
+
 export interface ExecutorOptions {
   executorAddress?: Address
   market?: MarketConfig
@@ -277,9 +409,25 @@ export class EswapExecutor {
   /**
    * Build a plan from a fresh quote.
    *
-   * Every floor is non-zero by construction: they are derived from the quoted
+   * Every floor is non-zero by construction: each is derived from the quoted
    * output minus a slippage buffer, never hardcoded to `0`. A zero floor would
    * disable the contract's own protection.
+   *
+   * UNIT SAFETY — the three floors are in three DIFFERENT currencies, and two
+   * of them are not in `tokenOut`:
+   *
+   *   - `minOpenOut`  `tokenOut` (ETH, 18dp) — collateral the open must produce.
+   *   - `minCloseOut` DEBT currency (USDC, 6dp). The hook settles the close as
+   *     `netToTrader = collateralRecovered - solverPrincipal`, and the solver
+   *     principal is registered in the debt currency, so this floor is compared
+   *     against micro-dollars. Deriving it from `eswapOut` compares wei against
+   *     micro-dollars and yields a floor ~1e12x too large.
+   *   - `minVenueOut` `flashAsset` (USDC, 6dp) — the venue swaps
+   *     `tokenOut -> flashAsset` and its return value is denominated there.
+   *
+   * Both USDC floors therefore have to be supplied by the caller from quotes in
+   * USDC units. There is no honest way to infer them from a `tokenOut` quote,
+   * and guessing is what produced the two off-by-1e12 floors this replaces.
    */
   buildPlan(
     quote: Quote,
@@ -289,22 +437,50 @@ export class EswapExecutor {
       venue: Address
       venueData: Hex
       market: MarketConfig
-      /** Slippage buffer applied to each leg, in bps. Default 30 bps. */
+      /**
+       * Best external venue's expected output for the unwind leg, in
+       * `market.tokenIn` (flash asset, USDC 6dp) base units. Required — see the
+       * unit note above.
+       */
+      venueQuoteOut: bigint
+      /**
+       * Floor for the close leg in DEBT-currency base units (USDC, 6dp).
+       * Required — the hook compares this against `netToTrader`, which is
+       * denominated there. Deriving it from `tokenOut` is a unit error.
+       */
+      minCloseOut: bigint
+      /** Slippage buffer applied to the open leg, in bps. Default `SLIPPAGE.defaultBps`. */
       slippageBps?: number
       /** Net profit floor in `flashAsset` base units. Default 1. */
       minProfit?: bigint
       deadlineSeconds?: number
     },
   ): ArbPlan {
-    const slippageBps = BigInt(opts.slippageBps ?? 30)
+    const slippageBps = BigInt(opts.slippageBps ?? SLIPPAGE.defaultBps)
+    if (slippageBps <= 0n) throw new Error('slippageBps must be positive')
+    if (slippageBps >= 10_000n) throw new Error('slippageBps must be < 10_000')
 
-    const slip = (v: bigint) => (v * (10_000n - slippageBps)) / 10_000n
+    if (opts.venueQuoteOut <= 0n) {
+      throw new Error('venueQuoteOut must be positive — no external venue quote to floor against')
+    }
+    if (opts.minCloseOut <= 0n) {
+      throw new Error(
+        'minCloseOut must be positive — the close floor is denominated in the debt currency ' +
+          '(USDC, 6dp) and cannot be derived from a tokenOut quote',
+      )
+    }
 
-    // The open output is what the venue quotes; close nets the protocol toll
-    // again, and the venue leg pays the pool fee on the unwind.
+    const slip = (v: bigint) => {
+      const floored = (v * (10_000n - slippageBps)) / 10_000n
+      return floored === 0n ? 1n : floored
+    }
+
+    // `minOpenOut` is the one floor genuinely derived from `eswapOut`: the open
+    // really does have to deliver that much collateral.
     const minOpenOut = slip(quote.eswapOut)
-    const minCloseOut = slip((quote.eswapOut * 9_900n) / 10_000n)
-    const minVenueOut = slip(quote.referenceOut)
+    // `minCloseOut` and `minVenueOut` are caller-supplied USDC figures.
+    const minCloseOut = opts.minCloseOut
+    const minVenueOut = slip(opts.venueQuoteOut)
 
     for (const [label, value] of [
       ['minOpenOut', minOpenOut],
@@ -316,6 +492,12 @@ export class EswapExecutor {
 
     return {
       flashAsset: opts.market.tokenIn,
+      // MUST equal `marginIn`: the contract reverts `MarginMustEqualFlashAmount`
+      // otherwise. The flash funds the trader's equity only — the leveraged
+      // borrow is on-balance-sheet hook debt settled from the unwind at close,
+      // so it is not an upfront cash requirement and must not be added here.
+      // Sizing the flash to the notional would fund the position twice over and
+      // leave the extra principal stranded.
       flashAmount: quote.marginIn,
       tokenOut: opts.market.tokenOut,
       feeTier: opts.market.adapterFeeTier,
@@ -337,6 +519,51 @@ export class EswapExecutor {
       minVenueOut,
       minProfit: opts.minProfit ?? 1n,
       deadline: BigInt(Math.floor(Date.now() / 1000) + (opts.deadlineSeconds ?? 120)),
+    }
+  }
+
+/**
+   * Ask the contract what a plan would actually do, without broadcasting.
+   *
+   * This is the only trustworthy profitability signal available: the contract
+   * runs the real callbacks and reports what it measured. An off-chain venue
+   * quote is an estimate of the same thing and will disagree whenever the pool
+   * moves between the quote and the inclusion.
+   *
+   * `profit <= 0` and `touchedStandardPool != 0` are both hard refusals. A plan
+   * that unwinds through the pool the hook fills through is a wash trade by
+   * construction and can never clear its cost floor, no matter how the quote
+   * looks.
+   */
+  async dryRun(plan: ArbPlan): Promise<DryRunResult | { refusal: string }> {
+    if (!this.isConfigured) return { refusal: 'executor address is not configured' }
+    const account = this.walletClient.account
+    if (!account) return { refusal: 'wallet client has no account' }
+    try {
+      const { result } = await this.publicClient.simulateContract({
+        address: this.address,
+        abi: EXECUTOR_ABI,
+        functionName: 'dryRunArbitrage',
+        args: [toPlanTuple(plan)],
+        account,
+      })
+      const [venueOut, repay, touchedStandardPool, profit] = result as [
+        bigint,
+        bigint,
+        bigint,
+        bigint,
+      ]
+      if (touchedStandardPool !== 0n) {
+        return {
+          refusal:
+            'plan unwinds through the same standard pool the hook fills through — ' +
+            'structurally loss-making, refusing',
+        }
+      }
+      if (profit <= 0n) return { refusal: `contract-measured profit is ${profit} (needs > 0)` }
+      return { venueOut, repay, touchedStandardPool, profit }
+    } catch (err) {
+      return { refusal: err instanceof Error ? err.message : String(err) }
     }
   }
 
@@ -425,7 +652,7 @@ export class EswapExecutor {
    * motivated, and its `HealthCheckPassed` event is the marker telemetry uses to
    * exclude canary flow from venue volume.
    */
-  async runHealthCheck(marginIn: bigint, leverage: number): Promise<SubmissionResult> {
+  async canaryExecute(marginIn: bigint, leverage: number): Promise<SubmissionResult> {
     if (!this.isConfigured) return refuse('executor address is not configured')
     if (marginIn <= 0n) return refuse('marginIn must be positive')
 
@@ -437,7 +664,7 @@ export class EswapExecutor {
     try {
       const request = encodeFunctionData({
         abi: EXECUTOR_ABI,
-        functionName: 'healthCheck',
+        functionName: 'canaryExecute',
         args: [marginIn, leverage],
       })
 
@@ -447,12 +674,12 @@ export class EswapExecutor {
           account,
           address: this.address,
           abi: EXECUTOR_ABI,
-          functionName: 'healthCheck',
+          functionName: 'canaryExecute',
           args: [marginIn, leverage],
         })
         gasEstimate = BigInt(sim.request?.gas ?? 0)
       } catch (err) {
-        return refuse(`health-check simulation reverted: ${short(err)}`)
+        return refuse(`canary simulation reverted: ${short(err)}`)
       }
 
       if (!this.allowBroadcast) {
@@ -477,7 +704,7 @@ export class EswapExecutor {
         account,
         address: this.address,
         abi: EXECUTOR_ABI,
-        functionName: 'healthCheck',
+        functionName: 'canaryExecute',
         args: [marginIn, leverage],
         nonce: this.nonce++,
       })
@@ -532,6 +759,46 @@ function toPlanArg(plan: ArbPlan) {
     minProfit: plan.minProfit,
     deadline: plan.deadline,
   }
+}
+
+/**
+ * The same plan as an ORDERED TUPLE, for ABI entries declared positionally.
+ *
+ * `dryRunArbitrage` is declared without component names precisely because
+ * viem cannot resolve the nested `hookPoolKey` from a named object. Positional
+ * components make viem expect an array, so the plan has to be flattened here.
+ *
+ * The order MUST match the struct exactly, including the nested
+ * `hookPoolKey` expanding into five flat elements. Getting this wrong does not
+ * throw: it silently produces a well-formed call with the wrong arguments, which
+ * is why `toPlanArg` (named, for `executeArbitrage`) and this function are kept
+ * adjacent and covered together.
+ */
+function toPlanTuple(plan: ArbPlan) {
+  return [
+    plan.flashAsset,
+    plan.flashAmount,
+    plan.tokenOut,
+    plan.feeTier,
+    plan.leverage,
+    plan.marginIn,
+    plan.minOpenOut,
+    plan.minCloseOut,
+    plan.hook,
+    [
+      plan.hookPoolKey.currency0,
+      plan.hookPoolKey.currency1,
+      plan.hookPoolKey.feeTier,
+      plan.hookPoolKey.tickSpacing,
+      plan.hookPoolKey.hooks,
+    ],
+    plan.solver,
+    plan.venue,
+    plan.venueData,
+    plan.minVenueOut,
+    plan.minProfit,
+    plan.deadline,
+  ] as const
 }
 
 /** Placeholder quote so the canary result has the same shape as a trade result. */

@@ -132,6 +132,25 @@ export interface Quote {
   blockNumber: bigint
 }
 
+/**
+ * A `Quote` extended with the close leg.
+ *
+ * The close leg is kept in its own fields rather than folded back into
+ * `eswapOut`, so a round-trip quote can never be mistaken for an open quote.
+ */
+export interface RoundTripQuote extends Quote {
+  /** Cost of both legs plus the flash premium, in bps of the notional. */
+  roundTripCostBps: number
+  /** The OPEN leg's output, `tokenOut` base units. Same value as `eswapOut`. */
+  openOut: bigint
+  /** The CLOSE leg's output, `tokenOut` base units. */
+  closeOut: bigint
+  /** Flash repayment including premium, normalised to 18-decimal wad space. */
+  repayInWad: bigint
+  /** `closeOut - repay`, in wad space. Negative = the round trip loses money. */
+  roundTripNetWad: bigint
+}
+
 export interface QuoteOptions {
   /** Minimum net edge, in bps of the reference output. Default 20 bps. */
   minEdgeBps?: number
@@ -151,6 +170,33 @@ function pow10(n: number): bigint {
  */
 export function toWad(amount: bigint, decimals: number): bigint {
   return (amount * pow10(18)) / pow10(decimals)
+}
+
+/**
+ * Convert a wad (18-decimal) amount down into `decimals` base units.
+ *
+ * The inverse of `toWad`. Needed whenever a value computed in wad space has to
+ * be compared against a raw ERC-20 balance: a floor that is right in wad space
+ * but 1e12x too large in 6-decimal USDC space can never bind, which is worse
+ * than having no floor at all because it looks protected.
+ *
+ * Rounds DOWN, so the result never overstates what a repayment can cover.
+ */
+export function fromWad(amount: bigint, decimals: number): bigint {
+  if (decimals > 18) throw new RangeError(`decimals must be <= 18, got ${decimals}`)
+  return (amount * pow10(decimals)) / pow10(18)
+}
+
+/**
+ * Take `bps` off an amount, rounding DOWN.
+ *
+ * A venue fee is already netted out of its own quote, so subtracting it from the
+ * quote output is how the fee is isolated for reporting. Rounding down keeps the
+ * EV arithmetic conservative: an under-estimate of cost can never manufacture a
+ * profitable-looking round trip.
+ */
+export function applyBpsDown(amount: bigint, bps: number): bigint {
+  return (amount * BigInt(Math.max(0, 10_000 - Math.round(bps)))) / 10_000n
 }
 
 /**
@@ -221,7 +267,14 @@ export class EswapQuoter {
     const notionalIn = marginIn * BigInt(leverage)
     const blockNumber = await this.client.getBlockNumber()
 
-    // The protocol signs its input as a negative int256 (exact input).
+    // Both legs must describe the SAME trade for the delta to mean anything.
+    //
+    // The protocol quoter signs its input as a negative int256 margin (exact
+    // input). `EswapRouter.quoteExactInput` applies `abs(amountSpecified) *
+    // leverage` internally, so the router must be given the MARGIN as well -
+    // passing `notionalIn` here would scale the reference by leverage a second
+    // time and inflate it by `leverage`x, which reads as a large fake negative
+    // edge on every quote.
     const amountSpecified = -BigInt(asInt256(marginIn))
 
     const [eswapOut, rawReferenceOut] = await Promise.all([
@@ -235,7 +288,7 @@ export class EswapQuoter {
         address: this.routerAddress,
         abi: ROUTER_ABI,
         functionName: 'quoteExactInput',
-        args: [toTuple(market.hookPool), isCurrency0(market, market.tokenIn), notionalIn, leverage],
+        args: [toTuple(market.hookPool), isCurrency0(market, market.tokenIn), amountSpecified, leverage],
       }),
     ])
 
@@ -269,36 +322,52 @@ export class EswapQuoter {
     }
   }
 
-  /**
-   * Price a full round trip: open then close, both through ESWAP.
-   *
-   * A round trip is always charged twice, so this is the number that decides
-   * whether the atomic executor could ever clear its profit floor.
-   */
-  async quoteRoundTrip(
-    req: QuoteRequest,
-    opts: QuoteOptions = {},
-  ): Promise<Quote & { roundTripCostBps: number }> {
+/**
+ * Price a full round trip: open then close, both through ESWAP.
+ *
+ * A round trip is always charged twice, so this is the number that decides
+ * whether the atomic executor could ever clear its profit floor.
+ *
+ * UNIT SAFETY: `closeOut` is in `tokenOut` base units (ETH, 18dp) while the
+ * flash repayment is in `tokenIn` base units (USDC, 6dp). Subtracting them
+ * directly compares ~1e18-scale wei against ~1e6-scale micro-dollars and
+ * produces a meaningless, wildly positive or negative number. Both legs are
+ * normalised to 18-decimal wad space first.
+ *
+ * `eswapOut` is deliberately NOT overwritten. It previously was, which meant a
+ * round-trip quote handed to `buildPlan` would floor the OPEN off the CLOSE
+ * output — a floor derived from the wrong leg, silently. The two legs are now
+ * separate fields and `eswapOut` keeps its one meaning everywhere.
+ */
+async quoteRoundTrip(req: QuoteRequest, opts: QuoteOptions = {}): Promise<RoundTripQuote> {
+    const market = req.market ?? this.market
     const open = await this.quote(req, opts)
     const roundTripCostBps =
-      COSTS.protocolFeeBps * 2 + COSTS.standardPoolFeeBps * 2 + COSTS.maxFlashPremiumBps
+      COSTS.protocolFeeBps * 2 + COSTS.standardPoolFeeBps * 2 + COSTS.actualFlashPremiumBps
 
     // Closing returns collateral minus the solver's principal, so the trader's
     // recoverable value is strictly less than the open output.
     const closeOut = (open.eswapOut * BigInt(10_000 - COSTS.protocolFeeBps)) / 10_000n
-    const repay = open.marginIn * BigInt(10_000 + COSTS.maxFlashPremiumBps) / 10_000n
-    const roundTripNet = closeOut - repay * BigInt(1) // same base units (both in tokenIn)
+    const owed = (open.marginIn * BigInt(10_000 + COSTS.actualFlashPremiumBps)) / 10_000n
+
+    // Normalise both sides to 18 decimals before comparing.
+    const closeWad = toWad(closeOut, market.decimalsOut)
+    const owedWad = toWad(owed, market.decimalsIn)
+    const roundTripNet = closeWad - owedWad
     const profitable = roundTripNet > 0n
 
     return {
       ...open,
       roundTripCostBps,
-      eswapOut: closeOut,
+      repayInWad: owedWad,
+      openOut: open.eswapOut,
+      closeOut,
+      roundTripNetWad: roundTripNet,
       netEdgeOut: roundTripNet,
       profitable,
       verdict: profitable
-        ? `round trip clears by ${roundTripNet} base units`
-        : `round trip loses ${-roundTripNet} base units before gas; cost floor ${roundTripCostBps.toFixed(2)}bps`,
+        ? `round trip clears by ${roundTripNet} wad units`
+        : `round trip loses ${-roundTripNet} wad units before gas; cost floor ${roundTripCostBps.toFixed(2)}bps`,
     }
   }
 }

@@ -43,6 +43,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 import {PoolKey} from "../src/v4/types/PoolKey.sol";
+import {Currency} from "../src/v4/types/Currency.sol";
 import {PoolId, PoolIdLibrary} from "../src/v4/types/PoolId.sol";
 
 // ─── Minimal interfaces (declared locally to keep the deployed bytecode small) ───
@@ -96,6 +97,40 @@ interface IFlashLoanSimpleReceiver {
     ) external returns (bool);
 }
 
+/// @dev Mirrors Balancer V2 `IVault.flashLoan` (the entrypoint) and
+///      `IFlashLoanRecipient.receiveFlashLoan` (the callback).
+///      The Balancer Vault is a canonical singleton deployed at the same address
+///      on every network, so no per-chain injection is needed for it.
+interface IBalancerVault {
+    function flashLoan(
+        address recipient,
+        address[] calldata tokens,
+        uint256[] calldata amounts,
+        bytes calldata userData
+    ) external payable;
+}
+
+interface IBalancerFlashLoanRecipient {
+    function receiveFlashLoan(
+        IERC20[] calldata tokens,
+        uint256[] calldata amounts,
+        uint256[] calldata feeAmounts,
+        bytes calldata userData
+    ) external;
+}
+
+/// @dev Read-only slice of `EswapLeverageQuoter`, used to derive on-chain
+///      slippage floors for the canary.
+interface IEswapLeverageQuoter {
+    function quoteExactInputSingleWithLeverage(
+        address tokenIn,
+        address tokenOut,
+        uint24 fee,
+        uint8 leverage,
+        int256 amountIn
+    ) external view returns (int128 amountOut);
+}
+
 /// @dev Owner-whitelisted external venue. `data` is opaque calldata so the same
 ///      executor can drive 0x / ParaSwap / Augustus / a direct V4 pool leg.
 interface IExternalVenue {
@@ -129,18 +164,32 @@ interface IEswapHookView {
     function totalCollateralUSDRunning() external view returns (uint256);
 }
 
-contract EswapArbitrageExecutor is IFlashLoanSimpleReceiver, Ownable, ReentrancyGuard {
+contract EswapArbitrageExecutor is IFlashLoanSimpleReceiver, IBalancerFlashLoanRecipient, Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
     using PoolIdLibrary for PoolKey;
 
+    // ─── Flash funding source ─────────────────────────────────────────────
+
+    /// @notice Which flash-loan entrypoint `flashProvider` implements.
+    enum FlashMode {
+        /// Aave V3 shaped `flashLoanSimple` / `executeOperation`.
+        AaveSimple,
+        /// Balancer V2 shaped `flashLoan` / `receiveFlashLoan`.
+        Balancer
+    }
+
     // ─── Immutable wiring ──────────────────────────────────────────────────
 
-    /// @dev Aave V3-style pool used only as the atomic funding source.
+    /// @dev Atomic funding source. Balancer's Vault is preferred on Unichain
+    ///      because its V2 flash loans carry a zero premium, which removes the
+    ///      premium leg from the round trip's cost floor entirely.
     IFlashLoanProvider public immutable flashProvider;
     /// @dev `EswapLeverageAdapter` — the only way to open a leveraged position.
     IEswapLeverageAdapter public immutable adapter;
     /// @dev `EswapRouter` — the only way to close a position.
     IEswapRouter public immutable router;
+    /// @dev Which callback shape `flashProvider` speaks.
+    FlashMode public immutable flashMode;
 
     // ─── Owner configuration ───────────────────────────────────────────────
 
@@ -205,9 +254,13 @@ contract EswapArbitrageExecutor is IFlashLoanSimpleReceiver, Ownable, Reentrancy
     error LeverageOutOfRange();
     error VenueNotAllowed();
     error MarginMustEqualFlashAmount();
+    error QuoteMarginMismatch();
     error FlashAmountTooLarge();
     error PremiumTooHigh();
     error UnauthorizedCallback();
+    error MultiAssetFlashUnsupported();
+    error SlippageFloorTooHigh();
+    error NativeRefundFailed();
     error PlanAssetMismatch();
     error PositionNotFlat();
     error InvariantDrift();
@@ -218,6 +271,7 @@ contract EswapArbitrageExecutor is IFlashLoanSimpleReceiver, Ownable, Reentrancy
 
     event VenueSet(address indexed venue, bool allowed);
     event LimitsSet(uint256 maxFlashAmount, uint8 maxLeverage, uint256 maxPremiumBps);
+    event SlippageSet(uint256 openSlippageBps, uint256 closeSlippageBps);
 
     /// @notice Emitted once per successfully settled round trip.
     event ArbitrageExecuted(
@@ -245,7 +299,8 @@ contract EswapArbitrageExecutor is IFlashLoanSimpleReceiver, Ownable, Reentrancy
         IEswapRouter _router,
         uint256 _maxFlashAmount,
         uint8 _maxLeverage,
-        uint256 _maxPremiumBps
+        uint256 _maxPremiumBps,
+        FlashMode _flashMode
     ) Ownable(msg.sender) {
         if (
             address(_flashProvider) == address(0) || address(_adapter) == address(0)
@@ -258,12 +313,24 @@ contract EswapArbitrageExecutor is IFlashLoanSimpleReceiver, Ownable, Reentrancy
         maxFlashAmount = _maxFlashAmount;
         maxLeverage = _maxLeverage;
         maxPremiumBps = _maxPremiumBps;
+        flashMode = _flashMode;
     }
 
     /// @dev Accept native proceeds. Closing a native-collateral position (a LONG
-    ///      on ETH/USDC) settles the trader's payout in ETH, and this contract is
-    ///      the trader.
-    receive() external payable {}
+    ///      on ETH/USDC) settles the trader's payout in ETH via the hook's
+    ///      `NativeTokens.transfer`, so this contract is the trader and must be
+    ///      payable. The router is also allowed because it refunds excess native
+    ///      attached to a leveraged open.
+    ///
+    ///      Any other sender is bounced to a refund path instead of being silently
+    ///      absorbed: plain `payable receive() {}` would let anyone dust this
+    ///      contract and force the owner to sweep it manually. Re-bouncing removes
+    ///      that griefing vector entirely.
+    receive() external payable {
+        if (msg.sender == address(router) || msg.sender == _canaryHook) return;
+        (bool ok,) = payable(msg.sender).call{value: msg.value}("");
+        if (!ok) revert NativeRefundFailed();
+    }
 
     // ─── Admin ─────────────────────────────────────────────────────────────
 
@@ -345,13 +412,6 @@ contract EswapArbitrageExecutor is IFlashLoanSimpleReceiver, Ownable, Reentrancy
         // Snapshot the hook aggregates so the callback can prove they were restored.
         (uint256 oiBefore, uint256 collateralBefore) = _aggregates(plan.hook);
 
-        address[] memory assets = new address[](1);
-        uint256[] memory amounts = new uint256[](1);
-        uint256[] memory modes = new uint256[](1);
-        assets[0] = plan.flashAsset;
-        amounts[0] = plan.flashAmount;
-        modes[0] = 1; // request the provider's real premium so the ceiling is exercised
-
         // The router pulls the margin leg from this contract, so the router (not
         // the adapter) needs the approval. It is reset inside the callback, so no
         // allowance survives the transaction even on the success path.
@@ -363,15 +423,28 @@ contract EswapArbitrageExecutor is IFlashLoanSimpleReceiver, Ownable, Reentrancy
         _lastClosed = 0;
         _lastVenueOut = 0;
 
-        flashProvider.flashLoanSimple(
-            address(this),
-            assets,
-            amounts,
-            modes,
-            address(this),
-            abi.encode(plan, oiBefore, collateralBefore),
-            0
-        );
+        bytes memory params = abi.encode(plan, oiBefore, collateralBefore);
+
+        if (flashMode == FlashMode.Balancer) {
+            address[] memory tokens = new address[](1);
+            uint256[] memory amounts = new uint256[](1);
+            tokens[0] = plan.flashAsset;
+            amounts[0] = plan.flashAmount;
+            IBalancerVault(payable(address(flashProvider))).flashLoan(address(this), tokens, amounts, params);
+        } else {
+            address[] memory assets = new address[](1);
+            uint256[] memory amounts = new uint256[](1);
+            uint256[] memory modes = new uint256[](1);
+            assets[0] = plan.flashAsset;
+            amounts[0] = plan.flashAmount;
+            // Ask for the provider's real premium so `maxPremiumBps` is exercised
+            // against an actual figure rather than an assumed zero.
+            modes[0] = 1;
+
+            flashProvider.flashLoanSimple(
+                address(this), assets, amounts, modes, address(this), params, 0
+            );
+        }
 
         if (enforce) {
             // Defensive sweep: the callback already forwarded the trade's residual,
@@ -380,6 +453,38 @@ contract EswapArbitrageExecutor is IFlashLoanSimpleReceiver, Ownable, Reentrancy
             uint256 dust = IERC20(plan.flashAsset).balanceOf(address(this));
             if (dust > 0) IERC20(plan.flashAsset).safeTransfer(owner(), dust);
         }
+    }
+
+    /**
+     * @notice Balancer V2 `flashLoan` callback.
+     * @dev Balancer's callback is a *synchronous* handshake: the Vault has already
+     *      transferred `amounts` in and will check the balance plus `feeAmounts`
+     *      when this returns. There is no `initiator` argument, so authorisation
+     *      rests entirely on `msg.sender` being the Vault.
+     *
+     *      Balancer V2 charges no flash premium, so `feeAmounts[0]` is expected to
+     *      be zero. The premium ceiling is still enforced rather than assumed, so a
+     *      premium-charging variant of the Vault cannot sneak past the limit.
+     */
+    function receiveFlashLoan(
+        IERC20[] calldata tokens,
+        uint256[] calldata amounts,
+        uint256[] calldata feeAmounts,
+        bytes calldata params
+    ) external {
+        if (msg.sender != address(flashProvider)) revert UnauthorizedCallback();
+        if (tokens.length != 1 || amounts.length != 1 || feeAmounts.length != 1) {
+            revert MultiAssetFlashUnsupported();
+        }
+
+        address asset = address(tokens[0]);
+        uint256 amount = amounts[0];
+        uint256 premium = feeAmounts[0];
+
+        (ArbPlan memory plan, uint256 oiBefore, uint256 collateralBefore) =
+            abi.decode(params, (ArbPlan, uint256, uint256));
+
+        _arbLoop(plan, asset, amount, premium, oiBefore, collateralBefore);
     }
 
     /**
@@ -395,32 +500,56 @@ contract EswapArbitrageExecutor is IFlashLoanSimpleReceiver, Ownable, Reentrancy
         address initiator,
         bytes calldata params
     ) external returns (bool) {
-// `msg.sender` is the pool that lent the funds and `initiator` is the borrower,
-  // which is this contract. Aave passes the borrower here, so a callback claiming
-  // a different initiator is spoofed and must be rejected.
-  if (msg.sender != address(flashProvider) || initiator != address(this)) {
-    revert UnauthorizedCallback();
-  }
+        // `msg.sender` is the pool that lent the funds and `initiator` is the
+        // borrower, which is this contract. Aave passes the borrower here, so a
+        // callback claiming a different initiator is spoofed and must be rejected.
+        if (msg.sender != address(flashProvider) || initiator != address(this)) {
+            revert UnauthorizedCallback();
+        }
 
         (ArbPlan memory plan, uint256 oiBefore, uint256 collateralBefore) =
             abi.decode(params, (ArbPlan, uint256, uint256));
 
-if (plan.flashAsset != asset || plan.flashAmount != amount) revert PlanAssetMismatch();
-    // `premium` is an absolute token amount, so compare it to the borrowed
-    // size rather than to the raw amount. Revert when
-    // premium/amount > maxPremiumBps/10_000.
-    if (premium * 10_000 > amount * maxPremiumBps) revert PremiumTooHigh();
+        _arbLoop(plan, asset, amount, premium, oiBefore, collateralBefore);
 
-    // Snapshot both balances the round trip touches. Everything below is then
-    // measured as a *delta*, so any pre-existing inventory held by this contract
-    // (e.g. the canary's leftover collateral) is never swapped by the venue and
-    // never reported as this trade's profit.
-    uint256 assetBaseline = IERC20(asset).balanceOf(address(this));
-    uint256 collateralBaseline = _balanceOf(plan.tokenOut);
+        return true;
+    }
+
+    /**
+     * @dev The provider-agnostic round trip. Both flash entrypoints land here so
+     *      the economics, invariants and approval hygiene are defined exactly
+     *      once and cannot drift between Balancer and Aave.
+     */
+    function _arbLoop(
+        ArbPlan memory plan,
+        address asset,
+        uint256 amount,
+        uint256 premium,
+        uint256 oiBefore,
+        uint256 collateralBefore
+    ) internal {
+        if (plan.flashAsset != asset || plan.flashAmount != amount) revert PlanAssetMismatch();
+        // `premium` is an absolute token amount, so compare it to the borrowed
+        // size rather than to the raw amount. Revert when
+        // premium/amount > maxPremiumBps/10_000.
+        if (premium * 10_000 > amount * maxPremiumBps) revert PremiumTooHigh();
+
+        // Snapshot both balances the round trip touches. Everything below is then
+        // measured as a *delta*, so any pre-existing inventory held by this contract
+        // (e.g. the canary's leftover collateral) is never swapped by the venue and
+        // never reported as this trade's profit.
+        uint256 assetBaseline = IERC20(asset).balanceOf(address(this));
+        uint256 collatBaseline = _balanceOf(plan.tokenOut);
 
         // ── Leg 1: open the leveraged position (margin comes from the flash loan)
         uint256 opened = adapter.exactInputSingleWithLeverage(
-            plan.flashAsset, plan.tokenOut, plan.feeTier, plan.leverage, plan.marginIn, plan.minOpenOut, address(this)
+            plan.flashAsset,
+            plan.tokenOut,
+            plan.feeTier,
+            plan.leverage,
+            plan.marginIn,
+            plan.minOpenOut,
+            address(this)
         );
 
         // ── Leg 2: close it in the SAME transaction. `msg.sender == trader` holds
@@ -428,12 +557,19 @@ if (plan.flashAsset != asset || plan.flashAmount != amount) revert PlanAssetMism
         router.closePosition(plan.hook, plan.hookPoolKey, address(this), plan.solver, plan.minCloseOut);
 
         // ── Leg 3: unwind the recovered collateral back into the flash asset
+        //
+        // The venue PULLS its input: ERC-20s are approved, and native collateral
+        // is sent by the venue itself inside `swap`. The executor deliberately
+        // does NOT pre-fund native here. It used to push ETH to the venue and
+        // then let the venue pull the same amount again, so the venue received
+        // double the collateral and stranded the surplus — invisible in the round
+        // trip's P&L (the extra sat in the venue) but wrong, and it would have
+        // become a real accounting loss the moment the venue's balance was swept
+        // or rescued.
         uint256 venueOut;
-        uint256 collateralInHand = _balanceOf(plan.tokenOut) - collateralBaseline;
+        uint256 collateralInHand = _balanceOf(plan.tokenOut) - collatBaseline;
         if (collateralInHand > 0) {
-            if (plan.tokenOut == address(0)) {
-                _pushNative(plan.venue, collateralInHand);
-            } else {
+            if (plan.tokenOut != address(0)) {
                 IERC20(plan.tokenOut).forceApprove(plan.venue, collateralInHand);
             }
             venueOut = IExternalVenue(plan.venue).swap(
@@ -485,8 +621,6 @@ if (plan.flashAsset != asset || plan.flashAmount != amount) revert PlanAssetMism
             residual,
             _enforceProfit
         );
-
-        return true;
     }
 
     // ─── Owner-only micro canary ───────────────────────────────────────────
@@ -502,7 +636,12 @@ if (plan.flashAsset != asset || plan.flashAmount != amount) revert PlanAssetMism
      *      This is a diagnostic, not a trading strategy: at $1-$5 the round trip
      *      is always P&L-negative, so it can never be economically motivated.
      */
-    function healthCheck(uint256 marginIn, uint8 leverage) external onlyOwner nonReentrant returns (uint256 opened, uint256 closed) {
+    function canaryExecute(uint256 marginIn, uint8 leverage)
+        external
+        onlyOwner
+        nonReentrant
+        returns (uint256 opened, uint256 closed)
+    {
         if (marginIn == 0) revert ZeroAmount();
         if (leverage == 0 || leverage > maxLeverage) revert LeverageOutOfRange();
 
@@ -521,14 +660,48 @@ if (plan.flashAsset != asset || plan.flashAmount != amount) revert PlanAssetMism
         if (asset == collateral) revert PlanAssetMismatch();
         if (IERC20(asset).balanceOf(address(this)) < marginIn) revert ZeroAmount();
 
+        // The open floor is quoted for `_canaryQuoteMargin`, because that is the
+        // notional the quoter was configured with. Running the canary at any
+        // other margin would apply a floor derived from a different size, so the
+        // floor would be simultaneously too tight (reverting honest runs) and too
+        // loose (passing bad ones). The canary is a fixed-size probe by design;
+        // sizing it is the caller's job, and it must match what was quoted.
+        if (marginIn != _canaryQuoteMargin) revert QuoteMarginMismatch();
+
         (uint256 oiBefore, uint256 collateralBefore) = _aggregates(hook);
 
+        // The close floor is denominated in the DEBT currency, which
+        // `setCanaryRoute` has already proven is `asset`. Re-derive the open floor
+        // from the SAME margin that is being executed so the two can never drift.
+        uint256 openFloor = _canaryOpenFloor(leverage);
+        uint256 closeFloor = _canaryCloseFloor(marginIn);
+
+        uint256 assetBefore = IERC20(asset).balanceOf(address(this));
+
         IERC20(asset).forceApprove(address(router), marginIn);
-        opened = adapter.exactInputSingleWithLeverage(asset, collateral, feeTier, leverage, marginIn, 0, address(this));
-        router.closePosition(hook, key, address(this), solver, 0);
+        opened = adapter.exactInputSingleWithLeverage(
+            asset, collateral, feeTier, leverage, marginIn, openFloor, address(this)
+        );
+        // Balance immediately after the open: the margin leg is fully deployed, so
+        // whatever the open did not consume is the basis for measuring the close.
+        uint256 assetAfterOpen = IERC20(asset).balanceOf(address(this));
+        router.closePosition(hook, key, address(this), solver, closeFloor);
         IERC20(asset).forceApprove(address(router), 0);
 
-        closed = _balanceOf(collateral);
+        // `closed` is the amount the CLOSE returned, in the debt currency (asset).
+        //
+        // It is deliberately NOT `_balanceOf(collateral)`. The collateral was spent
+        // on the open and reconverted by the close, so its ending balance is ~0 on
+        // a perfectly healthy round trip — reporting it made every successful
+        // canary look like it recovered nothing, and made a real balance left over
+        // from an earlier trade look like a payout. Measuring the debt-currency
+        // delta instead puts `closed` in the same units as `closeFloor`, so the
+        // number is directly comparable to the bound it was required to clear.
+        uint256 assetAfterClose = IERC20(asset).balanceOf(address(this));
+        closed = assetAfterClose > assetAfterOpen ? assetAfterClose - assetAfterOpen : 0;
+        // Net residual across the whole round trip, kept for telemetry: negative
+        // is expected and correct, since a round trip always pays fees twice.
+        _lastPnl = int256(assetAfterClose) - int256(assetBefore);
 
         _assertFlat(hook, key);
         _assertAggregates(hook, oiBefore, collateralBefore);
@@ -536,23 +709,130 @@ if (plan.flashAsset != asset || plan.flashAmount != amount) revert PlanAssetMism
         emit HealthCheckPassed(marginIn, leverage, opened, closed);
     }
 
-    /// @notice Point `healthCheck` at a specific pool/solver. Owner-only; the
+    /**
+     * @notice Slippage floor, in bps, applied to the canary's leveraged open.
+     * @dev Default 50 bps (0.5%). Must be strictly below 10_000; a floor that
+     *      rounds a quote to zero would silently disable the protection.
+     */
+    uint256 public canarySlippageBps = 50;
+
+    /// @notice Slippage floor, in bps, applied to the canary's close leg.
+    uint256 public canaryCloseSlippageBps = 50;
+
+    function setCanarySlippageBps(uint256 openBps, uint256 closeBps) external onlyOwner {
+        if (openBps == 0 || closeBps == 0) revert ZeroAmount();
+        if (openBps >= 10_000 || closeBps >= 10_000) revert SlippageFloorTooHigh();
+        canarySlippageBps = openBps;
+        canaryCloseSlippageBps = closeBps;
+        emit SlippageSet(openBps, closeBps);
+    }
+
+    /**
+     * @notice Apply a bps discount to an expected amount, with a hard floor of 1.
+     * @dev The `max(x, 1)` guard is what makes these floors *non-zero*: for a dust
+     *      notional the bps discount can round to 0, and a 0 floor would be worse
+     *      than no floor at all because it looks protected while enforcing
+     *      nothing.
+     */
+    function minOutWithSlippage(uint256 expectedOut, uint256 slippageBps) public pure returns (uint256) {
+        if (slippageBps >= 10_000) revert SlippageFloorTooHigh();
+        uint256 floored = (expectedOut * (10_000 - slippageBps)) / 10_000;
+        return floored == 0 ? 1 : floored;
+    }
+
+    /// @dev Quoted leveraged open for the canary route, floored by `canarySlippageBps`.
+    ///      Quoted at the ACTUAL leverage being executed so the floor tracks the
+    ///      real notional. Quoting at 1x and comparing against a leveraged open
+    ///      leaves roughly `leverage - 1` of the output unfloored.
+    function _canaryOpenFloor(uint8 leverage) internal view returns (uint256) {
+        return minOutWithSlippage(_canaryQuote(leverage), canarySlippageBps);
+    }
+
+    /// @dev Floor for the canary's close leg, denominated in the DEBT currency.
+    ///
+    ///      `closePosition` pays the trader's equity in the debt currency, so the
+    ///      floor is the margin the trader put in. At leverage L the position is
+    ///      worth ~L x margin gross and ~L-1 x margin owed, leaving the trader's
+    ///      equity at ~margin. Flooring that at `canaryCloseSlippageBps` off
+    ///      asserts "the round trip returned at least (1 - bps) of the equity",
+    ///      which is both unit-correct and the economically meaningful invariant:
+    ///      it fails on adverse execution, pool-fee drift, or a leak in the
+    ///      hook's unwind accounting.
+    function _canaryCloseFloor(uint256 marginIn) internal view returns (uint256) {
+        return minOutWithSlippage(marginIn, canaryCloseSlippageBps);
+    }
+
+    /// @dev On-chain quote for the canary, taken INSIDE the same transaction as the
+    ///      trade so the floor is derived from live pool state rather than a
+    ///      stale off-chain number.
+    function _canaryQuote(uint8 leverage) internal view returns (uint256) {
+        if (address(_canaryQuoter) == address(0)) revert ZeroAddress();
+        // The quoter takes an `int256` margin where a negative value means exact
+        // input, so the magnitude is converted rather than reinterpreted.
+        int256 signedMargin = int256(_canaryQuoteMargin);
+        if (signedMargin < 0) signedMargin = -signedMargin;
+        int128 quoted = _canaryQuoter.quoteExactInputSingleWithLeverage(
+            _canaryAsset, _canaryCollateral, _canaryFee, leverage, signedMargin
+        );
+        uint256 amountOut = uint256(uint128(quoted));
+        if (amountOut == 0) revert ZeroAmount();
+        return amountOut;
+    }
+
+    /// @notice Point `canaryExecute` at a specific pool/solver. Owner-only; the
     ///         canary is a diagnostic so it must never be left pointing at a
     ///         market the owner did not intend to exercise.
+    ///
+    ///         `_quoteMargin` fixes the notional used for the on-chain slippage
+    ///         floors so the quote is stable and does not depend on the caller.
     function setCanaryRoute(
         address asset,
         address collateral,
         address hook,
         PoolKey calldata key,
         address solver,
-        uint24 feeTier
+        uint24 feeTier,
+        IEswapLeverageQuoter quoter,
+        uint256 quoteMargin
     ) external onlyOwner {
+        if (quoter == IEswapLeverageQuoter(address(0)) || quoteMargin == 0) revert ZeroAmount();
+        _assertCanaryCurrencies(key, asset, collateral);
         _canaryAsset = asset;
         _canaryCollateral = collateral;
         _canaryHook = hook;
         _canaryKey = key;
         _canarySolver = solver;
         _canaryFee = feeTier;
+        _canaryQuoter = quoter;
+        _canaryQuoteMargin = quoteMargin;
+    }
+
+    /**
+     * @dev Require the canary pool key's two currencies to be exactly the margin
+     *      asset and the collateral. This is what pins the close leg's DEBT
+     *      currency to `asset`, which is the assumption the close floor depends
+     *      on: the hook settles `netToTrader` in the pool currency opposite the
+     *      position's collateral.
+     *
+     *      Without this check a route could be configured whose debt currency is
+     *      neither `asset` nor `collateral`, and `_canaryCloseFloor` would then
+     *      compare an asset-denominated equity figure against a payout in a third
+     *      token. That either reverts every canary or — far worse — binds a floor
+     *      in the wrong unit and passes while protecting nothing. It is a
+     *      configuration-time invariant precisely because it cannot be recovered
+     *      from inside the callback.
+     *
+     *      Native collateral is `address(0)`, so it is matched as a currency rather
+     *      than as an ERC-20.
+     */
+    function _assertCanaryCurrencies(PoolKey calldata key, address asset, address collateral) private pure {
+        // `Currency` is a user-defined value type over `address`, so it has to be
+        // unwrapped before it can be compared with one.
+        address currency0 = Currency.unwrap(key.currency0);
+        address currency1 = Currency.unwrap(key.currency1);
+        bool hasAsset = currency0 == asset || currency1 == asset;
+        bool hasCollateral = currency0 == collateral || currency1 == collateral;
+        if (!hasAsset || !hasCollateral) revert PlanAssetMismatch();
     }
 
     // ─── Internals ─────────────────────────────────────────────────────────
@@ -563,6 +843,8 @@ if (plan.flashAsset != asset || plan.flashAmount != amount) revert PlanAssetMism
     PoolKey private _canaryKey;
     address private _canarySolver;
     uint24 private _canaryFee;
+    IEswapLeverageQuoter private _canaryQuoter;
+    uint256 private _canaryQuoteMargin;
 
     /// @dev Round-trip scratch. Written by `executeOperation` and read back by
     ///      `dryRunArbitrage` in the same transaction, so a revert can never
@@ -603,6 +885,14 @@ if (plan.flashAsset != asset || plan.flashAmount != amount) revert PlanAssetMism
 
     /// @dev Forward native currency to the venue. A plain transfer is used rather
     ///      than `approve` because native has no allowance to manage.
+    /**
+     * @dev Native collateral is PUSHED to the venue here.
+     *
+     *      Retained only for venues that take ownership by transfer rather than
+     *      pulling. The standard `IExternalVenue` contract pulls its own input, so
+     *      pushing as well would double-fund it — see the unwind leg in
+     *      `_execute`. Callers must not use both.
+     */
     function _pushNative(address to, uint256 amount) internal {
         (bool ok,) = payable(to).call{value: amount}("");
         if (!ok) revert VenueOutputBelowFloor();

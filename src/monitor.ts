@@ -21,9 +21,12 @@ import {
   COSTS,
   ETH_USDC,
   deploymentGaps,
+  GAS_BUDGET,
+  gasCostBps,
   type MarketConfig,
 } from './config'
-import { EswapQuoter, type Quote, type QuoteOptions } from './quoter'
+import { EswapQuoter, type Quote, type QuoteOptions, toWad, fromWad, applyBpsDown } from './quoter'
+import { VenueQuoteBook, type VenueSnapshot } from './venues'
 
 // ─── Hook ABI (read-only) ────────────────────────────────────────────────────
 
@@ -122,6 +125,16 @@ export interface VenueHealth {
 export interface MonitorRecord {
   health: VenueHealth
   quote: Quote | null
+  /** Independent venue prices for the same notional, if the book was queried. */
+  venues?: VenueSnapshot
+  /**
+   * Best independent venue's edge over ESWAP, net of every fee and the L2 gas
+   * bill. Positive means an external venue genuinely pays better than ESWAP —
+   * the only condition under which an atomic ESWAP round trip can be profitable.
+   */
+  externalEdgeBps?: number
+  /** Gas cost of one full loop, expressed in bps of the notional. */
+  gasCostBps?: number
   /** Round-trip cost floor in bps — the hurdle the delta must clear. */
   costFloorBps: number
   /** Milliseconds spent on this check. */
@@ -136,6 +149,8 @@ export interface MonitorOptions extends QuoteOptions {
   intervalMs?: number
   /** Called for every record. */
   onRecord?: (record: MonitorRecord) => void | Promise<void>
+  /** Gas units used for the L2 gas cost term. Defaults to `GAS_BUDGET.fullLoop`. */
+  gasEstimate?: bigint
 }
 
 // ─── Pool id helper (keccak of the ABI-encoded pool key) ─────────────────────
@@ -180,6 +195,7 @@ export function poolIdOf(pool: MarketConfig['hookPool']): `0x${string}` {
 export class EswapMonitor {
   private readonly client: PublicClient
   private readonly quoter: EswapQuoter
+  private readonly venueBook: VenueQuoteBook
   private readonly hook: Address
   private readonly poolManager: Address
   private readonly options: Required<Pick<MonitorOptions, 'intervalMs' | 'minEdgeBps'>> & MonitorOptions
@@ -195,7 +211,9 @@ export class EswapMonitor {
       minEdgeBps: options.minEdgeBps ?? 20,
       ...options,
     }
-    this.quoter = new EswapQuoter(client, options.market ?? ETH_USDC, options.quoter ?? ADDRESSES.quoter)
+    const market = options.market ?? ETH_USDC
+    this.quoter = new EswapQuoter(client, market, options.quoter ?? ADDRESSES.quoter)
+    this.venueBook = new VenueQuoteBook(client, market)
   }
 
   /**
@@ -311,16 +329,17 @@ export class EswapMonitor {
     return out
   }
 
-  /** One full monitor tick: health + quote. */
+  /** One full monitor tick: health + quote + independent venue book. */
   async tick(marginIn: bigint, leverage: number): Promise<MonitorRecord> {
     const started = Date.now()
+    const market = this.options.market ?? ETH_USDC
     const health = await this.health(marginIn, leverage)
 
     let quote: Quote | null = null
     if (this.quoter.isConfigured && health.ok) {
       try {
         quote = await this.quoter.quote(
-          { market: this.options.market ?? ETH_USDC, marginIn, leverage },
+          { market, marginIn, leverage },
           { minEdgeBps: this.options.minEdgeBps },
         )
       } catch (err) {
@@ -328,9 +347,75 @@ export class EswapMonitor {
       }
     }
 
+    // Independent venue book, quoted on the UNWIND leg.
+    //
+    // This is the leg that actually decides whether a round trip is worth
+    // attempting: ESWAP opens in the deep pool, and the recovered collateral has
+    // to come back out somewhere. If that "somewhere" is the same pool the open
+    // filled through, the trip is structurally loss-making no matter how good the
+    // quote looks, which is why the venue is external to ESWAP's own routing.
+    //
+    // The notional quoted is the collateral the open is expected to produce, and
+    // the reference is that same collateral valued at the ESWAP pool price — so
+    // the edge is "how much better does an independent venue pay for the same
+    // collateral", in the flash asset's units, on both sides of the subtraction.
+    let venues: VenueSnapshot | undefined
+    let externalEdgeBps: number | undefined
+    let gasBps: number | undefined
+    if (health.ok && quote && quote.eswapOut > 0n) {
+      try {
+        venues = await this.venueBook.unwindQuote(quote.eswapOut, null)
+      } catch (err) {
+        health.warnings.push(`venue book failed: ${short(err)}`)
+      }
+    }
+
+    // Net EV of a full atomic round trip, in bps of the flash-asset notional:
+    //
+    //   + best external venue's unwind output, valued in the flash asset
+    //   - flash principal + premium that must be repaid
+    //   - ESWAP's own cost of producing the collateral (protocol toll + pool fee)
+    //   - the external venue's own taker fee, already inside its quote, so it is
+    //     NOT double-subtracted here
+    //   - L2 gas for open + close + unwind
+    //
+    // The previous formula compared the external FORWARD quote (USDC->ETH)
+    // against ESWAP's leveraged open output, then subtracted the venue fee a
+    // second time even though the quote already nets it. That produced a number
+    // that was neither the open leg's edge nor the round trip's edge, and it
+    // could be positive for a trade that loses money on every execution.
+    if (venues?.best?.amountOut != null && quote && quote.eswapOut > 0n) {
+      const notionalIn = quote.notionalIn
+      // What ESWAP's own unwind would return, in flash-asset units: the same
+      // collateral re-sold into the pool it came from, valued at the pool's own
+      // price rather than at a raw decimal cast. `toWad` then `fromWad` is the
+      // unit-safe path from ETH (18dp) to USDC (6dp).
+      const referenceFlash = fromWad(toWad(quote.eswapOut, market.decimalsOut), market.decimalsIn)
+      const venueFee = applyBpsDown(venues.best.amountOut, venues.best.feeBps)
+
+      const gross = venues.best.amountOut - venueFee - referenceFlash
+      // Repayment, expressed as a fraction of notional, is premium-only: the
+      // principal comes back in full on a break-even trade.
+      const repayBps = COSTS.actualFlashPremiumBps
+      const eswapCostBps = COSTS.protocolFeeBps + COSTS.standardPoolFeeBps
+
+      gasBps = gasCostBps(
+        this.options.gasEstimate ?? GAS_BUDGET.fullLoop,
+        this.options.gasPriceGwei ?? COSTS.gasPriceGwei,
+        notionalIn,
+        market.decimalsIn,
+      )
+
+      const grossBps = notionalIn > 0n ? Number((gross * 10_000n) / notionalIn) : 0
+      externalEdgeBps = grossBps - repayBps - eswapCostBps - gasBps
+    }
+
     return {
       health,
       quote,
+      venues,
+      externalEdgeBps,
+      gasCostBps: gasBps,
       costFloorBps: roundTripFloorBps(),
       durationMs: Date.now() - started,
     }
@@ -371,9 +456,75 @@ export class EswapMonitor {
 
 /** The bps hurdle a round trip must clear before any trade is even considered. */
 export function roundTripFloorBps(): number {
-  return (
-    COSTS.protocolFeeBps * 2 + COSTS.standardPoolFeeBps * 2 + COSTS.maxFlashPremiumBps
-  )
+  return COSTS.protocolFeeBps * 2 + COSTS.standardPoolFeeBps * 2 + COSTS.actualFlashPremiumBps
+}
+
+/**
+ * Tolerance between the collateral the open is expected to produce and the
+ * collateral the unwind was actually sized against.
+ *
+ * A quote and its unwind are two separate RPC reads and the pool can move
+ * between them, so exact equality is the wrong test. Too tight a tolerance
+ * rejects every live plan; too loose a one lets a stale unwind floor through.
+ */
+const UNWIND_NOTIONAL_TOLERANCE_BPS = 100
+
+/**
+ * Build the unwind leg of a plan from a real independent venue quote.
+ *
+ * `minVenueOut` is the executor's repayment floor and is denominated in the
+ * FLASH ASSET (USDC, 6dp). This function therefore refuses any snapshot that is
+ * not the reverse leg, not in flash-asset units, or not sized against the
+ * collateral the open actually produces.
+ *
+ * The previous version ignored both its `quote` and `market` arguments and
+ * returned `venue.best.amountOut` unconditionally, which silently accepted a
+ * FORWARD (ETH-denominated, 18dp) snapshot as a USDC floor — a floor roughly
+ * 1e12x too large, which can never bind and looks like protection while
+ * enforcing nothing. Silently disabling the only repayment floor is worse than
+ * failing loudly, so every mismatch is an error here.
+ *
+ * @returns the venue's unwind output and its name
+ */
+export function planFromVenue(
+  quote: Quote,
+  venue: VenueSnapshot,
+  market: MarketConfig,
+): { venueQuoteOut: bigint; venueName: string; collateralIn: bigint } {
+  if (venue.side !== 'reverse') {
+    throw new Error(
+      `refusing to build a plan from a ${venue.side} snapshot: minVenueOut needs the unwind leg`,
+    )
+  }
+  if (venue.outputToken.toLowerCase() !== market.tokenIn.toLowerCase()) {
+    throw new Error(
+      `refusing to build a plan: unwind is priced in ${venue.outputToken} but ` +
+        `minVenueOut must be in the flash asset ${market.tokenIn}`,
+    )
+  }
+  // The unwind is sized on the collateral the open produces. If the snapshot was
+  // quoted against some other amount, its output is not the output this trade
+  // would get, so using it as a floor is a category error even when the units
+  // happen to agree.
+  const driftBps =
+    quote.eswapOut === 0n
+      ? null
+      : Number(((venue.amountIn - quote.eswapOut) * 10_000n) / quote.eswapOut)
+  if (driftBps === null || Math.abs(driftBps) > UNWIND_NOTIONAL_TOLERANCE_BPS) {
+    throw new Error(
+      `refusing to build a plan: unwind was quoted for ${venue.amountIn} collateral ` +
+        `but the open produces ${quote.eswapOut} (${driftBps ?? 'n/a'}bps drift, ` +
+        `tolerance ${UNWIND_NOTIONAL_TOLERANCE_BPS}bps)`,
+    )
+  }
+  const out = venue.best?.amountOut
+  if (out == null) {
+    throw new Error('no external venue could be quoted — refusing to build a plan')
+  }
+  if (out <= 0n) {
+    throw new Error(`external venue quoted a non-positive unwind output (${out})`)
+  }
+  return { venueQuoteOut: out, venueName: venue.best!.venue, collateralIn: venue.amountIn }
 }
 
 export function formatRecord(r: MonitorRecord): string {
@@ -382,12 +533,20 @@ export function formatRecord(r: MonitorRecord): string {
     `[block ${r.health.blockNumber}] ok=${r.health.ok} ` +
     `oi=${r.health.totalOpenInterestUSD} coll=${r.health.totalCollateralUSDRunning} ` +
     `stdLiq=${r.health.standardPoolLiquidity} floor=${r.costFloorBps.toFixed(2)}bps ${r.durationMs}ms`
-  if (!q) return `${head}\n  quote: unavailable`
+  const venueLine =
+    r.externalEdgeBps === undefined
+      ? ''
+      : `  externalEdge=${r.externalEdgeBps.toFixed(2)}bps ` +
+        `gas=${(r.gasCostBps ?? 0).toFixed(2)}bps — ` +
+        `${(r.externalEdgeBps ?? 0) > 0 ? 'trade candidate' : 'no independent edge'}\n`
+
+  if (!q) return `${head}\n${venueLine}  quote: unavailable`
   return (
     `${head}\n` +
     `  notional=${q.notionalIn} @ ${q.leverage}x  eswap=${q.eswapOut} ref=${q.referenceOut}\n` +
     `  delta=${q.deltaOut} (${q.deltaBps.toFixed(3)}bps) net=${q.netEdgeOut} ` +
-    `profitable=${q.profitable} — ${q.verdict}`
+    `profitable=${q.profitable} — ${q.verdict}\n` +
+    venueLine
   )
 }
 

@@ -176,7 +176,7 @@ export class EswapTelemetry {
       )
     }
 
-    const result = await this.executor.runHealthCheck(marginIn, CANARY.leverage)
+    const result = await this.executor.canaryExecute(marginIn, CANARY.leverage)
     this.canariesRun += 1
 
     this.emit({
