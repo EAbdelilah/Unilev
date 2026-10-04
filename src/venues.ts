@@ -44,11 +44,16 @@ export const UNICHAIN_VENUES = {
   uniV4Quoter: '0x333e3c607b141b18ff6de9f258db6e77fe7491e0' as Address,
   /** Uniswap v4 StateView — authoritative pool spot state. */
   uniV4StateView: '0x86e8631a016f9068c3f085faf484ee3f5fdee8f2' as Address,
-  /**
-   * Balancer V2 Vault. A canonical singleton deployed at the same address on
-   * every supported network, so this value is chain-constant.
-   */
-  balancerVault: '0xBA12222222228d8Ba445958a75a0704d566BF2C8' as Address,
+/**
+ * Balancer V2 Vault.
+ *
+ * REMOVED: Unichain has no Balancer V2 Vault. The canonical
+ * `0xBA12222222228d8Ba445958a75a0704d566BF2C8` is chain-constant only on chains
+ * where Balancer is deployed; on Unichain that address is an unrelated 1,546-byte
+ * contract with no `flashLoan` / `getPoolTokens`, so any code path reading it here
+ * could never execute. The zero-premium funding source on this chain is
+ * `InventoryFlashProvider` (`ADDRESSES.flashProvider`).
+ */
 } as const
 
 /** Fee tiers polled on Uniswap v3. */

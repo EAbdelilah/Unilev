@@ -23,6 +23,29 @@ import type { Address, Hex } from 'viem'
 
 loadEnv()
 
+/**
+ * Read a required address from the environment, failing loudly when it is absent.
+ *
+ * Used for contracts that a redeploy can move. A literal fallback in these slots once
+ * made the harness call a dead router and surface the problem as a confusing
+ * `Unauthorized()` from deep inside the hook; naming the missing variable turns that
+ * into an immediate, actionable failure.
+ */
+function requiredEnvAddress(name: string): Address {
+  const raw = process.env[name]?.trim()
+  if (!raw) {
+    throw new Error(
+      `${name} is not set. It is required: this contract is redeployed when its ` +
+        `logic changes, so a compiled-in fallback address silently rots and points ` +
+        `at a dead contract. Add ${name} to .env.`,
+    )
+  }
+  if (!/^0x[0-9a-fA-F]{40}$/.test(raw)) {
+    throw new Error(`${name} is not a valid address: ${raw}`)
+  }
+  return raw as Address
+}
+
 // ─── Chain ────────────────────────────────────────────────────────────────────
 
 export const UNICHAIN_ID = 130
@@ -59,48 +82,76 @@ export const ADDRESSES = {
   usdc: '0x078D782b760474a361dDA0AF3839290b0EF57AD6' as Address,
   /** WETH — only used as the Chainlink oracle key for native ETH. */
   weth: '0x4200000000000000000000000000000000000006' as Address,
-  /** Deployed ESWAP core (live deployment). */
-  hook: '0xdF768b7eb6A76594b21177bb0Cd55bA433D290c8' as Address,
-  router: '0xD123B24D7e6a8e8AD015523D7a32F3Ff2ca12B46' as Address,
-  routerExt: '0xAC31Ee1c156Bfd6E3e23c3dc6F33B0c3ee311cd1' as Address,
-  keeper: '0x47fe478bc096C5C98E3f9A47CBFB63673A2bC702' as Address,
+  /**
+   * Deployed ESWAP core (live deployment).
+   *
+   * 0x4Bd5..d0C8 is the settlement-capable rebuild: its Logic1 delegatecalls
+   * Logic2 0x581E..0aB (24,458B), which carries the settlement-liveness fix.
+   * The predecessor 0xdF76..290c8 is left deployed and configured as a rollback
+   * target -- it stays functional, so this is an upgrade rather than a rescue.
+   *
+   * Every one of the 15 config scalars was diffed against the predecessor and
+   * matched exactly; the standard (hookless) pool key is byte-identical.
+   */
+  hook: '0x4Bd545f6438a27614098984E1322939af53AD0C8' as Address,
+  /**
+   * Router/Ext/Keeper are REQUIRED and fail fast when unset.
+   *
+   * These three used to be hardcoded literals, which silently desynced the harness
+   * from the chain: after the router was redeployed (to carry
+   * QUOTE_EXECUTION_DISCOUNT_BPS) the fork harness kept driving the OLD router, so
+   * every "wire the router" call landed on the stale contract and the canary died in
+   * the hook's `onlyRouter` with `Unauthorized()` -- while the on-chain hook pointed
+   * at the new one.
+   *
+   * A literal *fallback* is not a safe default here: a redeploy moves the address
+   * again, and the failure mode is a silent call into a dead contract rather than an
+   * error. So these are read from the environment and throw when missing, which
+   * points at the exact variable to set.
+   */
+  router: requiredEnvAddress('V4_ROUTER_ADDRESS'),
+  routerExt: requiredEnvAddress('V4_ROUTER_EXT_ADDRESS'),
+  keeper: requiredEnvAddress('V4_KEEPER_ADDRESS'),
   priceFeed: '0x57BFFfaa81ea509eFAe9174C9e6e04D4B15690Fb' as Address,
   /**
-   * Balancer V2 Vault. A canonical singleton deployed at the same address on
-   * every network, so this literal is chain-constant. Preferred flash source on
-   * Unichain: V2 flash loans carry a zero premium, which removes the premium
-   * leg from the round trip's cost floor entirely.
+   * Optional deployed adapters/venue. Empty on the live deployment.
+   *
+   * `balancerVault` was removed deliberately: Unichain has NO Balancer V2 Vault.
+   * `0xBA12222222228d8Ba445958a75a0704d566BF2C8` is an unrelated 1,546-byte
+   * contract on this chain with no `flashLoan` / `getPoolTokens`, so keeping it
+   * around only invited code that could never work. The zero-premium funding source
+   * is `InventoryFlashProvider` -- see `flashProvider` below.
    */
-  balancerVault: '0xBA12222222228d8Ba445958a75a0704d566BF2C8' as Address,
-  /** Optional deployed adapters/venue. Empty on the live deployment. */
-  adapter: (process.env.V4_ADAPTER_ADDRESS ?? '') as Address,
-  quoter: (process.env.V4_QUOTER_ADDRESS ?? '') as Address,
+/** Deployed execution stack. All required; see {@link deploymentGaps}. */
+  adapter: requiredEnvAddress('V4_ADAPTER_ADDRESS'),
+  quoter: requiredEnvAddress('V4_QUOTER_ADDRESS'),
   settlement: (process.env.V4_SETTLEMENT_ADDRESS ?? '') as Address,
   timelock: (process.env.V4_TIMELOCK_ADDRESS ?? '') as Address,
-  executor: (process.env.ARBITRAGE_EXECUTOR_ADDRESS ?? '') as Address,
-  venue: (process.env.ARBITRAGE_VENUE_ADDRESS ?? '') as Address,
+  executor: requiredEnvAddress('ARBITRAGE_EXECUTOR_ADDRESS'),
+  venue: requiredEnvAddress('ARBITRAGE_VENUE_ADDRESS'),
   /**
- * Atomic funding source for the executor.
- *
- * Balancer V2 Vault only. Aave V3 is deliberately NOT configurable here: the
- * address checked on Unichain (`0x794a…14aD`) has no bytecode, so it is an
- * Ethereum-mainnet address that does not exist on this chain. Keeping it
- * reachable through an env var meant a typo, a stale `.env`, or a copy-pasted
- * mainnet address would silently produce an executor whose every flash reverts
- * in the callback rather than at construction. An unset provider is now the only
- * way to get a non-Balancer executor, and it fails fast.
- */
-flashProvider: '0xBA12222222228d8Ba445958a75a0704d566BF2C8' as Address,
+   * Atomic funding source for the executor. Must be an `InventoryFlashProvider` on
+   * Unichain: the Balancer V2 Vault is not deployed on this chain (the canonical
+   * `0xBA12222222228d8Ba445958a75a0704d566BF2C8` is an unrelated 1,546-byte
+   * contract with no `flashLoan`), Morpho Blue is absent, and a V4 `flash()` source
+   * is structurally impossible because it would hold the PoolManager lock across the
+   * callback while the executor's router leg needs `unlock`. The provider is
+   * immutable, so a wrong value here yields an executor whose every flash reverts
+   * inside the callback rather than at construction. Hence `requiredEnvAddress`.
+   */
+  flashProvider: requiredEnvAddress('FLASH_PROVIDER_ADDRESS'),
 } as const
 
 /**
  * Flash-loan entrypoint of the deployed executor.
  *
- * `1` = Balancer V2. The contract's `FlashMode` enum still declares `0` (Aave),
- * but the off-chain layer can no longer select it — see `flashProvider` above.
- * The variant is left in place rather than renumbered because the value is
- * encoded into the executor's storage and reordering an enum would change the
- * meaning of an already-deployed contract.
+ * `1` = the Balancer V2 `Vault.flashLoan` interface shape, which
+ * `InventoryFlashProvider` implements. The provider is zero-premium and charges no
+ * interest. The contract's `FlashMode` enum still declares `0` (Aave), but the
+ * off-chain layer can no longer select it — see `flashProvider` above. The variant
+ * is left in place rather than renumbered because the value is encoded into the
+ * executor's storage and reordering an enum would change the meaning of an
+ * already-deployed contract.
  */
 export const FLASH_MODE = {
   balancer: 1,
@@ -151,6 +202,10 @@ export const ETH_USDC: MarketConfig = {
     currency1: ADDRESSES.usdc,
     fee: 3000,
     tickSpacing: 60,
+    // Must equal ADDRESSES.hook: the PoolId is keccak(currency0, currency1, fee,
+    // tickSpacing, hooks), so a stale hooks field silently addresses the
+    // predecessor's pool. The predecessor id was
+    // 0x9aa5ebac305d4fd646bca230471bcb0df55d89b8b32e94559a0a7471b21ccaae.
     hooks: ADDRESSES.hook,
   },
   standardPool: {
@@ -239,8 +294,8 @@ export function gasCostBps(
  * The integration spec quoted `320,000` for the whole flash -> open -> unwind ->
  * repay loop and `110,000` for the open overhead. Neither is reachable. Measured
  * on the Unichain fork at current contract sizes: the canary, which is an open
- * AND a close in a single transaction, costs ~1.16M, and the open alone
- * estimates ~1.36M.
+ * AND a close in a single transaction, costs ~1.19M, and the open alone
+ * estimates ~1.24M.
  *
  * This mattered because these numbers feed `gasCostBps` in the net-EV
  * calculation. A budget understated by ~4x makes every candidate trade look ~4x
@@ -252,18 +307,47 @@ export function gasCostBps(
  * review rather than being quietly deleted.
  */
 export const GAS_BUDGET = {
-  /** Measured: open + close in one tx (the canary). */
-  measuredCanaryRoundTrip: 1_161_132n,
-  /** Measured: the leveraged open on its own. */
-  measuredOpenOnly: 1_360_318n,
+  /**
+   * Measured at the deployed $0.01 canary size on the Unichain fork:
+   * open + close in one transaction.
+   *
+   * Re-measured after the flash provider became the real `InventoryFlashProvider`
+   * and `maxPremiumBps` dropped to 0. Re-measure whenever the open or close path
+   * changes; these are observations, not guarantees.
+   *
+   * Re-measured again on the settlement-capable hook (`0x4Bd5..d0C8`) at
+   * 1,185,089 — ~133k MORE than the 1,051,661 measured on the predecessor, and
+   * higher than the doc comment above claims. The new Logic2 does strictly more
+   * work (liquidation bookkeeping plus the settlement fix), so the older figure
+   * understates the round trip by ~11%. That flows straight into `gasCostBps`
+   * and therefore into the net-EV gate, where an understated gas cost is the
+   * direction that admits losing trades, so the measurement is carried forward
+   * rather than left flattering.
+   */
+  measuredCanaryRoundTrip: 1_185_089n,
+  /**
+   * Measured: the leveraged open on its own, via `estimateContractGas`.
+   *
+   * This is LARGER than the canary round trip, which is not a typo: the open is
+   * the expensive leg (router unlock + hook accounting), while the close settles
+   * against already-live state. A budget derived from the round trip would
+   * under-provision the open, which is the leg actually broadcast.
+   *
+   * Re-measured on the settlement-capable hook at 1,239,388 (was 1,237,804).
+   */
+  measuredOpenOnly: 1_239_388n,
   /**
    * Budget for a full flash -> open -> unwind -> repay loop: the canary's two
    * hook legs plus a same-size external venue unwind, with ~15% headroom for the
    * extra swap and the premium accounting the canary does not perform.
+   *
+   * NOT YET MEASURED: the loop still reverts with `InvariantDrift` on economics, so
+   * this figure is an estimate from the two measured legs plus the venue swap, not
+   * an observation. Replace it with a measured value once the round trip settles.
    */
   fullLoop: 1_400_000n,
   /** Alias of `measuredOpenOnly`, kept for callers that want the open alone. */
-  openOverhead: 1_360_318n,
+  openOverhead: 1_237_804n,
   /** The spec's figures, retained only to document what was wrong. */
   specFullLoop: 320_000n,
   specOpenOverhead: 110_000n,
@@ -338,16 +422,38 @@ export function walletClient(chain: Chain = unichain): WalletClient {
   return createWalletClient({ chain, transport: http(rpcUrl()), account: privateKeyToAccount(pk as Hex) })
 }
 
-/** Ordered list of live-deployment gaps, surfaced by the monitor at boot. */
+/**
+ * Components the arbitrage path cannot run without. A missing entry here is a
+ * hard stop: the monitor refuses to quote rather than pricing a route it cannot
+ * actually execute.
+ *
+ * `V4_SETTLEMENT_ADDRESS` / `V4_TIMELOCK_ADDRESS` are deliberately absent. They
+ * name a CoW Protocol settlement contract and its timelock, which only the
+ * *testnet* deployment profiles (`DeployUnichainSepoliaFull.s.sol`) ever
+ * installed. The Unichain mainnet stack settles through the V4 PoolManager
+ * directly, so reporting them as gaps cried wolf on every boot and would have
+ * implied a missing contract that was never meant to exist.
+ */
 export function deploymentGaps(): string[] {
   const gaps: string[] = []
+  if (!ADDRESSES.router) gaps.push('V4_ROUTER_ADDRESS')
+  if (!ADDRESSES.routerExt) gaps.push('V4_ROUTER_EXT_ADDRESS')
+  if (!ADDRESSES.keeper) gaps.push('V4_KEEPER_ADDRESS')
   if (!ADDRESSES.adapter) gaps.push('V4_ADAPTER_ADDRESS')
   if (!ADDRESSES.quoter) gaps.push('V4_QUOTER_ADDRESS')
-  if (!ADDRESSES.settlement) gaps.push('V4_SETTLEMENT_ADDRESS')
-  if (!ADDRESSES.timelock) gaps.push('V4_TIMELOCK_ADDRESS')
   if (!ADDRESSES.executor) gaps.push('ARBITRAGE_EXECUTOR_ADDRESS')
   if (!ADDRESSES.venue) gaps.push('ARBITRAGE_VENUE_ADDRESS')
+  if (!ADDRESSES.flashProvider) gaps.push('FLASH_PROVIDER_ADDRESS')
   return gaps
+}
+
+/**
+ * True when the optional intent-settlement stack is configured. Reported
+ * separately from {@link deploymentGaps} because it extends the protocol with
+ * CoW-style fills rather than enabling the core margin path.
+ */
+export function intentSettlementConfigured(): boolean {
+  return Boolean(ADDRESSES.settlement && ADDRESSES.timelock)
 }
 
 /** True when the harness is allowed to broadcast anything at all. */

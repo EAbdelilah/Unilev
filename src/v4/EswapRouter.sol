@@ -84,6 +84,25 @@ contract EswapRouter is
     ///      reverts loudly instead of silently opening without pinned collateral.
     uint256 public constant MIN_DEPLOY_COLLATERAL_GAS = 350_000;
 
+    /// @notice Discount, in bps, applied to the spot-price estimate in `quoteExactInput`.
+    /// @dev Measured on the Unichain fork, not chosen a priori. A 1 bps slippage
+    ///      probe forces the router to reveal both the real fill and the floor via
+    ///      `SwapOutputBelowMinimum`, which isolates the quote model's error:
+    ///
+    ///        size     quote (stable)      real fill        gap
+    ///        $0.01    7455918085910       7446633740684    12 bps
+    ///        $0.10    74559180955611      74466335716074   12 bps
+    ///
+    ///      An earlier run at $0.01 measured a 70 bps gap with the same code and a
+    ///      quote that moved only 1 ppm, so the fill is pool-state dependent while
+    ///      the quote is not. 100 bps covers the worst observed gap with headroom.
+    ///
+    ///      Caveat: because this is a spot approximation with no tick walking, this
+    ///      constant cannot be correct for arbitrarily large sizes. A faithful quote
+    ///      needs a real swap simulation; this sizing is only defensible for the
+    ///      dust sizes this protocol actually opens.
+    uint256 public constant QUOTE_EXECUTION_DISCOUNT_BPS = 100;
+
     // H-3: Solver whitelist — only registered solvers can be used
     mapping(address => bool) public registeredSolvers;
 
@@ -1301,10 +1320,28 @@ return _aggregatorSettle(params, trader, outputAmount, notional, ethAttached, re
             uint256 temp = FullMath.mulDiv(leveragedAmount, 1 << 96, uint256(sqrtPriceX96));
             output = FullMath.mulDiv(temp, 1 << 96, uint256(sqrtPriceX96));
         }
-        // Apply a conservative 0.1% discount so the quote closely matches actual
-        // execution output on the standard Uniswap pool (which has its own fee + slippage).
-        // This prevents aggregators from penalising the protocol for quote-vs-execution divergence.
-        output = (output * 9990) / 10000;
+        // Discount the spot-price estimate down to a realistic executable output.
+        //
+        // This quote is a SPOT approximation: it reads slot0 and applies no price
+        // impact, so it systematically over-states what a real fill returns. The
+        // execution path additionally pays the standard pool's LP fee (500 =
+        // 5 bps), the protocol toll (10 bps) and tick-walking impact.
+        //
+        // The previous flat 10 bps discount was measured to be far too small. On
+        // the Unichain fork, `SwapOutputBelowMinimum` at a 1 bps slippage probe
+        // showed the real leveraged open landing 12 bps and 70 bps below this
+        // quote on two runs at the SAME size ($0.01, quote stable to 1 ppm while
+        // the fill moved ~55 bps). Because the fill is state-dependent and the
+        // quote is not, the gap is not a single constant -- so the discount is
+        // sized to the worst gap observed plus headroom.
+        //
+        // Consumers: the canary open floor and the offchain `minOpenOut` plan
+        // floor. This is NOT the JIT settlement floor -- that is
+        // `_jitOracleMinOutput` in EswapRouterExt, which is Chainlink-based and
+        // carries its own `jitOracleFloorLeniencyBps`. Lowering this discount does
+        // not weaken sandwich protection; it replaces floors that were
+        // unreachable (and therefore enforced nothing) with reachable ones.
+        output = (output * (10_000 - QUOTE_EXECUTION_DISCOUNT_BPS)) / 10_000;
         return int128(uint128(output));
     }
 

@@ -16,3 +16,12 @@ fs_permissions = [
     { access = "read-write", path = "." },
     { access = "read-write", path = "C:/Users/faar_/AppData/Local/Temp/opencode" },
 ]
+
+# Named endpoints so deployment scripts can be run as
+#   forge script <script>:<C> --rpc-url unichain --broadcast
+# without ever putting a URL (which carries an API key) on the command line.
+# Only the variable NAME lives in this file; the value comes from `.env`.
+# NOTE: this table must stay LAST; a TOML table header swallows every key that
+# follows it, so placing it earlier silently reparents `fs_permissions`.
+[rpc_endpoints]
+unichain = "${UNICHAIN_RPC_URL}"

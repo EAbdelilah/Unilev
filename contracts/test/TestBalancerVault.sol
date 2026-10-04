@@ -6,11 +6,16 @@ pragma solidity ^0.8.24;
  * @notice TEST HARNESS ONLY — a minimal Balancer V2 `Vault.flashLoan` provider.
  *
  * @dev Scope and honesty note
- *      `EswapArbitrageExecutor` supports the Balancer V2 flash-loan entrypoint
- *      because the Balancer Vault is a canonical singleton deployed at
- *      `0xBA12222222228d8Ba445958a75a0704d566BF2C8` on Unichain, and its V2 flash
- *      loans carry **zero premium** — removing the premium leg from the round
- *      trip's cost floor entirely.
+ *      `EswapArbitrageExecutor` speaks the Balancer V2 `Vault.flashLoan` shape
+ *      because that is a zero-premium flash-loan interface.
+ *
+ *      Unichain has NO Balancer V2 Vault: the canonical
+ *      `0xBA12222222228d8Ba445958a75a0704d566BF2C8` on this chain is an unrelated
+ *      1,546-byte contract with no `flashLoan`, so this mock's real production
+ *      counterpart is `InventoryFlashProvider` (also zero-premium). This vault is a
+ *      TEST HARNESS ONLY and must never be deployed. A V4 `flash()` source is not an
+ *      option: it would hold the PoolManager lock across the callback while the
+ *      executor's router leg needs `unlock`, which reverts `AlreadyUnlocked`.
  *
  *      This contract mirrors the parts of that interface the executor depends on:
  *      `flashLoan` transfers the requested amounts in, calls

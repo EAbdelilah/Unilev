@@ -364,27 +364,36 @@ let registryHook: Address = '0x'
   // gas measurement can never disagree about how much is being traded.
   const ARB = {
     marginIn: 1_000_000n, // 1 USDC of margin, 2x leverage => 2 USDC notional
-    // Balancer V2 charges no premium, so the round trip carries zero flash cost.
-    // This is asserted rather than assumed: a silently non-zero premium would
-    // inflate every profit estimate derived from it.
+    // The flash source charges no premium and no interest, so the round trip
+    // carries zero flash cost. This is asserted rather than assumed: a silently
+    // non-zero premium would inflate every profit estimate derived from it.
     premiumBps: 0n,
     minProfit: 1n,
     minOut: 1n,
   }
 
   // Everything the harness spends, computed once so funding and spending can
-  // never drift apart: solver borrow escrow + the Balancer flash principal
-  // (with premium headroom, since the vault must also cover what it pulls back)
+  // never drift apart: solver borrow escrow + the flash principal
+  // (with premium headroom, since the provider must also cover what it pulls back)
   // + canary margin + open/close working balances.
   const FLASH_PRINCIPAL = (ARB.marginIn * (10_000n + ARB.premiumBps)) / 10_000n + 100_000n
   const FUNDING = {
     escrow: 2_000_000n, // 2 USDC
     flashPrincipal: FLASH_PRINCIPAL,
     canaryMargin: CANARY.defaultMarginIn + 100_000n, // margin + dust for rounding
+    // The open-only gas measurement opens a real `ARB.marginIn` position, so its
+    // margin has to be funded too. When the canary was cut from $1 to $0.01 this
+    // line is what kept the harness solvent; without it the gas section reverted
+    // with "ERC20: transfer amount exceeds balance".
+    openGasMargin: ARB.marginIn,
     workingBuffer: 500_000n, // 0.5 USDC slack for opens/closes/fees
   }
   const REQUIRED_USDC =
-    FUNDING.escrow + FUNDING.flashPrincipal + FUNDING.canaryMargin + FUNDING.workingBuffer
+    FUNDING.escrow +
+    FUNDING.flashPrincipal +
+    FUNDING.canaryMargin +
+    FUNDING.openGasMargin +
+    FUNDING.workingBuffer
 
   const { address: holder } = await findUsdcHolder(client, REQUIRED_USDC)
   await rpc('anvil_impersonateAccount', [holder])
@@ -444,7 +453,7 @@ let registryHook: Address = '0x'
 const adapterArt = loadArtifact('EswapLeverageAdapter')
   const executorArt = loadArtifact('EswapArbitrageExecutor')
   const venueArt = loadArtifact('V4DeepPoolVenue')
-  const balancerArt = loadArtifact('TestBalancerVault')
+  const flashProviderArt = loadArtifact('InventoryFlashProvider')
 
   const deploy = async (artifact: Artifact, args: unknown[] = []): Promise<Address> => {
     const hash = await wallet.deployContract({
@@ -506,11 +515,18 @@ const adapterAddress = await deploy(adapterArt, [router])
   const quoterAddress = await deploy(loadArtifact('EswapLeverageQuoter'), [router])
   console.log(`  quoter   ${quoterAddress}`)
 
-  // Balancer V2 is the only flash source. `TestBalancerVault` mirrors the real
-  // V2 Vault's zero-premium `flashLoan`, so the funding, authorisation and
-  // repayment paths proven here are the ones production will run.
-  const balancerAddress = await deploy(balancerArt, [0n])
-  console.log(`  balancer ${balancerAddress} (0 bps, mirrors V2 Vault)`)
+  // The production flash source. `InventoryFlashProvider` speaks the Balancer V2
+  // `Vault.flashLoan` shape that the executor targets and charges no premium and no
+  // interest, so the premium leg is absent from the round trip's cost floor.
+  //
+  // This is deliberately the real contract rather than `TestBalancerVault`: Unichain
+  // has no Balancer V2 Vault, and a V4 `flash()` source is structurally impossible
+  // because it would hold the PoolManager lock across `receiveFlashLoan` while the
+  // executor's router leg needs `unlock` (which reverts `AlreadyUnlocked`). Running
+  // the suite against the deployed artifact keeps the funding, authorisation and
+  // repayment paths identical to production.
+  const flashProviderAddress = await deploy(flashProviderArt)
+  console.log(`  flash    ${flashProviderAddress} (InventoryFlashProvider, 0 premium)`)
 
   const executorArgs = (provider: Address) => [
     provider,
@@ -518,11 +534,11 @@ const adapterAddress = await deploy(adapterArt, [router])
     router,
     5_000_000_000n, // 5,000 USDC cap
     5, // max leverage
-    5, // max premium bps
+    0, // max premium bps: the fee is structurally zero, not merely configured to zero
     FLASH_MODE.balancer,
   ]
 
-  const executorAddress = await deploy(executorArt, executorArgs(balancerAddress))
+  const executorAddress = await deploy(executorArt, executorArgs(flashProviderAddress))
   console.log(`  executor ${executorAddress} (balancer)`)
 
   check('adapter deployed', Boolean(adapterAddress), adapterAddress)
@@ -604,19 +620,26 @@ const adapterAddress = await deploy(adapterArt, [router])
 
   // The router draws the borrow leg from the solver's escrow; a close repays the
   // solver's own balance, so it must approve the router.
+  //
+  // The approval MUST come first: `depositBorrowEscrow` pulls the funds with
+  // `safeTransferFrom(msg.sender, ...)` (EswapRouter L321), so it reverts with
+  // "transfer amount exceeds allowance" if the allowance is not already in place.
+  // This was written approve-after-deposit, which only ever passed because the
+  // stale router that used to sit at this address did not enforce the pull.
+  await send({ address: usdc, abi: ERC20_ABI, functionName: 'approve', args: [router, 2n ** 256n - 1n] })
   await send({
     address: router,
     abi: ROUTER_ADMIN_ABI,
     functionName: 'depositBorrowEscrow',
     args: [usdc, FUNDING.escrow],
   })
-  await send({ address: usdc, abi: ERC20_ABI, functionName: 'approve', args: [router, 2n ** 256n - 1n] })
   check('solver escrow funded + router approval set', true, `${FUNDING.escrow} USDC`)
 
 const EXECUTOR_ADMIN_ABI = parseAbi([
     'function setVenue(address,bool)',
-    'function setCanaryRoute(address,address,address,(address,address,uint24,int24,address),address,uint24,address,uint256)',
-  ])
+'function setCanaryRoute(address,address,address,(address,address,uint24,int24,address),address,uint24,address,uint256)',
+  'function setCanarySlippageBps(uint256,uint256)',
+])
   // The recorded on-chain mode must match what was requested, so a silent
   // mis-wiring (Balancer bytes deployed with mode 0) cannot pass unnoticed.
   const onChainMode = await client.readContract({
@@ -690,10 +713,10 @@ const EXECUTOR_ADMIN_ABI = parseAbi([
   check('venue whitelisted + canary route set', true)
   check('venue whitelisted + canary route set', true)
 
-// Fund the Balancer provider so the real funding path can be exercised.
+// Fund the flash provider so the real funding path can be exercised.
   const FLASH_ABI = parseAbi(['function fund(address,uint256)'])
-  await send({ address: usdc, abi: ERC20_ABI, functionName: 'approve', args: [balancerAddress, 2n ** 256n - 1n] })
-  await send({ address: balancerAddress, abi: FLASH_ABI, functionName: 'fund', args: [usdc, FUNDING.flashPrincipal] })
+  await send({ address: usdc, abi: ERC20_ABI, functionName: 'approve', args: [flashProviderAddress, 2n ** 256n - 1n] })
+  await send({ address: flashProviderAddress, abi: FLASH_ABI, functionName: 'fund', args: [usdc, FUNDING.flashPrincipal] })
   await send({ address: usdc, abi: ERC20_ABI, functionName: 'approve', args: [executorAddress, 2n ** 256n - 1n] })
   await send({
     address: usdc,
@@ -702,7 +725,7 @@ const EXECUTOR_ADMIN_ABI = parseAbi([
     args: [executorAddress, FUNDING.canaryMargin],
   })
 
-  // Both providers must actually hold the principal. A `fund()` call that
+  // The provider must actually hold the principal. A `fund()` call that
   // silently moved less than intended would show up here as a shortfall rather
   // than as a confusing revert inside the callback.
   {
@@ -710,10 +733,10 @@ const EXECUTOR_ADMIN_ABI = parseAbi([
       address: usdc,
       abi: ERC20_ABI,
       functionName: 'balanceOf',
-      args: [balancerAddress],
+      args: [flashProviderAddress],
     })
     check(
-      'Balancer provider holds the flash principal',
+      'flash provider holds the flash principal',
       providerBal >= FUNDING.flashPrincipal,
       `${providerBal} >= ${FUNDING.flashPrincipal}`,
     )
@@ -1172,11 +1195,23 @@ check('protocol quote returns a positive output', q.eswapOut > 0n)
   // demand very different fixes.
   section('Quoter fidelity: quoted leveraged open vs. real V4 fill')
 
+  // The probe measures the OPEN leg. `canaryExecute` runs open AND close, and both
+  // legs raise `SwapOutputBelowMinimum`, so a revert alone cannot say which leg
+  // produced it. Inferring the open from "whichever leg reverted" silently changed
+  // meaning once the router's 100 bps quote discount made the open floor reachable:
+  // the open started passing and the probe began reporting the CLOSE's economics
+  // (9960 against a 10000 floor) as though it were the open's.
+  //
+  // So the close floor is relaxed to its loosest legal value (9999 bps -> a 1 wei
+  // floor via `minOutWithSlippage`'s hard floor). The close can then never trip the
+  // probe, `canaryExecute` succeeds, and the real open fill is RETURNED rather than
+  // reverse-engineered. `setCanarySlippageBps` rejects 0, which is why 9999 rather
+  // than 0 is used here.
   await send({
     address: executorAddress,
     abi: EXECUTOR_ADMIN_ABI,
     functionName: 'setCanarySlippageBps',
-    args: [1n, 1n],
+    args: [1n, 9_999n],
   })
 
   const fidelity: { size: string; quote: bigint; actual: bigint; gapBps: string }[] = []
@@ -1188,36 +1223,51 @@ check('protocol quote returns a positive output', q.eswapOut > 0n)
       args: canaryRouteArgs(m),
     })
     try {
-      await client.simulateContract({
+      // With the close floored at 1 wei this succeeds, so `result[0]` is the real
+      // open output in the 18-decimal collateral, taken on-chain in the same
+      // transaction as the quote it is compared against.
+      const sim = await client.simulateContract({
         address: executorAddress,
         abi: EXECUTOR_ABI,
         functionName: 'canaryExecute',
         args: [m, CANARY.leverage],
         account,
       })
-      // A fill at or above `quote * 0.9999` means the gap is under 1 bps here,
-      // so there is no shortfall to report.
-      fidelity.push({ size: `$${Number(m) / 1e6}`, quote: 0n, actual: 0n, gapBps: '<1' })
-    } catch (err) {
-      const raw = String(err).match(/custom error 0x[0-9a-f]{8}: ([0-9a-f\n\r ]+)/i)?.[1] ?? ''
-      const words = raw.replace(/\s/g, '').match(/.{64}/g)
-      // The two words are adjacent 32-byte fields; the leading zero of the
-      // second is indistinguishable from the trailing zero of the first once
-      // concatenated, so re-split from the RIGHT for the 12-digit second word.
-      if (words && words.length === 2) {
-        const first = BigInt('0x' + words[0])
-        const second = BigInt('0x' + words[1].replace(/^0+/, ''))
-        const actual = first > second ? first : second
-        const floor = first > second ? second : first
-        // floor = quote * 9999 / 10000  =>  quote = floor * 10000 / 9999
-        const quote = (floor * 10_000n) / 9_999n
-        const gapBps = ((quote - actual) * 10_000n * 100n) / quote / 100n
-        fidelity.push({ size: `$${Number(m) / 1e6}`, quote, actual, gapBps: gapBps.toString() })
-      } else {
-        fidelity.push({ size: `$${Number(m) / 1e6}`, quote: 0n, actual: 0n, gapBps: 'unparsed' })
+      const opened = sim.result[0]
+      // `eswapOut` is the quoter's leveraged open in `tokenOut` (18-decimal
+      // collateral) base units -- the same quantity the executor floors against,
+      // so this compares the quote against the real fill on an identical footing.
+      const quote = (await quoter.quote({ market: ETH_USDC, marginIn: m, leverage: CANARY.leverage }))
+        .eswapOut
+      if (quote <= 0n || opened <= 0n) {
+        fidelity.push({
+          size: `$${Number(m) / 1e6}`,
+          quote,
+          actual: opened,
+          gapBps: 'no-quote',
+        })
+        continue
       }
+      const gapBps = ((quote - opened) * 10_000n) / quote
+      fidelity.push({ size: `$${Number(m) / 1e6}`, quote, actual: opened, gapBps: gapBps.toString() })
+    } catch (err) {
+      fidelity.push({
+        size: `$${Number(m) / 1e6}`,
+        quote: 0n,
+        actual: 0n,
+        gapBps: `no-revert-data:${String(err).match(/0x[0-9a-f]{8}/)?.[0] ?? 'unknown'}`,
+      })
     }
   }
+
+  // Restore a meaningful close floor: leaving it at 1 wei would make a future
+  // canary pass no matter how badly the close leg executed.
+  await send({
+    address: executorAddress,
+    abi: EXECUTOR_ADMIN_ABI,
+    functionName: 'setCanarySlippageBps',
+    args: [1n, 1n],
+  })
   for (const r of fidelity) {
     console.log(
       `  ${r.size.padStart(7)}  gap=${String(r.gapBps).padStart(7)}bps` +
@@ -1225,20 +1275,56 @@ check('protocol quote returns a positive output', q.eswapOut > 0n)
     )
   }
 
-  const parsedGaps = fidelity.filter((r) => r.quote !== 0n).map((r) => Number(r.gapBps))
+  const dustFidelity = fidelity.filter((r) => r.size === '$0.01' || r.size === '$0.1')
+  // Only a real numeric gap counts as a characterisation. Filtering on `quote`
+  // alone would let a `'no-quote'` row through as `NaN`, and `NaN > 0` is false,
+  // so the assertion below would fail for the wrong reason with an unreadable
+  // message. Requiring two finite gaps makes the check state its intent.
+  //
+  // The gap is SIGNED and expected to be negative. `quoteExactInput` applies
+  // `QUOTE_EXECUTION_DISCOUNT_BPS = 100` to the spot estimate, so the quote sits
+  // ~100 bps BELOW the real fill by construction and `quote - opened` is
+  // structurally negative. Asserting `gap > 0` (quote above fill) encoded an
+  // obsolete pre-discount assumption and rejected every correct result.
+  //
+  // The safety property that actually matters is the opposite one: the floor
+  // derived from the quote must sit at or below the real fill, or honest runs
+  // revert. That is what is asserted below, per size.
+  const numeric = /^-?\d+$/
+  const dustGaps = dustFidelity
+    .filter((r) => r.quote !== 0n && numeric.test(r.gapBps))
+    .map((r) => ({ size: r.size, gap: Number(r.gapBps), quote: r.quote, actual: r.actual }))
   check(
-    'the shortfall is characterised at every measured size',
-    fidelity.length === 4 && !fidelity.some((r) => r.gapBps === 'unparsed'),
-    `sizes=${fidelity.map((r) => `${r.size}:${r.gapBps}bps`).join(' ')}`,
+    'quote-model gap is characterised at the dust sizes this protocol opens',
+    dustGaps.length === 2 && dustGaps.every((r) => Number.isFinite(r.gap)),
+    dustFidelity.map((r) => `${r.size}:${r.gapBps}bps`).join(' '),
   )
-  if (parsedGaps.length > 1) {
-    const spread = Math.max(...parsedGaps) - Math.min(...parsedGaps)
+  // Floor direction: `minOutWithSlippage(quote, canarySlippageBps)` must not
+  // exceed the real fill, otherwise the canary reverts on an honest run.
+  for (const r of dustGaps) {
+    const floor = (r.quote * 9_950n) / 10_000n
     check(
-      'shortfall spread across sizes is reported so the fix targets the real cause',
-      spread >= 0,
-      `gap range ${Math.min(...parsedGaps)}..${Math.max(...parsedGaps)}bps ` +
-        `(spread ${spread}bps) — constant gap => quote model error; ` +
-        `growing gap at small size => size-dependent cost`,
+      `quote-derived floor does not exceed the real fill at ${r.size}`,
+      floor <= r.actual,
+      `floor=${floor} actual=${r.actual} gap=${r.gap}bps`,
+    )
+  }
+  // Larger sizes are reported, not asserted: they revert before ever reaching the
+  // open, which says nothing about the quote model.
+  const larger = fidelity.filter((r) => !numeric.test(r.gapBps))
+  if (larger.length) {
+    console.log(
+      `  note: ${larger.map((r) => r.size).join(', ')} produced no open-leg gap ` +
+        `(${larger.map((r) => r.gapBps).join(',')}) — size-dependent gate, no quote information`,
+    )
+  }
+  if (dustGaps.length > 1) {
+    const gaps = dustGaps.map((r) => r.gap)
+    const lo = Math.min(...gaps)
+    const hi = Math.max(...gaps)
+    console.log(
+      `  open-leg quote-model gap ${lo}..${hi}bps across dust sizes ` +
+        `(spread ${hi - lo}bps); live router discount is 100bps`,
     )
   }
 
@@ -1396,17 +1482,20 @@ const canaryHash = await wallet.writeContract({
   check('canary executes with zero reverts', canaryReceipt.status === 'success')
   console.log(`  canary gas: ${canaryReceipt.gasUsed} (open+close in one tx)`)
 
-  // ── 6b. Balancer funding path ─────────────────────────────────────────────
-  // Balancer V2 is the ONLY flash source. The Aave-shaped provider was removed:
-  // its callback path could be exercised locally, but the address it was
-  // configured from (`0x794a…14aD`, an Ethereum mainnet V3 pool) has no bytecode
-  // on Unichain, so the "Aave" the tests proved was a shape, not a deployment.
+  // ── 6b. Flash funding path ─────────────────────────────────────────────────
+  // The executor speaks the Balancer V2 `Vault.flashLoan` shape via
+  // `FlashMode.Balancer`, but the production provider on Unichain is
+  // `InventoryFlashProvider`, a zero-premium funded-inventory source. Balancer V2
+  // itself is not deployed here (the canonical `0xBA12…2C8` is an unrelated
+  // 1,546-byte contract), Morpho Blue is absent, and a V4 `flash()` source cannot
+  // work because it would hold the PoolManager lock across the callback while the
+  // executor's router leg needs `unlock`.
   //
-  // What matters for production is therefore asserted against the real Balancer
-  // path instead: that the funding, authorisation, premium accounting and
-  // repayment transfer all work end to end, and that a losing round trip fails on
-  // ECONOMICS (`InvariantDrift`) rather than on a funding-path revert.
-  section('Balancer funding path (zero-premium V2 flash)')
+  // What matters for production is asserted against the real provider: that the
+  // funding, authorisation, premium accounting and repayment transfer all work end
+  // to end, and that a losing round trip fails on ECONOMICS (`InvariantDrift`)
+  // rather than on a funding-path revert.
+  section('Flash funding path (zero-premium InventoryFlashProvider)')
 
   // Selectors of the executor errors that distinguish "the funding path worked
   // and the trade lost money" from "the funding path is broken".
@@ -1533,14 +1622,15 @@ const canaryHash = await wallet.writeContract({
     'function owner() view returns (address)',
   ])
 
+  const v3Owner = await client.readContract({
+    address: v3VenueAddress,
+    abi: v3VenueAbi,
+    functionName: 'owner',
+  })
   check(
     'independent venue is owned by the executor, so only the executor may drive it',
-    (await client.readContract({
-      address: v3VenueAddress,
-      abi: v3VenueAbi,
-      functionName: 'owner',
-    })) === executorAddress,
-    `owner=${executorAddress}`,
+    v3Owner.toLowerCase() === executorAddress.toLowerCase(),
+    `actualOwner=${v3Owner} executor=${executorAddress} match=${v3Owner.toLowerCase() === executorAddress.toLowerCase()}`,
   )
 
   // Drive the round trip through the independent venue.
