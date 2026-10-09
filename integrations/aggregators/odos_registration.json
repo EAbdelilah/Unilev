@@ -1,0 +1,198 @@
+{
+  "$comment": "Odos SOR / Trading API integration payload for Eswap on Uniswap V4 (Unichain Mainnet). Copy the values under `submission` into the Odos intake form; every field is sourced from the live deployment or computed with keccak256.",
+  "submission": {
+    "project": {
+      "name": "Eswap",
+      "type": "leveraged_swap_venue",
+      "description": "Leveraged single-pool swaps on Uniswap V4. Positions settle against the deep V4 ETH/USDC liquidity via v4 flash accounting (transient deltas on the PoolManager), so no Eswap-side pool TVL is required. Borrowed legs are supplied by independent solvers and recorded as on-chain debt (principal + rehypothecation yield).",
+      "website": "REPLACE_WITH_PROJECT_SITE",
+      "contactEmail": "REPLACE_WITH_INTEGRATION_EMAIL",
+      "chainId": 130,
+      "chainName": "Unichain Mainnet",
+      "category": "defi_leveraged",
+      "auditStatus": "SEE_REPLACEMENTS — do not claim an audit that has not been published"
+    },
+
+    "contracts": {
+      "adapter": {
+        "address": "0xC5616D22892828a500b5957efA9e5CcCD59d5C70",
+        "role": "Primary aggregator entrypoint. Never call EswapRouter directly.",
+        "verified": false,
+        "verifiedOn": "PENDING — submit the flattened source for Sourcify/uniscan verification",
+        "functions": [
+          {
+            "name": "exactInputSingleWithLeverage",
+            "selector": "0xb4d2ebae",
+            "signature": "exactInputSingleWithLeverage(address,address,uint24,uint8,uint256,uint256,address)",
+            "stateMutability": "nonpayable",
+            "args": [
+              "tokenIn address — must match a registered pool",
+              "tokenOut address",
+              "fee uint24 — 3000 for the live ETH/USDC pool",
+              "leverage uint8 — 2..maxLeverage (live hook ceiling: 5)",
+              "amountIn uint256 — MARGIN only, not notional",
+              "minAmountOut uint256 — see slippage note below",
+              "recipient address — receives the ERC-6909 collateral claim; position owner"
+            ]
+          },
+          {
+            "name": "exactInputSingleWithLeverageAggregator",
+            "selector": "0x062c4889",
+            "signature": "exactInputSingleWithLeverageAggregator(address,address,uint24,uint8,uint256,uint256,address,(address,address,uint256,bytes,bool))",
+            "stateMutability": "nonpayable",
+            "args": [
+              "tokenIn address",
+              "tokenOut address",
+              "fee uint24",
+              "leverage uint8",
+              "amountIn uint256",
+              "minAmountOut uint256",
+              "recipient address",
+              "route EswapRouter.AggregatorRoute — (exchangeProxy, tokenIn, tokenOut, sellAmount, value, callData)"
+            ],
+            "notes": "Executes a caller-supplied venue leg inside the SAME v4 unlock as the leveraged leg, so prefill + leverage settle atomically. Use when the prefill must come from a venue Eswap cannot reach natively."
+          }
+        ]
+      },
+      "quoter": {
+        "address": "0x3177f4e53a0EE0318174771b32E68aDe63c20f3b",
+        "role": "Quoting only.",
+        "verified": false,
+        "codeSizeBytes": 2379,
+        "functions": [
+          {
+            "name": "quoteExactInputSingleWithLeverage",
+            "selector": "0x21294f6d",
+            "signature": "quoteExactInputSingleWithLeverage(address,address,uint24,uint8,int256)",
+            "stateMutability": "view",
+            "args": ["tokenIn address", "tokenOut address", "fee uint24", "leverage uint8", "amountIn int256"],
+            "outputs": ["int128 amountOut"],
+            "CRITICAL": "amountIn is a SIGNED int256 (v4 style) but its sign is DISCARDED on the live deployment: EswapRouter.quoteExactInput computes absAmount = amountSpecified < 0 ? -amountSpecified : amountSpecified. Verified live — a negative and a positive amountIn of equal magnitude return the identical amountOut. This is therefore ALWAYS an exact-input quote, and amountOut is always POSITIVE. Do not branch on the sign of amountOut to infer direction; use zeroForOne from the pool key."
+          }
+        ]
+      }
+    },
+
+    "poolKeys": {
+      "$comment": "Both keys must be registered via the owner-only adapter.registerPool(address,address,uint24,PoolKey,PoolKey) (0x430f9b43). Integrators do not register; these are published for verification.",
+      "accountingPool": {
+        "currency0": "0x0000000000000000000000000000000000000000",
+        "currency1": "0x078D782b760474a361dDA0AF3839290b0EF57AD6",
+        "fee": 3000,
+        "tickSpacing": 60,
+        "hooks": "0x4Bd545f6438a27614098984E1322939af53AD0C8",
+        "poolId": "0x4b830e9b09c2717fc198a556651bf2569eda7e57dcfb5b801db6e1c2eadf2591",
+        "role": "Accounting/registration pool. Not the liquidity venue."
+      },
+      "settlementPool": {
+        "currency0": "0x0000000000000000000000000000000000000000",
+        "currency1": "0x078D782b760474a361dDA0AF3839290b0EF57AD6",
+        "fee": 500,
+        "tickSpacing": 10,
+        "hooks": "0x0000000000000000000000000000000000000000",
+        "poolId": "0x3258f413c7a88cda2fa8709a589d221a80f6574f63df5a5b6774485d8acc39d9",
+        "role": "THE liquidity venue. The physical fill executes here. This is the deep ETH/USDC pool Eswap draws settlement from."
+      },
+      "warning": "The `hooks` field of the accounting pool MUST be the current Eswap hook. PoolId = keccak256(abi.encode(currency0,currency1,fee,tickSpacing,hooks)), so a stale hooks address silently addresses the PREDECESSOR pool: 0x9aa5ebac305d4fd646bca230471bcb0df55d89b8b32e94559a0a7471b21ccaae."
+    },
+
+    "events": {
+      "LeveragedSwapRouted": {
+        "topic0": "0x24ecc0da",
+        "signature": "LeveragedSwapRouted(address,address,uint24,uint8,uint256,uint256)",
+        "indexed": ["tokenIn", "tokenOut"],
+        "data": ["fee uint24", "leverage uint8", "amountIn uint256", "amountOut uint256"],
+        "emitter": "0x4Bd545f6438a27614098984E1322939af53AD0C8",
+        "sourceVerification": "Computed with keccak256 over the exact declaration in src/v4/. NOT yet confirmed against a verified uniscan.xyz ABI — see verificationPending below.",
+        "verificationPending": "Topic hash is locally derived and matches the compiled artifact, but the contracts are not yet Sourcify/uniscan verified. Re-confirm topic0 after verification lands."
+      }
+    },
+
+    "gas": {
+      "$comment": "MEASURED on a mainnet fork. The intake template asks for ~110k overhead; the honest figure is an order of magnitude larger. Do not submit 110k.",
+      "measuredRoundTripGas": 1185089,
+      "measuredOpenGas": 1239388,
+      "overheadAbovePlainSwap": "~950k-1M — a leveraged round trip is NOT a drop-in fee-tier swap",
+      "whySoHigh": "Opens a position, mints an ERC-6909 collateral claim, registers solver debt (principal + yield), then closes and settles the debt ledger.",
+      "caveat": "Measured with a fork-local base fee. Re-measure with live estimateGas before quoting a number in production.",
+      "requestedByTemplate": 110000,
+      "templateValueIsWrong": true
+    },
+
+    "costModelBps": {
+      "protocolFeeBps": 10,
+      "settlementPoolFeeBps": 5,
+      "actualFlashPremiumBps": 0,
+      "flashPremiumSource": "InventoryFlashProvider.flashLoan hardcodes feeAmounts[0] == 0 (line 96): the loan is free by construction.",
+      "roundTripBps": 30,
+      "routingNote": "An aggregate route is only worth taking when its own edge exceeds ~30 bps plus a margin. 30 bps is the protocol floor, not a target."
+    },
+
+    "supportedPairs": [
+      {
+        "pair": "ETH/USDC",
+        "tokenIn": "0x078D782b760474a361dDA0AF3839290b0EF57AD6",
+        "tokenOut": "0x0000000000000000000000000000000000000000",
+        "decimalsIn": 6,
+        "decimalsOut": 18,
+        "feeTier": 3000,
+        "registered": true,
+        "notes": "Native ETH, not WETH. currency0 is address(0)."
+      },
+      {
+        "pair": "WETH/USDC",
+        "tokenIn": "0x078D782b760474a361dDA0AF3839290b0EF57AD6",
+        "tokenOut": "0x4200000000000000000000000000000000000006",
+        "decimalsIn": 6,
+        "decimalsOut": 18,
+        "feeTier": 3000,
+        "registered": false,
+        "notes": "NOT ROUTABLE. Requires an owner registerPool call. Excluded from intake until live."
+      }
+    ],
+
+    "riskParameters": {
+      "minLeverage": 2,
+      "maxLeverage": 5,
+      "minMarginObservation": "canaryExecute(0.01 USDC, 2) reverts CollateralTooLow() = 0xb67e07e5 on the live deployment. Read the live minimum; do not assume dust margins are valid.",
+      "slippageFloor": "Use a quote-derived floor. A raw exact-output floor is structurally negative against the router's 100 bps discount — validate floor <= actual rather than requiring equality.",
+      "revertReasons": {
+        "0xb67e07e5": "CollateralTooLow()",
+        "0x292cdffd": "SolverNotRegistered(address)",
+        "0x90781743": "InsufficientBorrowEscrow(uint256,uint256)",
+        "0x2f9fe61a": "InsufficientSolverCollateral",
+        "0x5090d6c6": "AlreadyUnlocked()"
+      }
+    },
+
+    "solverDisclosure": {
+      "required": true,
+      "explanation": "Leveraged opens cannot fill without a named solver funding the borrowed leg (margin * (leverage - 1)). The adapter uses defaultSolver, falling back to backupSolver; if neither is registered the call reverts.",
+      "defaultSolver": "0x518634753C61342298c3E04326056b3Ce596a566",
+      "capitalNote": "Solvers are paid principal PLUS accumulated LP yield on close. On-chain transparency via hook.solverDebts(poolId, trader, solver).accumulatedYield."
+    },
+
+    "securityPosture": {
+      "keeperStatus": "EswapLiquidationKeeper IS deployed at 0x5E8aDA65050962c62A815932BF38dc144E0545DA (7,451 bytes verified on chain) and responds to watchesLength(). It currently holds ZERO watches, so NO position is covered by automated liquidation. Adding coverage is owner-only via addWatch(). Do not claim automated protection until a watch exists for the position in question.",
+      "badDebtPath": "If an unwind proceeds less than owed, insurance fund is drawn first (capped at ERC-6909 claims actually held), then the remainder is recorded as badDebt rather than reverting. Solver payout is truncated to available proceeds.",
+      "poolRegistryLookupOrder": "VERIFIED LIVE: adapter.poolRegistry(tokenIn, tokenOut, fee) is keyed by ROUTE orientation (USDC, ETH, 3000). Reading it as (currency0, currency1) returns an all-zero struct WITHOUT reverting, which looks like 'pool not registered'. This is a silent integration miss.",
+      "doNotClaim": [
+        "Do not state solver capital is 'guaranteed by the smart contract' — uncovered shortfall becomes badDebt.",
+        "Do not claim an automated keeper is protecting positions until a watch exists for that specific position (watchesLength() is currently 0).",
+        "Do not quote 110k gas overhead.",
+        "Do not quote an APY figure without measured on-chain yield history.",
+        "Do not branch on the sign of the quoter's amountOut — it is always positive; the sign of amountIn is discarded upstream.",
+        "Do not read adapter.poolRegistry in (currency0, currency1) order — it silently returns zeros."
+      ]
+    }
+  },
+
+  "REPLACEMENTS": [
+    "project.website",
+    "project.contactEmail",
+    "project.auditStatus",
+    "contracts.adapter.verified / quoter.verified — set true only after Sourcify verification",
+    "contracts.adapter.verifiedOn",
+    "events.LeveragedSwapRouted.verificationPending — re-confirm topic0 against the verified ABI"
+  ]
+}

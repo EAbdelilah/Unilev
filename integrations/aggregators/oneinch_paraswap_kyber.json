@@ -1,0 +1,251 @@
+{
+  "$comment": "Unified intake specification for 1inch (Network Aggregator v6), Paraswap (Augustus), and KyberSwap (Elastic/Aggregation API). Three venues share one Eswap registration shape: Eswap is not a native pool for any of them, so each is registered as a CUSTOM VENUE that must be constructed into a route. Selectors are keccak256 over the exact signatures in src/v4/.",
+
+  "eswapVenue": {
+    "chainId": 130,
+    "chainName": "Unichain Mainnet",
+    "adapter": "0xC5616D22892828a500b5957efA9e5CcCD59d5C70",
+    "quoter": "0x3177f4e53a0EE0318174771b32E68aDe63c20f3b",
+    "router": "0xe7c5AE37DDAca662B483ab5F29a30860835e8C3b",
+    "poolManager": "0x1F98400000000000000000000000000000000004",
+    "flashProvider": "0xcaF0B4De7b3e501c26A3e5063cB558C2d7766ee4",
+    "hook": "0x4Bd545f6438a27614098984E1322939af53AD0C8",
+    "defaultSolver": "0x518634753C61342298c3E04326056b3Ce596a566",
+
+    "poolKeys": {
+      "accountingPool": {
+        "currency0": "0x0000000000000000000000000000000000000000",
+        "currency1": "0x078D782b760474a361dDA0AF3839290b0EF57AD6",
+        "fee": 3000,
+        "tickSpacing": 60,
+        "hooks": "0x4Bd545f6438a27614098984E1322939af53AD0C8",
+        "poolId": "0x4b830e9b09c2717fc198a556651bf2569eda7e57dcfb5b801db6e1c2eadf2591"
+      },
+      "settlementPool": {
+        "currency0": "0x0000000000000000000000000000000000000000",
+        "currency1": "0x078D782b760474a361dDA0AF3839290b0EF57AD6",
+        "fee": 500,
+        "tickSpacing": 10,
+        "hooks": "0x0000000000000000000000000000000000000000",
+        "poolId": "0x3258f413c7a88cda2fa8709a589d221a80f6574f63df5a5b6774485d8acc39d9",
+        "role": "THE liquidity venue: the deep ETH/USDC pool the physical fill executes on."
+      },
+      "poolIdFormula": "keccak256(abi.encode(currency0, currency1, fee, tickSpacing, hooks))",
+      "staleHooksWarning": "A wrong `hooks` value addresses the predecessor pool 0x9aa5ebac305d4fd646bca230471bcb0df55d89b8b32e94559a0a7471b21ccaae instead of the live pool."
+    },
+
+    "selectors": {
+      "exactInputSingleWithLeverage": {
+        "selector": "0xb4d2ebae",
+        "signature": "exactInputSingleWithLeverage(address,address,uint24,uint8,uint256,uint256,address)",
+        "mutability": "nonpayable",
+        "inputs": [
+          { "name": "tokenIn", "type": "address" },
+          { "name": "tokenOut", "type": "address" },
+          { "name": "fee", "type": "uint24", "note": "3000 for the live pair" },
+          { "name": "leverage", "type": "uint8", "note": "2..5" },
+          { "name": "amountIn", "type": "uint256", "note": "MARGIN ONLY, not notional" },
+          { "name": "minAmountOut", "type": "uint256" },
+          { "name": "recipient", "type": "address", "note": "position owner; receives the ERC-6909 claim" }
+        ],
+        "outputs": [{ "name": "amountOut", "type": "uint256" }]
+      },
+      "exactInputSingleWithLeverageAggregator": {
+        "selector": "0x062c4889",
+        "signature": "exactInputSingleWithLeverageAggregator(address,address,uint24,uint8,uint256,uint256,address,(address,address,uint256,bytes,bool))",
+        "mutability": "nonpayable",
+        "purpose": "Executes a caller-supplied venue leg inside the SAME v4 unlock. This is the hook each aggregator below uses to compose Eswap with its own prefill.",
+        "routeStruct": {
+          "internalType": "struct EswapRouter.AggregatorRoute",
+          "components": [
+            { "name": "exchangeProxy", "type": "address", "note": "venue contract the router calls" },
+            { "name": "tokenIn", "type": "address" },
+            { "name": "tokenOut", "type": "address" },
+            { "name": "sellAmount", "type": "uint256" },
+            { "name": "value", "type": "uint256" },
+            { "name": "callData", "type": "bytes" }
+          ]
+        }
+      },
+      "quoteExactInputSingleWithLeverage": {
+        "selector": "0x21294f6d",
+        "signature": "quoteExactInputSingleWithLeverage(address,address,uint24,uint8,int256)",
+        "mutability": "view",
+        "signedInputWarning": "VERIFIED LIVE: amountIn is a signed int256 but its sign is DISCARDED — EswapRouter.quoteExactInput takes absAmount = amountSpecified < 0 ? -amountSpecified : amountSpecified, so negative and positive inputs of equal magnitude return the identical amountOut. This is therefore ALWAYS an exact-input quote and amountOut is always POSITIVE. Do not branch on the amountOut sign.",
+        "outputs": [{ "name": "amountOut", "type": "int128" }]
+      },
+      "registerPool": {
+        "selector": "0x430f9b43",
+        "signature": "registerPool(address,address,uint24,(address,address,uint24,int24,address),(address,address,uint24,int24,address))",
+        "mutability": "nonpayable",
+        "access": "onlyOwner — integrators CANNOT self-register. Only ETH/USDC (fee 3000) is live."
+      }
+    },
+
+    "events": {
+      "LeveragedSwapRouted": {
+        "topic0": "0x24ecc0da",
+        "signature": "LeveragedSwapRouted(address,address,uint24,uint8,uint256,uint256)",
+        "emitter": "0x4Bd545f6438a27614098984E1322939af53AD0C8",
+        "verificationStatus": "topic0 locally derived and matching the compiled artifact; contracts NOT yet Sourcify verified. Re-confirm against the verified ABI."
+      }
+    },
+
+    "gas": {
+      "measuredRoundTrip": 1185089,
+      "measuredOpen": 1239388,
+      "overheadAbovePlainSwap": "~950k-1M, NOT the ~110k some intake templates request",
+      "caveat": "fork-local base fee; re-measure with live estimateGas"
+    },
+
+    "costModelBps": {
+      "protocolFee": 10,
+      "settlementPoolFee": 5,
+      "flashPremium": 0,
+      "flashPremiumEvidence": "InventoryFlashProvider.sol:96 hardcodes feeAmounts[0] == 0",
+      "roundTrip": 30,
+      "routingRule": "Only route when your edge exceeds 30 bps plus margin."
+    },
+
+    "riskParameters": {
+      "leverageRange": [2, 5],
+      "minMargin": "CollateralTooLow() = 0xb67e07e5 observed at 0.01 USDC margin; read the live minimum",
+      "slippage": "quote-derived floor; a raw exact-output floor is structurally negative against the 100 bps router discount",
+      "revertReasons": {
+        "0xb67e07e5": "CollateralTooLow()",
+        "0x292cdffd": "SolverNotRegistered(address)",
+        "0x90781743": "InsufficientBorrowEscrow(uint256,uint256)",
+        "0x2f9fe61a": "InsufficientSolverCollateral",
+        "0x5090d6c6": "AlreadyUnlocked()",
+        "0x486aa307": "PoolNotInitialized()"
+      }
+    },
+
+    "solverRequirement": {
+      "mandatory": true,
+      "mechanism": "adapter.defaultSolver, falling back to backupSolver; unregistered -> revert SolverNotRegistered",
+      "defaultSolver": "0x518634753C61342298c3E04326056b3Ce596a566",
+      "compensation": "principal + accumulatedYield on close",
+      "transparency": "hook.solverDebts(poolId, trader, solver) is public"
+    },
+
+    "honestyConstraints": {
+      "doNotClaim": [
+        "solver capital is 'guaranteed by the smart contract' — uncovered shortfall is recorded as badDebt, and solver payout is truncated to proceeds",
+        "an automated keeper protects live positions — EswapLiquidationKeeper IS deployed (0x5E8aDA65050962c62A815932BF38dc144E0545DA, verified live) but watchesLength() == 0, so it currently protects nothing",
+        "110k gas overhead",
+        "any APY figure without measured on-chain yield history"
+      ]
+    }
+  },
+
+  "venues": {
+    "1inchNetworkAggregatorV6": {
+      "chainSupport": {
+        "130": {
+          "status": "SUPPORTED",
+          "note": "1inch supports Unichain (chain 130). Regional routing endpoints apply; use the chain-130 API base, not the Ethereum one."
+        }
+      },
+      "integrationModel": "CUSTOM_VENUE",
+      "whyNotNative": "1inch discovers liquidity from its own pool registries and on-chain pool contracts. Eswap's leveraged surface is reached through a call into EswapLeverageAdapter, not a pool 1inch can enumerate, so it must be modelled as a custom venue with explicit calldata.",
+      "selector": "0xb4d2ebae",
+      "calldataTemplate": "0xb4d2ebae ++ abi.encode(address tokenIn, address tokenOut, uint24 fee, uint8 leverage, uint256 amountIn, uint256 minAmountOut, address recipient)",
+      "encoding": "solidityPack-style manual encoding; argument order is positional and NOT named",
+      "requiredApprovals": ["tokenIn -> adapter (margin only)"],
+      "approvalWarning": "Approve MARGIN only. The borrowed leg is pulled from the SOLVER by the router (Router:784) and settled with settleFor(hook). Approving notional from the trader is wrong and unsafe.",
+      "composition": {
+        "method": "Use exactInputSingleWithLeverageAggregator (0x062c4889) to run the 1inch prefill and the leveraged leg inside one v4 unlock.",
+        "route": {
+          "exchangeProxy": "1inch AggregationRouter v6 on Unichain — REPLACE_WITH_ADDRESS",
+          "sellAmount": "the amount 1inch pre-fills",
+          "callData": "1inch swap calldata returning into Eswap's expected tokenOut"
+        }
+      },
+      "quoter": {
+        "endpoint": "call EswapLeverageQuoter.quoteExactInputSingleWithLeverage (0x21294f6d) directly from 1inch's off-chain worker",
+        "signedInputWarning": "signed int256 input, but the sign is discarded upstream — always an exact-input quote, amountOut is always positive"
+      },
+      "intake": {
+        "form": "https://portal.1inch.io/ — submit as a custom/integration venue",
+        "fieldsNeeded": [
+          "chainId 130",
+          "adapter + quoter addresses",
+          "selectors above",
+          "supported pairs (ETH/USDC fee 3000 registered; WETH/USDC NOT registered)",
+          "measured gas and the explicit correction that 110k is wrong",
+          "solver disclosure"
+        ]
+      }
+    },
+
+    "paraswapAugustus": {
+      "chainSupport": {
+        "130": { "status": "SUPPORTED", "note": "Paraswap lists Unichain. API-side token/dex registry entries required." }
+      },
+      "integrationModel": "CUSTOM_POOL_TYPE with deltaBalance mechanics",
+      "whyCustom": "Augustus classifies liquidity by pool type. A leveraged open has no symmetric spot reserve to read, so a custom type with an explicit calldata producer is required rather than a reserves-backed pool entry.",
+      "deltaBalanceNote": "Augustus deltaBalance resolves a route by its net token delta. A leveraged open DELTA-IN is (margin + borrow) of tokenIn and DELTA-OUT is the bought amount, but the CALLED contract only receives `amountIn` = margin. Declare the net delta from the ROUTE, not from the calldata, or Augustus will compute a wrong input requirement.",
+      "selector": "0xb4d2ebae",
+      "calldataProducer": "Returns ABI-encoded exactInputSingleWithLeverage(...) args for (tokenIn, tokenOut, fee, leverage, amountIn, minAmountOut, recipient).",
+      "destTokenNote": "ETH is currency0 == address(0) in the accounting pool, so the 0x-address is the correct token identity in Eswap calldata even though WETH is the ERC-20 wrapper.",
+      "intake": {
+        "form": "https://dev.paraswap.io/ — custom DEX / partnership",
+        "fieldsNeeded": [
+          "chainId 130",
+          "adapter address and calldata producer",
+          "deltaBalance semantics declaration",
+          "measured gas (not 110k)",
+          "solver disclosure"
+        ]
+      }
+    },
+
+    "kyberSwap": {
+      "chainSupport": {
+        "130": { "status": "VERIFY_AT_INTAKE", "note": "KyberSwap Elastic deployment status on Unichain must be confirmed with Kyber before submitting a route; do not assume parity with Ethereum/Base." }
+      },
+      "integrationModel": "CUSTOM_POOL with reserve-free metadata",
+      "whyCustom": "KyberSwap's Aggregation API reads pool reserves from a pool contract. Eswap exposes no reserve getters — its balance sheet is transient v4 deltas — so metadata must be supplied out of band.",
+      "selector": "0xb4d2ebae",
+      "tokenAddressMapping": {
+        "note": "Map Eswap's native-ETH identity to the Kyber token id Kyber expects for native/wrapped.",
+        "eswapAccountingCurrency0": "0x0000000000000000000000000000000000000000",
+        "wrappedEquivalent": "0x4200000000000000000000000000000000000006",
+        "usdc": "0x078D782b760474a361dDA0AF3839290b0EF57AD6"
+      },
+      "reserveFree": true,
+      "metadataRequired": [
+        "chainId",
+        "adapter address",
+        "fee tier 3000",
+        "quote endpoint",
+        "supported pairs with explicit registration status"
+      ],
+      "intake": {
+        "form": "https://developer.kyber.network/ — supported-token / custom-pool submission",
+        "fieldsNeeded": [
+          "chain 130 confirmation",
+          "adapter + quoter",
+          "reserve-free pool metadata",
+          "measured gas",
+          "solver disclosure"
+        ]
+      }
+    }
+  },
+
+  "crossVenueNotes": {
+    "amountSemantics": "amountIn is MARGIN everywhere. notional = margin * leverage. borrowed = margin * (leverage - 1), supplied by the solver.",
+    "approvalDiscipline": "Approve margin to the adapter. Never approve the borrow from the trader; the router pulls it from the solver via safeTransferFrom(params.solver, manager, borrowAmount) (Router:784) then settleFor(hook).",
+    "closePath": "Positions are ERC-6909 claims owned by `recipient`. Close with EswapRouter.closePosition as the direct caller — the router's C-1 rule requires the trader to call directly, so a router-based aggregator cannot close on the user's behalf without the user's signature.",
+    "v4LockHazard": "A flash source that holds the PoolManager lock (Balancer-style, or v4 unlock/flash accounting) will make the router's own unlock revert AlreadyUnlocked (0x5090d6c6). InventoryFlashProvider is external and never takes the lock, which is why it composes."
+  },
+
+  "REPLACEMENTS": [
+    "eswapVenue.contracts verification status (not yet Sourcify verified)",
+    "venues.1inchNetworkAggregatorV6.composition.route.exchangeProxy — supply the 1inch v6 AggregationRouter address on Unichain",
+    "venues.kyberSwap.chainSupport.130.status — confirm with Kyber before submitting",
+    "events.LeveragedSwapRouted.verificationStatus — re-confirm topic0 against the verified ABI"
+  ]
+}

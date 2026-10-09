@@ -1,0 +1,197 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://eswap.xyz/schemas/cow/appData/leverage-v1.json",
+  "title": "Eswap CoW Protocol appData — leveraged fill commitment",
+  "description": "Validated schema for the CoW Protocol `appData` field that authorises a leveraged Eswap fill. The order's appData MUST carry `leverageCommitment(leverage)` = keccak256(abi.encodePacked('eswap-cow-leverage-v1', uint8(leverage))) or the settlement reverts LeverageCommitmentMismatch. This is the trader-signed underwriting signal: the trader authorises the exact leverage the solver may apply.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["metadata"],
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version", "appCode", "docRef"],
+      "properties": {
+        "name": {
+          "const": "Eswap CoW Leverage",
+          "description": "Display name shown in the CoW orderbook UI."
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
+          "description": "Semver of the appData format itself."
+        },
+        "appCode": {
+          "const": "eswap-cow-leverage-v1",
+          "description": "MUST equal the on-chain APP_DATA_LEVERAGE_TAG (EswapCoWSettlement.sol:87). The settlement hashes this tag together with the leverage byte, so a different appCode produces a commitment the settlement will not recognise."
+        },
+        "docRef": {
+          "type": "string",
+          "description": "Documentation URL published to IPFS alongside this metadata."
+        },
+        "logoUrl": {
+          "type": "string",
+          "description": "Optional logo for the orderbook UI."
+        }
+      }
+    },
+
+    "leverageCommitment": {
+      "type": "string",
+      "pattern": "^0x[0-9a-fA-F]{64}$",
+      "description": "bytes32 = keccak256(abi.encodePacked('eswap-cow-leverage-v1', uint8(leverage))). Reproduce with EswapCoWSettlement.leverageCommitment(uint8 leverage). This is the ONLY field the settlement reads out of appData.",
+      "examples": [
+        {
+          "leverage": 2,
+          "howToCompute": "keccak256(abi.encodePacked(keccak256('eswap-cow-leverage-v1'), uint8(2)))"
+        }
+      ]
+    },
+
+    "leverage": {
+      "type": "integer",
+      "minimum": 2,
+      "maximum": 5,
+      "description": "Human-readable mirror of the commitment, for UI display only. The contract reads `leverageCommitment`, NOT this field. Keep the two consistent; a mismatch is not detectable on-chain and will confuse dispute resolution."
+    },
+
+    "settlement": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Destination settler this order targets.",
+      "properties": {
+        "chainId": { "const": 130 },
+        "settlementAddress": {
+          "type": "string",
+          "pattern": "^0x[0-9a-fA-F]{40}$",
+          "description": "EswapCoWSettlement on Unichain. Not yet deployed — the live address is still the zero address in integrations/solvers/shared.ts. Do not publish an order against an undeployed settler."
+        }
+      }
+    },
+
+    "market": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Pool identity the fill targets. registerPool is owner-only, so an order may only reference registered pairs.",
+      "properties": {
+        "tokenIn": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" },
+        "tokenOut": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" },
+        "feeTier": {
+          "type": "integer",
+          "enum": [3000],
+          "description": "Only fee tier 3000 is registered on the live adapter."
+        },
+        "accountingPoolId": {
+          "type": "string",
+          "pattern": "^0x[0-9a-fA-F]{64}$",
+          "const": "0x4b830e9b09c2717fc198a556651bf2569eda7e57dcfb5b801db6e1c2eadf2591"
+        },
+        "settlementPoolId": {
+          "type": "string",
+          "pattern": "^0x[0-9a-fA-F]{64}$",
+          "const": "0x3258f413c7a88cda2fa8709a589d221a80f6574f63df5a5b6774485d8acc39d9"
+        }
+      }
+    },
+
+    "solverRequirements": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "What a solver must bond to fill. Derived from borrowAmount = margin * (leverage - 1).",
+      "properties": {
+        "marginAmount": {
+          "type": "string",
+          "pattern": "^\\d+$",
+          "description": "Trader margin in tokenIn base units (USDC = 6 decimals). NOT notional."
+        },
+        "borrowedAmount": {
+          "type": "string",
+          "pattern": "^\\d+$",
+          "description": "marginAmount * (leverage - 1). The solver supplies this."
+        },
+        "escrowBondRequired": {
+          "type": "boolean",
+          "description": "True when the filling solver is not governance-whitelisted and must post erc20BorrowEscrow >= borrowedAmount first."
+        }
+      }
+    },
+
+    "riskDisclosure": {
+      "type": "object",
+      "description": "Fields surfaced in the orderbook UI so the trader consents knowingly. Keep in sync with the deployed contracts.",
+      "properties": {
+        "roundTripCostBps": {
+          "const": 30,
+          "description": "10 bps protocol toll each way + 5 bps settlement pool fee each way + 0 bps flash premium."
+        },
+        "actualFlashPremiumBps": {
+          "const": 0,
+          "description": "InventoryFlashProvider hardcodes feeAmounts[0] == 0 (line 96)."
+        },
+        "minMarginWarning": {
+          "type": "string",
+          "description": "CollateralTooLow() (0xb67e07e5) was observed at a 0.01 USDC margin on the live deployment. Read the live minimum rather than assuming dust margins fill."
+        },
+        "solverPaymentPriority": {
+          "type": "string",
+          "const": "principal + accumulatedYield, paid before the liquidator incentive (EswapMarginHookLogic2.sol:496-500)",
+          "description": "Solver is senior to the trader and to the liquidator incentive. This is a PRIORITY claim, NOT a guarantee — uncovered shortfall after insurance is booked as badDebt (line 492) and the solver payout is truncated to proceeds (line 497)."
+        },
+        "keeperStatus": {
+          "type": "string",
+          "const": "EswapLiquidationKeeper is unit-tested but NOT deployed on Unichain; no automated liquidation is currently active on the live deployment.",
+          "description": "Must be shown to the trader. Do not imply automated protection that does not exist."
+        },
+        "positionOwnership": {
+          "type": "string",
+          "const": "The fill credits the position DIRECTLY to the order recipient. The order's receiver must resolve back to the order owner, otherwise ReceiverMismatch."
+        }
+      }
+    }
+  },
+
+  "examples": [
+    {
+      "metadata": {
+        "name": "Eswap CoW Leverage",
+        "version": "1.0.0",
+        "appCode": "eswap-cow-leverage-v1",
+        "docRef": "ipfs://REPLACE_WITH_PUBLISHED_DOC_HASH"
+      },
+      "leverageCommitment": "0xREPLACE_WITH_leverageCommitment(2)",
+      "leverage": 2,
+      "settlement": {
+        "chainId": 130,
+        "settlementAddress": "0xREPLACE_AFTER_DEPLOYMENT"
+      },
+      "market": {
+        "tokenIn": "0x078D782b760474a361dDA0AF3839290b0EF57AD6",
+        "tokenOut": "0x0000000000000000000000000000000000000000",
+        "feeTier": 3000,
+        "accountingPoolId": "0x4b830e9b09c2717fc198a556651bf2569eda7e57dcfb5b801db6e1c2eadf2591",
+        "settlementPoolId": "0x3258f413c7a88cda2fa8709a589d221a80f6574f63df5a5b6774485d8acc39d9"
+      },
+      "solverRequirements": {
+        "marginAmount": "1000000",
+        "borrowedAmount": "1000000",
+        "escrowBondRequired": true
+      },
+      "riskDisclosure": {
+        "roundTripCostBps": 30,
+        "actualFlashPremiumBps": 0,
+        "minMarginWarning": "A 0.01 USDC margin reverted CollateralTooLow() on the live deployment; read the live minimum.",
+        "solverPaymentPriority": "principal + accumulatedYield, paid before the liquidator incentive (EswapMarginHookLogic2.sol:496-500)",
+        "keeperStatus": "EswapLiquidationKeeper is unit-tested but NOT deployed on Unichain; no automated liquidation is currently active on the live deployment.",
+        "positionOwnership": "The fill credits the position DIRECTLY to the order recipient. The order's receiver must resolve back to the order owner, otherwise ReceiverMismatch."
+      }
+    }
+  ],
+
+  "constraints": [
+    "appData MUST equal leverageCommitment(leverage) EXACTLY, or the fill reverts LeverageCommitmentMismatch (EswapCoWSettlement.sol:83).",
+    "Only fee tier 3000 ETH/USDC is registered; registerPool is owner-only.",
+    "The settlement contract is not yet deployed on Unichain — do not publish live orders.",
+    "Do not describe solver capital as guaranteed; it is a senior priority claim with badDebt as the shortfall path.",
+    "Do not imply an active automated keeper until EswapLiquidationKeeper is deployed."
+  ]
+}

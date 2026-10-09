@@ -20,6 +20,6 @@
       "dotenv": ["node_modules/dotenv"]
     }
   },
-  "include": ["src/**/*.ts", "test/**/*.ts"],
+  "include": ["src/**/*.ts", "test/**/*.ts", "integrations/**/*.ts"],
   "exclude": ["node_modules", "lib", "out", "cache", "scripts", "dashboard"]
 }
