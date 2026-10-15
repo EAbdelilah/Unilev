@@ -40,6 +40,13 @@ contract PriceFeed {
     // [AUDIT MED-12] When true, every feed MUST have min/max bounds configured
     // (production hardening); when false (legacy default) bounds stay optional.
     bool public requireBounds;
+    // [FIX M-2b] Optional PER-FEED staleness ceiling, in seconds. When a token
+    // has a non-zero value here it supersedes MAX_ORACLE_AGE for that token.
+    // Rationale: L2 USD feeds pace very differently (Base WETH/USD updates
+    // sub-hourly, but USDC/USD carries a ~24h heartbeat), so a single global
+    // 1h ceiling is too tight for slow-moving stablecoin feeds. Zero (the
+    // default) preserves the MAX_ORACLE_AGE behaviour for backward compat.
+    mapping(address => uint256) public maxOracleAgeSec;
 
     /// @dev Canonical key used to price NATIVE ETH. Native ether (Currency 0x0)
     ///      has no ERC-20 address, but the protocol prices the ETH leg through
@@ -99,6 +106,16 @@ contract PriceFeed {
         sequencerUptimeFeed = feed;
     }
 
+    /// @notice [FIX M-2b] Set a per-feed staleness ceiling (seconds). A value of
+    ///         0 restores the global MAX_ORACLE_AGE (3600s) for that token.
+    /// @dev Bounded so governance cannot disable the staleness guard entirely:
+    ///      the ceiling must be non-zero and no larger than 7 days. This keeps
+    ///      the "no silently-stale oracle" invariant while allowing slow feeds.
+    function setMaxOracleAge(address token, uint256 seconds_) external onlyOwner {
+        require(seconds_ == 0 || (seconds_ >= 60 && seconds_ <= 7 days), "bad max age");
+        maxOracleAgeSec[token] = seconds_;
+    }
+
     /**
      * @notice Register a Chainlink USD feed for a token.
      * @param token     ERC-20 address
@@ -147,7 +164,9 @@ contract PriceFeed {
         // [AUDIT HIGH-8] A future or zero timestamp must never pass silently: it
         // would let an out-of-band answer skip the staleness bound entirely.
         if (updatedAt == 0 || updatedAt > block.timestamp) revert StalePrice();
-        if (block.timestamp - updatedAt > MAX_ORACLE_AGE) {
+        uint256 maxAge = maxOracleAgeSec[token];
+        if (maxAge == 0) maxAge = MAX_ORACLE_AGE;
+        if (block.timestamp - updatedAt > maxAge) {
             revert StalePrice();
         }
         // [AUDIT HIGH-11] Round-completeness check: the reported answer may only

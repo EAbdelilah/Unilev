@@ -285,8 +285,11 @@ contract EswapLeverageAdapterTest is BaseV4Test {
         int128 amountOut =
             quoter.quoteExactInputSingleWithLeverage(address(token0), address(token1), 3000, 5, -int256(MARGIN));
 
-        // Pool at 1:1, leveraged amount = 50 ether, 0.1% discount
-        assertEq(uint256(int256(amountOut)), (50 ether * 9990) / 10000); // 49950 ether
+        // Pool at 1:1, leveraged amount = 50 ether, canonical execution discount
+        assertEq(
+            uint256(int256(amountOut)),
+            (50 ether * (10_000 - router.QUOTE_EXECUTION_DISCOUNT_BPS())) / 10_000
+        ); // 49.5 ether
     }
 
     function test_Quoter_PoolNotRegistered_Reverts() public {

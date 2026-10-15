@@ -58,14 +58,15 @@ contract TwapFeedForkTest is Test {
         assertEq(address(usdcFeed.pool()), POOL, "USDC feed pool");
     }
 
-    /// @dev Rejects a pool whose token ordering is reversed, which would silently
-    ///      invert the price by a factor of ~1e24.
-    function test_RejectsReversedPoolOrdering() public {
+    /// @dev A pool whose tokens are not exactly {USDC, WETH} must be rejected. Both
+    ///      genuine orientations are accepted now (Base's pool sorts WETH first), so
+    ///      this guards against an unrelated pool, not against ordering.
+    function test_RejectsNonUsdcWethPool() public {
         vm.expectRevert(EthTwapFeed.BadPool.selector);
-        new EthTwapFeed(POOL, WINDOW, WETH, USDC); // usdc/weth swapped
+        new EthTwapFeed(POOL, WINDOW, address(0xdEaD), WETH); // usdc_ not a pool token
 
         vm.expectRevert(UsdcTwapFeed.BadPool.selector);
-        new UsdcTwapFeed(POOL, ETH_USD, WINDOW, WETH, USDC);
+        new UsdcTwapFeed(POOL, ETH_USD, WINDOW, USDC, address(0xdEaD)); // weth_ not a pool token
     }
 
     function test_RejectsZeroWindowAndZeroPool() public {
@@ -120,7 +121,7 @@ contract TwapFeedForkTest is Test {
     function test_BothFeedsShareIdenticalWethUsdcLeg() public {
         if (!rpcAvailable) { vm.skip(true); return; }
 
-        uint256 leg = V3TwapMath.consultUsdcPerWeth18(POOL, WINDOW);
+        uint256 leg = V3TwapMath.consultUsdcPerWeth18(POOL, WINDOW, USDC, WETH);
         assertGt(leg, 1, "shared leg non-zero");
         // ETH/USD IS the shared leg (USDC == $1).
         assertEq(ethFeed.ethPerUsd18(), leg, "ETH feed == shared leg");

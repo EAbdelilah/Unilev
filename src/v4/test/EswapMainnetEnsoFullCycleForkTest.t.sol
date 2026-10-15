@@ -207,6 +207,7 @@ contract EswapMainnetEnsoFullCycleForkTest is Test, IUnlockCallback {
 
         console2.log("[step] pipeline contracts");
         adapter = new EswapLeverageAdapter(router);
+        router.setExecutorWhitelist(address(adapter), true);
         adapter.registerPool(MAINNET_USDC, MAINNET_WETH, 3000, hookLocalKey, standardLocalKey);
         adapter.registerPool(MAINNET_WETH, MAINNET_USDC, 3000, hookLocalKey, standardLocalKey);
         adapter.setDefaultSolver(solver);
@@ -359,5 +360,87 @@ contract EswapMainnetEnsoFullCycleForkTest is Test, IUnlockCallback {
         uint256 returned = margin + traderFinal - traderStart;
         assertGt(returned, margin * 88 / 100, "trader recovers >88% of margin after full Enso mainnet cycle");
         assertLt(returned, margin * 101 / 100, "no free money on flat-price round-trip");
+    }
+
+    /// @dev MOAT PROOF — the protocol funds NOTHING of the borrowed leg.
+    ///
+    ///      A REAL Enso bundle supplies the swap output (external liquidity),
+    ///      and the borrow leg is drawn ENTIRELY from the solver's own
+    ///      pre-deposited bond (`erc20BorrowEscrow`). The protocol's own
+    ///      capital is never touched: the router/pool/hook hold ZERO USDC and
+    ///      ZERO WETH before and after, the trader pays only its margin, and
+    ///      the solver's only spend is the bond it recovers on close. This is
+    ///      the demand-side moat: aggregator depth + solver bonds, no protocol
+    ///      seed capital on the borrow leg.
+    function test_Moat_SolverFundsBorrow_ProtocolHoldsZeroCapital() public {
+        if (!fixtureReady) return;
+        if (MainnetEnsoRoute.SELL_AMOUNT == 0) return;
+
+        uint8 leverage = 2;
+        uint256 notional = MainnetEnsoRoute.SELL_AMOUNT;
+        uint256 margin = notional / leverage;
+        uint256 borrowLeg = notional - margin;
+
+        EswapRouter.AggregatorRoute memory route = EswapRouter.AggregatorRoute({
+            exchangeProxy: MainnetEnsoRoute.EXCHANGE_PROXY,
+            tokenIn: MainnetEnsoRoute.TOKEN_IN,
+            tokenOut: MainnetEnsoRoute.TOKEN_OUT,
+            sellAmount: notional,
+            value: MainnetEnsoRoute.TX_VALUE,
+            callData: MainnetEnsoRoute.CALLDATA
+        });
+
+        // --- 1. Solver bonds the borrow leg up-front (NO protocol capital). ---
+        vm.prank(solver);
+        router.depositBorrowEscrow(MAINNET_USDC, borrowLeg);
+        assertEq(router.erc20BorrowEscrow(solver, MAINNET_USDC), borrowLeg, "solver bond recorded");
+        uint256 solverStart = RealIERC20(MAINNET_USDC).balanceOf(solver);
+
+        // --- 2. Protocol starts with zero of its own capital in play. ---
+        assertEq(RealIERC20(MAINNET_USDC).balanceOf(address(router)), borrowLeg, "router holds only solver escrow");
+        assertEq(RealIERC20(MAINNET_WETH).balanceOf(address(router)), 0, "router holds no WETH");
+        assertEq(RealIERC20(MAINNET_USDC).balanceOf(address(hook)), 0, "hook holds no USDC");
+        assertEq(RealIERC20(MAINNET_WETH).balanceOf(address(hook)), 0, "hook holds no WETH");
+
+        uint256 traderStart = RealIERC20(MAINNET_USDC).balanceOf(trader);
+
+        // --- 3. Land the tx: aggregator swap + solver-funded borrow. ---
+        vm.prank(trader);
+        uint256 collateral = adapter.exactInputSingleWithLeverageAggregator(
+            MAINNET_USDC, MAINNET_WETH, 3000, leverage, margin, _minOut(), trader, route
+        );
+        assertGt(collateral, 0, "aggregator open must produce collateral");
+
+        // --- 4. Borrow came from the solver's bond, not the protocol. ---
+        assertEq(router.erc20BorrowEscrow(solver, MAINNET_USDC), 0, "solver bond fully consumed");
+        assertEq(
+            RealIERC20(MAINNET_USDC).balanceOf(solver),
+            solverStart,
+            "solver USDC unchanged during open (borrow drawn from bond, repaid later)"
+        );
+        assertEq(
+            traderStart - RealIERC20(MAINNET_USDC).balanceOf(trader),
+            margin,
+            "trader spent exactly its margin, nothing more"
+        );
+
+        // --- 5. Protocol retained ZERO of its own capital. ---
+        assertEq(RealIERC20(MAINNET_USDC).balanceOf(address(router)), 0, "router ends with 0 USDC");
+        assertEq(RealIERC20(MAINNET_WETH).balanceOf(address(router)), 0, "router ends with 0 WETH");
+        assertEq(RealIERC20(MAINNET_USDC).balanceOf(address(hook)), 0, "hook ends with 0 USDC");
+        assertEq(RealIERC20(MAINNET_WETH).balanceOf(address(hook)), 0, "hook ends with 0 WETH");
+
+        // --- 6. Accounting is intact: position + solver debt for the borrow. ---
+        (address posTrader, uint256 posCollateral, uint256 borrowed, uint8 lev, bool isLong,,,,) =
+            hook.positions(hookLocalKey.toId(), trader);
+        assertEq(posTrader, trader, "position credited to trader");
+        assertGt(posCollateral, 0, "collateral recorded");
+        assertEq(borrowed, borrowLeg, "borrowed == solver-funded leg");
+        assertEq(lev, leverage, "leverage");
+        assertTrue(isLong, "USDC->WETH is long");
+
+        (address debtSolver, uint256 principal,) = hook.solverDebts(hookLocalKey.toId(), trader, solver);
+        assertEq(debtSolver, solver, "solver debt registered");
+        assertEq(principal, borrowLeg, "solver principal == borrow leg (senior debt)");
     }
 }

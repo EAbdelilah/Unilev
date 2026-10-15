@@ -10,6 +10,23 @@ import {PoolId, PoolIdLibrary} from "../types/PoolId.sol";
 import {Currency} from "../types/Currency.sol";
 import {EswapHookDeployLib} from "./EswapHookDeployLib.sol";
 
+interface IERC20Min {
+    function transferFrom(address from, address to, uint256 amount) external returns (bool);
+    function transfer(address to, uint256 amount) external returns (bool);
+}
+
+/// @dev A whitelisted exchange proxy that keeps any native value the router
+///      forwards to it. With the pre-fix router, `route.value > 0` (with
+///      `msg.value == 0`) makes the router spend its own ETH balance.
+contract ValueDrainingProxy {
+    receive() external payable {}
+
+    function drain(address tokenIn, uint256 amountIn, address tokenOut, uint256 outAmount) external payable {
+        IERC20Min(tokenIn).transferFrom(msg.sender, address(this), amountIn);
+        IERC20Min(tokenOut).transfer(msg.sender, outAmount);
+    }
+}
+
 /// @notice Regression coverage for the DEMAND-side registration gate.
 /// @dev Both aggregator entrypoints assert
 ///      `require(allowedAggregators[route.exchangeProxy], "Aggregator not whitelisted")`
@@ -102,6 +119,109 @@ contract EswapAggregatorWhitelistTest is BaseV4Test {
                 "must not revert with 'Aggregator not whitelisted' once the proxy is registered"
             );
         }
+    }
+
+    /// @dev [CRIT-4 parity] `swapFor` / `swapMultiPoolFor` gate relays behind
+    ///      `msg.sender == trader || executorWhitelist[msg.sender]`. The
+    ///      aggregator entrypoint must carry the SAME moat: without it, any
+    ///      attacker who finds a victim with a live router approval can open
+    ///      (and then liquidate) a position with attacker-picked params,
+    ///      burning the victim's margin.
+    function test_NonWhitelistedAttacker_CannotRelayAggregatorPosition() public {
+        router.setAllowedAggregator(proxy, true);
+        address attacker = makeAddr("attacker");
+
+        vm.prank(attacker);
+        vm.expectRevert(EswapRouter.ExecutorUnauthorized.selector);
+        router.swapMultiPoolForAggregator(_params(), trader, _route());
+    }
+
+    /// @dev A governance-whitelisted executor (the ext/adapter relays) may open
+    ///      on the trader's behalf; the gate must pass for them, not burn them.
+    function test_WhitelistedExecutor_CanRelayAggregatorPosition() public {
+        router.setAllowedAggregator(proxy, true);
+        address executor = makeAddr("executor");
+        router.setExecutorWhitelist(executor, true);
+
+        vm.prank(executor);
+        (bool ok, bytes memory ret) =
+            address(router).call(abi.encodeWithSelector(EswapRouter.swapMultiPoolForAggregator.selector, _params(), trader, _route()));
+        if (!ok) {
+            assertFalse(
+                _isExecutorGateRevert(ret),
+                "whitelisted executor must not be blocked by the relay gate"
+            );
+        }
+    }
+
+    function _isExecutorGateRevert(bytes memory ret) internal pure returns (bool) {
+        bytes memory expected =
+            abi.encodeWithSelector(EswapRouter.ExecutorUnauthorized.selector);
+        if (ret.length != expected.length) return false;
+        for (uint256 i = 0; i < expected.length; i++) {
+            if (ret[i] != expected[i]) return false;
+        }
+        return true;
+    }
+
+    /// @dev [CRIT-6] Native legs are unsupported, so `route.value` MUST be 0.
+    ///      Pre-fix the router forwarded `route.value` from its OWN ETH balance
+    ///      while refunding the caller's full `msg.value`, letting a trader drain
+    ///      solver-held ETH (`nativeBorrowEscrow`) to a whitelisted proxy.
+    function test_NonZeroRouteValue_CannotDrainRouterBalance() public {
+        address solver = makeAddr("solver");
+        router.setSolverWhitelist(solver, true);
+
+        ValueDrainingProxy drainProxy = new ValueDrainingProxy();
+        router.setAllowedAggregator(address(drainProxy), true);
+
+        // Fund the router's ETH balance the way real solvers do: pre-funded borrow escrow.
+        vm.deal(solver, 5 ether);
+        vm.prank(solver);
+        router.depositNativeBorrow{value: 5 ether}(solver);
+        assertEq(address(router).balance, 5 ether, "router must hold solver escrow");
+
+        // Trader margin + solver borrow approvals.
+        vm.prank(trader);
+        token0.approve(address(router), type(uint256).max);
+        token0.mint(solver, 100 ether);
+        vm.prank(solver);
+        token0.approve(address(router), type(uint256).max);
+
+        // Proxy can deliver the output leg.
+        token1.mint(address(drainProxy), 100 ether);
+
+        EswapRouter.AggregatorRoute memory route = EswapRouter.AggregatorRoute({
+            exchangeProxy: address(drainProxy),
+            tokenIn: address(token0),
+            tokenOut: address(token1),
+            sellAmount: 2 ether, // margin (1e18) + borrow (1e18) at leverage 2
+            value: 5 ether, // <-- the attack: forward router-held ETH
+            callData: abi.encodeCall(
+                ValueDrainingProxy.drain, (address(token0), 2 ether, address(token1), uint256(19) * 1e17)
+            )
+        });
+
+        vm.prank(trader);
+        vm.expectRevert(EswapRouter.AggregatorNativeLegUnsupported.selector);
+        router.swapMultiPoolForAggregator(_aggParams(solver), trader, route);
+
+        // Router's solver escrow must be intact.
+        assertEq(address(router).balance, 5 ether, "router ETH must not be drained");
+    }
+
+    function _aggParams(address solver) internal view returns (EswapRouter.SwapParams memory) {
+        return EswapRouter.SwapParams({
+            key: key,
+            standardPoolKey: standardPoolKey,
+            zeroForOne: true,
+            amountSpecified: -int256(1 ether),
+            leverage: 2,
+            solver: solver,
+            hookData: hex"",
+            deadline: block.timestamp + 3600,
+            minAmountOut: 0
+        });
     }
 
     function test_CanBeRevoked() public {

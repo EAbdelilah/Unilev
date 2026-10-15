@@ -44,9 +44,9 @@ contract EthTwapFeed is IAggregatorV3 {
     IUniswapV3Pool public immutable pool;
     /// @notice TWAP window in seconds.
     uint32 public immutable window;
-    /// @notice USDC (expected pool token0).
+    /// @notice USDC (may be token0 or token1 of the pool).
     address public immutable usdc;
-    /// @notice WETH (expected pool token1).
+    /// @notice WETH (the other pool token).
     address public immutable weth;
 
     error BadPool();
@@ -56,9 +56,12 @@ contract EthTwapFeed is IAggregatorV3 {
     constructor(address pool_, uint32 window_, address usdc_, address weth_) {
         if (pool_ == address(0) || window_ == 0) revert BadPool();
         IUniswapV3Pool p = IUniswapV3Pool(pool_);
-        // Fail loudly at deploy time: `consultUsdcPerWeth18` assumes
-        // token0 = USDC (6) / token1 = WETH (18).
-        if (p.token0() != usdc_ || p.token1() != weth_) revert BadPool();
+        // Fail loudly at deploy time unless the pool is exactly {USDC, WETH}. Either
+        // orientation is accepted so the same adapter serves Unichain (token0=USDC)
+        // and Base (token0=WETH), where address sorting flips the pair.
+        address t0 = p.token0();
+        address t1 = p.token1();
+        if (!((t0 == usdc_ && t1 == weth_) || (t0 == weth_ && t1 == usdc_))) revert BadPool();
         pool = p;
         window = window_;
         usdc = usdc_;
@@ -106,6 +109,6 @@ contract EthTwapFeed is IAggregatorV3 {
 
     /// @notice ETH price in USD, 18 decimals (USDC per WETH, USDC == $1).
     function ethPerUsd18() public view returns (uint256) {
-        return V3TwapMath.consultUsdcPerWeth18(address(pool), window);
+        return V3TwapMath.consultUsdcPerWeth18(address(pool), window, usdc, weth);
     }
 }

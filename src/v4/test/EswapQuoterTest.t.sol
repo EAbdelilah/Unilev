@@ -18,7 +18,7 @@ contract EswapQuoterTest is BaseV4Test {
         uint8 leverage = 3;
         int128 quote = router.quoteExactInput(key, true, amountIn, leverage);
 
-        assertEq(quote, 29.97 ether); // 0.1% conservative discount applied by quoter
+        assertEq(quote, int128(uint128((30 ether * (10_000 - router.QUOTE_EXECUTION_DISCOUNT_BPS())) / 10_000))); // canonical execution discount
     }
 
     function test_QuoteZeroOutput_InvalidLeverage() public view {

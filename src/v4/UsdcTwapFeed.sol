@@ -52,9 +52,9 @@ contract UsdcTwapFeed is IAggregatorV3 {
     address public immutable ethUsdFeed;
     /// @notice TWAP window in seconds.
     uint32 public immutable window;
-    /// @notice USDC (expected pool token0).
+    /// @notice USDC (may be token0 or token1 of the pool).
     address public immutable usdc;
-    /// @notice WETH (expected pool token1).
+    /// @notice WETH (the other pool token).
     address public immutable weth;
 
     error BadPool();
@@ -69,9 +69,12 @@ contract UsdcTwapFeed is IAggregatorV3 {
     constructor(address pool_, address ethUsd_, uint32 window_, address usdc_, address weth_) {
         if (pool_ == address(0) || ethUsd_ == address(0) || window_ == 0) revert BadPool();
         IUniswapV3Pool p = IUniswapV3Pool(pool_);
-        // Fail loudly at deploy time rather than silently returning garbage: the
-        // decimals in `_usdcPerWeth18` assume token0 = USDC (6) / token1 = WETH (18).
-        if (p.token0() != usdc_ || p.token1() != weth_) revert BadPool();
+        // Fail loudly at deploy time unless the pool is exactly {USDC, WETH}. Either
+        // orientation is accepted so the same adapter serves Unichain (token0=USDC)
+        // and Base (token0=WETH), where address sorting flips the pair.
+        address t0 = p.token0();
+        address t1 = p.token1();
+        if (!((t0 == usdc_ && t1 == weth_) || (t0 == weth_ && t1 == usdc_))) revert BadPool();
         pool = p;
         ethUsdFeed = ethUsd_;
         window = window_;
@@ -120,17 +123,24 @@ contract UsdcTwapFeed is IAggregatorV3 {
 
     /// @notice USDC price in USD, 18 decimals.
     function usdcPerUsd18() public view returns (uint256) {
-        uint256 usdcPerWeth18 = V3TwapMath.consultUsdcPerWeth18(address(pool), window);
+        uint256 usdcPerWeth18 = V3TwapMath.consultUsdcPerWeth18(address(pool), window, usdc, weth);
         if (usdcPerWeth18 == 0) return 0;
 
         (, int256 ethUsd,,,) = IAggregatorV3(ethUsdFeed).latestRoundData();
         if (ethUsd <= 0) return 0;
 
-        // 1 WETH = usdcPerWeth18 USDC  and  1 WETH = ethUsd USD, therefore
-        //     USD per USDC = ethUsd / usdcPerWeth18.
+        // Normalise the Chainlink leg to 18 decimals: Unichain's ETH/USD feed is
+        // 18-dec but Base's is 8-dec, so the raw answer must not be assumed 18-dec.
+        uint8 d = IAggregatorV3(ethUsdFeed).decimals();
+        uint256 ethUsd18 = d <= 18
+            ? uint256(ethUsd) * (10 ** (18 - uint256(d)))
+            : uint256(ethUsd) / (10 ** (uint256(d) - 18));
+
+        // 1 WETH = usdcPerWeth18 USDC  and  1 WETH = ethUsd18 USD, therefore
+        //     USD per USDC = ethUsd18 / usdcPerWeth18.
         // This is a DIVISION, not a product: multiplying would yield ~7.2e24
         // instead of ~1.0e18. Both legs are 18-dec.
-        return FullMath.mulDiv(uint256(ethUsd), 1e18, usdcPerWeth18);
+        return FullMath.mulDiv(ethUsd18, 1e18, usdcPerWeth18);
     }
 
 }

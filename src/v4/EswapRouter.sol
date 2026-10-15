@@ -468,12 +468,17 @@ contract EswapRouter is
     ///         measures the actual output — then runs the exact same hook
     ///         accounting as `_multiPoolOpen` (margin/borrow pulls,
     ///         registerMarginOpen, 6909 collateral mint, solver debt).
+    /// @dev [AUDIT CRIT-4] Like `swapFor` / `swapMultiPoolFor`: only
+    ///         `trader` himself or a whitelisted executor may relay. The
+    ///         aggregator venue is funded from the trader's approval the same
+    ///         way the standard-venue paths are, so it must carry the same moat.
     function swapMultiPoolForAggregator(SwapParams calldata params, address trader, AggregatorRoute calldata route)
         external
         payable
         nonReentrant
         returns (bytes memory)
     {
+        if (msg.sender != trader && !executorWhitelist[msg.sender]) revert ExecutorUnauthorized();
         require(allowedAggregators[route.exchangeProxy], "Aggregator not whitelisted");
         // [FIX] Execute the external aggregator fill BEFORE entering the PoolManager
         // lock. A real route frequently fills through a Uniswap V4 pool, and the
@@ -1081,6 +1086,12 @@ contract EswapRouter is
         // would require escrow/value handling that differs from the standard pool
         // path and isn't exercised in the fork proof. Extend as needed.
         if (inputNative || outputNative) revert AggregatorNativeLegUnsupported();
+        // [FIX CRIT-6] Native value is unsupported (both legs are ERC20), so the
+        // route MUST NOT attach ETH. `msg.value` is refunded in full in
+        // `_aggregatorSettle`, so a non-zero `route.value` would make the router
+        // forward its OWN ETH balance (e.g. solver `nativeBorrowEscrow`) to the
+        // exchange proxy with no corresponding debit to the caller.
+        if (route.value != 0) revert AggregatorNativeLegUnsupported();
 
         // 1. Pull margin from the trader (or the relay-funded marginFunder for
         //    CoW/solver-funded flows) and the borrow from the solver INTO the
@@ -1194,9 +1205,17 @@ contract EswapRouter is
         }
 
         // Return a BalanceDelta-shaped packed int256 so the adapter decodes the
-        // output exactly like the standard pool path:
-        //   delta0 = -notional (input spent), delta1 = +outputAmount (received)
-        int256 packedDelta = (int256(uint256(-int256(notional))) << 128) | int256(uint256(int256(outputAmount)));
+        // output exactly like the standard pool path, keyed to the pool's
+        // (currency0, currency1) ordering — NOT to (input, output). When WETH is
+        // currency0 and the sell token is currency1 (e.g. Base USDC/WETH, where
+        // WETH < USDC), the input leg is delta1, not delta0; packing it the other
+        // way makes the adapter return `-notional` as the received output.
+        //   zeroForOne (input=currency0): delta0=-notional, delta1=+outputAmount
+        //   else       (input=currency1): delta0=+outputAmount, delta1=-notional
+        uint256 negNotional = uint256(-int256(notional));
+        int256 packedDelta = params.zeroForOne
+            ? int256((negNotional << 128) | uint256(outputAmount))
+            : int256((uint256(outputAmount) << 128) | (negNotional & type(uint128).max));
         return abi.encode(packedDelta);
     }
 

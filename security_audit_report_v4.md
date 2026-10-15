@@ -1,6 +1,6 @@
 # Unilev V4 (Unichain) Pre-Deployment Security Review
-**Date:** August 18, 2026
-**Status:** All findings FIXED and verified. Re-review pending broadcast.
+**Date:** August 18, 2026 (V1–V5) · independent re-verification added October 10, 2026
+**Status:** Original V1–V5 FIXED and verified. Independent re-verification on HEAD `ed9b9b2` found and fixed three additional live issues (NEW-A/B/C) and one open low-severity inconsistency (NEW-D). See §5.1.
 **Target:** `EswapMarginHook.sol`, `EswapRouter.sol`, `EswapLiquidationKeeper.sol`, `EswapSolverAdapter.sol`, `PriceFeed.sol`, `EswapMarginLib.sol` + deploy scripts
 **Method:** Static review of every production path plus **empirical execution against the real `lib/v4-core` PoolManager (v4.0.0)**. The real PoolManager enforces two invariants the test mock does not: `PriceLimitOutOfBounds` on invalid `sqrtPriceLimitX96`, and `CurrencyNotSettled` when any transient `(account, currency)` delta remains after `unlock`.
 
@@ -131,3 +131,24 @@ This also breaks the accounting invariant that the hook must still be able to un
 - Dry-run `DeployUnichain.s.sol` (Mainnet fork) and `DeployUnichainSepolia.s.sol` both simulate cleanly.
 - New addresses (bytecode changed → lib/hook moved): Mainnet Hook `0x47186BC482c9a30fd68360fb3981f90ED8d510c8`, Lib `0xC66B09e3787e34bFD280512F877C1b58a6fCfC5E`; Router/Keeper/PriceFeed unchanged. Sepolia Hook `0x53BB2b083E89e993CAbf906ceA544B281a0310C8`.
 - **Remaining before broadcast:** re-verify new addresses + run live checklist (`setStandardPoolKey`, `seedInsuranceFund`, LP liquidity, trader approvals, dashboard env sync, keeper run).
+
+### 5.1 Independent Re-Verification (October 10, 2026 — HEAD `ed9b9b2`)
+
+Every V1–V5 fix above was independently re-confirmed present on current HEAD (line numbers in §2 are stale; use symbol names). The re-verification surfaced **three additional live issues** not covered by the original review, all now fixed with an explicit failing-before / passing-after PoC, plus one open low-severity inconsistency.
+
+| # | Finding | Severity | Fix | PoC / Verification |
+|---|---------|----------|-----|--------------------|
+| NEW-A | `swapMultiPoolForAggregator` had **no executor gate**: any address could relay a leveraged position through a whitelisted aggregator, attributing the position/debt to an arbitrary trader (the `swapFor`/`swapMultiPoolFor` paths were gated, the aggregator variant was not). | High | First-statement guard in `EswapRouter.swapMultiPoolForAggregator`: `if (msg.sender != trader && !executorWhitelist[msg.sender]) revert ExecutorUnauthorized();` | `EswapAggregatorWhitelistTest::test_NonWhitelistedAttacker_CannotRelayAggregatorPosition` (FAIL `SolverNotAuthorized()` before → PASS after); `test_WhitelistedExecutor_CanRelayAggregatorPosition` (PASS). Live router already enforces this — fork harness `[MOAT] non-whitelisted relay swapMultiPoolFor blocked: ExecutorUnauthorized`. |
+| NEW-B | Aggregator `AggregatorRoute.value` was forwarded raw (`exchangeProxy.call{value: route.value}(...)`) while `_aggregatorSettle` refunded the full `msg.value` (`ethAttached`). On an ERC20-only route with `msg.value = 0` and `route.value = router.balance`, a route could **drain router-held ETH** (solver `nativeBorrowEscrow`). | High | In `_aggregatorPrefill`, immediately after the native-leg reject: `if (route.value != 0) revert AggregatorNativeLegUnsupported();` | `EswapAggregatorWhitelistTest::test_NonZeroRouteValue_CannotDrainRouterBalance` + `ValueDrainingProxy` (route forwarded 5 ETH and SUCCEEDED before (gas 1,083,119, "did not revert as expected") → PASS after, gas 367,118, escrow intact). Live router already rejects native routes — fork harness `[MOAT] native-output aggregator route blocked by design: AggregatorNativeLegUnsupported`. |
+| NEW-C | `EswapRouterExt._quoteStandardFill` hardcoded a `9990/10000` (10 bps) output haircut while the canonical `QUOTE_EXECUTION_DISCOUNT_BPS` had been calibrated to **100 bps (1%)**, causing standard-venue mis-selection in best-route quoting. | Medium | `output = (output * (10_000 - router.QUOTE_EXECUTION_DISCOUNT_BPS())) / 10_000;` in `EswapRouterExt._quoteStandardFill`. | Fixed the 2 `EswapBestRouteForkTest` fork failures (venue mis-selection); `EswapQuoterTest` / `EswapLeverageAdapterTest` expectations updated to the constant. |
+| NEW-D | `EswapMarginHook.getIndicativeQuote` applies a **0.1%** (`9990/10000`) haircut, inconsistent with the router's canonical **1%** (`QUOTE_EXECUTION_DISCOUNT_BPS = 100`). `EswapURCTest` asserts the `9990/10000` value and passes, so it is a deliberate URC-local semantic rather than a regression. | Low (OPEN — decision) | Not changed; flagged for product decision (align to `QUOTE_EXECUTION_DISCOUNT_BPS` or keep URC-local 0.1%). | `EswapURCTest.t.sol:21-22` documents current behavior. |
+
+Stale tests updated to the calibrated constant: `EswapQuoterTest.t.sol` (quote `= 30e18 * (10_000 - QUOTE_EXECUTION_DISCOUNT_BPS)/10_000`) and `EswapLeverageAdapterTest.t.sol` (out `= 50e18 * (10_000 - QUOTE_EXECUTION_DISCOUNT_BPS)/10_000`). Two NEW-A-induced mainnet fork regressions (`EswapMainnet0xFullCycleForkTest`, `EswapMainnetEnsoFullCycleForkTest`) were fixed by whitelisting the adapter as an executor in their `setUp` (`router.setExecutorWhitelist(address(adapter), true)`), matching the Sepolia/pipeline fork tests.
+
+**Post-fix regression (October 10, 2026 — HEAD `ed9b9b2`):**
+- `forge build --via-ir`: **EXIT 0**.
+- Full v4 suite (`src/v4/test/**/*.t.sol`): **468 passed, 0 failed, 5 skipped** (the 5 skips are live-broadcast replay tests gated on `ALLOW_BROADCAST`).
+- Contract sizes (`forge build --sizes --via-ir`, EIP-170 = 24,576 B): `EswapMarginHook` 23,595 · `EswapMarginHookLogic2` 24,458 · `EswapRouter` 21,657 · `EswapRouterExt` 17,032 · `EswapMarginHookLogic` 19,405 · `EswapCoWSettlement` 7,442 · `EswapMarginLib` 2,751. All under the cap.
+- TS harness typecheck (`tsc --noEmit`): **clean**.
+- Unichain fork harness (`scripts/fork-validate-full-cycle.ts` against an `anvil` fork + freshly deployed `EswapCoWSettlement`): **76/76 checks pass, 0 fail**, including the NEW-A/NEW-B `[MOAT]` checks.
+- **Slither:** OPEN / unable to verify in this environment (no Python toolchain available); static analysis by a hosted Slither run is still recommended before broadcast.

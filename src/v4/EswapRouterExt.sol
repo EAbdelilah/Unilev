@@ -503,9 +503,10 @@ error NativePayoutFailed();
 
     /// @dev Deterministic spot-depth estimate of a NOTIONAL-sized fill on the
     ///      given execution pool — the same projection the public
-    ///      `EswapRouter.quoteExactInput` quoter uses (slot0 price, 0.1%
-    ///      execution discount). Returns `(0, false)` when the pool is
-    ///      uninitialized so the caller can fall back to the aggregator venue.
+    ///      `EswapRouter.quoteExactInput` quoter uses (slot0 price, execution
+    ///      discount from `EswapRouter.QUOTE_EXECUTION_DISCOUNT_BPS`). Returns
+    ///      `(0, false)` when the pool is uninitialized so the caller can fall
+    ///      back to the aggregator venue.
     function _quoteStandardFill(PoolKey memory standardPoolKey, bool zeroForOne, uint256 notional)
         internal
         view
@@ -524,7 +525,11 @@ error NativePayoutFailed();
             uint256 temp = FullMath.mulDiv(notional, 1 << 96, uint256(sqrtPriceX96));
             output = FullMath.mulDiv(temp, 1 << 96, uint256(sqrtPriceX96));
         }
-        output = (output * 9990) / 10000;
+        // [FIX] Mirror the canonical quoter discount exactly. Previously hardcoded
+        // to 0.1% (9990/10000) while `EswapRouter.quoteExactInput` used 1%
+        // (QUOTE_EXECUTION_DISCOUNT_BPS), so the venue selector over-estimated the
+        // standard pool and mis-routed winners to the (worse) standard venue.
+        output = (output * (10_000 - router.QUOTE_EXECUTION_DISCOUNT_BPS())) / 10_000;
         return (output, true);
     }
 

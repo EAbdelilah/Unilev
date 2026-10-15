@@ -203,6 +203,7 @@ contract EswapMainnet0xFullCycleForkTest is Test, IUnlockCallback {
 
         console2.log("[step] pipeline contracts");
         adapter = new EswapLeverageAdapter(router);
+        router.setExecutorWhitelist(address(adapter), true);
         adapter.registerPool(MAINNET_USDC, MAINNET_WETH, 3000, hookLocalKey, standardLocalKey);
         adapter.registerPool(MAINNET_WETH, MAINNET_USDC, 3000, hookLocalKey, standardLocalKey);
         adapter.setDefaultSolver(solver);

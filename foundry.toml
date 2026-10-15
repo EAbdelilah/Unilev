@@ -17,6 +17,13 @@ fs_permissions = [
     { access = "read-write", path = "C:/Users/faar_/AppData/Local/Temp/opencode" },
 ]
 
+# Size/gas-optimised profile for one-off mainnet deployments. Minimising
+# optimizer_runs shrinks initcode (cheaper code deposit + L1 calldata) and buys
+# headroom under EIP-170, at the cost of slightly higher runtime gas.
+[profile.deploy]
+optimizer_runs = 1
+skip = ["test/**", "src/v4/test/**"]
+
 # Named endpoints so deployment scripts can be run as
 #   forge script <script>:<C> --rpc-url unichain --broadcast
 # without ever putting a URL (which carries an API key) on the command line.

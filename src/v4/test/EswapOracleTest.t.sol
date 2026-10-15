@@ -149,4 +149,53 @@ contract EswapOracleTest is Test {
         vm.expectRevert(PriceFeed.OraclePriceOutOfBounds.selector);
         priceFeed.getAmountInUsd(TOKEN, 1 ether);
     }
+
+    /// @dev [FIX M-2b] A per-feed ceiling must override the global 1h default so
+    ///      slow-moving L2 stablecoin feeds (e.g. Base USDC/USD ~24h heartbeat)
+    ///      are not rejected as stale while still being bounded.
+    function test_PerFeedMaxAge_OverridesDefault() public {
+        // Use the native-ETH price key so the decimals path resolves to 18 (the
+        // test token has no code, and a successful read would call decimals()).
+        address key = priceFeed.NATIVE_ETH_PRICE_KEY();
+        priceFeed.setPriceFeed(key, address(chainlinkMock));
+        vm.warp(100_000);
+        chainlinkMock.setMockData(2000e8, block.timestamp - 20_000); // ~5.5h old
+
+        // Default (1h) rejects it.
+        vm.expectRevert(PriceFeed.StalePrice.selector);
+        priceFeed.getAmountInUsd(key, 1 ether);
+
+        // Per-feed ceiling of 24h accepts the same answer.
+        priceFeed.setMaxOracleAge(key, 86400);
+        assertEq(priceFeed.getAmountInUsd(key, 1 ether), 2000e18);
+    }
+
+    /// @dev [FIX M-2b] Setting the per-feed ceiling back to zero must restore the
+    ///      global MAX_ORACLE_AGE behaviour (backward compatible default).
+    function test_PerFeedMaxAge_ZeroRestoresDefault() public {
+        address key = priceFeed.NATIVE_ETH_PRICE_KEY();
+        priceFeed.setPriceFeed(key, address(chainlinkMock));
+        vm.warp(100_000);
+        chainlinkMock.setMockData(2000e8, block.timestamp - 20_000);
+
+        priceFeed.setMaxOracleAge(key, 86400);
+        assertEq(priceFeed.getAmountInUsd(key, 1 ether), 2000e18);
+
+        priceFeed.setMaxOracleAge(key, 0);
+        vm.expectRevert(PriceFeed.StalePrice.selector);
+        priceFeed.getAmountInUsd(key, 1 ether);
+    }
+
+    /// @dev [FIX M-2b] Governance must not be able to disable the staleness guard:
+    ///      the ceiling is bounded to [60s, 7 days].
+    function test_SetMaxOracleAge_Bounds() public {
+        vm.expectRevert(bytes("bad max age"));
+        priceFeed.setMaxOracleAge(TOKEN, 30);
+
+        vm.expectRevert(bytes("bad max age"));
+        priceFeed.setMaxOracleAge(TOKEN, 8 days);
+
+        priceFeed.setMaxOracleAge(TOKEN, 7 days);
+        assertEq(priceFeed.maxOracleAgeSec(TOKEN), 7 days);
+    }
 }
