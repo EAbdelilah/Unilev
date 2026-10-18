@@ -84,6 +84,15 @@ export const cowSettlementAbi = [
         outputs: [{ name: "", type: "bytes32" }],
     },
     {
+        // [AUDIT CRIT-05] Canonical CoW fullAppData document for a leverage.
+        // keccak256(bytes(appDataJson(lev))) == leverageCommitment(lev).
+        type: "function",
+        name: "appDataJson",
+        stateMutability: "pure",
+        inputs: [{ name: "leverage", type: "uint8" }],
+        outputs: [{ name: "", type: "string" }],
+    },
+    {
         type: "function",
         name: "APP_DATA_LEVERAGE_TAG",
         stateMutability: "view",

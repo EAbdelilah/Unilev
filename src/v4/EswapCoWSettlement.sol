@@ -82,19 +82,58 @@ contract EswapCoWSettlement is CowSigning {
     // fill is about to apply (an underwriting signal the trader signs).
     error LeverageCommitmentMismatch(bytes32 appData, bytes32 expected);
 
-    /// @dev [AUDIT CRIT-05] Tag for the appData leverage commitment
-    ///      `keccak256(abi.encodePacked(tag, leverage))`.
+    /// @dev [AUDIT CRIT-05] Legacy tag retained for ABI/discovery tooling.
+    ///      NOTE: this is NO LONGER hashed into `leverageCommitment` — the
+    ///      commitment is now the keccak256 of the canonical CoW `fullAppData`
+    ///      JSON document (see `appDataJson`), because CoW's `appData` field is
+    ///      defined as exactly `keccak256(fullAppData)`. The previous
+    ///      `keccak256(tag ‖ lev)` preimage had no CoW appData record and could
+    ///      never be registered, which made every real order unfillable.
     bytes32 public constant APP_DATA_LEVERAGE_TAG = keccak256("eswap-cow-leverage-v1");
 
+    /// @dev Prefix/suffix of the canonical `fullAppData` document. The document
+    ///      is `{"version":1,"appCode":"eswap","metadata":{"eswapLeverage":"<lev>"}}`.
+    ///      It MUST be serialised byte-for-byte as written here: CoW stores the
+    ///      raw document and sets `appData = keccak256(rawBytes)`, so any
+    ///      whitespace/ordering change would break the commitment match.
+    string internal constant APP_DATA_PREFIX = '{"version":1,"appCode":"eswap","metadata":{"eswapLeverage":"';
+    string internal constant APP_DATA_SUFFIX = '"}}';
+
+    /// @dev [AUDIT CRIT-05] The canonical `fullAppData` JSON a CoW order must
+    ///      carry to authorize a leveraged fill. Traders (and their UI) register
+    ///      this exact string via `PUT /app_data/{hash}` and set the order's
+    ///      `appData` to `keccak256(bytes(appDataJson(leverage)))`.
+    function appDataJson(uint8 leverage) public pure returns (string memory) {
+        return string.concat(APP_DATA_PREFIX, _decimalString(uint256(leverage)), APP_DATA_SUFFIX);
+    }
+
     /// @dev [AUDIT CRIT-05] The canonical appData a CoW order must carry to
-    ///      authorize a leveraged fill: `keccak256(abi.encodePacked(tag, lev))`.
-    ///      Traders (and their UI) must embed this exact bytes32 (for their
-    ///      chosen leverage) into the order's appData when placing it on the
-    ///      CoW order book. This is the trader-signed commitment the solver's
-    ///      `params.leverage` must match; without it the order cannot be filled
-    ///      at ANY leverage.
+    ///      authorize a leveraged fill: `keccak256(bytes(appDataJson(lev)))`.
+    ///      This is exactly the CoW `appData` hash of the canonical document, so
+    ///      an order accepted by the CoW order book at the trader-committed
+    ///      leverage is fillable. This is the trader-signed commitment the
+    ///      solver's `params.leverage` must match; without it the order cannot be
+    ///      filled at ANY leverage.
     function leverageCommitment(uint8 leverage) public pure returns (bytes32) {
-        return keccak256(abi.encodePacked(APP_DATA_LEVERAGE_TAG, leverage));
+        return keccak256(bytes(appDataJson(leverage)));
+    }
+
+    /// @dev Minimal base-10 serialiser for a `uint256` (leverage is a `uint8`).
+    function _decimalString(uint256 value) internal pure returns (string memory) {
+        if (value == 0) return "0";
+        uint256 temp = value;
+        uint256 digits;
+        while (temp != 0) {
+            digits++;
+            temp /= 10;
+        }
+        bytes memory buffer = new bytes(digits);
+        while (value != 0) {
+            digits -= 1;
+            buffer[digits] = bytes1(uint8(48 + (value % 10)));
+            value /= 10;
+        }
+        return string(buffer);
     }
 
     /// @dev CoW order UID => filled (replay protection, mirrors the CoW UID).

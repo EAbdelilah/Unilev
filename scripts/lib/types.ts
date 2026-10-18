@@ -1,4 +1,4 @@
-import { keccak256, encodePacked, toHex } from "viem";
+import { keccak256, toHex } from "viem";
 import type { Address, Hex } from "viem";
 
 /**
@@ -51,23 +51,36 @@ export const BALANCE_ERC20 = "0x5a28e9363bb942b639270062aa6bb295f434bcdfc42c9726
 export const RECEIVER_SAME_AS_OWNER = "0x0000000000000000000000000000000000000000" as const;
 
 /**
- * [AUDIT CRIT-05] Mirrors `EswapCoWSettlement.APP_DATA_LEVERAGE_TAG`.
+ * [AUDIT CRIT-05] Prefix/suffix of the canonical CoW `fullAppData` document that
+ * `EswapCoWSettlement.appDataJson(uint8)` serialises.
  *
- * `EswapCoWSettlement.fillOrder` reverts `LeverageCommitmentMismatch` unless the
- * order's `appData` equals `leverageCommitment(params.leverage)`. Every off-chain
- * producer of a CoW order MUST therefore set `appData` from
- * `leverageCommitment(leverage)` below — a free-form/static appData (e.g.
- * `keccak256("eswap-cow-bridge")`) makes the order unfillable at ANY leverage.
+ * The document is
+ * `{"version":1,"appCode":"eswap","metadata":{"eswapLeverage":"<lev>"}}`.
+ * It MUST be byte-for-byte identical to the Solidity string constants
+ * (`APP_DATA_PREFIX` / `APP_DATA_SUFFIX` in `src/v4/EswapCoWSettlement.sol`):
+ * CoW stores the raw document and sets `appData = keccak256(rawBytes)`.
+ */
+export const APP_DATA_PREFIX = '{"version":1,"appCode":"eswap","metadata":{"eswapLeverage":"';
+export const APP_DATA_SUFFIX = '"}}';
+
+/**
+ * Legacy tag retained for ABI/discovery tooling. NOT hashed into the commitment
+ * anymore — `leverageCommitment` hashes the canonical `fullAppData` JSON so the
+ * value is a real, registrable CoW `appData`.
  */
 export const APP_DATA_LEVERAGE_TAG = keccak256(toHex("eswap-cow-leverage-v1"));
+
+/** Canonical `fullAppData` document for `leverage` (mirrors `appDataJson`). */
+export function appDataJson(leverage: number): string {
+    return `${APP_DATA_PREFIX}${leverage}${APP_DATA_SUFFIX}`;
+}
 
 /**
  * Canonical off-chain mirror of `EswapCoWSettlement.leverageCommitment(uint8)`.
  *
- * Solidity: `keccak256(abi.encodePacked(APP_DATA_LEVERAGE_TAG, leverage))` where
- * `leverage` is `uint8`, so it contributes exactly ONE byte to the preimage --
- * a 33-byte preimage in total, NOT the 64 bytes a 32-byte-padded ABI encoding
- * would produce.
+ * Solidity: `keccak256(bytes(appDataJson(leverage)))` — i.e. exactly the CoW
+ * `appData` hash of the canonical document, which is what the order book stores
+ * and what `fillOrder` requires.
  *
  * `scripts/test/cowCommitment.check.ts` asserts this equals the on-chain value
  * for every leverage in 1..20 (vectors copied from
@@ -78,12 +91,7 @@ export function leverageCommitment(leverage: number): Hex {
     if (!Number.isInteger(leverage) || leverage < 0 || leverage > 0xff) {
         throw new Error(`leverage must be a uint8 (0..255), got ${leverage}`);
     }
-    const leverageByte = `0x${leverage.toString(16).padStart(2, "0")}` as Hex;
-    // `bytes1` (not `uint8`) because abi.encodePacked writes a uint8 as a single
-    // raw byte with no sign-padding. encodePacked must be given explicit
-    // (types, values) pairs -- the variadic/array-of-values forms both throw in
-    // viem 2.56.
-    return keccak256(encodePacked(["bytes32", "bytes1"], [APP_DATA_LEVERAGE_TAG, leverageByte]));
+    return keccak256(toHex(appDataJson(leverage)));
 }
 
 /** CoW signature scheme index, matching `CowSigning.Scheme` (Eip712=0, EthSign=1, Eip1271=2, PreSign=3). */

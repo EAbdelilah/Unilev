@@ -1,56 +1,61 @@
 /**
- * UniswapX filler — execute reactor orders into leveraged Eswap positions.
- *
- * Target contract: `EswapUniswapXSettlement` (src/v4/EswapUniswapXSettlement.sol),
- * which implements the genuine `IValidationCallback` and fills via
+ * UniswapX filler — settle DutchV3 reactor orders as PLAIN SWAPS through
+ * `EswapUniswapXSettlement` (src/v4/EswapUniswapXSettlement.sol), which
+ * implements the genuine `IValidationCallback` and fills via
  * `IReactor.execute(SignedOrder)`.
+ *
+ * THIS IS NOT A LEVERAGED POSITION. The deployed settlement is a plain swap
+ * (src/v4/EswapUniswapXSettlement.sol:15-35): the reactor pulls the order
+ * input swapper -> this contract, then the output this contract -> order
+ * recipient. There is no router call, no borrow leg and no position NFT —
+ * Eswap liquidity is exposed here as a fill source for UniswapX takers.
  *
  * THE TWO-PHASE PROTOCOL
  *
  *   Phase 1 — VALIDATE. The reactor calls back into
- *   `EswapUniswapXSettlement.validate(filler, resolvedOrder)` during the
- *   reactor's own validation pass. It reverts unless:
+ *   `EswapUniswapXSettlement.validate(filler, resolvedOrder)` during order
+ *   resolution. There is NO reactor-side registration to perform — no
+ *   `IReactor.register` exists in lib/uniswapx-interfaces/IReactor.sol — the
+ *   callback fires only when the SWAPPER names this settlement as
+ *   `OrderInfo.additionalValidationContract` (IReactor.sol:14) inside the
+ *   signed order. It reverts unless:
  *       msg.sender == address(reactor)        -> NotReactor
  *       filler == address(this)               -> NotAuthorizedFiller
  *       resolvedOrder.info.deadline >= now    -> DeadlineExpired
- *     (EswapUniswapXSettlement.sol:90-93)
+ *       input token == immutable inputToken   -> UnsupportedInput
+ *       exactly one output                    -> OutputCountMismatch
+ *       output token == outputToken           -> UnsupportedOutput
+ *       output.amount <= maxFillAmount        -> OutputTooLarge
+ *       output.recipient == pendingRecipient  -> UnauthorizedRecipient
+ *     (EswapUniswapXSettlement.sol:90-101)
  *
- *   Only a fill where THIS contract is the designated filler will validate, so
- *   competing fillers cannot take an order Eswap has committed to. That is the
- *   Dutch-auction exclusivity mechanism.
+ *   `pendingRecipient` deploys as 0x0, so every order with a real recipient
+ *   fails `UnauthorizedRecipient` until the owner sets it
+ *   ({@link buildSetPendingRecipientCalldata}).
  *
  *   Phase 2 — EXECUTE. On a winning price you call
- *   `EswapUniswapXSettlement.fill(SignedOrder)`, which re-derives the leveraged
- *   open. Only `operator` may call it (line 117).
+ *   `EswapUniswapXSettlement.fill(SignedOrder)` (line 117). Only `operator`
+ *   may call it (line 118), and operator deploys as the deployer, so the real
+ *   filler must be authorized first ({@link buildSetOperatorCalldata}).
+ *   fill() grants the reactor its own approval, capped at `maxFillAmount`, and
+ *   marks `filledOrders[keccak256(order ‖ sig)]` — the same signed order can
+ *   never be replayed.
  *
- * CAPITAL AND PROFIT
+ * CAPITAL
  *
- *   The filler's capital is the borrowed leg. It is repaid principal + yield:
- *       EswapMarginHookLogic2.sol:454  totalPayout = principal + accumulatedYield
- *
- *   Profit accrues at CLOSE, not at fill. An open position is a claim, not
- *   realised P&L. Never treat an executed fill as profit.
- *
- *   Note the validator does NOT accept native margin here
- *   (NativeMarginNotSupported on the CoW side has an analogue), and the
- *   settlement pulls the borrow from the filler, so allowances must be set.
+ *   This contract is the FILLER and must hold OUTPUT (WETH) inventory: it pays
+ *   the recipient from its own balance. Input (USDC) arrives from the swapper
+ *   via the reactor. No allowance from you to the settlement is required.
  */
 
 import {
   decodeAbiParameters,
   encodeFunctionData,
-  parseAbi,
   type Address,
   type Hex,
 } from 'viem'
 
-import {
-  SETTLEMENTS,
-  LIVE_HOOK_POOL,
-  LIVE_STANDARD_POOL,
-  borrowNotional,
-  type PoolKey,
-} from '../shared.js'
+import { SETTLEMENTS, borrowNotional } from '../shared.js'
 
 // -----------------------------------------------------------------------------
 // UniswapX types (from lib/uniswapx-interfaces/IReactor.sol)
@@ -210,6 +215,27 @@ export const UNISWAPX_SETTLEMENT_ABI = [
     stateMutability: 'view',
     inputs: [],
     outputs: [{ name: '', type: 'address' }],
+  },
+  {
+    type: 'function',
+    name: 'pendingRecipient',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'address' }],
+  },
+  {
+    type: 'function',
+    name: 'setOperator',
+    stateMutability: 'nonpayable',
+    inputs: [{ name: '_operator', type: 'address' }],
+    outputs: [],
+  },
+  {
+    type: 'function',
+    name: 'setPendingRecipient',
+    stateMutability: 'nonpayable',
+    inputs: [{ name: '_recipient', type: 'address' }],
+    outputs: [],
   },
 ] as const
 
@@ -404,63 +430,103 @@ function orderInputValue(_order: SignedOrder, fallback: bigint): bigint {
 }
 
 // -----------------------------------------------------------------------------
-// Allowances — the operational gotcha
-// ---------------------------------------------------------------------------
-
-/**
- * Approve the settlement for the borrowed leg.
- *
- * The settlement pulls the borrow from the filler:
- *   EswapRouter.sol:784
- *     IERC20(input).safeTransferFrom(params.solver, address(manager), borrowAmount)
- *
- * Without this the fill reverts `ERC20: transfer amount exceeds allowance` —
- * observed live. Approve margin + borrow in one allowance.
- */
-export function buildFillerApproval(
-  token: Address,
-  marginAmount: bigint,
-  leverage: number,
-): { token: Address; spender: Address; amount: bigint } {
-  const total = marginAmount + borrowNotional(marginAmount, leverage)
-  return { token, spender: SETTLEMENTS.router, amount: total }
-}
-
+// Owner setup — the two gates that block every fill
 // -----------------------------------------------------------------------------
-// Pool keys
-// -----------------------------------------------------------------------------
-
-export const UNISWAPX_POOL_KEYS = {
-  accounting: LIVE_HOOK_POOL,
-  settlement: LIVE_STANDARD_POOL,
-} satisfies { accounting: PoolKey; settlement: PoolKey }
-
-/** ABI fragment the settlement uses to build its leveraged open. */
-export const ROUTER_ESCROW_ABI = parseAbi([
-  'function depositBorrowEscrow(address token, uint256 amount)',
-  'function erc20BorrowEscrow(address solver, address token) view returns (uint256)',
-  'function registeredSolvers(address solver) view returns (bool)',
-])
 
 export const UNISWAPX_SETTLEMENT_ADDRESS = SETTLEMENTS.uniswapX
+
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
+
+/**
+ * Encode `EswapUniswapXSettlement.setPendingRecipient(address)` (owner-only).
+ *
+ * `validate` requires `output.recipient == pendingRecipient`
+ * (EswapUniswapXSettlement.sol:100) and that slot deploys as 0x0, so without
+ * this EVERY fill reverts `UnauthorizedRecipient`. The value must equal the
+ * recipient the swapper signed, so set it for the exact fill you are about to
+ * execute — a later fill may move it again.
+ */
+export function buildSetPendingRecipientCalldata(recipient: Address): {
+  to: Address
+  data: Hex
+} {
+  if (recipient.toLowerCase() === ZERO_ADDRESS) {
+    throw new Error('recipient must be non-zero; pendingRecipient deploys as 0x0')
+  }
+  return {
+    to: UNISWAPX_SETTLEMENT_ADDRESS,
+    data: encodeFunctionData({
+      abi: UNISWAPX_SETTLEMENT_ABI,
+      functionName: 'setPendingRecipient',
+      args: [recipient],
+    }),
+  }
+}
+
+/**
+ * Encode `EswapUniswapXSettlement.setOperator(address)` (owner-only).
+ *
+ * `fill` is gated on `msg.sender == operator` (EswapUniswapXSettlement.sol:118)
+ * and operator deploys as the deployer (line 73), so no external filler can
+ * execute until the owner points operator at it. This is the only fill
+ * authorization on this venue — there is no router whitelist or escrow leg.
+ */
+export function buildSetOperatorCalldata(newOperator: Address): {
+  to: Address
+  data: Hex
+} {
+  if (newOperator.toLowerCase() === ZERO_ADDRESS) {
+    throw new Error('operator must be non-zero')
+  }
+  return {
+    to: UNISWAPX_SETTLEMENT_ADDRESS,
+    data: encodeFunctionData({
+      abi: UNISWAPX_SETTLEMENT_ABI,
+      functionName: 'setOperator',
+      args: [newOperator],
+    }),
+  }
+}
 
 /**
  * DEPLOYMENT STATUS — honest state.
  *
  * `EswapUniswapXSettlement` compiles against the real
- * `lib/uniswapx-interfaces/IReactor.sol` but is NOT deployed on Unichain, and
- * the UniswapX reactor on Unichain has not been wired to call it. Until both are
- * true, `validate` can never succeed and no order is fillable.
+ * `lib/uniswapx-interfaces/IReactor.sol` and IS deployed on Base Mainnet
+ * (reactor = UniswapX DutchV3OrderReactor 0x000000008a8330B5d1F43A62Bf4C673A49f27ba0,
+ * bytecode verified live).
+ *
+ * There is nothing to "register" on the reactor: `validate` is invoked only
+ * when a signed order names this settler as
+ * `OrderInfo.additionalValidationContract` (IReactor.sol:14). Four things
+ * remain before an order is fillable end-to-end:
+ *  1. Orders built for this venue must name the settler as
+ *     `additionalValidationContract`, or the reactor never calls `validate`.
+ *  2. `pendingRecipient` is 0x0, so `validate` reverts `UnauthorizedRecipient`
+ *     for any real recipient until the owner sets it for the fill.
+ *  3. The settler must hold output-token (WETH) inventory — it pays the
+ *     recipient from its own balance.
+ *  4. `operator` is still the deployer; only `operator` may call `fill`.
  */
 export const DEPLOYMENT_STATUS = {
   contractImplemented: true,
   reactorInterfacePresent: true,
-  deployedOnUnichain: false,
-  reactorConfigured: false,
-  chainId: 130,
+  deployedOnBase: true,
+  chainId: 8453,
+  settlementAddress: UNISWAPX_SETTLEMENT_ADDRESS,
+  reactor: '0x000000008a8330B5d1F43A62Bf4C673A49f27ba0',
+  plainSwap: true,
+  inputToken: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+  outputToken: '0x4200000000000000000000000000000000000006',
+  orderNamesSettler: false,
+  pendingRecipient: '0x0000000000000000000000000000000000000000',
+  operator: '0x518634753C61342298c3E04326056b3Ce596a566',
+  operatorConfigured: false,
+  inventoryFunded: false,
   blockers: [
-    'Settlement not deployed (address is the zero address).',
-    'Reactor not configured to call EswapUniswapXSettlement.validate, so validate reverts NotReactor or the reactor is never invoked.',
-    'Solver must be set as operator; only operator may call fill.',
+    'Orders must name the settler as OrderInfo.additionalValidationContract; without it the reactor never calls validate (no IReactor.register exists).',
+    'pendingRecipient is 0x0, so validate reverts UnauthorizedRecipient for any real recipient; owner must call setPendingRecipient before the fill.',
+    'Settler holds no output-token (WETH) inventory; it pays the recipient from its own balance.',
+    'operator is the deployer; only operator may call fill, so the real filler must be set via setOperator.',
   ],
 } as const

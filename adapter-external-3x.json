@@ -1,0 +1,40 @@
+{
+  "chainId": 8453,
+  "kind": "adapter-external-nonwhitelisted-solver-open",
+  "gap": "GAP-6",
+  "router": "0x57E75A87A62ab8Ff14C59FA10Ac2AB2c8cBD45D1",
+  "hook": "0x6f98Ea19e522Ecc706E0Fb1574BDA8D32aC510C8",
+  "hookPoolId": "0xcebee673dfdc9bc1f4b1e24cd0f21b437869660fbe0ecaf697ec4acd04c87231",
+  "adapter": "0x9Ee7A81D90fF816Aa9Ae0C9C8dDFAE85E11F5983",
+  "aggregator": {
+    "exchangeProxy": "0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf",
+    "expectedBuy": "15177693467870",
+    "minBuy": "15132160387466"
+  },
+  "externalTrader": "0x17D0EaBe1A1F5781B48aacf972098f2717ed62fF",
+  "externalSolver": "0x144eDdC7B0c73439f70162978beee38a632c145d",
+  "solverWhitelisted": false,
+  "caller": "0x17D0EaBe1A1F5781B48aacf972098f2717ed62fF",
+  "entrypoint": "EswapLeverageAdapter.exactInputSingleWithLeverageAggregatorFor",
+  "margin": "12000",
+  "leverage": 3,
+  "notional": "36000",
+  "borrow": "24000",
+  "txHash": "0xfc787b1ed9135dff9c01d493894b610a10acea73129ce311f47c5e20a01cd3c8",
+  "blockNumber": 52746877,
+  "gasUsed": "2396364",
+  "position": {
+    "trader": "0x17D0EaBe1A1F5781B48aacf972098f2717ed62fF",
+    "collateral": "15163944395542",
+    "borrowed": "24000",
+    "leverage": 3,
+    "isLong": true
+  },
+  "solverDebt": {
+    "solver": "0x144eDdC7B0c73439f70162978beee38a632c145d",
+    "principal": "24000"
+  },
+  "positionSolver": "0x144eDdC7B0c73439f70162978beee38a632c145d",
+  "solverEscrowAfter": "0",
+  "createdAt": "2026-10-18T00:25:01.965Z"
+}

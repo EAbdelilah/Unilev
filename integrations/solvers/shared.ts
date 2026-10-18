@@ -43,8 +43,8 @@
  * Solver capital is PRIORITY, not guaranteed. Do not tell partners otherwise.
  *
  * Also note the KEEPER is deployed but covers nothing.
- * `EswapLiquidationKeeper` is live at 0x5E8aDA65050962c62A815932BF38dc144E0545DA
- * (7,451 bytes verified on chain) and answers `watchesLength()` — which currently
+ * `EswapLiquidationKeeper` is live on Base at 0xb7ce4c1b40BBd537091E973B3c3C7DEB35106A7d
+ * (~7,402 bytes verified on chain) and answers `watchesLength()` — which currently
  * returns 0. No position is under automated liquidation; coverage is added
  * owner-only via `addWatch()`. Do not describe a deployed keeper as protection.
  */
@@ -56,11 +56,12 @@ import {
   type Address,
   type PublicClient,
 } from 'viem'
-import { unichain } from 'viem/chains'
-
-import { USDC, NATIVE_ETH, HOOK_POOL_KEY, STANDARD_POOL_KEY } from '../aggregators/shared.js'
+import { base } from 'viem/chains'
 
 export type { Address }
+
+/** Target chain: Base Mainnet (8453). Every live address below is on Base. */
+export const CHAIN_ID = 8453
 
 /** v4 `PoolKey`. */
 export interface PoolKey {
@@ -71,20 +72,59 @@ export interface PoolKey {
   hooks: Address
 }
 
-export const LIVE_HOOK_POOL: PoolKey = { ...HOOK_POOL_KEY }
-export const LIVE_STANDARD_POOL: PoolKey = { ...STANDARD_POOL_KEY }
+const ZERO_ADDRESS: Address = '0x0000000000000000000000000000000000000000'
 
-/** Live settlement contracts on Unichain. */
+/** USDC on Base (6 decimals). */
+export const USDC: Address = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
+/** WETH on Base (18 decimals). */
+export const WETH: Address = '0x4200000000000000000000000000000000000006'
+/** Native-ETH sentinel. NOTE: the live Base pool keys are WETH-based, not native. */
+export const NATIVE_ETH: Address = ZERO_ADDRESS
+
+/** `EswapMarginHook` (accounting hook) on Base. */
+export const HOOK: Address = '0x6f98Ea19e522Ecc706E0Fb1574BDA8D32aC510C8'
+
+/**
+ * Hook-enabled ACCOUNTING pool on Base: `[WETH, USDC, 3000, 60, hook]`.
+ * Pool id `0xcebee673dfdc9bc1f4b1e24cd0f21b437869660fbe0ecaf697ec4acd04c87231`.
+ */
+export const LIVE_HOOK_POOL: PoolKey = {
+  currency0: WETH,
+  currency1: USDC,
+  fee: 3000,
+  tickSpacing: 60,
+  hooks: HOOK,
+}
+
+/** Deep physical pool on Base: `[WETH, USDC, 500, 10, 0x0]` (where the fill executes). */
+export const LIVE_STANDARD_POOL: PoolKey = {
+  currency0: WETH,
+  currency1: USDC,
+  fee: 500,
+  tickSpacing: 10,
+  hooks: ZERO_ADDRESS,
+}
+
+/** Live settlement + core contracts on Base Mainnet (deployed 2026, chain 8453). */
 export const SETTLEMENTS = {
-  cow: '0x0000000000000000000000000000000000000000' as Address,
-  uniswapX: '0x0000000000000000000000000000000000000000' as Address,
-  oneInchFusion: '0x0000000000000000000000000000000000000000' as Address,
-  erc7683: '0x0000000000000000000000000000000000000000' as Address,
-  router: '0xe7c5AE37DDAca662B483ab5F29a30860835e8C3b' as Address,
-  hook: '0x4Bd545f6438a27614098984E1322939af53AD0C8' as Address,
-  adapter: '0xC5616D22892828a500b5957efA9e5CcCD59d5C70' as Address,
-  // Verified live: 2,379 bytes of deployed code, positive int128 amountOut.
-  quoter: '0x3177f4e53a0EE0318174771b32E68aDe63c20f3b' as Address,
+  /** EswapCoWSettlement — appData commitment = keccak256(appDataJson(leverage)). */
+  cow: '0x8e54f58AaD4bdc29D18C6b02064e1c481AfCCe46' as Address,
+  /** EswapUniswapXSettlement — plain-swap inventory settler (DutchV3 reactor). */
+  uniswapX: '0xE8A0EC44818395d5DE7c11df672B409539978Aa7' as Address,
+  /** EswapOneInchFusionSettlement — plain-swap inventory settler (LOP v4). */
+  oneInchFusion: '0x2797C7850e8724B9b7222DDddD42aEFc27c9F20A' as Address,
+  /** EswapSettlement — generic ERC-7683 destination settler (solver-whitelisted). */
+  erc7683: '0x1244a9977368A09aA38619D92959A78638Ac0DEa' as Address,
+  router: '0x57E75A87A62ab8Ff14C59FA10Ac2AB2c8cBD45D1' as Address,
+  hook: HOOK,
+  adapter: '0x9Ee7A81D90fF816Aa9Ae0C9C8dDFAE85E11F5983' as Address,
+  keeper: '0xb7ce4c1b40BBd537091E973B3c3C7DEB35106A7d' as Address,
+  /**
+   * No `EswapLeverageQuoter` is deployed on Base yet. This is NOT a missing
+   * settlement (the four settlers above are live) — quote against the live
+   * router/hook reads instead. Deliberately the zero address.
+   */
+  quoter: ZERO_ADDRESS,
 } as const
 
 export const SOLVER_ESCROW_ABI = parseAbi([
@@ -227,9 +267,9 @@ export function buildSolverApprovals(
   return { token, spender: SETTLEMENTS.router, amount: total }
 }
 
-/** Convenience Unichain client for solver modules. */
+/** Convenience Base client for solver modules. */
 export function solverClient(rpcUrl: string) {
-  return createPublicClient({ chain: unichain, transport: http(rpcUrl) })
+  return createPublicClient({ chain: base, transport: http(rpcUrl) })
 }
 
 export const NATIVE = NATIVE_ETH

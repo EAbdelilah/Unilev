@@ -6,11 +6,13 @@ import {StdCheats} from "forge-std/StdCheats.sol";
 import {console} from "forge-std/console.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-import {EswapMarginHook} from "../../src/v4/EswapMarginHook.sol";
-import {EswapRouter} from "../../src/v4/EswapRouter.sol";
-import {PoolKey} from "../../src/v4/types/PoolKey.sol";
-import {PoolId, PoolIdLibrary} from "../../src/v4/types/PoolId.sol";
-import {Currency} from "../../src/v4/types/Currency.sol";
+import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
+
+import {EswapMarginHook} from "../src/v4/EswapMarginHook.sol";
+import {EswapRouter} from "../src/v4/EswapRouter.sol";
+import {PoolKey} from "../src/v4/types/PoolKey.sol";
+import {PoolId, PoolIdLibrary} from "../src/v4/types/PoolId.sol";
+import {Currency} from "../src/v4/types/Currency.sol";
 
 /// @notice Stage 4 analog — FORK-ONLY dry run of the production $5 + $20 trade.
 ///
@@ -69,6 +71,25 @@ contract MainnetDryRun is Script, StdCheats {
         console.log("margin     :", margin, "(USDC raw)");
         console.log("leverage   :", leverage);
         console.log("borrow leg :", borrow, "(USDC raw)");
+
+        // Optional VM-level oracle overlay. On Base the raw Chainlink USDC/USD
+        // feed (~24 h heartbeat) is older than the protocol's 1 h MAX_ORACLE_AGE
+        // at most blocks, so a bare latest-block fork reverts StalePrice(). This
+        // overlay stamps updatedAt = block.timestamp on the USDC/USD aggregator,
+        // exactly what the Unichain UsdcTwapFeed adapter does natively, so the
+        // FULL open path can be exercised. It is a fork-only cheatcode overlay,
+        // NOT a real feed and NOT a broadcast. Off unless MOCK_FRESH_ORACLE=1.
+        if (vm.envOr("MOCK_FRESH_ORACLE", false)) {
+            address usdcFeed = vm.envOr(
+                "USDC_USD_FEED_ADDRESS", address(0x7e860098F58bBFC8648a4311b374B1D669a2bc6B)
+            );
+            vm.mockCall(
+                usdcFeed,
+                abi.encodeWithSelector(AggregatorV3Interface.latestRoundData.selector),
+                abi.encode(uint80(1), int256(100_000_000), block.timestamp, block.timestamp, uint80(1))
+            );
+            console.log("MOCK_FRESH_ORACLE=1 -> USDC/USD feed updatedAt overridden to block.timestamp");
+        }
 
         EswapRouter router = EswapRouter(payable(routerAddr));
 

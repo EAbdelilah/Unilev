@@ -1,0 +1,40 @@
+{
+  "chainId": 8453,
+  "kind": "cow-solver-settlement-open",
+  "txHash": "0x1a952bd313e2d924c5a97c8ceaf758710e47d67668d18b332b4fa91378f9699b",
+  "blockNumber": 52702141,
+  "gasUsed": "1034445",
+  "status": 1,
+  "router": "0x57E75A87A62ab8Ff14C59FA10Ac2AB2c8cBD45D1",
+  "hook": "0x6f98Ea19e522Ecc706E0Fb1574BDA8D32aC510C8",
+  "settlement": "0xD2e8b474d6faB4d879Fe4621192B018B35B79488",
+  "hookPoolId": "0xcebee673dfdc9bc1f4b1e24cd0f21b437869660fbe0ecaf697ec4acd04c87231",
+  "hookPoolKey": [
+    "0x4200000000000000000000000000000000000006",
+    "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    3000,
+    60,
+    "0x6f98Ea19e522Ecc706E0Fb1574BDA8D32aC510C8"
+  ],
+  "orderUid": "0x6bb76538fcaded8fb06b8839e6d5cfd4e00e602f3475e4acf15f842c12ea28ea233a579e70c7d689f20f05800f0db12c3b90aa6c6ad2bb61",
+  "digest": "0x6bb76538fcaded8fb06b8839e6d5cfd4e00e602f3475e4acf15f842c12ea28ea",
+  "trader": "0x233a579E70c7D689f20f05800f0dB12c3B90aa6C",
+  "solver": "0x518634753C61342298c3E04326056b3Ce596a566",
+  "leverage": 2,
+  "position": {
+    "trader": "0x233a579E70c7D689f20f05800f0dB12c3B90aa6C",
+    "collateral": "24744146522294",
+    "borrowed": "30000",
+    "leverage": 2,
+    "isLong": true
+  },
+  "solverDebt": {
+    "solver": "0x518634753C61342298c3E04326056b3Ce596a566",
+    "principal": "30000",
+    "yieldAccrued": "0"
+  },
+  "positionSolver": "0x518634753C61342298c3E04326056b3Ce596a566",
+  "solverUsdc": "487477",
+  "solverEscrowAfter": "0",
+  "reportedAt": "2026-10-16T23:34:20.576Z"
+}

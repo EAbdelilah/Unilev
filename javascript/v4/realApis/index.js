@@ -17,7 +17,7 @@ const dotenv = require("dotenv")
 const path = require("path")
 dotenv.config({ path: path.resolve(__dirname, "../../../.env") })
 
-const { quote, orderDigest, domainSeparator, uid, fixedOrder, ANCHORS, CHAINS, GPV2, COW_TYPE_HASH, KIND_SELL } = require("./cowOrderBook")
+const { quote, orderDigest, domainSeparator, uid, fixedOrder, fillableProbe, ANCHORS, CHAINS, GPV2, COW_TYPE_HASH, KIND_SELL } = require("./cowOrderBook")
 const { zeroXQuote, ensoQuote, paraswapSupportedNetworks, paraswapPrice, odosQuote, oneInchQuote, openOceanQuote, PARASWAP_TOKENS, ODOS_TOKENS, ZX_TOKENS, ONEINCH_TOKENS, OPENOCEAN_TOKENS } = require("./aggregators")
 const { ethers } = require("ethers")
 
@@ -45,7 +45,12 @@ async function main() {
 
     const fixed = fixedOrder()
     const u = uid(orderDigest(fixed, 11155111), "0x518634753C61342298c3E04326056b3Ce596a566", fixed.validTo)
-    console.log(`${DIM}  anchor UID (56 bytes): ${u}${RESET}\n`)
+    console.log(`${DIM}  anchor UID (56 bytes): ${u}${RESET}`)
+    // Separate vector: a leverage-committed order is what fillOrder actually
+    // accepts (AUDIT CRIT-05). Informational — it is not pinned to the on-chain
+    // static-appData vector above.
+    const fillable = fillableProbe()
+    console.log(`${DIM}  fillable probe digest (appData=leverageCommitment(${1})): ${orderDigest(fillable, 11155111)}${RESET}\n`)
 
     // ── 2. Real CoW order-book API ────────────────────────────────────────
     console.log(`${CYAN}[2] REAL SOLVER FLEET — CoW order-book API (api.cow.fi)${RESET}`)

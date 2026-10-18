@@ -39,6 +39,7 @@ interface EswapSettlementOps {
     function setPendingRecipient(address recipient) external;
 }
 import {PriceFeed} from "../../src/v4/PriceFeed.sol";
+import {UsdcTwapFeed} from "../../src/v4/UsdcTwapFeed.sol";
 import {HookFlags} from "../../src/v4/libraries/HookFlags.sol";
 
 /// @notice Base mainnet (chain 8453) deployment of the Eswap margin stack.
@@ -81,6 +82,11 @@ contract DeployBase is Script {
     // sequencer guard is ENABLED (it stays disabled on Unichain, which has none).
     address constant L2_SEQUENCER_UPTIME_FEED = 0xBCF85224fc0756B9Fa45aA7892530B47e10b6433;
 
+    // Deepest Base USDC/WETH Uniswap V3 pool (0.05% tier). Used by the USDC TWAP
+    // adapter to derive a continuously-fresh USDC/USD price (see deployPriceFeed).
+    address constant USDC_WETH_V3_POOL = 0xd0b53D9277642d899DF5C87A3966A349A798F224;
+    uint32 constant TWAP_WINDOW = 1800;
+
     // Foundry routes broadcasted CREATE2 through this deterministic deployer
     // (present on Base at this canonical address). All CREATE2 arithmetic below
     // MUST use this factory as the deployer, NOT the EOA.
@@ -118,8 +124,16 @@ contract DeployBase is Script {
         // Register ETH under the NATIVE_ETH_PRICE_KEY (== WETH), NOT address(0).
         priceFeed.setPriceFeed(NATIVE_ETH_PRICE_KEY, ETH_USD_FEED, AggregatorV3Interface(ETH_USD_FEED).decimals());
         console.log(string.concat("Configured ETH feed: ", vm.toString(ETH_USD_FEED)));
-        priceFeed.setPriceFeed(USDC, USDC_USD_FEED, AggregatorV3Interface(USDC_USD_FEED).decimals());
-        console.log(string.concat("Configured USDC feed: ", vm.toString(USDC_USD_FEED)));
+        // Base's native Chainlink USDC/USD is a *Reference* feed with a ~24h
+        // heartbeat, so it can never satisfy MAX_ORACLE_AGE (1h): getTwapPrice(USDC)
+        // reverts StalePrice and every USDC-margined open stalls. Register a
+        // genuinely fresh, independent USDC/USD source instead:
+        //   USDC/USD = (V3 USDC/WETH TWAP) * (Chainlink ETH/USD)
+        // The ETH/USD leg keeps a Chainlink anchor; the TWAP leg keeps it
+        // independent of the V4 pool the hook circuit-breaks against.
+        UsdcTwapFeed usdcTwap = new UsdcTwapFeed(USDC_WETH_V3_POOL, ETH_USD_FEED, TWAP_WINDOW, USDC, WETH);
+        priceFeed.setPriceFeed(USDC, address(usdcTwap), 18);
+        console.log(string.concat("Configured USDC TWAP adapter: ", vm.toString(address(usdcTwap))));
         priceFeed.setSequencerUptimeFeed(L2_SEQUENCER_UPTIME_FEED);
         console.log(string.concat("Configured sequencer feed: ", vm.toString(L2_SEQUENCER_UPTIME_FEED)));
 

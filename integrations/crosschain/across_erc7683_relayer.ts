@@ -8,12 +8,12 @@
  *
  * Bridge networks covered by this module's shape: Across, Socket/Bungee, and any
  * other ERC-7683 filler. The bridge is only the transport — the leveraged open
- * is executed by Eswap on Unichain.
+ * is executed by Eswap on Base.
  *
  * THE FLOW
  *
  *   Origin chain    trader signs a CrossChainOrder committing to a leveraged fill
- *   Bridge          relayer supplies margin + borrow on Unichain
+ *   Bridge          relayer supplies margin + borrow on Base
  *   Destination     relayer calls EswapSettlement.fill(orderId, originData, fillerData)
  *
  * WHY THE POSITION LANDS WITH THE USER, NOT THE SETTLEMENT
@@ -398,7 +398,7 @@ export function precheckFill(p: {
   orderId: Hex
   order: CrossChainOrder
   now: number
-  unichainId: number
+  localChainId: number
   alreadyFilled: boolean
   /** Margin the settlement actually holds for this order. */
   settlementBalance: bigint
@@ -416,10 +416,10 @@ export function precheckFill(p: {
     settlementFunded: false,
   })
 
-  if (p.order.destinationChainId !== BigInt(p.unichainId)) {
+  if (p.order.destinationChainId !== BigInt(p.localChainId)) {
     return fail(
       'wrong-destination-chain',
-      `destinationChainId ${p.order.destinationChainId} != ${p.unichainId}`,
+      `destinationChainId ${p.order.destinationChainId} != ${p.localChainId}`,
     )
   }
   if (p.order.fillDeadline < BigInt(p.now)) {
@@ -521,27 +521,28 @@ export const ERC7683_SETTLEMENT_ADDRESS = SETTLEMENTS.erc7683
 /**
  * DEPLOYMENT STATUS and the honest blockers.
  *
- * `EswapSettlement` compiles and is unit tested
- * (src/v4/test/EswapSettlementTest.t.sol) but is NOT deployed on Unichain.
- * Beyond deployment, two substantive gaps remain before a cross-chain fill is
- * possible at all.
+ * `EswapSettlement` compiles, is unit tested
+ * (src/v4/test/EswapSettlementTest.t.sol), and IS deployed on Base Mainnet
+ * (solver-whitelisted). Beyond deployment, the blockers listed below remain
+ * before a cross-chain fill is possible at all.
  */
 export const DEPLOYMENT_STATUS = {
   contractImplemented: true,
   unitTested: true,
   testFile: 'src/v4/test/EswapSettlementTest.t.sol',
-  deployedOnUnichain: false,
-  chainId: 130,
+  deployedOnBase: true,
+  chainId: 8453,
+  settlementAddress: ERC7683_SETTLEMENT_ADDRESS,
+  solverWhitelisted: true,
   bridges: {
     across: 'flow is transport-agnostic; only the order id derivation differs',
     socketBungee: 'same',
     uniswapXCrossChain: 'see integrations/solvers/uniswapx — separate settlement contract',
   },
   blockers: [
-    'Settlement not deployed (address is the zero address).',
     'Order id derivation is a placeholder. Across, Socket and Bungee each derive ids differently; a mismatch with the origin chain invalidates replay protection. Must be implemented per bridge.',
     'No settle-refund / capital-return path is implemented: the settlement overwrites solver to address(this) but exposes no funded `depositBorrowEscrow` entrypoint, so margin + borrow must be transferred to the contract with no on-chain accounting of who is owed what. Add a funded escrow or accounting path before production.',
     'hookData recipient recovery is not specified per bridge. H-4 depends on it to credit the position to the user; without it the position cannot be attributed.',
-    'EswapLiquidationKeeper IS deployed (0x5E8aDA65050962c62A815932BF38dc144E0545DA, verified live) but watchesLength() == 0, so cross-chain positions have NO automated liquidation. A watch must be added before any cross-chain position is opened.',
+    'EswapLiquidationKeeper IS deployed (0xb7ce4c1b40BBd537091E973B3c3C7DEB35106A7d on Base, verified live) and a watch for hook WETH/USDC 3000/60 + trader 0xd9Aba9723d14b36588bcF9D47c2FF355EEC47F3c is registered (addWatch tx 0x6f6c…481f, block 52764738; watchesLength=1, isWatched=true). checkUpkeep currently returns upkeepNeeded=false because no position is liquidatable; performUpkeep itself remains unproven until one is.',
   ],
 } as const

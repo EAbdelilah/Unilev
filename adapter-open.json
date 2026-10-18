@@ -1,0 +1,49 @@
+{
+  "chainId": 8453,
+  "kind": "adapter-front-door-open",
+  "adapter": "0x1ED2F145C44F2E28174c7799773Bc27eC9147661",
+  "router": "0x57E75A87A62ab8Ff14C59FA10Ac2AB2c8cBD45D1",
+  "hook": "0x6f98Ea19e522Ecc706E0Fb1574BDA8D32aC510C8",
+  "hookPoolId": "0xcebee673dfdc9bc1f4b1e24cd0f21b437869660fbe0ecaf697ec4acd04c87231",
+  "hookPoolKey": [
+    "0x4200000000000000000000000000000000000006",
+    "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    3000,
+    60,
+    "0x6f98Ea19e522Ecc706E0Fb1574BDA8D32aC510C8"
+  ],
+  "standardPoolKey": [
+    "0x4200000000000000000000000000000000000006",
+    "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    500,
+    10,
+    "0x0000000000000000000000000000000000000000"
+  ],
+  "aggregator": {
+    "exchangeProxy": "0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf",
+    "expectedBuy": "25280315439366",
+    "minBuy": "25204474493047"
+  },
+  "solver": "0x518634753C61342298c3E04326056b3Ce596a566",
+  "recipient": "0x9F3CA377F06c709080b4c11c73832FD16a74c48a",
+  "margin": "30000",
+  "leverage": 2,
+  "notional": "60000",
+  "borrow": "30000",
+  "txHash": "0x23a569c7d2f417cebc26876667d2dc9b39ebcabd4eaec81d8933c5813bad1c5a",
+  "blockNumber": 52720012,
+  "gasUsed": "1829298",
+  "position": {
+    "trader": "0x9F3CA377F06c709080b4c11c73832FD16a74c48a",
+    "collateral": "25267675281647",
+    "borrowed": "30000",
+    "leverage": 2,
+    "isLong": true
+  },
+  "solverDebt": {
+    "solver": "0x518634753C61342298c3E04326056b3Ce596a566",
+    "principal": "30000"
+  },
+  "positionSolver": "0x518634753C61342298c3E04326056b3Ce596a566",
+  "createdAt": "2026-10-17T09:29:32.829Z"
+}

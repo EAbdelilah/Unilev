@@ -1,0 +1,91 @@
+{
+  "_comment": "Signed Eswap LendingIntent (the real EIP-712 authorization on this deployment). Permit2 is NOT used by EswapRouter; margin is pulled via ERC-20 safeTransferFrom.",
+  "chainId": 8453,
+  "router": "0x57E75A87A62ab8Ff14C59FA10Ac2AB2c8cBD45D1",
+  "hook": "0x6f98Ea19e522Ecc706E0Fb1574BDA8D32aC510C8",
+  "domain": {
+    "name": "EswapRouter",
+    "version": "1",
+    "chainId": 8453,
+    "verifyingContract": "0x57E75A87A62ab8Ff14C59FA10Ac2AB2c8cBD45D1"
+  },
+  "types": {
+    "LendingIntent": [
+      {
+        "name": "poolId",
+        "type": "bytes32"
+      },
+      {
+        "name": "standardPoolId",
+        "type": "bytes32"
+      },
+      {
+        "name": "zeroForOne",
+        "type": "bool"
+      },
+      {
+        "name": "amountSpecified",
+        "type": "int256"
+      },
+      {
+        "name": "leverage",
+        "type": "uint8"
+      },
+      {
+        "name": "solver",
+        "type": "address"
+      },
+      {
+        "name": "deadline",
+        "type": "uint256"
+      },
+      {
+        "name": "minAmountOut",
+        "type": "uint256"
+      },
+      {
+        "name": "nonce",
+        "type": "uint256"
+      }
+    ]
+  },
+  "value": {
+    "poolId": "0xcebee673dfdc9bc1f4b1e24cd0f21b437869660fbe0ecaf697ec4acd04c87231",
+    "standardPoolId": "0x90333bb05c258fe0dddb2840ef66f1a05165aa7dac6815d24e807cc6ebd943a0",
+    "zeroForOne": false,
+    "amountSpecified": "-5000000",
+    "leverage": 5,
+    "solver": "0x518634753C61342298c3E04326056b3Ce596a566",
+    "deadline": "1792183039",
+    "minAmountOut": "10184677059972025",
+    "nonce": "1792179439145"
+  },
+  "trader": "0xd9Aba9723d14b36588bcF9D47c2FF355EEC47F3c",
+  "solver": "0x518634753C61342298c3E04326056b3Ce596a566",
+  "signature": "0x3f5ffb91ba3b4913e410f70c16772a94645ab46d211e09065c7f2c411e46509144c4e27879c894220d9c209a01c2689ff3ca36a896478ddf2b7edaa2e6e687051c",
+  "digest": "0x6a5b12c94a27e9329ddf4331d2b4bb4d9a27792841e3b1083c7c3c66a05f29dd",
+  "margin": "5000000",
+  "leverage": 5,
+  "borrowAmount": "20000000",
+  "hookPoolKey": [
+    "0x4200000000000000000000000000000000000006",
+    "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    3000,
+    60,
+    "0x6f98Ea19e522Ecc706E0Fb1574BDA8D32aC510C8"
+  ],
+  "standardPoolKey": [
+    "0x4200000000000000000000000000000000000006",
+    "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    500,
+    10,
+    "0x0000000000000000000000000000000000000000"
+  ],
+  "requiredAllowance": {
+    "token": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "owner": "0xd9Aba9723d14b36588bcF9D47c2FF355EEC47F3c",
+    "spender": "0x57E75A87A62ab8Ff14C59FA10Ac2AB2c8cBD45D1",
+    "amount": "5000000"
+  },
+  "createdAt": "2026-10-16T19:37:19.403Z"
+}

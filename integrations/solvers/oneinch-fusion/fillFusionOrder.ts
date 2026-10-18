@@ -70,16 +70,19 @@ export interface OneInchOrder {
  * This module encodes it manually to avoid importing Solidity, and mirrors
  * `TakerTraitsLib` bit positions.
  *
- * NOTE: the bit offsets below MUST be kept in sync with
- * lib/limit-order-protocol/IOrderMixin.sol. If upstream 1inch changes them this
- * encoding silently produces invalid traits. Re-verify against the vendored
- * library before any live fill.
+ * VERIFIED against lib/limit-order-protocol/IOrderMixin.sol:67-71:
+ *     _ARGS_HAS_TARGET              = 1 << 251
+ *     _ARGS_EXTENSION_LENGTH_OFFSET = 224, mask 0xffffff
+ *     _ARGS_INTERACTION_LENGTH_OFFSET = 200, mask 0xffffff
+ * These are NOT low-order fields — the target flag sits at bit 251 and both
+ * length fields are 24-bit. Offsets drift only if upstream 1inch changes them,
+ * so re-check the vendored library (not this comment) before a live fill.
  */
-const ARGS_HAS_TARGET_BIT = 0
-const ARGS_EXTENSION_LENGTH_OFFSET = 32n
-const ARGS_EXTENSION_LENGTH_MASK = (1n << 32n) - 1n
-const ARGS_INTERACTION_LENGTH_OFFSET = 64n
-const ARGS_INTERACTION_LENGTH_MASK = (1n << 32n) - 1n
+const ARGS_HAS_TARGET_BIT = 251
+const ARGS_EXTENSION_LENGTH_OFFSET = 224n
+const ARGS_EXTENSION_LENGTH_MASK = (1n << 24n) - 1n // 0xffffff
+const ARGS_INTERACTION_LENGTH_OFFSET = 200n
+const ARGS_INTERACTION_LENGTH_MASK = (1n << 24n) - 1n // 0xffffff
 
 /** Build `TakerTraits` for a post-interaction with no explicit target. */
 export function makeTakerTraits(p: {
@@ -441,23 +444,42 @@ export const FUSION_SETTLEMENT_ADDRESS = SETTLEMENTS.oneInchFusion
  * DEPLOYMENT STATUS — honest state.
  *
  * `EswapOneInchFusionSettlement` compiles against the vendored
- * `lib/limit-order-protocol/IOrderMixin.sol` and is unit tested
- * (src/v4/test/EswapVenueSettlementTest.t.sol) but is NOT deployed on Unichain.
- * Additionally, `TakerTraits` bit offsets are duplicated from the Solidity
- * library in this file and must be re-verified against the vendored library
- * before any live fill.
+ * `lib/limit-order-protocol/IOrderMixin.sol`, is unit tested
+ * (src/v4/test/EswapVenueSettlementTest.t.sol), and IS deployed on Base Mainnet
+ * (LOP v4 = 0x111111125421cA6dc452d289314280a0f8842A65). The settler acts as the
+ * TAKER and is invoked only via a maker-signed `extension.postInteractionTargetAndData`,
+ * so no operator registration is needed on the LOP itself.
+ *
+ * Live pair verified on-chain (constructor immutables):
+ *   makerAsset = USDC 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
+ *   takerAsset = WETH 0x4200000000000000000000000000000000000006
+ *   maxFillAmount = 1000e18
+ *
+ * `TakerTraits` bit offsets in this file are VERIFIED against
+ * lib/limit-order-protocol/IOrderMixin.sol:67-71.
+ *
+ * Remaining before a live fill: the settler must hold takerAsset inventory,
+ * and the real taker must be set as `operator` (owner tx).
  */
 export const DEPLOYMENT_STATUS = {
   contractImplemented: true,
   unitTested: true,
-  deployedOnUnichain: false,
-  chainId: 130,
+  deployedOnBase: true,
+  chainId: 8453,
+  settlementAddress: FUSION_SETTLEMENT_ADDRESS,
+  lop: '0x111111125421cA6dc452d289314280a0f8842A65',
+  livePair: {
+    makerAsset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+    takerAsset: '0x4200000000000000000000000000000000000006',
+    maxFillAmount: 1_000_000_000_000_000_000_000n,
+  },
+  takerTraitsVerified: true,
+  takerTraitsSource: 'lib/limit-order-protocol/IOrderMixin.sol:67-71',
+  operator: '0x518634753C61342298c3E04326056b3Ce596a566',
   operatorConfigured: false,
+  inventoryFunded: false,
   blockers: [
-    'Settlement not deployed (address is the zero address).',
-    'operator must be set; only operator may call fill.',
-    'makerAsset/takerAsset and maxFillAmount must be configured.',
-    '1inch LimitOrderProtocol address on Unichain not yet supplied.',
-    'TakerTraits bit offsets are duplicated here; re-verify against lib/limit-order-protocol.',
+    'Settler holds no takerAsset (WETH) inventory; as the LOP taker it pays takerAsset from its own balance.',
+    'operator is the deployer; fill() is operator-gated (EswapOneInchFusionSettlement.sol:123), so the real taker must be set via setOperator.',
   ],
 } as const

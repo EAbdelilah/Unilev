@@ -83,17 +83,23 @@ function verifyAnchors() {
     return { ok: failed.length === 0, failed }
 }
 
-/** [AUDIT CRIT-05] Mirrors EswapCoWSettlement.APP_DATA_LEVERAGE_TAG. */
+/** [AUDIT CRIT-05] Legacy tag (retained for ABI discovery); NOT hashed into the commitment. */
 const APP_DATA_LEVERAGE_TAG = ethers.id("eswap-cow-leverage-v1");
-/** Mirrors EswapCoWSettlement.leverageCommitment(uint8): keccak256(tag ++ uint8(lev)). */
+/** Canonical fullAppData document, mirroring EswapCoWSettlement.appDataJson(uint8). */
+function appDataJson(lev) {
+    return `{"version":1,"appCode":"eswap","metadata":{"eswapLeverage":"${lev}"}}`
+}
+/** Mirrors EswapCoWSettlement.leverageCommitment(uint8): keccak256(bytes(fullAppData)). */
 function leverageCommitment(lev) {
-    return ethers.keccak256(
-        ethers.concat([APP_DATA_LEVERAGE_TAG, ethers.toBeHex(lev, 1)]),
-    );
+    return ethers.keccak256(ethers.toUtf8Bytes(appDataJson(lev)));
 }
 
 const PROBE_LEVERAGE = 1;
 
+/** Canonical byte-compat vector — appData = keccak256("eswap-real-cow-sepolia").
+ *  This is the SAME order pinned ON-CHAIN by
+ *  src/v4/test/EswapSepoliaDomainCompatTest.t.sol (FIXED_APP_DATA / EXP_DIGEST),
+ *  so `orderDigest(fixedOrder(), 11155111)` must equal ANCHORS.fixedDigest. */
 function fixedOrder() {
     return {
         sellToken: CHAINS[11155111].tokens.USDC,
@@ -102,15 +108,21 @@ function fixedOrder() {
         sellAmount: "5000000",
         buyAmount: "2000000000000000",
         validTo: 2100000000,
-        // Canonical leverage commitment, so this probe order is actually fillable
-        // rather than carrying a static tag that fillOrder would reject.
-        appData: leverageCommitment(PROBE_LEVERAGE),
+        appData: ethers.id("eswap-real-cow-sepolia"),
         feeAmount: 0,
         kind: "sell",
         partiallyFillable: false,
         sellTokenBalance: "erc20",
         buyTokenBalance: "erc20",
     }
+}
+
+/** A fillable probe: appData MUST commit the leverage or
+ *  `EswapCoWSettlement.fillOrder` reverts `LeverageCommitmentMismatch`
+ *  (AUDIT CRIT-05). Kept SEPARATE from `fixedOrder()` so the canonical
+ *  byte-compat vector above stays pinned to the on-chain test's appData. */
+function fillableProbe(leverage = PROBE_LEVERAGE) {
+    return { ...fixedOrder(), appData: leverageCommitment(leverage) }
 }
 
 /** Real CoW order-book quote proxy. `sellAmountBeforeFee` is the modern
@@ -152,4 +164,4 @@ async function quote({ chainId, sellToken, buyToken, sellAmountBeforeFee, appDat
     }
 }
 
-module.exports = { quote, domainSeparator, orderDigest, uid, verifyAnchors, fixedOrder, ANCHORS, CHAINS, GPV2, COW_TYPE_HASH, KIND_SELL, KIND_BUY, BALANCE_ERC20 }
+module.exports = { quote, domainSeparator, orderDigest, uid, verifyAnchors, fixedOrder, fillableProbe, leverageCommitment, appDataJson, APP_DATA_LEVERAGE_TAG, ANCHORS, CHAINS, GPV2, COW_TYPE_HASH, KIND_SELL, KIND_BUY, BALANCE_ERC20 }

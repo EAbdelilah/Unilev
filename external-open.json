@@ -1,0 +1,37 @@
+{
+  "chainId": 8453,
+  "kind": "externally-driven-open",
+  "router": "0x57E75A87A62ab8Ff14C59FA10Ac2AB2c8cBD45D1",
+  "hook": "0x6f98Ea19e522Ecc706E0Fb1574BDA8D32aC510C8",
+  "hookPoolId": "0xcebee673dfdc9bc1f4b1e24cd0f21b437869660fbe0ecaf697ec4acd04c87231",
+  "aggregator": {
+    "exchangeProxy": "0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf",
+    "expectedBuy": "24998409261615",
+    "minBuy": "24923414033830"
+  },
+  "externalTrader": "0xC3bda178808aB93Ced2D3a8f4c21d34f06436988",
+  "externalSolver": "0x144eDdC7B0c73439f70162978beee38a632c145d",
+  "solverWhitelisted": false,
+  "caller": "0xC3bda178808aB93Ced2D3a8f4c21d34f06436988",
+  "margin": "30000",
+  "leverage": 2,
+  "notional": "60000",
+  "borrow": "30000",
+  "txHash": "0x727ab16626c1b438d00478e84ca08ac0063c8f04bf56f9520abc23af12b6f3cf",
+  "blockNumber": 52741437,
+  "gasUsed": "1385493",
+  "position": {
+    "trader": "0xC3bda178808aB93Ced2D3a8f4c21d34f06436988",
+    "collateral": "24985910056985",
+    "borrowed": "30000",
+    "leverage": 2,
+    "isLong": true
+  },
+  "solverDebt": {
+    "solver": "0x144eDdC7B0c73439f70162978beee38a632c145d",
+    "principal": "30000"
+  },
+  "positionSolver": "0x144eDdC7B0c73439f70162978beee38a632c145d",
+  "solverEscrowAfter": "0",
+  "createdAt": "2026-10-17T21:23:42.316Z"
+}

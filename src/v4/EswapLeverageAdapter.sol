@@ -57,6 +57,11 @@ contract EswapLeverageAdapter is Ownable {
     error PoolNotRegistered(address tokenIn, address tokenOut, uint24 fee);
     error ZeroAddress();
     error SlippageExceeded(uint256 received, uint256 minAmountOut);
+    /// @dev [GAP-6] An explicit solver may only be named by the position
+    ///      recipient, the solver itself, the adapter owner, or a router
+    ///      executor. Prevents an arbitrary caller from selecting (and thereby
+    ///      drawing down) another party's bonded/whitelisted solver credit.
+    error SolverSelectionUnauthorized();
 
     event PoolRegistered(address indexed tokenIn, address indexed tokenOut, uint24 fee);
     event DefaultSolverSet(address indexed solver);
@@ -116,6 +121,28 @@ contract EswapLeverageAdapter is Ownable {
         return backupSolver;
     }
 
+    /// @dev [GAP-6] Resolves the solver for a call. A zero override falls back to
+    ///      the [AUDIT HIGH-7] default→backup failover. A non-zero override is an
+    ///      explicit, caller-named solver — accepted only from the position
+    ///      recipient, the solver itself, the adapter owner, or a router
+    ///      executor, so an arbitrary caller cannot draw down another party's
+    ///      solver credit. The ROUTER still enforces its own 3-leg authorization
+    ///      (whitelist / signed intent / escrow bond) on the returned address, so
+    ///      a self-bonded permissionless solver reaches the front door here while
+    ///      an unauthorized address still fails closed.
+    function _resolveSolver(address solverOverride, address recipient) internal view returns (address) {
+        if (solverOverride == address(0)) {
+            return _solver();
+        }
+        if (
+            msg.sender != solverOverride && msg.sender != recipient && msg.sender != owner()
+                && !router.executorWhitelist(msg.sender)
+        ) {
+            revert SolverSelectionUnauthorized();
+        }
+        return solverOverride;
+    }
+
     // ─── Aggregator Entry Points ────────────────────────────────────────
 
     /**
@@ -138,40 +165,31 @@ contract EswapLeverageAdapter is Ownable {
         uint256 minAmountOut,
         address recipient
     ) external returns (uint256 amountOut) {
-        if (recipient == address(0)) revert ZeroAddress();
+        EswapRouter.AggregatorRoute memory none;
+        return _open(tokenIn, tokenOut, fee, leverage, amountIn, minAmountOut, recipient, address(0), none, false);
+    }
 
-        PoolRegistration storage reg = _getPool(tokenIn, tokenOut, fee);
-        bool zeroForOne = _isCurrency0(tokenIn, reg.hookPoolKey);
-
-        address solver = _solver(); // [AUDIT HIGH-7] default → backup fallback
-
-        EswapRouter.SwapParams memory params = EswapRouter.SwapParams({
-            key: reg.hookPoolKey,
-            standardPoolKey: reg.standardPoolKey,
-            zeroForOne: zeroForOne,
-            amountSpecified: -int256(int256(amountIn)),
-            leverage: leverage,
-            solver: solver,
-            hookData: abi.encode(true, leverage, recipient),
-            deadline: block.timestamp + router.DEFAULT_DEADLINE_SLACK(),
-            // [FIX H-3] Forward the caller's slippage floor into the router so the
-            // output filter is enforced INSIDE the swap (atomic). The post-swap
-            // check below remains as a defence-in-depth assertion.
-            minAmountOut: minAmountOut
-        });
-
-        bytes memory result = router.swapMultiPoolFor(params, recipient);
-
-        // router returns abi.encode(BalanceDelta) where BalanceDelta = int256
-        int256 packed = abi.decode(result, (int256));
-        // BalanceDelta packs (delta0 << 128 | delta1) — extract via sign-extend
-        int128 delta0 = int128(int256(packed >> 128));
-        int128 delta1 = int128(uint128(uint256(packed) & 0xffffffffffffffffffffffffffffffff));
-        amountOut = uint256(int256(zeroForOne ? delta1 : delta0));
-
-        if (amountOut < minAmountOut) revert SlippageExceeded(amountOut, minAmountOut);
-
-emit LeveragedSwapRouted(tokenIn, tokenOut, fee, leverage, amountIn, amountOut);
+    /**
+     * @notice [GAP-6] Explicit-solver variant of `exactInputSingleWithLeverage`.
+     * @dev Names the solver that funds the borrowed leg instead of the adapter's
+     *      auto-resolved `defaultSolver`/`backupSolver`. This is the front door a
+     *      permissionless, self-bonded solver uses (router leg 3:
+     *      `erc20BorrowEscrow[solver][borrowToken] >= borrowAmount`). The chosen
+     *      solver is validated by the ROUTER fail-closed, and `_resolveSolver`
+     *      restricts WHO may name a non-default solver.
+     */
+    function exactInputSingleWithLeverageFor(
+        address tokenIn,
+        address tokenOut,
+        uint24 fee,
+        uint8 leverage,
+        uint256 amountIn,
+        uint256 minAmountOut,
+        address recipient,
+        address solver
+    ) external returns (uint256 amountOut) {
+        EswapRouter.AggregatorRoute memory none;
+        return _open(tokenIn, tokenOut, fee, leverage, amountIn, minAmountOut, recipient, solver, none, false);
     }
 
     /**
@@ -193,12 +211,50 @@ emit LeveragedSwapRouted(tokenIn, tokenOut, fee, leverage, amountIn, amountOut);
         address recipient,
         EswapRouter.AggregatorRoute calldata route
     ) external returns (uint256 amountOut) {
+        return _open(tokenIn, tokenOut, fee, leverage, amountIn, minAmountOut, recipient, address(0), route, true);
+    }
+
+    /**
+     * @notice [GAP-6] Explicit-solver variant of
+     *         `exactInputSingleWithLeverageAggregator`: a real aggregator route
+     *         fills the notional leg while a caller-named (self-bonded or
+     *         whitelisted) solver funds the borrow leg.
+     */
+    function exactInputSingleWithLeverageAggregatorFor(
+        address tokenIn,
+        address tokenOut,
+        uint24 fee,
+        uint8 leverage,
+        uint256 amountIn,
+        uint256 minAmountOut,
+        address recipient,
+        address solver,
+        EswapRouter.AggregatorRoute calldata route
+    ) external returns (uint256 amountOut) {
+        return _open(tokenIn, tokenOut, fee, leverage, amountIn, minAmountOut, recipient, solver, route, true);
+    }
+
+    /// @dev Shared open body for the standard and aggregator front doors. The
+    ///      only axis that differs between them is `viaAggregator` (which router
+    ///      entrypoint is used) plus the `route` the aggregator path carries.
+    function _open(
+        address tokenIn,
+        address tokenOut,
+        uint24 fee,
+        uint8 leverage,
+        uint256 amountIn,
+        uint256 minAmountOut,
+        address recipient,
+        address solverOverride,
+        EswapRouter.AggregatorRoute memory route,
+        bool viaAggregator
+    ) internal returns (uint256 amountOut) {
         if (recipient == address(0)) revert ZeroAddress();
 
         PoolRegistration storage reg = _getPool(tokenIn, tokenOut, fee);
         bool zeroForOne = _isCurrency0(tokenIn, reg.hookPoolKey);
 
-        address solver = _solver(); // [AUDIT HIGH-7] default → backup fallback
+        address solver = _resolveSolver(solverOverride, recipient);
 
         EswapRouter.SwapParams memory params = EswapRouter.SwapParams({
             key: reg.hookPoolKey,
@@ -209,12 +265,15 @@ emit LeveragedSwapRouted(tokenIn, tokenOut, fee, leverage, amountIn, amountOut);
             solver: solver,
             hookData: abi.encode(true, leverage, recipient),
             deadline: block.timestamp + router.DEFAULT_DEADLINE_SLACK(),
-            // Forward the caller's slippage floor into the router so the output
-            // filter is enforced INSIDE the aggregator fill (atomic).
+            // [FIX H-3] Forward the caller's slippage floor into the router so the
+            // output filter is enforced INSIDE the swap (atomic). The post-swap
+            // check below remains as a defence-in-depth assertion.
             minAmountOut: minAmountOut
         });
 
-        bytes memory result = router.swapMultiPoolForAggregator(params, recipient, route);
+        bytes memory result = viaAggregator
+            ? router.swapMultiPoolForAggregator(params, recipient, route)
+            : router.swapMultiPoolFor(params, recipient);
 
         // router returns abi.encode(BalanceDelta) where BalanceDelta = int256
         int256 packed = abi.decode(result, (int256));

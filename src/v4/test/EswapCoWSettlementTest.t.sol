@@ -309,24 +309,27 @@ contract EswapCoWSettlementTest is BaseV4Test {
     ///      `scripts/lib/types.ts`, plus the ethers mirror in
     ///      `javascript/v4/realApis/cowOrderBook.js`) cannot silently drift.
     ///      Every off-chain order builder sets `appData` from this commitment;
-    ///      if the tag or packing ever changes on-chain, this test fails and
+    ///      if the document/packing ever changes on-chain, this test fails and
     ///      forces the off-chain mirrors to be updated in lockstep.
     function test_AppDataLeverageCommitment_MatchesOffchainMirror() public view {
+        // The commitment is `keccak256(bytes(fullAppData))` — the exact CoW
+        // appData hash. Pin the canonical document so the serialisation cannot
+        // drift (whitespace/field order would change the hash).
         assertEq(
-            settlement.APP_DATA_LEVERAGE_TAG(),
-            keccak256("eswap-cow-leverage-v1"),
-            "APP_DATA_LEVERAGE_TAG drifted from the off-chain mirror"
+            settlement.appDataJson(2),
+            '{"version":1,"appCode":"eswap","metadata":{"eswapLeverage":"2"}}',
+            "canonical fullAppData drifted from the off-chain mirror"
         );
 
-        // keccak256(abi.encodePacked(TAG, uint8(leverage))) — 33-byte preimage.
+        // keccak256(bytes(appDataJson(leverage))) — one hash per leverage.
         bytes32[6] memory levs = [bytes32(uint256(1)), bytes32(uint256(2)), bytes32(uint256(3)), bytes32(uint256(5)), bytes32(uint256(10)), bytes32(uint256(20))];
         bytes32[6] memory expected = [
-            bytes32(0xe7d4bba9e5fc12c4267c2a71d03f126150b2ca090eed8ec302d617feedd83e7d),
-            bytes32(0x5288929f74bcddb4e022c5b200ba5cef148a80cec9f2f76e2425fd90fad71440),
-            bytes32(0x29311fe0d9acd6141a7f8f05a333769d3bd63bb47694b90e65c668159e4ce073),
-            bytes32(0x9b0cb28eb51f758fc741c939cb2533401ffe905f9c75c16dd83082ddd5d3ca4a),
-            bytes32(0x8c2b61c82aa73aab48db7f34770bfb80cd938251c51dcae30ef95e208ca3327e),
-            bytes32(0xa070c0d19e203c748cd5e7074f7dc10c1cb6441779df057b773fd9aa57232641)
+            bytes32(0xbcc792a77d7d03f09008758edfeda2595d74f87c77b00e8acaadd1b6218aeef9),
+            bytes32(0xe41487c9526647cd735c32eb215d78c1ede38b416a351fb6eb4a75c321291bfb),
+            bytes32(0xfa394a0e92a144ac7060e7dfb11e2d7387898d1c7905536a744b13cdf68cb215),
+            bytes32(0x0e6bbd5b034bb4498818f2aeeebeee214a0a31599937ed81baa6b230c859dbb3),
+            bytes32(0x1bbd6237ee4b231ae6b3ac6c20ecc54294ad76a6ee9559d5d99cf1cdef5a24da),
+            bytes32(0xab21c0923157bc697ecb0109b7ea272b89f35fe3a390943ffb311473dd0fea27)
         ];
 
         for (uint256 i = 0; i < levs.length; i++) {

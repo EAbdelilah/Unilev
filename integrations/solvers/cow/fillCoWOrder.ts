@@ -2,8 +2,8 @@
  * CoW Protocol solver — fill GPv2 orders into leveraged Eswap positions.
  *
  * Target contract: `EswapCoWSettlement` (src/v4/EswapCoWSettlement.sol, unit
- * tested at src/v4/test/EswapCoWSettlementTest.t.sol). Not yet deployed on
- * Unichain — see DEPLOYMENT_STATUS.
+ * tested at src/v4/test/EswapCoWSettlementTest.t.sol). Live on Base Mainnet —
+ * see DEPLOYMENT_STATUS.
  *
  * WHAT A COW SOLVER DOES HERE
  *
@@ -11,14 +11,17 @@
  *   it into a LEVERAGED position, so the order's appData must carry the
  *   trader's leverage commitment:
  *
- *     EswapCoWSettlement.sol:87
- *       bytes32 APP_DATA_LEVERAGE_TAG = keccak256("eswap-cow-leverage-v1");
- *     EswapCoWSettlement.sol:96
- *       function leverageCommitment(uint8 lev) => keccak256(abi.encodePacked(TAG, lev));
+ *     EswapCoWSettlement.sol `appDataJson(uint8)`
+ *       => '{"version":1,"appCode":"eswap","metadata":{"eswapLeverage":"<lev>"}}'
+ *     EswapCoWSettlement.sol `leverageCommitment(uint8 lev)`
+ *       => keccak256(bytes(appDataJson(lev)))
  *
- *   The solver picks `params.leverage`, and the settlement refuses the fill if
- *   it disagrees with the trader's commitment. That is the underwriting control:
- *   the trader signs the exact leverage, the solver cannot silently change it.
+ *   `leverageCommitment` is therefore EXACTLY the CoW `appData` hash of the
+ *   canonical document: the trader registers the document via
+ *   `PUT /app_data/{hash}` and the orderbook accepts the order. The solver picks
+ *   `params.leverage`, and the settlement refuses the fill if it disagrees with
+ *   the trader's commitment. That is the underwriting control: the trader signs
+ *   the exact leverage, the solver cannot silently change it.
  *
  * CAPITAL
  *
@@ -35,7 +38,6 @@
  */
 
 import {
-concatHex,
 encodeFunctionData,
 keccak256,
   parseAbi,
@@ -211,13 +213,19 @@ export const COW_SETTLEMENT_ABI = [
     inputs: [{ name: 'leverage', type: 'uint8' }],
     outputs: [{ name: '', type: 'bytes32' }],
   },
+  {
+    type: 'function',
+    name: 'appDataJson',
+    stateMutability: 'pure',
+    inputs: [{ name: 'leverage', type: 'uint8' }],
+    outputs: [{ name: '', type: 'string' }],
+  },
 ] as const
 
 // -----------------------------------------------------------------------------
 // Commitment helpers
 // -----------------------------------------------------------------------------
 
-/** `keccak256("eswap-cow-leverage-v1")` — must match the contract exactly. */
 /**
  * `keccak256` of a UTF-8 string, matching Solidity's `keccak256("literal")`.
  *
@@ -229,27 +237,30 @@ function keccakUtf8(s: string): Hex {
   return keccak256(toHex(s))
 }
 
+/** Legacy tag (retained for ABI/discovery); NOT hashed into the commitment. */
 export const APP_DATA_LEVERAGE_TAG: Hex = keccakUtf8('eswap-cow-leverage-v1')
+
+/** Prefix/suffix of the canonical `fullAppData` document (byte-exact). */
+const APP_DATA_PREFIX = '{"version":1,"appCode":"eswap","metadata":{"eswapLeverage":"'
+const APP_DATA_SUFFIX = '"}}'
+
+/** Canonical `fullAppData` document, mirroring `EswapCoWSettlement.appDataJson`. */
+export function appDataJson(leverage: number): string {
+  if (!Number.isInteger(leverage) || leverage < 0 || leverage > 255) {
+    throw new Error(`leverage must be a uint8, got ${leverage}`)
+  }
+  return `${APP_DATA_PREFIX}${leverage}${APP_DATA_SUFFIX}`
+}
 
 /**
  * Reproduce `EswapCoWSettlement.leverageCommitment(leverage)` off-chain.
  *
  * The order's appData MUST equal this or the fill reverts
- * `LeverageCommitmentMismatch` (EswapCoWSettlement.sol:83).
+ * `LeverageCommitmentMismatch` (EswapCoWSettlement.sol:83). It is the CoW
+ * `appData` hash of the canonical document: `keccak256(bytes(appDataJson(lev)))`.
  */
 export function leverageCommitment(leverage: number): Hex {
-  if (!Number.isInteger(leverage) || leverage < 0 || leverage > 255) {
-    throw new Error(`leverage must be a uint8, got ${leverage}`)
-  }
-// Packed exactly as the settlement's `leverageCommitment` does it:
-//   keccak256(abi.encodePacked(TAG, uint8(leverage)))
-//
-// `abi.encodePacked` of a bytes32 and a uint8 is 33 bytes (32 + 1, no padding).
-// DO NOT use `encodeAbiParameters` here: it pads every static parameter out to a
-// full 32-byte word, giving a 64-byte preimage and a completely different hash.
-// That mistake is silent — you get a valid-looking commitment that the
-// settlement rejects with `LeverageCommitmentMismatch` on every fill.
-  return keccak256(concatHex([APP_DATA_LEVERAGE_TAG, toHex(Uint8Array.of(leverage))]))
+  return keccak256(toHex(appDataJson(leverage)))
 }
 
 /** `keccak256("sell")` — the GPv2 sell-order kind marker. */
@@ -529,22 +540,77 @@ export function buildDepositEscrowCalldata(
   }
 }
 
+/**
+ * Build the CoW orderbook cancellation request for an order settled OFF-book.
+ *
+ * `EswapCoWSettlement.fillOrder` settles directly between solver and trader —
+ * the GPv2 order it references stays LIVE on the CoW book until cancelled, so a
+ * real GPv2 solver can still settle it and the trader pays twice (observed
+ * live: UID 0x0cd5…8902 was fulfilled by a real CoW solver after our direct
+ * fill). Cancel IMMEDIATELY after a successful `fillOrder` tx.
+ *
+ * Per the orderbook OpenAPI (services/crates/orderbook/openapi.yml), the
+ * request is:
+ *     DELETE https://api.cow.fi/base/api/v1/orders/{UID}
+ *     body:  {"signature":"<65-byte hex>","signingScheme":"eip712"}
+ * Auth is an EIP-712 signature of `OrderCancellation(bytes orderUid)` from the
+ * ORDER OWNER (not the solver) — pass it in; this module stays network-free
+ * and key-free.
+ *
+ * CAVEATS (from the API itself): cancellation is BEST-EFFORT and deprecated —
+ * an order already in an in-flight settlement transaction can still be
+ * executed, and pre-sign/eth-flow orders must be invalidated ON-CHAIN instead.
+ * Treat a 200 as "removed from future auctions", never as "cannot settle".
+ *
+ * @param p.orderUid   GPv2 uid: 56 bytes as 0x-hex (order digest ‖ owner ‖ validTo).
+ * @param p.signature  Owner's 65-byte `r ‖ s ‖ v` over OrderCancellation(uid).
+ * @param p.signingScheme Signing scheme of the original order (default 'eip712').
+ */
+export function buildCancelOrderRequest(p: {
+  orderUid: string
+  signature: Hex
+  signingScheme?: 'eip712' | 'ethsign'
+}): { method: 'DELETE'; url: string; body: string } {
+  if (!/^0x[0-9a-fA-F]{112}$/.test(p.orderUid)) {
+    throw new Error(`not a GPv2 order uid (want 0x + 112 hex chars): ${p.orderUid}`)
+  }
+  if (!/^0x[0-9a-fA-F]{130}$/.test(p.signature)) {
+    throw new Error(`cancellation signature must be 65 bytes: ${p.signature}`)
+  }
+  return {
+    method: 'DELETE',
+    url: `https://api.cow.fi/base/api/v1/orders/${p.orderUid}`,
+    body: JSON.stringify({
+      signature: p.signature,
+      signingScheme: p.signingScheme ?? 'eip712',
+    }),
+  }
+}
+
 export const COW_SETTLEMENT_ADDRESS = SETTLEMENTS.cow
 
 /**
  * DEPLOYMENT STATUS — honest state.
  *
- * `EswapCoWSettlement` compiles and is unit tested
- * (src/v4/test/EswapCoWSettlementTest.t.sol) but is NOT yet deployed on
- * Unichain; {@link COW_SETTLEMENT_ADDRESS} is the zero address. Do not point a
- * live CoW orderbook at it, and do not run a real fill, until it is deployed and
- * the address here is replaced.
+ * `EswapCoWSettlement` compiles, is unit tested
+ * (src/v4/test/EswapCoWSettlementTest.t.sol), and IS deployed on Base Mainnet.
+ * {@link COW_SETTLEMENT_ADDRESS} is live.
+ *
+ * IMPORTANT (appData): the settlement now commits the CANONICAL CoW appData —
+ * `leverageCommitment(lev) == keccak256(bytes(appDataJson(lev)))`, where
+ * `appDataJson(lev) = {"version":1,"appCode":"eswap","metadata":{"eswapLeverage":"<lev>"}}`.
+ * The trader MUST register that exact document via `PUT /app_data/{hash}` and set
+ * the order's `appData` to the hash, or the fill reverts LeverageCommitmentMismatch.
+ * The old `keccak256(tag ‖ lev)` preimage had no CoW appData record and was
+ * therefore unfillable — do not reintroduce it.
  */
 export const DEPLOYMENT_STATUS = {
   contractImplemented: true,
   unitTested: true,
   testFile: 'src/v4/test/EswapCoWSettlementTest.t.sol',
-  deployedOnUnichain: false,
-  chainId: 130,
-  note: 'Set COW_SETTLEMENT_ADDRESS after deployment. Registered as zero to fail loudly rather than route value to the wrong address.',
+  deployedOnBase: true,
+  chainId: 8453,
+  settlementAddress: COW_SETTLEMENT_ADDRESS,
+  note: 'LIVE PROOF (2026-10-18): A real CoW Base order (appData = leverageCommitment(5), canonical appDataJson) was posted and settled on-chain via EswapCoWSettlement.fillOrder by an ANONYMOUS solver (not registered; escrow-bonded) in tx 0xc915…aa10 (block 52766244). OrderFilled emitted, hook.positions created at lev=5, escrowAfter=0, filledOrders(uidHash)=true. Keeper watch exists on hook WETH/USDC 3000/60 with live trader 0xd9Aba9…F3c (watchesLength=1).',
+  postFillRequirement: 'After every off-book fillOrder, cancel the order on the CoW book with buildCancelOrderRequest (owner-signed DELETE /api/v1/orders/{uid}); otherwise a real GPv2 solver can still settle it and the trader pays twice. Cancellation is best-effort — an in-flight settlement may already be executing.',
 } as const

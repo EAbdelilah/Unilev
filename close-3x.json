@@ -1,0 +1,26 @@
+{
+  "chainId": 8453,
+  "kind": "external-trader-voluntary-close",
+  "gap": "GAP-4",
+  "router": "0x57E75A87A62ab8Ff14C59FA10Ac2AB2c8cBD45D1",
+  "hook": "0x6f98Ea19e522Ecc706E0Fb1574BDA8D32aC510C8",
+  "hookPoolId": "0xcebee673dfdc9bc1f4b1e24cd0f21b437869660fbe0ecaf697ec4acd04c87231",
+  "externalTrader": "0x17D0EaBe1A1F5781B48aacf972098f2717ed62fF",
+  "externalSolver": "0x144eDdC7B0c73439f70162978beee38a632c145d",
+  "caller": "0x17D0EaBe1A1F5781B48aacf972098f2717ed62fF",
+  "positionBefore": {
+    "trader": "0x17D0EaBe1A1F5781B48aacf972098f2717ed62fF",
+    "collateral": "15163944395542",
+    "borrowed": "24000"
+  },
+  "solverPrincipalBefore": "24000",
+  "solverUsdcRepaid": "24000",
+  "solverWethRepaid": "0",
+  "traderUsdcDelta": "12353",
+  "traderWethDelta": "0",
+  "positionCleared": true,
+  "txHash": "0x64211649c57f2d59e908426059d4a2a5d921c64597a146663b1d52feefdb723f",
+  "blockNumber": 52746894,
+  "gasUsed": "412258",
+  "createdAt": "2026-10-18T00:25:37.164Z"
+}
