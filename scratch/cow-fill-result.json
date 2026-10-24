@@ -1,59 +1,86 @@
 {
   "lev": 5,
   "appData": "0x0e6bbd5b034bb4498818f2aeeebeee214a0a31599937ed81baa6b230c859dbb3",
-  "uid": "0x0cd5c005c0f6c746aebb190f3e9aab29ff8bc50aeb2c0fe6bf711d2c350f890217d0eabe1a1f5781b48aacf972098f2717ed62ff6ad4acb6",
-  "digest": "0x0cd5c005c0f6c746aebb190f3e9aab29ff8bc50aeb2c0fe6bf711d2c350f8902",
-  "bookOnCoW": {
-    "creationDate": "2026-10-18T10:56:08.940912Z",
-    "owner": "0x17d0eabe1a1f5781b48aacf972098f2717ed62ff",
-    "uid": "0x0cd5c005c0f6c746aebb190f3e9aab29ff8bc50aeb2c0fe6bf711d2c350f890217d0eabe1a1f5781b48aacf972098f2717ed62ff6ad4acb6",
+  "fullAppData": "{\"version\":1,\"appCode\":\"eswap\",\"metadata\":{\"eswapLeverage\":\"5\"}}",
+  "onChainCommitment": "0x0e6bbd5b034bb4498818f2aeeebeee214a0a31599937ed81baa6b230c859dbb3",
+  "order": {
+    "sellToken": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "buyToken": "0x4200000000000000000000000000000000000006",
+    "receiver": "0xe970C2d24A3007adA0145e7b7Cc74De83e7B467e",
+    "sellAmount": "14000",
+    "buyAmount": "4618507942576",
+    "validTo": 1792440787,
+    "appData": "0x0e6bbd5b034bb4498818f2aeeebeee214a0a31599937ed81baa6b230c859dbb3",
+    "feeAmount": "0",
+    "kind": "sell",
+    "partiallyFillable": false,
+    "sellTokenBalance": "erc20",
+    "buyTokenBalance": "erc20"
+  },
+  "signature": "0x432d59d0c2947e8da2386589d02a35332a66e26ef4583e38fe1a49ae7ca22e091bebec64d6f10842ae40d8c012b728e96999ef0cab7800b0b70a8e0a970487311c",
+  "digest": "0x0acb036288192ccccfc575f42d9689d07030034bf991c9bafcbe60f56663aead",
+  "chainDigest": "0x0acb036288192ccccfc575f42d9689d07030034bf991c9bafcbe60f56663aead",
+  "uid": "0x0acb036288192ccccfc575f42d9689d07030034bf991c9bafcbe60f56663aeade970c2d24a3007ada0145e7b7cc74de83e7b467e6ad679d3",
+  "quote": {
+    "quote": {
+      "sellToken": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+      "buyToken": "0x4200000000000000000000000000000000000006",
+      "receiver": "0xe970c2d24a3007ada0145e7b7cc74de83e7b467e",
+      "sellAmount": "11080",
+      "buyAmount": "4618507942576",
+      "validTo": 1792440787,
+      "appData": "0x0e6bbd5b034bb4498818f2aeeebeee214a0a31599937ed81baa6b230c859dbb3",
+      "feeAmount": "2920",
+      "gasAmount": "234280",
+      "gasPrice": "5198000",
+      "sellTokenPrice": "417054668.192980825901031494140625",
+      "kind": "sell",
+      "partiallyFillable": false,
+      "sellTokenBalance": "erc20",
+      "buyTokenBalance": "erc20",
+      "signingScheme": "eip712"
+    },
+    "from": "0xe970c2d24a3007ada0145e7b7cc74de83e7b467e",
+    "expiration": "2026-10-19T19:45:32.362396544Z",
+    "id": 415083983,
+    "verified": true,
+    "protocolFeeBps": "2"
+  },
+  "post": "0x0acb036288192ccccfc575f42d9689d07030034bf991c9bafcbe60f56663aeade970c2d24a3007ada0145e7b7cc74de83e7b467e6ad679d3",
+  "orderOnBook": {
+    "creationDate": "2026-10-19T19:43:33.329377Z",
+    "owner": "0xe970c2d24a3007ada0145e7b7cc74de83e7b467e",
+    "uid": "0x0acb036288192ccccfc575f42d9689d07030034bf991c9bafcbe60f56663aeade970c2d24a3007ada0145e7b7cc74de83e7b467e6ad679d3",
     "availableBalance": null,
-    "executedBuyAmount": "16425067039042",
-    "executedSellAmount": "40000",
-    "executedSellAmountBeforeFees": "40000",
+    "executedBuyAmount": "0",
+    "executedSellAmount": "0",
+    "executedSellAmountBeforeFees": "0",
     "executedFeeAmount": "0",
-    "executedFee": "397",
+    "executedFee": "0",
     "executedFeeToken": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
-    "gasCost": "1173102914382",
     "invalidated": false,
-    "status": "fulfilled",
+    "status": "open",
     "class": "limit",
     "settlementContract": "0x9008d19f58aabd9ed0d60971565aa8510560ab41",
     "isLiquidityOrder": false,
     "fullAppData": "{\"version\":1,\"appCode\":\"eswap\",\"metadata\":{\"eswapLeverage\":\"5\"}}",
     "quote": {
-      "gasAmount": "223615",
-      "gasPrice": "5121000",
-      "sellTokenPrice": "413224162.627658903598785400390625",
-      "sellAmount": "40000",
-      "buyAmount": "16590138921309",
-      "feeAmount": "2772",
-      "solver": "0x588ef3de14875ff9c4fc74c9e2c308767d665e30",
+      "gasAmount": "234280",
+      "gasPrice": "5198000",
+      "sellTokenPrice": "417054668.192980825901031494140625",
+      "sellAmount": "14000",
+      "buyAmount": "5836827220684",
+      "feeAmount": "2920",
+      "solver": "0xa95157266e0f53d2762fd8a885d4cdb2409eb29e",
       "verified": true,
-      "metadata": {
-        "interactions": [
-          {
-            "callData": "0xa9059cbb00000000000000000000000082a08f46912e301aba1743ab609c2019544374b80000000000000000000000000000000000000000000000000000000000009c40",
-            "target": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
-            "value": "0"
-          },
-          {
-            "callData": "0x7cfb4dcd000000000000000000000000833589fcd6edb6e08f4c7c32d4f71b54bda029130000000000000000000000004200000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000f16b156515d00000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000007b0082a08f46912e301aba1743ab609c2019544374b8833589fcd6edb6e08f4c7c32d4f71b54bda0291342000000000000000000000000000000000000060000001e000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-            "target": "0x278e1634a130b0eafb0e4615c55b59aedb1fcaf3",
-            "value": "0"
-          }
-        ],
-        "jitOrders": [],
-        "preInteractions": [],
-        "version": "1.0"
-      }
+      "metadata": null
     },
     "sellToken": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
     "buyToken": "0x4200000000000000000000000000000000000006",
-    "receiver": "0x17d0eabe1a1f5781b48aacf972098f2717ed62ff",
-    "sellAmount": "40000",
-    "buyAmount": "15437354205604",
-    "validTo": 1792322742,
+    "receiver": "0xe970c2d24a3007ada0145e7b7cc74de83e7b467e",
+    "sellAmount": "14000",
+    "buyAmount": "4618507942576",
+    "validTo": 1792440787,
     "appData": "0x0e6bbd5b034bb4498818f2aeeebeee214a0a31599937ed81baa6b230c859dbb3",
     "feeAmount": "0",
     "kind": "sell",
@@ -61,22 +88,27 @@
     "sellTokenBalance": "erc20",
     "buyTokenBalance": "erc20",
     "signingScheme": "eip712",
-    "signature": "0x0adc50d79a500d86ae981a16894e0df71f25d27c2f7c57c5dd83a3b5941482c070d487fd263744628ea0a971be9b64f446f31b2953b902412eaff5db3c8d57521c",
+    "signature": "0x432d59d0c2947e8da2386589d02a35332a66e26ef4583e38fe1a49ae7ca22e091bebec64d6f10842ae40d8c012b728e96999ef0cab7800b0b70a8e0a970487311c",
     "interactions": {
       "pre": [],
       "post": []
     }
   },
-  "tx": "0xc9153069edbddea7d85aeb9e8694a0a0fa6ded5a70289c6827fc7ac4eb28aa10",
-  "block": 52766244,
-  "gasUsed": "1066144",
+  "tx": "0x70fb117cbe072f1dbbd3ae068830aa5dd7ef98387f459cb435c1a1970a2b767c",
+  "block": 52824835,
+  "gasUsed": "1047907",
   "position": {
-    "collateral": "82642219526830",
-    "borrowed": "160000",
-    "lev": 5,
-    "isLong": true
+    "collateral": "0",
+    "borrowed": "0",
+    "lev": 0,
+    "isLong": false
   },
   "positionSolver": "0x144eDdC7B0c73439f70162978beee38a632c145d",
   "escrowAfter": "0",
-  "solverRegistered": false
+  "cancel": {
+    "delete": "Cancelled",
+    "after": {
+      "error": "For custom rate limits, please join the CoW Protocol Discord server and reach out to @mastercow.eth"
+    }
+  }
 }

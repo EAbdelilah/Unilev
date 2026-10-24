@@ -19,7 +19,7 @@ const USDC = ethers.getAddress("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913");
 const WETH = ethers.getAddress("0x4200000000000000000000000000000000000006");
 
 const LEV = 5;
-const MARGIN = 40000n; // 0.04 USDC; borrow = 0.16 USDC
+const MARGIN = 14000n; // 0.014 USDC; borrow = 0.056 USDC (fits the 0.095 USDC treasury)
 const HOOK_KEY = [WETH, USDC, 3000, 60, HOOK];
 const STD_KEY = [WETH, USDC, 500, 10, ethers.ZeroAddress];
 const POOL_ID = ethers.keccak256(
@@ -73,7 +73,7 @@ const key = (f) => JSON.parse(fs.readFileSync(path.join(os.tmpdir(), f), "utf8")
 
 (async () => {
     const provider = new ethers.JsonRpcProvider(RPC);
-    const trader = new ethers.Wallet(key("eswap-ext-trader2.json"), provider);
+    const trader = new ethers.Wallet(key("eswap-ext-trader3.json"), provider);
     const solver = new ethers.Wallet(key("eswap-ext-solver.json"), provider);
 
     const settlement = new ethers.Contract(SETTLEMENT, S_ABI, provider);
@@ -117,9 +117,10 @@ const key = (f) => JSON.parse(fs.readFileSync(path.join(os.tmpdir(), f), "utf8")
         console.log(`  POST /quote ${r.status}, waiting ${(i + 1) * 25}s (${JSON.stringify(String(r.body)).slice(0, 120)})`);
         await new Promise((r2) => setTimeout(r2, 25000 * (i + 1)));
     }
-    // Fallback: buy floor from the earlier live quote for the same sell amount
-    // (the fill swaps 5x notional, so any fair single-swap price is a floor).
-    const QUOTED_BUY_FALLBACK = 15460990425377n;
+    // Fallback: buy floor from the earlier live quote (margin 40_000), scaled
+    // to this margin (the fill swaps 5x notional, so any fair single-swap price
+    // is a floor).
+    const QUOTED_BUY_FALLBACK = (15460990425377n * MARGIN) / 40000n;
     const quotedBuy = q ? BigInt(q.body.quote.buyAmount) : QUOTED_BUY_FALLBACK;
     if (q) console.log(`quote: sell ${q.body.quote.sellAmount} fee ${q.body.quote.feeAmount} buy ${q.body.quote.buyAmount}`);
     else console.log(`quote unavailable (rate limited) -> reusing prior live quote buyAmount=${QUOTED_BUY_FALLBACK}`);
@@ -226,11 +227,26 @@ const key = (f) => JSON.parse(fs.readFileSync(path.join(os.tmpdir(), f), "utf8")
     console.log(`solver  USDC after     = ${await usdc.balanceOf(solver.address)}`);
 
     // ── 7. order book state, then cancel so GPv2 cannot double-settle ──────
+    // A bare DELETE is rejected: the orderbook requires an EIP-712 signature of
+    // `OrderCancellation(bytes orderUid)` from the ORDER OWNER, over the same
+    // GPv2 domain as the order (cowprotocol/services openapi: cancelOrder).
     if (live) {
         const after = await J(`${API}/orders/${uid}`);
         console.log(`GET /orders/{uid} after fill -> ${after.status} ${JSON.stringify(after.body).slice(0, 300)}`);
-        const del = await J(`${API}/orders/${uid}`, { method: "DELETE" });
-        console.log(`DELETE /orders/{uid} (cancel on CoW after Eswap fill) -> ${del.status} ${JSON.stringify(del.body).slice(0, 200)}`);
+        const cancelSig = await trader.signTypedData(
+            DOMAIN,
+            { OrderCancellation: [{ name: "orderUid", type: "bytes" }] },
+            { orderUid: uid },
+        );
+        const del = await J(`${API}/orders/${uid}`, {
+            method: "DELETE", headers: { "content-type": "application/json" },
+            body: JSON.stringify({ signature: cancelSig, signingScheme: "eip712" }),
+        });
+        console.log(`DELETE /orders/{uid} (owner-signed cancel) -> ${del.status} ${JSON.stringify(del.body).slice(0, 200)}`);
+        await new Promise((r) => setTimeout(r, 1500));
+        const verified = await J(`${API}/orders/${uid}`);
+        console.log(`GET /orders/{uid} after cancel -> ${verified.status} invalidated=${verified.body && verified.body.invalidated}`);
+        var cancelState = { delete: del.body, after: verified.body };
     }
 
     fs.writeFileSync(path.resolve(process.cwd(), "scratch", "cow-fill-result.json"), JSON.stringify({
@@ -240,6 +256,7 @@ const key = (f) => JSON.parse(fs.readFileSync(path.join(os.tmpdir(), f), "utf8")
         position: { collateral: pos[1].toString(), borrowed: pos[2].toString(), lev: Number(pos[3]), isLong: pos[4] },
         positionSolver: await hook.positionSolver(POOL_ID, trader.address),
         escrowAfter: (await router.erc20BorrowEscrow(solver.address, USDC)).toString(),
+        cancel: (typeof cancelState !== "undefined" && cancelState) || null,
     }, null, 2));
     console.log("saved -> scratch/cow-fill-result.json");
 })().catch((e) => { console.error("FAILED:", e.shortMessage || e.message, e.data || ""); console.error(e.stack || ""); process.exit(1); });

@@ -7,6 +7,10 @@
 // Only the Order struct, the user-defined value types and the two entrypoint
 // signatures required by the Eswap settler are reproduced. Field order and
 // types are byte-identical to upstream, so the EIP-712 struct hash matches.
+//
+// Upstream `Address` is `type Address is uint256`, so the four address fields
+// encode as uint256 in the ABI (NOT address). Keeping them as uint256 here is
+// required for the selector and EIP-712 struct hash to match the live LOP.
 pragma solidity ^0.8.0;
 
 type MakerTraits is uint256;
@@ -15,10 +19,10 @@ type TakerTraits is uint256;
 interface IOrderMixin {
     struct Order {
         uint256 salt;
-        address maker;
-        address receiver;
-        address makerAsset;
-        address takerAsset;
+        uint256 maker;
+        uint256 receiver;
+        uint256 makerAsset;
+        uint256 takerAsset;
         uint256 makingAmount;
         uint256 takingAmount;
         MakerTraits makerTraits;

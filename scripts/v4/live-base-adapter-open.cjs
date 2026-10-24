@@ -147,7 +147,7 @@ async function fetchBundle(from, amountIn) {
     console.log(`mode            : ${BROADCAST ? "BROADCAST" : "SIMULATE-ONLY (set BROADCAST=1)"}`);
 
     // ── deploy adapter if needed ─────────────────────────────────────────
-    let adapterAddr = process.env.ADAPTER_ADDRESS || "0xC5616D22892828a500b5957efA9e5CcCD59d5C70";
+    let adapterAddr = process.env.ADAPTER_ADDRESS || "0x14FBAF1858d37BF994BDAF9ab4b31A664D4663aD";
     let adapter;
     if ((await provider.getCode(adapterAddr)) === "0x") {
         if (!BROADCAST) {

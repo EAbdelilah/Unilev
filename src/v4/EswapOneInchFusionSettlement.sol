@@ -121,10 +121,12 @@ contract EswapOneInchFusionSettlement is IPostInteraction, Ownable {
         address recipient
     ) external {
         if (msg.sender != operator) revert NotOperator();
-        if (order.makerAsset != address(makerAsset) || order.takerAsset != address(takerAsset)) revert WrongAsset();
+        if (address(uint160(order.makerAsset)) != address(makerAsset) || address(uint160(order.takerAsset)) != address(takerAsset)) {
+            revert WrongAsset();
+        }
         if (order.makingAmount > maxFillAmount || amount > maxFillAmount) revert AmountTooLarge();
         if (recipient == address(0)) revert ZeroAddress();
-        if (order.receiver != recipient) revert WrongReceiver();
+        if (address(uint160(order.receiver)) != recipient) revert WrongReceiver();
 
         if (TakerTraitsLib.argsHasTarget(takerTraits)) revert UnexpectedArgsTarget();
         if (TakerTraitsLib.argsExtensionLength(takerTraits) != extension.length) revert ExtensionLengthMismatch();

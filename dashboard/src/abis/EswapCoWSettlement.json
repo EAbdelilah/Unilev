@@ -31,6 +31,25 @@
     },
     {
       "type": "function",
+      "name": "appDataJson",
+      "inputs": [
+        {
+          "name": "leverage",
+          "type": "uint8",
+          "internalType": "uint8"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "string",
+          "internalType": "string"
+        }
+      ],
+      "stateMutability": "pure"
+    },
+    {
+      "type": "function",
       "name": "domainSeparator",
       "inputs": [],
       "outputs": [

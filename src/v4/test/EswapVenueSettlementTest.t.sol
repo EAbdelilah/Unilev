@@ -126,12 +126,17 @@ contract MockLOP {
 
         bytes calldata extension = _sliceArgs(args, takerTraits);
 
-        IERC20(order.makerAsset).safeTransferFrom(order.maker, msg.sender, makingAmount);
-        IERC20(order.takerAsset).safeTransferFrom(msg.sender, order.maker, takingAmount);
+        IERC20(address(uint160(order.makerAsset))).safeTransferFrom(
+            address(uint160(order.maker)), msg.sender, makingAmount
+        );
+        IERC20(address(uint160(order.takerAsset))).safeTransferFrom(
+            msg.sender, address(uint160(order.maker)), takingAmount
+        );
 
         if (firePostInteraction) {
             postInteractionCalls++;
-            address listener = interactionTarget == address(0) ? order.maker : interactionTarget;
+            address listener =
+                interactionTarget == address(0) ? address(uint160(order.maker)) : interactionTarget;
             IPostInteraction(listener).postInteraction(
                 order, extension, orderHash, msg.sender, makingAmount, takingAmount, 0, ""
             );
@@ -307,10 +312,10 @@ contract EswapVenueSettlementTest is Test {
     function _oneInchOrder(address maker) internal view returns (IOrderMixin.Order memory) {
         return IOrderMixin.Order({
             salt: 1,
-            maker: maker,
-            receiver: recipient,
-            makerAsset: address(inputToken),
-            takerAsset: address(outputToken),
+            maker: uint256(uint160(maker)),
+            receiver: uint256(uint160(recipient)),
+            makerAsset: uint256(uint160(address(inputToken))),
+            takerAsset: uint256(uint160(address(outputToken))),
             makingAmount: 100e18,
             takingAmount: 50e18,
             makerTraits: MakerTraits.wrap(0)
@@ -438,7 +443,7 @@ contract EswapVenueSettlementTest is Test {
     function test_FI_FillRevertsOnWrongAssetPair() public {
         (EswapOneInchFusionSettlement s, MockLOP lop) = _fiDeploy();
         IOrderMixin.Order memory o = _oneInchOrder(trader);
-        o.takerAsset = address(inputToken);
+        o.takerAsset = uint256(uint160(address(inputToken)));
         lop.configure(address(s), true);
         vm.prank(operator);
         vm.expectRevert(EswapOneInchFusionSettlement.WrongAsset.selector);

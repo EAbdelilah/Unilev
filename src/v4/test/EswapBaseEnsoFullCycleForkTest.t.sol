@@ -338,6 +338,72 @@ contract EswapBaseEnsoFullCycleForkTest is Test, IUnlockCallback {
         assertLt(returned, margin * 101 / 100, "no free money on flat-price round-trip");
     }
 
+    /// @dev REGRESSION: protocol fees must remain WITHDRAWABLE after a full
+    ///      open->close cycle on the REAL Base PoolManager. The hook mints the
+    ///      full swap output (collateral + fee share) as ONE ERC-6909 claim held
+    ///      by itself; settlement must never burn below the fee-backed floor, or
+    ///      `withdrawProtocolFee` underflows (Panic 0x11) because it burns a
+    ///      claim the hook no longer holds.
+    function test_FeeWithdrawable_AfterFullCycle() public {
+        if (!fixtureReady) return;
+        if (BaseEnsoRoute.SELL_AMOUNT == 0) return;
+
+        address treasury = makeAddr("baseEnsoTreasury");
+        EswapMarginHook.ConfigParams memory cfg = EswapMarginHook.ConfigParams({
+            treasury: treasury,
+            router: address(router),
+            reserveFactor: 50,
+            maxPriceSwingBps: 2000,
+            defaultMaxLeverage: 20,
+            requireTwapOracle: false
+        });
+        hook.setConfig(cfg);
+
+        uint8 leverage = 2;
+        uint256 notional = BaseEnsoRoute.SELL_AMOUNT;
+        uint256 margin = notional / leverage;
+
+        EswapRouter.AggregatorRoute memory route = EswapRouter.AggregatorRoute({
+            exchangeProxy: BaseEnsoRoute.EXCHANGE_PROXY,
+            tokenIn: BaseEnsoRoute.TOKEN_IN,
+            tokenOut: BaseEnsoRoute.TOKEN_OUT,
+            sellAmount: notional,
+            value: BaseEnsoRoute.TX_VALUE,
+            callData: BaseEnsoRoute.CALLDATA
+        });
+
+        vm.prank(trader);
+        adapter.exactInputSingleWithLeverageAggregator(
+            BASE_USDC, BASE_WETH, 3000, leverage, margin, _minOut(), trader, route
+        );
+
+        Currency feeCcy = Currency.wrap(BASE_WETH); // long: bought == WETH
+        uint256 feesAfterOpen = hook.protocolFees(feeCcy);
+        assertGt(feesAfterOpen, 0, "open must accrue a WETH protocol fee");
+        assertGe(
+            hook.heldReserve(feeCcy), feesAfterOpen, "fee backing must exist while position open"
+        );
+
+        vm.prank(trader);
+        router.closePosition(address(hook), hookLocalKey, trader, solver, 0);
+
+        // [THE BUG] Settlement on the real PM drained the fee-backed claim.
+        uint256 feesAfterClose = hook.protocolFees(feeCcy);
+        assertEq(feesAfterClose, feesAfterOpen, "fee ledger persists across close");
+        assertGe(
+            hook.heldReserve(feeCcy), feesAfterClose, "fee backing must survive settle/close"
+        );
+
+        uint256 treasuryBefore = RealIERC20(BASE_WETH).balanceOf(treasury);
+        hook.withdrawProtocolFee(feeCcy, feesAfterClose);
+        assertEq(
+            RealIERC20(BASE_WETH).balanceOf(treasury) - treasuryBefore,
+            feesAfterClose,
+            "treasury receives the accrued WETH fee"
+        );
+        assertEq(hook.protocolFees(feeCcy), 0, "fee ledger drained on withdraw");
+    }
+
     /// @dev MOAT PROOF on Base — the protocol funds NOTHING of the borrowed leg.
     ///      A REAL Enso bundle supplies the swap output (external liquidity), and
     ///      the borrow leg is drawn ENTIRELY from the solver's own pre-deposited

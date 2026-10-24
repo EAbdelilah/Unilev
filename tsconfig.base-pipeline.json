@@ -1,0 +1,28 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022"],
+    "strict": true,
+    "noUncheckedIndexedAccess": false,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": [
+    "scripts/lib/eswapBase.ts",
+    "scripts/verifyAggregators.ts",
+    "scripts/runMicroCanary.ts",
+    "scripts/seedSolverEscrow.ts",
+    "scripts/liveRevenueCampaign.ts",
+    "scripts/closePosition.ts",
+    "scripts/runShortCanary.ts",
+    "scripts/fundGas.ts",
+    "server/**/*.ts",
+    "bot/**/*.ts"
+  ]
+}

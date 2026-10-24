@@ -13,8 +13,8 @@ const USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 const VAULT_RELAYER = "0xC92E8bdf79f0507f65a392b0ab4667716BFE0110";
 
 const LEV = 5;
-const MARGIN = 40_000n; // 0.04 USDC (kept dust-sized: deployer treasury is ~0.30 USDC)
-const BORROW = MARGIN * (BigInt(LEV) - 1n); // 0.16 USDC
+const MARGIN = 14_000n; // 0.014 USDC (>= $0.01 minCollateralUsd floor; treasury is 0.095 USDC so total draw 6*margin = 84_000)
+const BORROW = MARGIN * (BigInt(LEV) - 1n); // 0.056 USDC
 
 const R_ABI = [
     "function erc20BorrowEscrow(address,address) view returns (uint256)",
@@ -34,7 +34,7 @@ const key = (f) => JSON.parse(fs.readFileSync(path.join(os.tmpdir(), f), "utf8")
 (async () => {
     const provider = new ethers.JsonRpcProvider(RPC);
     const gov = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
-    const trader = new ethers.Wallet(key("eswap-ext-trader2.json"), provider); // order owner
+    const trader = new ethers.Wallet(key("eswap-ext-trader3.json"), provider); // order owner (fresh position slot)
     const solver = new ethers.Wallet(key("eswap-ext-solver.json"), provider); // fill executor
 
     const router = new ethers.Contract(ROUTER, R_ABI, provider);
@@ -62,6 +62,15 @@ const key = (f) => JSON.parse(fs.readFileSync(path.join(os.tmpdir(), f), "utf8")
         console.log(`solver ETH sufficient: ${ethers.formatEther(solEth)}`);
     }
 
+    // 1a. the trader signs off-chain but must pay for its OWN VaultRelayer
+    //     approval tx, so it needs gas too (fresh traders start at 0 ETH).
+    const trEth = await provider.getBalance(trader.address);
+    if (trEth < 5n * 10n ** 12n) {
+        await send("deployer -> trader ETH", (o) => gov.sendTransaction({ to: trader.address, value: 5n * 10n ** 12n, gasLimit: 21000n, ...o }));
+    } else {
+        console.log(`trader ETH sufficient: ${ethers.formatEther(trEth)}`);
+    }
+
     // 1b. fund the two actors from the treasury (dust-sized trade)
     const topUp = async (label, who, need) => {
         const bal = await usdc.balanceOf(who.address);
@@ -85,8 +94,10 @@ const key = (f) => JSON.parse(fs.readFileSync(path.join(os.tmpdir(), f), "utf8")
     const escrow = await router.erc20BorrowEscrow(solver.address, USDC);
     console.log(`erc20BorrowEscrow(solver, USDC) before = ${escrow}`);
     if (escrow < BORROW) {
-        await router.connect(solver).depositBorrowEscrow.staticCall(USDC, BORROW - escrow);
+        // approve FIRST: depositBorrowEscrow pulls via transferFrom, so the
+        // pre-flight staticCall reverts "exceeds allowance" without it.
         await send("solver approve router (escrow)", (o) => usdc.connect(solver).approve(ROUTER, BORROW - escrow, o));
+        await router.connect(solver).depositBorrowEscrow.staticCall(USDC, BORROW - escrow);
         await send("solver depositBorrowEscrow", (o) => router.connect(solver).depositBorrowEscrow(USDC, BORROW - escrow, o));
     }
     console.log(`erc20BorrowEscrow(solver, USDC) after  = ${await router.erc20BorrowEscrow(solver.address, USDC)}`);

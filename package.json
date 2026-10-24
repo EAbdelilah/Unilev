@@ -8,8 +8,13 @@
     "src/**/*.sol"
   ],
   "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.6.5",
+    "@types/ws": "^8.18.2",
     "prettier": "^2.8.8",
-    "prettier-plugin-solidity": "^1.0.0-beta.19"
+    "prettier-plugin-solidity": "^1.0.0-beta.19",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
   },
   "repository": {
     "type": "git",
@@ -25,8 +30,10 @@
     "all": "make all"
   },
   "dependencies": {
-    "dotenv": "^17.2.2",
-    "ethers": "^6.15.0",
-    "viem": "^2.56.9"
+    "dotenv": "^17.4.2",
+    "ethers": "^6.17.0",
+    "express": "^5.3.0",
+    "viem": "^2.56.9",
+    "ws": "^8.22.0"
   }
 }

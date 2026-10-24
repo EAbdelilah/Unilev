@@ -476,10 +476,10 @@ contract EswapMarginHookLogic2 is BaseHook, EswapMarginHookLogicStorage {
                 // hook that never nets, reverting the unlock with
                 // CurrencyNotSettled. Burn the hook's own ERC-6909 claim (+delta)
                 // before the take (-delta) so extraction nets to zero. Coverage is
-                // further capped at the claims actually held so an
-                // under-collateralised insurance ledger books bad debt instead of
-                // reverting (and stranding) the close/liquidation.
-                uint256 claimsHeld = manager.balanceOf(address(this), claimId);
+                // further capped at the burnable claims (held minus fee/insurance
+                // reservation) so an under-collateralised insurance ledger books
+                // bad debt instead of consuming fee baking or reverting.
+                uint256 claimsHeld = _burnableClaims(debtCurrency);
                 if (covered > claimsHeld) covered = claimsHeld;
                 insuranceFund[debtCurrency] -= covered;
                 if (covered > 0) {
@@ -615,8 +615,9 @@ contract EswapMarginHookLogic2 is BaseHook, EswapMarginHookLogicStorage {
             uint256 shortfall = liqDebt > payableAmount ? liqDebt - payableAmount : 0;
             if (shortfall > 0) {
                 uint256 covered = shortfall > insuranceFund[debtCurrency] ? insuranceFund[debtCurrency] : shortfall;
-                uint256 claimsHeld =
-                    manager.balanceOf(address(this), uint256(uint160(Currency.unwrap(debtCurrency))));
+                // [FIX FEE-BACKING] Cap at burnable claims (excludes fee/insurance
+                // reservation) so insurance coverage never eats fee backing.
+                uint256 claimsHeld = _burnableClaims(debtCurrency);
                 if (covered > claimsHeld) covered = claimsHeld;
                 insuranceFund[debtCurrency] -= covered;
                 if (covered > 0) {
@@ -892,7 +893,12 @@ contract EswapMarginHookLogic2 is BaseHook, EswapMarginHookLogicStorage {
 
     function _settleTransientDebt(Currency currency, uint256 amount) internal {
         uint256 claimId = uint256(uint160(Currency.unwrap(currency)));
-        uint256 fromClaims = manager.balanceOf(address(this), claimId);
+        // [FIX FEE-BACKING] Never burn below the ledgered obligation floor
+        // (protocolFees + insurance). Those claims are spoken for; consuming them
+        // here drains the backing and makes `withdrawProtocolFee` underflow
+        // (Panic 0x11) — the fee is booked but unbacked. Burn only the burnable
+        // surplus; the remainder is settled from physically held tokens.
+        uint256 fromClaims = _burnableClaims(currency);
         if (fromClaims > amount) fromClaims = amount;
         if (fromClaims > 0) {
             manager.burn(address(this), claimId, fromClaims);
@@ -900,6 +906,19 @@ contract EswapMarginHookLogic2 is BaseHook, EswapMarginHookLogicStorage {
         if (fromClaims < amount) {
             _settleToManager(currency, amount - fromClaims);
         }
+    }
+
+    /// @dev Claims the hook may legitimately burn: its ERC-6909 balance minus the
+    ///      PROTOCOL-FEE reservation. Fees are pure retained revenue with no
+    ///      legitimate burn site, so settlement must never consume them or
+    ///      `withdrawProtocolFee` underflows (Panic 0x11). Insurance ledger
+    ///      entries are deliberately excluded: insurance is DESIGNED to be
+    ///      consumed (shortfall coverage) or moved (staking into LP), so treating
+    ///      it as reserved would break those flows.
+    function _burnableClaims(Currency currency) internal view returns (uint256) {
+        uint256 held = manager.balanceOf(address(this), uint256(uint160(Currency.unwrap(currency))));
+        uint256 reserved = protocolFees[currency];
+        return held > reserved ? held - reserved : 0;
     }
 
     /// @dev Settles a netting delta owed to the PoolManager. Native: settle via

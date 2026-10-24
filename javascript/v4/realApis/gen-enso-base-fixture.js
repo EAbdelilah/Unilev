@@ -255,7 +255,7 @@ async function main() {
     if (quote.value !== 0) {
         return writeStub(`Enso bundle has a native ETH leg (value=${quote.value}) — unsupported by the accounting path`)
     }
-    quote.refBlock = await latestBlock(env)
+    quote.refBlock = process.env.REF_BLOCK || await latestBlock(env)
     return writeFixture(quote)
 }
 

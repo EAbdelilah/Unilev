@@ -82,11 +82,10 @@ export const WETH: Address = '0x4200000000000000000000000000000000000006'
 export const NATIVE_ETH: Address = ZERO_ADDRESS
 
 /** `EswapMarginHook` (accounting hook) on Base. */
-export const HOOK: Address = '0x6f98Ea19e522Ecc706E0Fb1574BDA8D32aC510C8'
+export const HOOK: Address = '0xe33A630503c640143126BBF222a82689D49b50c8'
 
 /**
  * Hook-enabled ACCOUNTING pool on Base: `[WETH, USDC, 3000, 60, hook]`.
- * Pool id `0xcebee673dfdc9bc1f4b1e24cd0f21b437869660fbe0ecaf697ec4acd04c87231`.
  */
 export const LIVE_HOOK_POOL: PoolKey = {
   currency0: WETH,
@@ -115,7 +114,7 @@ export const SETTLEMENTS = {
   oneInchFusion: '0x2797C7850e8724B9b7222DDddD42aEFc27c9F20A' as Address,
   /** EswapSettlement — generic ERC-7683 destination settler (solver-whitelisted). */
   erc7683: '0x1244a9977368A09aA38619D92959A78638Ac0DEa' as Address,
-  router: '0x57E75A87A62ab8Ff14C59FA10Ac2AB2c8cBD45D1' as Address,
+  router: '0xD3360D67E366Cac21a1c18fC9100B93be79e1437' as Address,
   hook: HOOK,
   adapter: '0x9Ee7A81D90fF816Aa9Ae0C9C8dDFAE85E11F5983' as Address,
   keeper: '0xb7ce4c1b40BBd537091E973B3c3C7DEB35106A7d' as Address,

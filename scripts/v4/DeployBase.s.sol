@@ -92,12 +92,12 @@ contract DeployBase is Script {
     // MUST use this factory as the deployer, NOT the EOA.
     address constant CREATE2_DEPLOYER = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
 
-    /// @dev Gas forwarded to the deterministic deployer for the hook. Base does
-    ///      not impose Unichain's EIP-7825 2**24 cap, but the same budget is kept
-    ///      so the two deploys stay comparable (a properly typed CREATE2 of this
-    ///      hook costs ~15.26M, dominated by the 200-gas/byte code deposit).
-    uint256 constant HOOK_DEPLOY_GAS = 16_000_000;
-
+    /// @dev Gas forwarded to the deterministic deployer for the hook. The real
+    ///      hook CREATE2 costs ~5.38M (dominated by the 200-gas/byte code
+    ///      deposit); 6M leaves ~11% headroom. Kept deliberately tight so the
+    ///      outer tx's gas reservation (and thus the deployer's up-front ETH
+    ///      requirement) is not inflated to a 16M stipend.
+    uint256 constant HOOK_DEPLOY_GAS = 6_000_000;
     /// @dev Floor for the number of EswapMarginLib references the hook creation
     ///      code must contain once linked by Foundry.
     uint256 constant LIB_REFS = 2;

@@ -435,7 +435,11 @@ function _isLong(PoolKey calldata key, Currency boughtCurrency) internal view re
 
     function _settleTransientDebt(Currency currency, uint256 amount) internal {
         uint256 claimId = uint256(uint160(Currency.unwrap(currency)));
-        uint256 fromClaims = manager.balanceOf(address(this), claimId);
+        // [FIX FEE-BACKING] Burn only the burnable surplus (held minus the
+        // fee/insurance obligation floor); the rest settles from held tokens.
+        // Burning the full held balance here drained protocol-fee backing and
+        // made `withdrawProtocolFee` underflow (Panic 0x11).
+        uint256 fromClaims = _burnableClaims(currency);
         if (fromClaims > amount) fromClaims = amount;
         if (fromClaims > 0) {
             manager.burn(address(this), claimId, fromClaims);
@@ -443,6 +447,16 @@ function _isLong(PoolKey calldata key, Currency boughtCurrency) internal view re
         if (fromClaims < amount) {
             _settleToManager(currency, amount - fromClaims);
         }
+    }
+
+    /// @dev Claims the hook may legitimately burn: ERC-6909 balance minus the
+    ///      PROTOCOL-FEE reservation. Fees are retained revenue with no burn
+    ///      site; insurance entries are intentionally excluded (designed to be
+    ///      consumed/moved).
+    function _burnableClaims(Currency currency) internal view returns (uint256) {
+        uint256 held = manager.balanceOf(address(this), uint256(uint160(Currency.unwrap(currency))));
+        uint256 reserved = protocolFees[currency];
+        return held > reserved ? held - reserved : 0;
     }
 
     /// @dev Settles a netting delta owed to the PoolManager. Native: settle via

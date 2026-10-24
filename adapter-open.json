@@ -1,16 +1,16 @@
 {
   "chainId": 8453,
   "kind": "adapter-front-door-open",
-  "adapter": "0x1ED2F145C44F2E28174c7799773Bc27eC9147661",
-  "router": "0x57E75A87A62ab8Ff14C59FA10Ac2AB2c8cBD45D1",
-  "hook": "0x6f98Ea19e522Ecc706E0Fb1574BDA8D32aC510C8",
-  "hookPoolId": "0xcebee673dfdc9bc1f4b1e24cd0f21b437869660fbe0ecaf697ec4acd04c87231",
+  "adapter": "0x14FBAF1858d37BF994BDAF9ab4b31A664D4663aD",
+  "router": "0xD3360D67E366Cac21a1c18fC9100B93be79e1437",
+  "hook": "0xe33A630503c640143126BBF222a82689D49b50c8",
+  "hookPoolId": "0xdd4958586bcbc340177b3b18ecbf31cfa277e5a8a78735deee01218f54a1d512",
   "hookPoolKey": [
     "0x4200000000000000000000000000000000000006",
     "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
     3000,
     60,
-    "0x6f98Ea19e522Ecc706E0Fb1574BDA8D32aC510C8"
+    "0xe33A630503c640143126BBF222a82689D49b50c8"
   ],
   "standardPoolKey": [
     "0x4200000000000000000000000000000000000006",
@@ -21,29 +21,29 @@
   ],
   "aggregator": {
     "exchangeProxy": "0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf",
-    "expectedBuy": "25280315439366",
-    "minBuy": "25204474493047"
+    "expectedBuy": "16847384355582",
+    "minBuy": "16796842202515"
   },
-  "solver": "0x518634753C61342298c3E04326056b3Ce596a566",
+  "solver": "0x3fc88b834aC96Fa4c65913a6D3d5523418f7F037",
   "recipient": "0x9F3CA377F06c709080b4c11c73832FD16a74c48a",
-  "margin": "30000",
+  "margin": "20000",
   "leverage": 2,
-  "notional": "60000",
-  "borrow": "30000",
-  "txHash": "0x23a569c7d2f417cebc26876667d2dc9b39ebcabd4eaec81d8933c5813bad1c5a",
-  "blockNumber": 52720012,
-  "gasUsed": "1829298",
+  "notional": "40000",
+  "borrow": "20000",
+  "txHash": "0xcc9b42f881a1e1e812ccf01f94bd4697f7b51baa25455b9ddddc1a0a10ad2281",
+  "blockNumber": 52956808,
+  "gasUsed": "1493057",
   "position": {
     "trader": "0x9F3CA377F06c709080b4c11c73832FD16a74c48a",
-    "collateral": "25267675281647",
-    "borrowed": "30000",
+    "collateral": "16838960663405",
+    "borrowed": "20000",
     "leverage": 2,
     "isLong": true
   },
   "solverDebt": {
-    "solver": "0x518634753C61342298c3E04326056b3Ce596a566",
-    "principal": "30000"
+    "solver": "0x3fc88b834aC96Fa4c65913a6D3d5523418f7F037",
+    "principal": "20000"
   },
-  "positionSolver": "0x518634753C61342298c3E04326056b3Ce596a566",
-  "createdAt": "2026-10-17T09:29:32.829Z"
+  "positionSolver": "0x3fc88b834aC96Fa4c65913a6D3d5523418f7F037",
+  "createdAt": "2026-10-22T21:02:44.811Z"
 }
