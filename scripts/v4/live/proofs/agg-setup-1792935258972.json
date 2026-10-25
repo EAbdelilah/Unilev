@@ -1,0 +1,30 @@
+{
+  "mode": "setup",
+  "rpc": "https://mainnet.base.org",
+  "chainId": 8453,
+  "startedAt": "2026-10-25T13:34:13.831Z",
+  "startBlock": 53072953,
+  "leverage": 2,
+  "margin": "4000",
+  "notional": "8000",
+  "hookPoolId": "0xdd4958586bcbc340177b3b18ecbf31cfa277e5a8a78735deee01218f54a1d512",
+  "steps": [
+    {
+      "step": "whitelist-paraswap",
+      "action": "setAllowedAggregator",
+      "tx": "0xba73dd4853e575dd303a45f6d144d6c4a479ddc49763a0b2b651e07a141eb6e1",
+      "block": 53072955,
+      "proxy": "0x6A000F20005980200259B80c5102003040001068"
+    },
+    {
+      "step": "fill-paraswap",
+      "venue": "ParaSwap Augustus V6.2",
+      "status": "preflight-ok",
+      "exchangeProxy": "0x6a000f20005980200259b80c5102003040001068",
+      "expectedOut": "3421703615031",
+      "minOut": "3319052506580",
+      "trader": "0xb8F41b45df9C6f664C610Ed9100f750b49979640"
+    }
+  ],
+  "finishedAt": "2026-10-25T13:34:18.971Z"
+}

@@ -1,0 +1,241 @@
+{
+  "venue": "1inch Fusion / Limit Order Protocol v4",
+  "chainId": 8453,
+  "rpc": "https://mainnet.base.org",
+  "verifiedAt": "2026-10-25T13:14:19.407Z",
+  "settler": "0xD0F10948E5E987d9A04aDf4014178D65042f672c",
+  "lop": "0x111111125421cA6dc452d289314280a0f8842A65",
+  "tx": {
+    "hash": "0x2242c346f57e0fe7fbbf7df945c74c4b3e53b007f841f5f7db9f9e16aa875681",
+    "url": "https://basescan.org/tx/0x2242c346f57e0fe7fbbf7df945c74c4b3e53b007f841f5f7db9f9e16aa875681",
+    "block": 53072257,
+    "status": 1,
+    "gasUsed": "193321",
+    "effectiveGasPrice": "6000000",
+    "from": "0x3fc88b834aC96Fa4c65913a6D3d5523418f7F037",
+    "to": "0xD0F10948E5E987d9A04aDf4014178D65042f672c",
+    "function": "EswapOneInchFusionSettlement.fill"
+  },
+  "setup": {
+    "makerApprove": {
+      "tx": "0x78f4f3ae9fe74bb081cb72ca6e5aa4453274a304a9194c5fc92ab2b951387c15",
+      "url": "https://basescan.org/tx/0x78f4f3ae9fe74bb081cb72ca6e5aa4453274a304a9194c5fc92ab2b951387c15"
+    },
+    "settlerInventory": {
+      "tx": "0xf637965d1968c38f196120581920119f58f260955ac6b49231ca3e4e1c0faa1e",
+      "url": "https://basescan.org/tx/0xf637965d1968c38f196120581920119f58f260955ac6b49231ca3e4e1c0faa1e"
+    },
+    "note": "The maker had to grant the canonical LOP a USDC allowance and the settler (which is the taker) had to hold WETH inventory before the fill could settle."
+  },
+  "order": {
+    "salt": "88797650012603396465005942720878335444807230955341882163773840891676812690324",
+    "maker": "0xd9Aba9723d14b36588bcF9D47c2FF355EEC47F3c",
+    "receiver": "0xd9Aba9723d14b36588bcF9D47c2FF355EEC47F3c",
+    "makerAsset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "takerAsset": "0x4200000000000000000000000000000000000006",
+    "makingAmount": "11",
+    "takingAmount": "4800000000",
+    "makerTraits": "62419173104490761595518734106245825327153351108821866552520103879265671446528"
+  },
+  "orderHash": "0xadfebc31447c7fdafd5a6017a55adbda6f09a63df5d5541bfcf9c066a18900b5",
+  "signature": {
+    "r": "0x1fac0eb4d0400facd5d5435e7e6db4a15e65c20efc9f6bacf0a688ccb33eb3ef",
+    "vs": "0x771fe1544bab20884708b1767483612c7ee98e07ab0069c54dea4ef0e5fc2638",
+    "yParity": 0,
+    "recoveredMaker": "0xd9Aba9723d14b36588bcF9D47c2FF355EEC47F3c",
+    "standard": "raw ECDSA over LOP.hashOrder(order)"
+  },
+  "extension": {
+    "raw": "0x0000001400000000000000000000000000000000000000000000000000000000d0f10948e5e987d9a04adf4014178d65042f672c",
+    "length": 52,
+    "lengthTable": "0x0000001400000000000000000000000000000000000000000000000000000000",
+    "postInteractionTarget": "0xD0F10948E5E987d9A04aDf4014178D65042f672c",
+    "keccak256": "0xc451b057eef1a9ddd9da4bf2998a9a7889a2e52f0ef708eaff87811a05d4c394"
+  },
+  "traits": {
+    "takerTraits": "57896046020575324403618761827028738451655787361951791991838561021349097779200",
+    "takerTraitsExtensionLength": 52,
+    "takerTraitsMakingAmountMode": true,
+    "takerTraitsThreshold": "4800000000",
+    "makerTraits": {
+      "noPartialFills": true,
+      "postInteractionCall": true,
+      "hasExtension": true,
+      "allowedSender": "0"
+    }
+  },
+  "amounts": {
+    "makingAmount": "11",
+    "interaction": "0x",
+    "recipient": "0xd9Aba9723d14b36588bcF9D47c2FF355EEC47F3c"
+  },
+  "fills": {
+    "pendingFills": {
+      "recipient": "0xd9Aba9723d14b36588bcF9D47c2FF355EEC47F3c",
+      "initiated": true,
+      "fulfilled": true
+    },
+    "lopRemainingMakingAmount": "0"
+  },
+  "price": {
+    "chainlinkEthUsd8": "233327192463",
+    "orderImpliedEthUsd8": "229166666666",
+    "deviationBps": -178,
+    "fairMakingAtChainlinkPrice": "11",
+    "note": "USDC has 6 decimals, so the fair making amount is truncated to whole USDC-units: 1 unit of rounding on an 11-unit fill."
+  },
+  "transfers": [
+    {
+      "logIndex": 560,
+      "token": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "from": "0xd9Aba9723d14b36588bcF9D47c2FF355EEC47F3c",
+      "to": "0xD0F10948E5E987d9A04aDf4014178D65042f672c",
+      "amount": "11"
+    },
+    {
+      "logIndex": 561,
+      "token": "0x4200000000000000000000000000000000000006",
+      "from": "0xD0F10948E5E987d9A04aDf4014178D65042f672c",
+      "to": "0xd9Aba9723d14b36588bcF9D47c2FF355EEC47F3c",
+      "amount": "4800000000"
+    }
+  ],
+  "settlerEvents": [
+    {
+      "logIndex": 562,
+      "orderHash": "0xadfebc31447c7fdafd5a6017a55adbda6f09a63df5d5541bfcf9c066a18900b5",
+      "recipient": "0xd9Aba9723d14b36588bcF9D47c2FF355EEC47F3c",
+      "makingAmount": "11",
+      "takingAmount": "4800000000"
+    },
+    {
+      "logIndex": 564,
+      "orderHash": "0xadfebc31447c7fdafd5a6017a55adbda6f09a63df5d5541bfcf9c066a18900b5",
+      "recipient": "0xd9Aba9723d14b36588bcF9D47c2FF355EEC47F3c",
+      "makingAmount": "11",
+      "takingAmount": "4800000000"
+    }
+  ],
+  "lopEvents": [
+    {
+      "logIndex": 563,
+      "orderHash": "0xadfebc31447c7fdafd5a6017a55adbda6f09a63df5d5541bfcf9c066a18900b5",
+      "remainingMakingAmount": "0"
+    }
+  ],
+  "checks": [
+    {
+      "label": "tx mined with status 1",
+      "ok": true
+    },
+    {
+      "label": "tx sent to EswapOneInchFusionSettlement",
+      "ok": true
+    },
+    {
+      "label": "tx sent by the settler operator",
+      "ok": true
+    },
+    {
+      "label": "calldata is fill(order,r,vs,amount,traits,extension,interaction,recipient)",
+      "ok": true
+    },
+    {
+      "label": "order.makerAsset == USDC",
+      "ok": true
+    },
+    {
+      "label": "order.takerAsset == WETH",
+      "ok": true
+    },
+    {
+      "label": "order.receiver == recipient == signature-recovered maker",
+      "ok": true
+    },
+    {
+      "label": "signature recovers order.maker",
+      "ok": true
+    },
+    {
+      "label": "order hash matches the canonical LOP hashOrder()",
+      "ok": true
+    },
+    {
+      "label": "extension salt commitment (low 160 bits of keccak256(extension))",
+      "ok": true
+    },
+    {
+      "label": "extension names the settler as postInteraction target",
+      "ok": true
+    },
+    {
+      "label": "makerTraits: no partial fills + post-interaction + extension",
+      "ok": true
+    },
+    {
+      "label": "makerTraits: no allowed-sender restriction",
+      "ok": true
+    },
+    {
+      "label": "takerTraits declares the extension length",
+      "ok": true
+    },
+    {
+      "label": "takerTraits is in making-amount mode",
+      "ok": true
+    },
+    {
+      "label": "pendingFills[orderHash].fulfilled (postInteraction fired)",
+      "ok": true
+    },
+    {
+      "label": "pendingFills[orderHash].recipient == order.receiver",
+      "ok": true
+    },
+    {
+      "label": "LOP remaining invalidator == 0 (fully filled)",
+      "ok": true
+    },
+    {
+      "label": "LOP emitted OrderFilled(orderHash, 0)",
+      "ok": true
+    },
+    {
+      "label": "settler emitted OrderFilled twice (fill + callback)",
+      "ok": true
+    },
+    {
+      "label": "settler events agree on orderHash/recipient/amounts",
+      "ok": true
+    },
+    {
+      "label": "USDC moved maker -> settler (makingAmount)",
+      "ok": true
+    },
+    {
+      "label": "WETH moved settler -> maker (takingAmount)",
+      "ok": true
+    },
+    {
+      "label": "no other token movements",
+      "ok": true
+    },
+    {
+      "label": "order makingAmount == floor(takingAmount at Chainlink ETH/USD)",
+      "ok": true
+    },
+    {
+      "label": "settler holds the bought USDC afterwards",
+      "ok": true
+    },
+    {
+      "label": "maker received the WETH",
+      "ok": true
+    },
+    {
+      "label": "WETH approval to the LOP was scoped to maxFillAmount",
+      "ok": true
+    }
+  ],
+  "allPassed": true
+}

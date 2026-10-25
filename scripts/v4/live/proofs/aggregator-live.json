@@ -1,0 +1,1053 @@
+{
+  "chainId": 8453,
+  "rpc": "https://mainnet.base.org",
+  "verifiedAt": "2026-10-25T20:20:37.193Z",
+  "router": "0xD3360D67E366Cac21a1c18fC9100B93be79e1437",
+  "hook": "0xe33A630503c640143126BBF222a82689D49b50c8",
+  "poolManager": "0x498581fF718922c3f8e6A244956aF099B2652b2b",
+  "venues": [
+    {
+      "id": "0x",
+      "venue": "0x Swap API v2 (allowance-holder)",
+      "proxy": "0x0000000000001fF3684f28c67538d4D072C22734",
+      "tx": {
+        "hash": "0x939b12470ae54395f8489cd9a9226fb7d2ca003e406bdb2abd98d8015130f284",
+        "url": "https://basescan.org/tx/0x939b12470ae54395f8489cd9a9226fb7d2ca003e406bdb2abd98d8015130f284",
+        "block": 53072986,
+        "gasUsed": "923176",
+        "effectiveGasPrice": "6000000",
+        "from": "0xA2d79E8D2DD0372668F412dD4d7F6f78505f1922",
+        "to": "0xD3360D67E366Cac21a1c18fC9100B93be79e1437",
+        "function": "swapMultiPoolForAggregator"
+      },
+      "call": {
+        "trader": "0xA2d79E8D2DD0372668F412dD4d7F6f78505f1922",
+        "solver": "0x3fc88b834aC96Fa4c65913a6D3d5523418f7F037",
+        "key": {
+          "currency0": "0x4200000000000000000000000000000000000006",
+          "currency1": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "fee": 3000,
+          "tickSpacing": 60,
+          "hooks": "0xe33A630503c640143126BBF222a82689D49b50c8"
+        },
+        "poolId": "0xdd4958586bcbc340177b3b18ecbf31cfa277e5a8a78735deee01218f54a1d512",
+        "zeroForOne": false,
+        "amountSpecified": "-4000",
+        "leverage": 2,
+        "minAmountOut": "3331399604559",
+        "deadline": "1792937115",
+        "route": {
+          "exchangeProxy": "0x0000000000001fF3684f28c67538d4D072C22734",
+          "tokenIn": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "tokenOut": "0x4200000000000000000000000000000000000006",
+          "sellAmount": "8000",
+          "value": "0",
+          "callDataLen": 1700,
+          "callDataSelector": "0x2213bc0b"
+        }
+      },
+      "flows": {
+        "routerUsdcToVenue": [
+          {
+            "to": "0x7d6839415693801E94cDC4A7d732C9a3FDBbd1D7",
+            "amount": "8000"
+          }
+        ],
+        "solverUsdcToRouter": [
+          {
+            "from": "0x3fc88b834aC96Fa4c65913a6D3d5523418f7F037",
+            "to": "0xD3360D67E366Cac21a1c18fC9100B93be79e1437",
+            "amount": "4000"
+          }
+        ],
+        "wethIntoRouter": [
+          {
+            "from": "0x7d6839415693801E94cDC4A7d732C9a3FDBbd1D7",
+            "amount": "3434432582020"
+          }
+        ],
+        "wethRouterToManager": [
+          {
+            "to": "0x498581fF718922c3f8e6A244956aF099B2652b2b",
+            "amount": "3434432582020"
+          }
+        ],
+        "erc6909Mints": [
+          {
+            "caller": "0xD3360D67E366Cac21a1c18fC9100B93be79e1437",
+            "from": "0x0000000000000000000000000000000000000000",
+            "to": "0xe33A630503c640143126BBF222a82689D49b50c8",
+            "id": "376793390874373408599387495934666716005045108742",
+            "amount": "3434432582020"
+          }
+        ],
+        "output": "3434432582020",
+        "protocolFee": "1717216291"
+      },
+      "event": {
+        "poolId": "0xdd4958586bcbc340177b3b18ecbf31cfa277e5a8a78735deee01218f54a1d512",
+        "trader": "0xA2d79E8D2DD0372668F412dD4d7F6f78505f1922",
+        "leverage": 2,
+        "marginAmount": "4000",
+        "boughtAmount": "3434432582020"
+      },
+      "position": {
+        "trader": "0xA2d79E8D2DD0372668F412dD4d7F6f78505f1922",
+        "collateral": "3432715365729",
+        "borrowed": "4000",
+        "leverage": 2,
+        "isLong": true
+      },
+      "routerWeth": {
+        "before": "852386635144",
+        "after": "852386635144"
+      },
+      "checks": [
+        {
+          "label": "tx mined with status 1",
+          "ok": true
+        },
+        {
+          "label": "tx sent to the live EswapRouter",
+          "ok": true
+        },
+        {
+          "label": "tx sent by the trader encoded in calldata",
+          "ok": true
+        },
+        {
+          "label": "calldata is swapMultiPoolForAggregator(SwapParams,address,AggregatorRoute)",
+          "ok": true
+        },
+        {
+          "label": "route.exchangeProxy is the 0x Swap API v2 (allowance-holder) proxy",
+          "ok": true
+        },
+        {
+          "label": "route.tokenIn == USDC",
+          "ok": true
+        },
+        {
+          "label": "route.tokenOut == WETH",
+          "ok": true
+        },
+        {
+          "label": "route.sellAmount == notional (margin + borrow)",
+          "ok": true
+        },
+        {
+          "label": "route.value == 0 (no native leg)",
+          "ok": true
+        },
+        {
+          "label": "params: USDC -> WETH long",
+          "ok": true
+        },
+        {
+          "label": "params: 2x leverage, margin 4000 USDC-units",
+          "ok": true
+        },
+        {
+          "label": "params.solver == registered solver",
+          "ok": true
+        },
+        {
+          "label": "params.key is the hook pool [WETH,USDC,3000,60,hook]",
+          "ok": true
+        },
+        {
+          "label": "params.standardPoolKey is the std [WETH,USDC,500,10,0x0] pool",
+          "ok": true
+        },
+        {
+          "label": "fill is NOT replaying the stale fixture taker",
+          "ok": true
+        },
+        {
+          "label": "router USDC out to the venue == notional (8000)",
+          "ok": true
+        },
+        {
+          "label": "solver funded the borrow leg directly (4000 USDC)",
+          "ok": true
+        },
+        {
+          "label": "venue delivered WETH to the router (output > 0)",
+          "ok": true
+        },
+        {
+          "label": "router forwarded the whole output to the PoolManager",
+          "ok": true
+        },
+        {
+          "label": "PoolManager minted the ERC-6909 WETH claim to the hook",
+          "ok": true
+        },
+        {
+          "label": "hook emitted MultiPoolMarginOpened(poolId, trader, 2, 4000, received)",
+          "ok": true
+        },
+        {
+          "label": "position.collateral == output - protocol fee",
+          "ok": true
+        },
+        {
+          "label": "position.borrowed == 4000 USDC-units, 2x, long",
+          "ok": true
+        },
+        {
+          "label": "position.trader == calldata trader",
+          "ok": true
+        },
+        {
+          "label": "output cleared minAmountOut",
+          "ok": true
+        },
+        {
+          "label": "fill left no dangling WETH at the router (balance unchanged vs pre-fill block)",
+          "ok": true
+        },
+        {
+          "label": "venue allowance reset to 0 (AUDIT CRIT-5)",
+          "ok": true
+        }
+      ],
+      "allPassed": true
+    },
+    {
+      "id": "enso",
+      "venue": "Enso Router V2",
+      "proxy": "0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf",
+      "tx": {
+        "hash": "0x15651c9304c96354dc9504a938b5fb548dec30dfc46dcf34c8f3b66ba0b89fb8",
+        "url": "https://basescan.org/tx/0x15651c9304c96354dc9504a938b5fb548dec30dfc46dcf34c8f3b66ba0b89fb8",
+        "block": 53072978,
+        "gasUsed": "1390627",
+        "effectiveGasPrice": "6000000",
+        "from": "0x180d05fAC11A81F8FDf10b85b989BB0Fe238cfd8",
+        "to": "0xD3360D67E366Cac21a1c18fC9100B93be79e1437",
+        "function": "swapMultiPoolForAggregator"
+      },
+      "call": {
+        "trader": "0x180d05fAC11A81F8FDf10b85b989BB0Fe238cfd8",
+        "solver": "0x3fc88b834aC96Fa4c65913a6D3d5523418f7F037",
+        "key": {
+          "currency0": "0x4200000000000000000000000000000000000006",
+          "currency1": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "fee": 3000,
+          "tickSpacing": 60,
+          "hooks": "0xe33A630503c640143126BBF222a82689D49b50c8"
+        },
+        "poolId": "0xdd4958586bcbc340177b3b18ecbf31cfa277e5a8a78735deee01218f54a1d512",
+        "zeroForOne": false,
+        "amountSpecified": "-4000",
+        "leverage": 2,
+        "minAmountOut": "3546553214560",
+        "deadline": "1792937099",
+        "route": {
+          "exchangeProxy": "0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf",
+          "tokenIn": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "tokenOut": "0x4200000000000000000000000000000000000006",
+          "sellAmount": "8000",
+          "value": "0",
+          "callDataLen": 4580,
+          "callDataSelector": "0xb94c3609"
+        }
+      },
+      "flows": {
+        "routerUsdcToVenue": [
+          {
+            "to": "0x4Fe93ebC4Ce6Ae4f81601cC7Ce7139023919E003",
+            "amount": "8000"
+          }
+        ],
+        "solverUsdcToRouter": [
+          {
+            "from": "0x3fc88b834aC96Fa4c65913a6D3d5523418f7F037",
+            "to": "0xD3360D67E366Cac21a1c18fC9100B93be79e1437",
+            "amount": "4000"
+          }
+        ],
+        "wethIntoRouter": [
+          {
+            "from": "0xbedFAC7488DCcAAFdD66d1D7D56349780Fe0477e",
+            "amount": "3656240427382"
+          }
+        ],
+        "wethRouterToManager": [
+          {
+            "to": "0x498581fF718922c3f8e6A244956aF099B2652b2b",
+            "amount": "3656240427382"
+          }
+        ],
+        "erc6909Mints": [
+          {
+            "caller": "0xD3360D67E366Cac21a1c18fC9100B93be79e1437",
+            "from": "0x0000000000000000000000000000000000000000",
+            "to": "0xe33A630503c640143126BBF222a82689D49b50c8",
+            "id": "376793390874373408599387495934666716005045108742",
+            "amount": "3656240427382"
+          }
+        ],
+        "output": "3656240427382",
+        "protocolFee": "1828120213"
+      },
+      "event": {
+        "poolId": "0xdd4958586bcbc340177b3b18ecbf31cfa277e5a8a78735deee01218f54a1d512",
+        "trader": "0x180d05fAC11A81F8FDf10b85b989BB0Fe238cfd8",
+        "leverage": 2,
+        "marginAmount": "4000",
+        "boughtAmount": "3656240427382"
+      },
+      "position": {
+        "trader": "0x180d05fAC11A81F8FDf10b85b989BB0Fe238cfd8",
+        "collateral": "3654412307169",
+        "borrowed": "4000",
+        "leverage": 2,
+        "isLong": true
+      },
+      "routerWeth": {
+        "before": "852386635144",
+        "after": "852386635144"
+      },
+      "checks": [
+        {
+          "label": "tx mined with status 1",
+          "ok": true
+        },
+        {
+          "label": "tx sent to the live EswapRouter",
+          "ok": true
+        },
+        {
+          "label": "tx sent by the trader encoded in calldata",
+          "ok": true
+        },
+        {
+          "label": "calldata is swapMultiPoolForAggregator(SwapParams,address,AggregatorRoute)",
+          "ok": true
+        },
+        {
+          "label": "route.exchangeProxy is the Enso Router V2 proxy",
+          "ok": true
+        },
+        {
+          "label": "route.tokenIn == USDC",
+          "ok": true
+        },
+        {
+          "label": "route.tokenOut == WETH",
+          "ok": true
+        },
+        {
+          "label": "route.sellAmount == notional (margin + borrow)",
+          "ok": true
+        },
+        {
+          "label": "route.value == 0 (no native leg)",
+          "ok": true
+        },
+        {
+          "label": "params: USDC -> WETH long",
+          "ok": true
+        },
+        {
+          "label": "params: 2x leverage, margin 4000 USDC-units",
+          "ok": true
+        },
+        {
+          "label": "params.solver == registered solver",
+          "ok": true
+        },
+        {
+          "label": "params.key is the hook pool [WETH,USDC,3000,60,hook]",
+          "ok": true
+        },
+        {
+          "label": "params.standardPoolKey is the std [WETH,USDC,500,10,0x0] pool",
+          "ok": true
+        },
+        {
+          "label": "fill is NOT replaying the stale fixture taker",
+          "ok": true
+        },
+        {
+          "label": "router USDC out to the venue == notional (8000)",
+          "ok": true
+        },
+        {
+          "label": "solver funded the borrow leg directly (4000 USDC)",
+          "ok": true
+        },
+        {
+          "label": "venue delivered WETH to the router (output > 0)",
+          "ok": true
+        },
+        {
+          "label": "router forwarded the whole output to the PoolManager",
+          "ok": true
+        },
+        {
+          "label": "PoolManager minted the ERC-6909 WETH claim to the hook",
+          "ok": true
+        },
+        {
+          "label": "hook emitted MultiPoolMarginOpened(poolId, trader, 2, 4000, received)",
+          "ok": true
+        },
+        {
+          "label": "position.collateral == output - protocol fee",
+          "ok": true
+        },
+        {
+          "label": "position.borrowed == 4000 USDC-units, 2x, long",
+          "ok": true
+        },
+        {
+          "label": "position.trader == calldata trader",
+          "ok": true
+        },
+        {
+          "label": "output cleared minAmountOut",
+          "ok": true
+        },
+        {
+          "label": "fill left no dangling WETH at the router (balance unchanged vs pre-fill block)",
+          "ok": true
+        },
+        {
+          "label": "venue allowance reset to 0 (AUDIT CRIT-5)",
+          "ok": true
+        }
+      ],
+      "allPassed": true
+    },
+    {
+      "id": "paraswap",
+      "venue": "ParaSwap Augustus V6.2",
+      "proxy": "0x6A000F20005980200259B80c5102003040001068",
+      "tx": {
+        "hash": "0x01db75552ba9d6cda07b53c7b4ffd64c2b1a534ce792ea5291a2c7769fa41b02",
+        "url": "https://basescan.org/tx/0x01db75552ba9d6cda07b53c7b4ffd64c2b1a534ce792ea5291a2c7769fa41b02",
+        "block": 53072989,
+        "gasUsed": "883500",
+        "effectiveGasPrice": "6000000",
+        "from": "0xb8F41b45df9C6f664C610Ed9100f750b49979640",
+        "to": "0xD3360D67E366Cac21a1c18fC9100B93be79e1437",
+        "function": "swapMultiPoolForAggregator"
+      },
+      "call": {
+        "trader": "0xb8F41b45df9C6f664C610Ed9100f750b49979640",
+        "solver": "0x3fc88b834aC96Fa4c65913a6D3d5523418f7F037",
+        "key": {
+          "currency0": "0x4200000000000000000000000000000000000006",
+          "currency1": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "fee": 3000,
+          "tickSpacing": 60,
+          "hooks": "0xe33A630503c640143126BBF222a82689D49b50c8"
+        },
+        "poolId": "0xdd4958586bcbc340177b3b18ecbf31cfa277e5a8a78735deee01218f54a1d512",
+        "zeroForOne": false,
+        "amountSpecified": "-4000",
+        "leverage": 2,
+        "minAmountOut": "3319052032014",
+        "deadline": "1792937121",
+        "route": {
+          "exchangeProxy": "0x6A000F20005980200259B80c5102003040001068",
+          "tokenIn": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "tokenOut": "0x4200000000000000000000000000000000000006",
+          "sellAmount": "8000",
+          "value": "0",
+          "callDataLen": 513,
+          "callDataSelector": "0xe8bb3b6c"
+        }
+      },
+      "flows": {
+        "routerUsdcToVenue": [
+          {
+            "to": "0x88A43bbDF9D098eEC7bCEda4e2494615dfD9bB9C",
+            "amount": "8000"
+          }
+        ],
+        "solverUsdcToRouter": [
+          {
+            "from": "0x3fc88b834aC96Fa4c65913a6D3d5523418f7F037",
+            "to": "0xD3360D67E366Cac21a1c18fC9100B93be79e1437",
+            "amount": "4000"
+          }
+        ],
+        "wethIntoRouter": [
+          {
+            "from": "0x6A000F20005980200259B80c5102003040001068",
+            "amount": "3421703125788"
+          }
+        ],
+        "wethRouterToManager": [
+          {
+            "to": "0x498581fF718922c3f8e6A244956aF099B2652b2b",
+            "amount": "3421703125788"
+          }
+        ],
+        "erc6909Mints": [
+          {
+            "caller": "0xD3360D67E366Cac21a1c18fC9100B93be79e1437",
+            "from": "0x0000000000000000000000000000000000000000",
+            "to": "0xe33A630503c640143126BBF222a82689D49b50c8",
+            "id": "376793390874373408599387495934666716005045108742",
+            "amount": "3421703125788"
+          }
+        ],
+        "output": "3421703125788",
+        "protocolFee": "1710851562"
+      },
+      "event": {
+        "poolId": "0xdd4958586bcbc340177b3b18ecbf31cfa277e5a8a78735deee01218f54a1d512",
+        "trader": "0xb8F41b45df9C6f664C610Ed9100f750b49979640",
+        "leverage": 2,
+        "marginAmount": "4000",
+        "boughtAmount": "3421703125788"
+      },
+      "position": {
+        "trader": "0xb8F41b45df9C6f664C610Ed9100f750b49979640",
+        "collateral": "3419992274226",
+        "borrowed": "4000",
+        "leverage": 2,
+        "isLong": true
+      },
+      "routerWeth": {
+        "before": "852386635144",
+        "after": "852386635144"
+      },
+      "checks": [
+        {
+          "label": "tx mined with status 1",
+          "ok": true
+        },
+        {
+          "label": "tx sent to the live EswapRouter",
+          "ok": true
+        },
+        {
+          "label": "tx sent by the trader encoded in calldata",
+          "ok": true
+        },
+        {
+          "label": "calldata is swapMultiPoolForAggregator(SwapParams,address,AggregatorRoute)",
+          "ok": true
+        },
+        {
+          "label": "route.exchangeProxy is the ParaSwap Augustus V6.2 proxy",
+          "ok": true
+        },
+        {
+          "label": "route.tokenIn == USDC",
+          "ok": true
+        },
+        {
+          "label": "route.tokenOut == WETH",
+          "ok": true
+        },
+        {
+          "label": "route.sellAmount == notional (margin + borrow)",
+          "ok": true
+        },
+        {
+          "label": "route.value == 0 (no native leg)",
+          "ok": true
+        },
+        {
+          "label": "params: USDC -> WETH long",
+          "ok": true
+        },
+        {
+          "label": "params: 2x leverage, margin 4000 USDC-units",
+          "ok": true
+        },
+        {
+          "label": "params.solver == registered solver",
+          "ok": true
+        },
+        {
+          "label": "params.key is the hook pool [WETH,USDC,3000,60,hook]",
+          "ok": true
+        },
+        {
+          "label": "params.standardPoolKey is the std [WETH,USDC,500,10,0x0] pool",
+          "ok": true
+        },
+        {
+          "label": "fill is NOT replaying the stale fixture taker",
+          "ok": true
+        },
+        {
+          "label": "router USDC out to the venue == notional (8000)",
+          "ok": true
+        },
+        {
+          "label": "solver funded the borrow leg directly (4000 USDC)",
+          "ok": true
+        },
+        {
+          "label": "venue delivered WETH to the router (output > 0)",
+          "ok": true
+        },
+        {
+          "label": "router forwarded the whole output to the PoolManager",
+          "ok": true
+        },
+        {
+          "label": "PoolManager minted the ERC-6909 WETH claim to the hook",
+          "ok": true
+        },
+        {
+          "label": "hook emitted MultiPoolMarginOpened(poolId, trader, 2, 4000, received)",
+          "ok": true
+        },
+        {
+          "label": "position.collateral == output - protocol fee",
+          "ok": true
+        },
+        {
+          "label": "position.borrowed == 4000 USDC-units, 2x, long",
+          "ok": true
+        },
+        {
+          "label": "position.trader == calldata trader",
+          "ok": true
+        },
+        {
+          "label": "output cleared minAmountOut",
+          "ok": true
+        },
+        {
+          "label": "fill left no dangling WETH at the router (balance unchanged vs pre-fill block)",
+          "ok": true
+        },
+        {
+          "label": "venue allowance reset to 0 (AUDIT CRIT-5)",
+          "ok": true
+        }
+      ],
+      "allPassed": true
+    },
+    {
+      "id": "kyber",
+      "venue": "KyberSwap MetaAggregationRouterV2",
+      "proxy": "0x6131B5fae19EA4f9D964eAc0408E4408b66337b5",
+      "tx": {
+        "hash": "0xb7ca843014e0bb7a1cc5ca9bac185a62287b2210882381360fd0a745d34b2cac",
+        "url": "https://basescan.org/tx/0xb7ca843014e0bb7a1cc5ca9bac185a62287b2210882381360fd0a745d34b2cac",
+        "block": 53072992,
+        "gasUsed": "1061579",
+        "effectiveGasPrice": "6000000",
+        "from": "0x7f10Fc4C0a4FaF071d00FBb03708BD560cc4895b",
+        "to": "0xD3360D67E366Cac21a1c18fC9100B93be79e1437",
+        "function": "swapMultiPoolForAggregator"
+      },
+      "call": {
+        "trader": "0x7f10Fc4C0a4FaF071d00FBb03708BD560cc4895b",
+        "solver": "0x3fc88b834aC96Fa4c65913a6D3d5523418f7F037",
+        "key": {
+          "currency0": "0x4200000000000000000000000000000000000006",
+          "currency1": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "fee": 3000,
+          "tickSpacing": 60,
+          "hooks": "0xe33A630503c640143126BBF222a82689D49b50c8"
+        },
+        "poolId": "0xdd4958586bcbc340177b3b18ecbf31cfa277e5a8a78735deee01218f54a1d512",
+        "zeroForOne": false,
+        "amountSpecified": "-4000",
+        "leverage": 2,
+        "minAmountOut": "3332494172817",
+        "deadline": "1792937127",
+        "route": {
+          "exchangeProxy": "0x6131B5fae19EA4f9D964eAc0408E4408b66337b5",
+          "tokenIn": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "tokenOut": "0x4200000000000000000000000000000000000006",
+          "sellAmount": "8000",
+          "value": "0",
+          "callDataLen": 4484,
+          "callDataSelector": "0xe21fd0e9"
+        }
+      },
+      "flows": {
+        "routerUsdcToVenue": [
+          {
+            "to": "0x8F10B468b06c6FD214B65F87778827F7D113f996",
+            "amount": "8000"
+          }
+        ],
+        "solverUsdcToRouter": [
+          {
+            "from": "0x3fc88b834aC96Fa4c65913a6D3d5523418f7F037",
+            "to": "0xD3360D67E366Cac21a1c18fC9100B93be79e1437",
+            "amount": "4000"
+          }
+        ],
+        "wethIntoRouter": [
+          {
+            "from": "0x8F10B468b06c6FD214B65F87778827F7D113f996",
+            "amount": "3435561002906"
+          }
+        ],
+        "wethRouterToManager": [
+          {
+            "to": "0x498581fF718922c3f8e6A244956aF099B2652b2b",
+            "amount": "3435561002906"
+          }
+        ],
+        "erc6909Mints": [
+          {
+            "caller": "0xD3360D67E366Cac21a1c18fC9100B93be79e1437",
+            "from": "0x0000000000000000000000000000000000000000",
+            "to": "0xe33A630503c640143126BBF222a82689D49b50c8",
+            "id": "376793390874373408599387495934666716005045108742",
+            "amount": "3435561002906"
+          }
+        ],
+        "output": "3435561002906",
+        "protocolFee": "1717780501"
+      },
+      "event": {
+        "poolId": "0xdd4958586bcbc340177b3b18ecbf31cfa277e5a8a78735deee01218f54a1d512",
+        "trader": "0x7f10Fc4C0a4FaF071d00FBb03708BD560cc4895b",
+        "leverage": 2,
+        "marginAmount": "4000",
+        "boughtAmount": "3435561002906"
+      },
+      "position": {
+        "trader": "0x7f10Fc4C0a4FaF071d00FBb03708BD560cc4895b",
+        "collateral": "3433843222405",
+        "borrowed": "4000",
+        "leverage": 2,
+        "isLong": true
+      },
+      "routerWeth": {
+        "before": "852386635144",
+        "after": "852386635144"
+      },
+      "checks": [
+        {
+          "label": "tx mined with status 1",
+          "ok": true
+        },
+        {
+          "label": "tx sent to the live EswapRouter",
+          "ok": true
+        },
+        {
+          "label": "tx sent by the trader encoded in calldata",
+          "ok": true
+        },
+        {
+          "label": "calldata is swapMultiPoolForAggregator(SwapParams,address,AggregatorRoute)",
+          "ok": true
+        },
+        {
+          "label": "route.exchangeProxy is the KyberSwap MetaAggregationRouterV2 proxy",
+          "ok": true
+        },
+        {
+          "label": "route.tokenIn == USDC",
+          "ok": true
+        },
+        {
+          "label": "route.tokenOut == WETH",
+          "ok": true
+        },
+        {
+          "label": "route.sellAmount == notional (margin + borrow)",
+          "ok": true
+        },
+        {
+          "label": "route.value == 0 (no native leg)",
+          "ok": true
+        },
+        {
+          "label": "params: USDC -> WETH long",
+          "ok": true
+        },
+        {
+          "label": "params: 2x leverage, margin 4000 USDC-units",
+          "ok": true
+        },
+        {
+          "label": "params.solver == registered solver",
+          "ok": true
+        },
+        {
+          "label": "params.key is the hook pool [WETH,USDC,3000,60,hook]",
+          "ok": true
+        },
+        {
+          "label": "params.standardPoolKey is the std [WETH,USDC,500,10,0x0] pool",
+          "ok": true
+        },
+        {
+          "label": "fill is NOT replaying the stale fixture taker",
+          "ok": true
+        },
+        {
+          "label": "router USDC out to the venue == notional (8000)",
+          "ok": true
+        },
+        {
+          "label": "solver funded the borrow leg directly (4000 USDC)",
+          "ok": true
+        },
+        {
+          "label": "venue delivered WETH to the router (output > 0)",
+          "ok": true
+        },
+        {
+          "label": "router forwarded the whole output to the PoolManager",
+          "ok": true
+        },
+        {
+          "label": "PoolManager minted the ERC-6909 WETH claim to the hook",
+          "ok": true
+        },
+        {
+          "label": "hook emitted MultiPoolMarginOpened(poolId, trader, 2, 4000, received)",
+          "ok": true
+        },
+        {
+          "label": "position.collateral == output - protocol fee",
+          "ok": true
+        },
+        {
+          "label": "position.borrowed == 4000 USDC-units, 2x, long",
+          "ok": true
+        },
+        {
+          "label": "position.trader == calldata trader",
+          "ok": true
+        },
+        {
+          "label": "output cleared minAmountOut",
+          "ok": true
+        },
+        {
+          "label": "fill left no dangling WETH at the router (balance unchanged vs pre-fill block)",
+          "ok": true
+        },
+        {
+          "label": "venue allowance reset to 0 (AUDIT CRIT-5)",
+          "ok": true
+        }
+      ],
+      "allPassed": true
+    },
+    {
+      "id": "openocean",
+      "venue": "OpenOcean Exchange",
+      "proxy": "0x6352a56caadC4F1E25CD6c75970Fa768A3304e64",
+      "tx": {
+        "hash": "0xfc6cdeea65115322226a83035d94bf50cd49e4138572bc487315039f96ea4daf",
+        "url": "https://basescan.org/tx/0xfc6cdeea65115322226a83035d94bf50cd49e4138572bc487315039f96ea4daf",
+        "block": 53085140,
+        "gasUsed": "1047523",
+        "effectiveGasPrice": "6000000",
+        "from": "0x88BED7b061bF18Ea9449A243638392D38Fd189C8",
+        "to": "0xD3360D67E366Cac21a1c18fC9100B93be79e1437",
+        "function": "swapMultiPoolForAggregator"
+      },
+      "call": {
+        "trader": "0x88BED7b061bF18Ea9449A243638392D38Fd189C8",
+        "solver": "0x3fc88b834aC96Fa4c65913a6D3d5523418f7F037",
+        "key": {
+          "currency0": "0x4200000000000000000000000000000000000006",
+          "currency1": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "fee": 3000,
+          "tickSpacing": 60,
+          "hooks": "0xe33A630503c640143126BBF222a82689D49b50c8"
+        },
+        "poolId": "0xdd4958586bcbc340177b3b18ecbf31cfa277e5a8a78735deee01218f54a1d512",
+        "zeroForOne": false,
+        "amountSpecified": "-4000",
+        "leverage": 2,
+        "minAmountOut": "3311958026873",
+        "deadline": "1792961423",
+        "route": {
+          "exchangeProxy": "0x6352a56caadC4F1E25CD6c75970Fa768A3304e64",
+          "tokenIn": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "tokenOut": "0x4200000000000000000000000000000000000006",
+          "sellAmount": "8000",
+          "value": "0",
+          "callDataLen": 3044,
+          "callDataSelector": "0x90411a32"
+        }
+      },
+      "flows": {
+        "routerUsdcToVenue": [
+          {
+            "to": "0x8d8F598c1739e518b871815Dd1f20eA3C169c360",
+            "amount": "8000"
+          }
+        ],
+        "solverUsdcToRouter": [
+          {
+            "from": "0x3fc88b834aC96Fa4c65913a6D3d5523418f7F037",
+            "to": "0xD3360D67E366Cac21a1c18fC9100B93be79e1437",
+            "amount": "4000"
+          }
+        ],
+        "wethIntoRouter": [
+          {
+            "from": "0x8d8F598c1739e518b871815Dd1f20eA3C169c360",
+            "amount": "3414495427086"
+          }
+        ],
+        "wethRouterToManager": [
+          {
+            "to": "0x498581fF718922c3f8e6A244956aF099B2652b2b",
+            "amount": "3414495427086"
+          }
+        ],
+        "erc6909Mints": [
+          {
+            "caller": "0xD3360D67E366Cac21a1c18fC9100B93be79e1437",
+            "from": "0x0000000000000000000000000000000000000000",
+            "to": "0xe33A630503c640143126BBF222a82689D49b50c8",
+            "id": "376793390874373408599387495934666716005045108742",
+            "amount": "3414495427086"
+          }
+        ],
+        "output": "3414495427086",
+        "protocolFee": "1707247713"
+      },
+      "event": {
+        "poolId": "0xdd4958586bcbc340177b3b18ecbf31cfa277e5a8a78735deee01218f54a1d512",
+        "trader": "0x88BED7b061bF18Ea9449A243638392D38Fd189C8",
+        "leverage": 2,
+        "marginAmount": "4000",
+        "boughtAmount": "3414495427086"
+      },
+      "position": {
+        "trader": "0x88BED7b061bF18Ea9449A243638392D38Fd189C8",
+        "collateral": "3412788179373",
+        "borrowed": "4000",
+        "leverage": 2,
+        "isLong": true
+      },
+      "routerWeth": {
+        "before": "852386635144",
+        "after": "852386635144"
+      },
+      "checks": [
+        {
+          "label": "tx mined with status 1",
+          "ok": true
+        },
+        {
+          "label": "tx sent to the live EswapRouter",
+          "ok": true
+        },
+        {
+          "label": "tx sent by the trader encoded in calldata",
+          "ok": true
+        },
+        {
+          "label": "calldata is swapMultiPoolForAggregator(SwapParams,address,AggregatorRoute)",
+          "ok": true
+        },
+        {
+          "label": "route.exchangeProxy is the OpenOcean Exchange proxy",
+          "ok": true
+        },
+        {
+          "label": "route.tokenIn == USDC",
+          "ok": true
+        },
+        {
+          "label": "route.tokenOut == WETH",
+          "ok": true
+        },
+        {
+          "label": "route.sellAmount == notional (margin + borrow)",
+          "ok": true
+        },
+        {
+          "label": "route.value == 0 (no native leg)",
+          "ok": true
+        },
+        {
+          "label": "params: USDC -> WETH long",
+          "ok": true
+        },
+        {
+          "label": "params: 2x leverage, margin 4000 USDC-units",
+          "ok": true
+        },
+        {
+          "label": "params.solver == registered solver",
+          "ok": true
+        },
+        {
+          "label": "params.key is the hook pool [WETH,USDC,3000,60,hook]",
+          "ok": true
+        },
+        {
+          "label": "params.standardPoolKey is the std [WETH,USDC,500,10,0x0] pool",
+          "ok": true
+        },
+        {
+          "label": "fill is NOT replaying the stale fixture taker",
+          "ok": true
+        },
+        {
+          "label": "router USDC out to the venue == notional (8000)",
+          "ok": true
+        },
+        {
+          "label": "solver funded the borrow leg directly (4000 USDC)",
+          "ok": true
+        },
+        {
+          "label": "venue delivered WETH to the router (output > 0)",
+          "ok": true
+        },
+        {
+          "label": "router forwarded the whole output to the PoolManager",
+          "ok": true
+        },
+        {
+          "label": "PoolManager minted the ERC-6909 WETH claim to the hook",
+          "ok": true
+        },
+        {
+          "label": "hook emitted MultiPoolMarginOpened(poolId, trader, 2, 4000, received)",
+          "ok": true
+        },
+        {
+          "label": "position.collateral == output - protocol fee",
+          "ok": true
+        },
+        {
+          "label": "position.borrowed == 4000 USDC-units, 2x, long",
+          "ok": true
+        },
+        {
+          "label": "position.trader == calldata trader",
+          "ok": true
+        },
+        {
+          "label": "output cleared minAmountOut",
+          "ok": true
+        },
+        {
+          "label": "fill left no dangling WETH at the router (balance unchanged vs pre-fill block)",
+          "ok": true
+        },
+        {
+          "label": "venue allowance reset to 0 (AUDIT CRIT-5)",
+          "ok": true
+        }
+      ],
+      "allPassed": true
+    }
+  ],
+  "allPassed": true,
+  "totalChecks": 135,
+  "passedChecks": 135
+}

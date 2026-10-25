@@ -1,0 +1,12 @@
+{
+  "mode": "sim",
+  "chainId": 8453,
+  "block": 53070201,
+  "steps": [
+    {
+      "step": "cow-static",
+      "ok": false,
+      "error": "execution reverted: \"ERC20: transfer amount exceeds balance\""
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "mode": "sim",
+  "startBlock": 53085656,
+  "startedAt": "2026-10-25T20:37:40.219Z",
+  "steps": [
+    {
+      "venue": "lifi",
+      "status": "preflight-ok",
+      "exchangeProxy": "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE",
+      "minOut": "3297106497142",
+      "trader": "0xD2E833134e997929eeD8179E1dd960a0dE898A32"
+    }
+  ],
+  "finishedAt": "2026-10-25T20:37:41.199Z"
+}

@@ -1,0 +1,49 @@
+{
+  "mode": "broadcast",
+  "rpc": "https://mainnet.base.org",
+  "chainId": 8453,
+  "startedAt": "2026-10-25T20:20:22.781Z",
+  "startBlock": 53085137,
+  "leverage": 2,
+  "margin": "4000",
+  "notional": "8000",
+  "hookPoolId": "0xdd4958586bcbc340177b3b18ecbf31cfa277e5a8a78735deee01218f54a1d512",
+  "steps": [
+    {
+      "step": "fill-openocean",
+      "venue": "OpenOcean Exchange",
+      "action": "EswapRouter.swapMultiPoolForAggregator (leveraged open)",
+      "status": "filled",
+      "tx": "0xfc6cdeea65115322226a83035d94bf50cd49e4138572bc487315039f96ea4daf",
+      "url": "https://basescan.org/tx/0xfc6cdeea65115322226a83035d94bf50cd49e4138572bc487315039f96ea4daf",
+      "block": 53085140,
+      "gasUsed": "1047523",
+      "effectiveGasPrice": "6000000",
+      "trader": "0x88BED7b061bF18Ea9449A243638392D38Fd189C8",
+      "exchangeProxy": "0x6352a56caadC4F1E25CD6c75970Fa768A3304e64",
+      "sellAmount": "8000",
+      "expectedOut": "3417913340426",
+      "minOut": "3311958026873",
+      "calldataLen": 3044,
+      "before": {
+        "traderUsdc": "4000",
+        "solverUsdc": "4000",
+        "routerWeth": "852386635144"
+      },
+      "after": {
+        "traderUsdc": "0",
+        "solverUsdc": "0",
+        "routerWeth": "852386635144"
+      },
+      "position": {
+        "trader": "0x88BED7b061bF18Ea9449A243638392D38Fd189C8",
+        "collateral": "3412788179373",
+        "borrowed": "4000",
+        "leverage": 2,
+        "isLong": true
+      },
+      "logs": 21
+    }
+  ],
+  "finishedAt": "2026-10-25T20:20:29.959Z"
+}

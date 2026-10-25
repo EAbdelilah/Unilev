@@ -1,0 +1,41 @@
+{
+  "mode": "plan",
+  "rpc": "http://127.0.0.1:8545",
+  "chainId": 8453,
+  "startedAt": "2026-10-25T13:10:10.360Z",
+  "startBlock": 53072176,
+  "venue": "1inch Fusion / Limit Order Protocol v4",
+  "settler": "0xD0F10948E5E987d9A04aDf4014178D65042f672c",
+  "lop": "0x111111125421cA6dc452d289314280a0f8842A65",
+  "steps": [],
+  "sizing": {
+    "ethUsd8": "233327192463",
+    "makingAmount": "11",
+    "takingAmount": "4800000000",
+    "maxFillAmount": "5000000000",
+    "makerUsdcBalance": "13383",
+    "note": "WETH leg is capped by the settler maxFillAmount (5e9 wei = 5 gwei); the USDC leg is the fair value of that WETH at the live Chainlink price."
+  },
+  "order": {
+    "salt": "88797650012603396465005942720878335444807230955341882163773840891676812690324",
+    "maker": "1242679185547424602060195395138615743883338088252",
+    "receiver": "1242679185547424602060195395138615743883338088252",
+    "makerAsset": "749071750893463290574776461331093852760741783827",
+    "takerAsset": "376793390874373408599387495934666716005045108742",
+    "makingAmount": "11",
+    "takingAmount": "4800000000",
+    "makerTraits": "62419173104490761595518734106245825327153351108821866552520103879265671446528"
+  },
+  "orderHash": "0xadfebc31447c7fdafd5a6017a55adbda6f09a63df5d5541bfcf9c066a18900b5",
+  "signature": {
+    "r": "0x1fac0eb4d0400facd5d5435e7e6db4a15e65c20efc9f6bacf0a688ccb33eb3ef",
+    "vs": "0x771fe1544bab20884708b1767483612c7ee98e07ab0069c54dea4ef0e5fc2638"
+  },
+  "takerTraits": "57896046020575324403618761827028738451655787361951791991838561021349097779200",
+  "extension": "0x0000001400000000000000000000000000000000000000000000000000000000d0f10948e5e987d9a04adf4014178d65042f672c",
+  "preflightBeforeSetup": {
+    "label": "before approvals",
+    "error": "execution reverted (unknown custom error)",
+    "selector": "0x70a03f48"
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "at": "2026-10-25T13:03:07.251Z",
+  "order": {
+    "salt": "88797650012603396465005942720878335444807230955341882163773840891676812690324",
+    "maker": "1242679185547424602060195395138615743883338088252",
+    "receiver": "1242679185547424602060195395138615743883338088252",
+    "makerAsset": "749071750893463290574776461331093852760741783827",
+    "takerAsset": "376793390874373408599387495934666716005045108742",
+    "makingAmount": "11",
+    "takingAmount": "4800000000",
+    "makerTraits": "62419173104490761595518734106245825327153351108821866552520103879265671446528"
+  },
+  "takerTraits": "57896046020575324403618761827028738451655787361951791991838561021349097779200",
+  "extension": "0x0000001400000000000000000000000000000000000000000000000000000000d0f10948e5e987d9a04adf4014178d65042f672c",
+  "hash": "0xadfebc31447c7fdafd5a6017a55adbda6f09a63df5d5541bfcf9c066a18900b5",
+  "attempts": [
+    {
+      "label": "raw sign(hashOrder)",
+      "ok": false,
+      "error": "execution reverted (unknown custom error)"
+    },
+    {
+      "label": "EIP-712 uint256 fields",
+      "ok": false,
+      "error": "execution reverted (unknown custom error)"
+    },
+    {
+      "label": "EIP-712 address fields",
+      "ok": false,
+      "error": "execution reverted (unknown custom error)"
+    }
+  ]
+}

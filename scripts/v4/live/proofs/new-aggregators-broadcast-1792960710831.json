@@ -1,0 +1,43 @@
+{
+  "mode": "broadcast",
+  "startBlock": 53085678,
+  "startedAt": "2026-10-25T20:38:23.490Z",
+  "steps": [
+    {
+      "venue": "lifi",
+      "label": "LI.FI Diamond",
+      "status": "filled",
+      "tx": "0xb2b5d32c378de0d68cd005f7477bb72e7bf18abaab68419a566699218a1106ef",
+      "block": 53085680,
+      "gasUsed": "1227912",
+      "effectiveGasPrice": "6000000",
+      "trader": "0xD2E833134e997929eeD8179E1dd960a0dE898A32",
+      "exchangeProxy": "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE",
+      "minOut": "3296503134125",
+      "expectedOut": "3398456839305",
+      "before": {
+        "trader": "4000",
+        "solver": "4000",
+        "routerWeth": "852386635144",
+        "routerUsdcToProxy": "0"
+      },
+      "after": {
+        "trader": "0",
+        "solver": "0",
+        "routerWeth": "852386635144",
+        "routerUsdcToProxy": "0"
+      },
+      "position": {
+        "collateral": "3396757610886",
+        "borrowed": "4000",
+        "leverage": 2,
+        "isLong": true,
+        "liquidity": "5024281015",
+        "tickLower": -198660,
+        "tickUpper": -198060
+      },
+      "logs": 25
+    }
+  ],
+  "finishedAt": "2026-10-25T20:38:30.830Z"
+}

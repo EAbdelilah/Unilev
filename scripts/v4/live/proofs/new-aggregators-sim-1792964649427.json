@@ -1,0 +1,13 @@
+{
+  "mode": "sim",
+  "startBlock": 53072813,
+  "startedAt": "2026-10-25T21:44:05.656Z",
+  "steps": [
+    {
+      "venue": "woofi",
+      "status": "quote-failed",
+      "error": "execution reverted (unknown custom error) (action=\"call\", data=\"0x5c4a89e1\", reason=null, transaction={ \"data\": \"0xe94803f4000000000000000000000000833589fcd6edb6e08f4c7c32d4f71b54bda0291300000000000000000000000042000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000001f40\", \"to\": \"0x4c4AF8DBc524681930a27b2F1Af5bcC8062E6fB7\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.17.0)"
+    }
+  ],
+  "finishedAt": "2026-10-25T21:44:09.426Z"
+}

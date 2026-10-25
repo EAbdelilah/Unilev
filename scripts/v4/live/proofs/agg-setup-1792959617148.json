@@ -1,0 +1,23 @@
+{
+  "mode": "setup",
+  "rpc": "https://mainnet.base.org",
+  "chainId": 8453,
+  "startedAt": "2026-10-25T20:20:15.707Z",
+  "startBlock": 53085134,
+  "leverage": 2,
+  "margin": "4000",
+  "notional": "8000",
+  "hookPoolId": "0xdd4958586bcbc340177b3b18ecbf31cfa277e5a8a78735deee01218f54a1d512",
+  "steps": [
+    {
+      "step": "fill-openocean",
+      "venue": "OpenOcean Exchange",
+      "status": "preflight-ok",
+      "exchangeProxy": "0x6352a56caadC4F1E25CD6c75970Fa768A3304e64",
+      "expectedOut": "3417913340426",
+      "minOut": "3311958026873",
+      "trader": "0x88BED7b061bF18Ea9449A243638392D38Fd189C8"
+    }
+  ],
+  "finishedAt": "2026-10-25T20:20:17.147Z"
+}

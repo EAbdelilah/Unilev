@@ -1,0 +1,113 @@
+{
+  "verifiedAt": "2026-10-25T21:52:51.319Z",
+  "rpc": "https://mainnet.base.org",
+  "chainId": 8453,
+  "proofs": [
+    {
+      "id": "cow-gpv2-settlement",
+      "route": "CoW Protocol GPv2 -> EswapCoWSettlement.fillOrder",
+      "chainId": 8453,
+      "tx": "0xd2dab148d807b794ba2931853c18c803edb28fab1cfe8b13b2a225cdeac0f48f",
+      "url": "https://basescan.org/tx/0xd2dab148d807b794ba2931853c18c803edb28fab1cfe8b13b2a225cdeac0f48f",
+      "status": 1,
+      "block": 53070361,
+      "gasUsed": "1104893",
+      "gasPriceWei": "6000000",
+      "relayer": "0x518634753C61342298c3E04326056b3Ce596a566",
+      "domainSeparator": "0xd72ffa789b6fae41254d0b5a13e6e1e92ed947ec6a251edf1cf0b6c02c257b4b",
+      "orderUidRaw": "0x89cbdce119419fc200193971e779d092cbb2a645eb27e4b9cf3465195e960f7dd9aba9723d14b36588bcf9d47c2ff355eec47f3c6addff1d",
+      "orderUidHash": "0xa525d7ede597be80f6148df379c88cdac81765183be0b6d0b72abfa07206f06f",
+      "orderOwner": "0xd9Aba9723d14b36588bcF9D47c2FF355EEC47F3c",
+      "solver": "0x3fc88b834aC96Fa4c65913a6D3d5523418f7F037",
+      "margin": "7000",
+      "leverage": 2,
+      "order": {
+        "sellToken": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "buyToken": "0x4200000000000000000000000000000000000006",
+        "receiver": "0xd9Aba9723d14b36588bcF9D47c2FF355EEC47F3c",
+        "sellAmount": "7000",
+        "buyAmount": "1",
+        "validTo": 1792933661,
+        "appData": "0xe41487c9526647cd735c32eb215d78c1ede38b416a351fb6eb4a75c321291bfb",
+        "appDataJson": "{\"version\":1,\"appCode\":\"eswap\",\"metadata\":{\"eswapLeverage\":\"2\"}}",
+        "leverageCommitment": "0xe41487c9526647cd735c32eb215d78c1ede38b416a351fb6eb4a75c321291bfb",
+        "feeAmount": "0",
+        "kind": "0xf3b277728b3fee749481eb3e0b3b48980dbbab78658fc419025cb16eee346775",
+        "partiallyFillable": false,
+        "sellTokenBalance": "0x5a28e9363bb942b639270062aa6bb295f434bcdfc42c97267bf003f272060dc9",
+        "buyTokenBalance": "0x5a28e9363bb942b639270062aa6bb295f434bcdfc42c97267bf003f272060dc9"
+      },
+      "fillParams": {
+        "leverage": 2,
+        "solver": "0x3fc88b834aC96Fa4c65913a6D3d5523418f7F037",
+        "key": {
+          "currency0": "0x4200000000000000000000000000000000000006",
+          "currency1": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "fee": 3000,
+          "tickSpacing": 60,
+          "hooks": "0xe33A630503c640143126BBF222a82689D49b50c8"
+        },
+        "standardPoolKey": {
+          "currency0": "0x4200000000000000000000000000000000000006",
+          "currency1": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "fee": 500,
+          "tickSpacing": 10,
+          "hooks": "0x0000000000000000000000000000000000000000"
+        }
+      },
+      "stateAfter": {
+        "filledOrders": true,
+        "position": {
+          "trader": "0xd9Aba9723d14b36588bcF9D47c2FF355EEC47F3c",
+          "collateralWethWei": "5986499540201",
+          "borrowedUsdc": "7000",
+          "leverage": 2,
+          "isLong": true
+        },
+        "hookErc6909WethClaims": "18787046202113",
+        "escrowUsdcAfter": "0"
+      },
+      "escrowDepositTx": "0xf0360c78b4cb4e594f9e2cec5b39dc507e86b4aeb59f6fc34efbc963e8958bc3",
+      "escrowDepositUrl": "https://basescan.org/tx/0xf0360c78b4cb4e594f9e2cec5b39dc507e86b4aeb59f6fc34efbc963e8958bc3"
+    },
+    {
+      "id": "direct-solver-intent",
+      "route": "EswapRouter.swapWithIntent (permissionless solver, escrow-funded borrow)",
+      "chainId": 8453,
+      "tx": "0x180f452efa7ee76848dd20822ddd2c8887107356ebf3d08717ad4d66878fe7ed",
+      "url": "https://basescan.org/tx/0x180f452efa7ee76848dd20822ddd2c8887107356ebf3d08717ad4d66878fe7ed",
+      "status": 1,
+      "block": 53070519,
+      "gasUsed": "983606",
+      "gasPriceWei": "6000000",
+      "relayer": "0x518634753C61342298c3E04326056b3Ce596a566",
+      "intent": {
+        "poolId": "0xdd4958586bcbc340177b3b18ecbf31cfa277e5a8a78735deee01218f54a1d512",
+        "standardPoolId": "0x90333bb05c258fe0dddb2840ef66f1a05165aa7dac6815d24e807cc6ebd943a0",
+        "zeroForOne": false,
+        "amountSpecified": "-4000",
+        "leverage": 2,
+        "solver": "0x3fc88b834aC96Fa4c65913a6D3d5523418f7F037",
+        "deadline": 1792933965,
+        "minAmountOut": "0",
+        "nonce": "1"
+      },
+      "trader": "0x518634753C61342298c3E04326056b3Ce596a566",
+      "fillId": "0x78371bf56a1f77744f708f95dadb442f049cb6e4c14cf059e84a7e834d0c14c7",
+      "stateAfter": {
+        "filledIntents": true,
+        "position": {
+          "trader": "0x518634753C61342298c3E04326056b3Ce596a566",
+          "collateralWethWei": "3420895939262",
+          "borrowedUsdc": "4000",
+          "leverage": 2,
+          "isLong": true
+        },
+        "solverNotionalCap": "0",
+        "escrowUsdcAfter": "0"
+      },
+      "escrowDepositTx": "0x0cb56a3a6566dc136a93ac899628ab58862e35d5393f91704fb61158f57959df",
+      "escrowDepositUrl": "https://basescan.org/tx/0x0cb56a3a6566dc136a93ac899628ab58862e35d5393f91704fb61158f57959df"
+    }
+  ]
+}

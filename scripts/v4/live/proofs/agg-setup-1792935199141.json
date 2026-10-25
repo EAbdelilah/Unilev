@@ -1,0 +1,51 @@
+{
+  "mode": "setup",
+  "rpc": "https://mainnet.base.org",
+  "chainId": 8453,
+  "startedAt": "2026-10-25T13:32:26.066Z",
+  "startBlock": 53072899,
+  "leverage": 2,
+  "margin": "4000",
+  "notional": "8000",
+  "hookPoolId": "0xdd4958586bcbc340177b3b18ecbf31cfa277e5a8a78735deee01218f54a1d512",
+  "steps": [
+    {
+      "step": "fill-0x",
+      "venue": "0x AllowanceHolder",
+      "status": "preflight-ok",
+      "exchangeProxy": "0x0000000000001ff3684f28c67538d4d072c22734",
+      "expectedOut": "3432757635527",
+      "minOut": "3329774906461",
+      "trader": "0xA2d79E8D2DD0372668F412dD4d7F6f78505f1922"
+    },
+    {
+      "step": "fill-enso",
+      "venue": "Enso Router V2",
+      "status": "preflight-ok",
+      "exchangeProxy": "0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf",
+      "expectedOut": "3656300848991",
+      "minOut": "3546611823521",
+      "trader": "0x180d05fAC11A81F8FDf10b85b989BB0Fe238cfd8"
+    },
+    {
+      "step": "fill-paraswap",
+      "venue": "ParaSwap Augustus V6",
+      "status": "preflight-revert",
+      "error": "execution reverted: \"ERC20: transfer amount exceeds allowance\"",
+      "revertData": "0x08c379a00000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002845524332303a207472616e7366657220616d6f756e74206578636565647320616c6c6f77616e6365000000000000000000000000000000000000000000000000",
+      "exchangeProxy": "0x59C7C832e96D2568bea6db468C1aAdcbbDa08A52",
+      "minOut": "3323894216931",
+      "calldataLen": 1089
+    },
+    {
+      "step": "fill-kyber",
+      "venue": "KyberSwap MetaAggregator",
+      "status": "preflight-ok",
+      "exchangeProxy": "0x6131B5fae19EA4f9D964eAc0408E4408b66337b5",
+      "expectedOut": "3436960400367",
+      "minOut": "3333851588355",
+      "trader": "0x7f10Fc4C0a4FaF071d00FBb03708BD560cc4895b"
+    }
+  ],
+  "finishedAt": "2026-10-25T13:33:19.140Z"
+}

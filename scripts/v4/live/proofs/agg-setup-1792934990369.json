@@ -1,0 +1,31 @@
+{
+  "mode": "setup",
+  "rpc": "http://127.0.0.1:8545",
+  "chainId": 8453,
+  "startedAt": "2026-10-25T13:29:40.464Z",
+  "startBlock": 53072806,
+  "leverage": 2,
+  "margin": "4000",
+  "notional": "8000",
+  "hookPoolId": "0xdd4958586bcbc340177b3b18ecbf31cfa277e5a8a78735deee01218f54a1d512",
+  "steps": [
+    {
+      "step": "whitelist-kyber",
+      "action": "setAllowedAggregator",
+      "tx": "0x4d4c640f0a888bdddbaeca07957739e143ce99005a36a6f002fb5307c68d6cdc",
+      "block": 53072807,
+      "proxy": "0x6131B5fae19EA4f9D964eAc0408E4408b66337b5"
+    },
+    {
+      "step": "fill-kyber",
+      "venue": "KyberSwap MetaAggregator",
+      "status": "preflight-revert",
+      "error": "execution reverted: \"Return amount is not enough\"",
+      "revertData": "0x08c379a00000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000001b52657475726e20616d6f756e74206973206e6f7420656e6f7567680000000000",
+      "exchangeProxy": "0x6131B5fae19EA4f9D964eAc0408E4408b66337b5",
+      "minOut": "3332982712671",
+      "calldataLen": 3428
+    }
+  ],
+  "finishedAt": "2026-10-25T13:29:50.369Z"
+}

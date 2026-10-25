@@ -1,0 +1,43 @@
+{
+  "mode": "broadcast",
+  "startBlock": 53087820,
+  "startedAt": "2026-10-25T21:49:48.807Z",
+  "steps": [
+    {
+      "venue": "oneinch",
+      "label": "1inch Classic Router V6",
+      "status": "filled",
+      "tx": "0x972f11c04a0e0e5eea6bf7b71305fe86462d9cb48bcdda0cb187bd030276ef5a",
+      "block": 53087825,
+      "gasUsed": "1063317",
+      "effectiveGasPrice": "6000000",
+      "trader": "0x84913dC15b365D623Ee7EF95Ad21b5E305859475",
+      "exchangeProxy": "0x111111125421cA6dc452d289314280a0f8842A65",
+      "minOut": "618560138622",
+      "expectedOut": "637690864559",
+      "before": {
+        "trader": "750",
+        "solver": "750",
+        "routerWeth": "852386635144",
+        "routerUsdcToProxy": "0"
+      },
+      "after": {
+        "trader": "0",
+        "solver": "0",
+        "routerWeth": "852386635144",
+        "routerUsdcToProxy": "0"
+      },
+      "position": {
+        "collateral": "637372019127",
+        "borrowed": "750",
+        "leverage": 2,
+        "isLong": true,
+        "liquidity": "939938720",
+        "tickLower": -198720,
+        "tickUpper": -198120
+      },
+      "logs": 17
+    }
+  ],
+  "finishedAt": "2026-10-25T21:50:00.963Z"
+}

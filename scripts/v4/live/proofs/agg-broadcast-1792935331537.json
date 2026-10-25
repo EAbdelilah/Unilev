@@ -1,0 +1,119 @@
+{
+  "mode": "broadcast",
+  "rpc": "https://mainnet.base.org",
+  "chainId": 8453,
+  "startedAt": "2026-10-25T13:35:12.738Z",
+  "startBlock": 53072983,
+  "leverage": 2,
+  "margin": "4000",
+  "notional": "8000",
+  "hookPoolId": "0xdd4958586bcbc340177b3b18ecbf31cfa277e5a8a78735deee01218f54a1d512",
+  "steps": [
+    {
+      "step": "fill-0x",
+      "venue": "0x AllowanceHolder",
+      "action": "EswapRouter.swapMultiPoolForAggregator (leveraged open)",
+      "status": "filled",
+      "tx": "0x939b12470ae54395f8489cd9a9226fb7d2ca003e406bdb2abd98d8015130f284",
+      "url": "https://basescan.org/tx/0x939b12470ae54395f8489cd9a9226fb7d2ca003e406bdb2abd98d8015130f284",
+      "block": 53072986,
+      "gasUsed": "923176",
+      "effectiveGasPrice": "6000000",
+      "trader": "0xA2d79E8D2DD0372668F412dD4d7F6f78505f1922",
+      "exchangeProxy": "0x0000000000001ff3684f28c67538d4d072c22734",
+      "sellAmount": "8000",
+      "expectedOut": "3434432582020",
+      "minOut": "3331399604559",
+      "calldataLen": 1700,
+      "before": {
+        "traderUsdc": "4000",
+        "solverUsdc": "12000",
+        "routerWeth": "852386635144"
+      },
+      "after": {
+        "traderUsdc": "0",
+        "solverUsdc": "8000",
+        "routerWeth": "852386635144"
+      },
+      "position": {
+        "trader": "0xA2d79E8D2DD0372668F412dD4d7F6f78505f1922",
+        "collateral": "3432715365729",
+        "borrowed": "4000",
+        "leverage": 2,
+        "isLong": true
+      },
+      "logs": 13
+    },
+    {
+      "step": "fill-paraswap",
+      "venue": "ParaSwap Augustus V6.2",
+      "action": "EswapRouter.swapMultiPoolForAggregator (leveraged open)",
+      "status": "filled",
+      "tx": "0x01db75552ba9d6cda07b53c7b4ffd64c2b1a534ce792ea5291a2c7769fa41b02",
+      "url": "https://basescan.org/tx/0x01db75552ba9d6cda07b53c7b4ffd64c2b1a534ce792ea5291a2c7769fa41b02",
+      "block": 53072989,
+      "gasUsed": "883500",
+      "effectiveGasPrice": "6000000",
+      "trader": "0xb8F41b45df9C6f664C610Ed9100f750b49979640",
+      "exchangeProxy": "0x6a000f20005980200259b80c5102003040001068",
+      "sellAmount": "8000",
+      "expectedOut": "3421703125788",
+      "minOut": "3319052032014",
+      "calldataLen": 513,
+      "before": {
+        "traderUsdc": "4000",
+        "solverUsdc": "8000",
+        "routerWeth": "852386635144"
+      },
+      "after": {
+        "traderUsdc": "4000",
+        "solverUsdc": "8000",
+        "routerWeth": "852386635144"
+      },
+      "position": {
+        "trader": "0xb8F41b45df9C6f664C610Ed9100f750b49979640",
+        "collateral": "3419992274226",
+        "borrowed": "4000",
+        "leverage": 2,
+        "isLong": true
+      },
+      "logs": 12
+    },
+    {
+      "step": "fill-kyber",
+      "venue": "KyberSwap MetaAggregator",
+      "action": "EswapRouter.swapMultiPoolForAggregator (leveraged open)",
+      "status": "filled",
+      "tx": "0xb7ca843014e0bb7a1cc5ca9bac185a62287b2210882381360fd0a745d34b2cac",
+      "url": "https://basescan.org/tx/0xb7ca843014e0bb7a1cc5ca9bac185a62287b2210882381360fd0a745d34b2cac",
+      "block": 53072992,
+      "gasUsed": "1061579",
+      "effectiveGasPrice": "6000000",
+      "trader": "0x7f10Fc4C0a4FaF071d00FBb03708BD560cc4895b",
+      "exchangeProxy": "0x6131B5fae19EA4f9D964eAc0408E4408b66337b5",
+      "sellAmount": "8000",
+      "expectedOut": "3435561002905",
+      "minOut": "3332494172817",
+      "calldataLen": 4484,
+      "before": {
+        "traderUsdc": "4000",
+        "solverUsdc": "4000",
+        "routerWeth": "852386635144"
+      },
+      "after": {
+        "traderUsdc": "4000",
+        "solverUsdc": "4000",
+        "routerWeth": "852386635144"
+      },
+      "position": {
+        "trader": "0x7f10Fc4C0a4FaF071d00FBb03708BD560cc4895b",
+        "collateral": "3433843222405",
+        "borrowed": "4000",
+        "leverage": 2,
+        "isLong": true
+      },
+      "logs": 19
+    }
+  ],
+  "finishedAt": "2026-10-25T13:35:31.537Z"
+}

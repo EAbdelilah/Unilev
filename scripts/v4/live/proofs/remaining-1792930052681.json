@@ -1,0 +1,76 @@
+{
+  "mode": "sim",
+  "rpc": "http://127.0.0.1:8545",
+  "chainId": 8453,
+  "startedAt": "2026-10-25T12:07:17.748Z",
+  "startBlock": 53070338,
+  "leverage": 2,
+  "steps": [
+    {
+      "step": "cow-fill",
+      "venue": "CoW Protocol GPv2",
+      "action": "CoW GPv2 Settlement (leveraged open)",
+      "tx": "0x88316f7df3bf069a4fd8cfc861696ae2f40f6784bce87b10671aedb757683889",
+      "url": "https://basescan.org/tx/0x88316f7df3bf069a4fd8cfc861696ae2f40f6784bce87b10671aedb757683889",
+      "status": 1,
+      "block": 53070340,
+      "gasUsed": "1109325",
+      "orderUid": "0xb7bfc1510d27ae3009d9ed7cc739f5e7062f4fcaeaa5488bdf1d6e7bb584ec73d9aba9723d14b36588bcf9d47c2ff355eec47f3c6addfef7",
+      "owner": "0xd9Aba9723d14b36588bcF9D47c2FF355EEC47F3c",
+      "solver": "0x3fc88b834aC96Fa4c65913a6D3d5523418f7F037",
+      "margin": "7000",
+      "leverage": 2,
+      "before": {
+        "traderUsdc": "13383",
+        "solverUsdc": "23000",
+        "routerWeth": "852386635144"
+      },
+      "after": {
+        "traderUsdc": "13383",
+        "solverUsdc": "16000"
+      },
+      "position": {
+        "trader": "0xd9Aba9723d14b36588bcF9D47c2FF355EEC47F3c",
+        "collateral": "5986499540201",
+        "borrowed": "7000",
+        "leverage": 2,
+        "isLong": true
+      }
+    },
+    {
+      "step": "intent-fill",
+      "venue": "Eswap Direct Solver",
+      "action": "EswapRouter.swapWithIntent (leveraged open)",
+      "tx": "0x091d8277ba954a25f5a06480ba27514c231c91cf6f4170bc04c288099205b8ef",
+      "url": "https://basescan.org/tx/0x091d8277ba954a25f5a06480ba27514c231c91cf6f4170bc04c288099205b8ef",
+      "status": 1,
+      "block": 53070342,
+      "gasUsed": "990416",
+      "fillId": "0x78371bf56a1f77744f708f95dadb442f049cb6e4c14cf059e84a7e834d0c14c7",
+      "filledIntents": true,
+      "nonce": "1",
+      "trader": "0x518634753C61342298c3E04326056b3Ce596a566",
+      "margin": "7000",
+      "leverage": 2,
+      "escrowAfter": "0",
+      "position": {
+        "trader": "0x518634753C61342298c3E04326056b3Ce596a566",
+        "collateral": "5986450392529",
+        "borrowed": "7000",
+        "leverage": 2,
+        "isLong": true
+      }
+    }
+  ],
+  "appData": {
+    "json": "{\"version\":1,\"appCode\":\"eswap\",\"metadata\":{\"eswapLeverage\":\"2\"}}",
+    "hash": "0xe41487c9526647cd735c32eb215d78c1ede38b416a351fb6eb4a75c321291bfb"
+  },
+  "cow": {
+    "orderUid": "0xb7bfc1510d27ae3009d9ed7cc739f5e7062f4fcaeaa5488bdf1d6e7bb584ec73d9aba9723d14b36588bcf9d47c2ff355eec47f3c6addfef7",
+    "owner": "0xd9Aba9723d14b36588bcF9D47c2FF355EEC47F3c",
+    "margin": "7000",
+    "buyToken": "0x4200000000000000000000000000000000000006"
+  },
+  "finishedAt": "2026-10-25T12:07:32.679Z"
+}

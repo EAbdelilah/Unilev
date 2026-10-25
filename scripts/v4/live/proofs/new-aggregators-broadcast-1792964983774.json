@@ -1,0 +1,43 @@
+{
+  "mode": "broadcast",
+  "startBlock": 53087815,
+  "startedAt": "2026-10-25T21:49:37.061Z",
+  "steps": [
+    {
+      "venue": "woofi",
+      "label": "WOOFi Router V2.1 (sPMM)",
+      "status": "filled",
+      "tx": "0xd012925560da8e9c0c8adbdc53eae29729c05a9c9240fd22b68025937a10c502",
+      "block": 53087817,
+      "gasUsed": "1195849",
+      "effectiveGasPrice": "6000000",
+      "trader": "0xae89e9F0e87E90e9065a8A7E3244eC3232c345E6",
+      "exchangeProxy": "0x4c4AF8DBc524681930a27b2F1Af5bcC8062E6fB7",
+      "minOut": "623612598059",
+      "expectedOut": "642899585628",
+      "before": {
+        "trader": "750",
+        "solver": "750",
+        "routerWeth": "852386635144",
+        "routerUsdcToProxy": "0"
+      },
+      "after": {
+        "trader": "0",
+        "solver": "0",
+        "routerWeth": "852386635144",
+        "routerUsdcToProxy": "0"
+      },
+      "position": {
+        "collateral": "642620932947",
+        "borrowed": "750",
+        "leverage": 2,
+        "isLong": true,
+        "liquidity": "947679344",
+        "tickLower": -198720,
+        "tickUpper": -198120
+      },
+      "logs": 15
+    }
+  ],
+  "finishedAt": "2026-10-25T21:49:43.773Z"
+}

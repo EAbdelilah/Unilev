@@ -1,0 +1,58 @@
+{
+  "mode": "broadcast",
+  "rpc": "https://mainnet.base.org",
+  "chainId": 8453,
+  "startedAt": "2026-10-25T12:12:46.177Z",
+  "startBlock": 53070509,
+  "leverage": 2,
+  "steps": [
+    {
+      "step": "escrow-deposit",
+      "venue": "EswapRouter",
+      "action": "depositBorrowEscrow",
+      "tx": "0x0cb56a3a6566dc136a93ac899628ab58862e35d5393f91704fb61158f57959df",
+      "url": "https://basescan.org/tx/0x0cb56a3a6566dc136a93ac899628ab58862e35d5393f91704fb61158f57959df",
+      "status": 1,
+      "block": 53070517,
+      "gasUsed": "78856",
+      "amount": "4000",
+      "escrowAfter": "4000"
+    },
+    {
+      "step": "intent-fill",
+      "venue": "Eswap Direct Solver",
+      "action": "EswapRouter.swapWithIntent (leveraged open)",
+      "tx": "0x180f452efa7ee76848dd20822ddd2c8887107356ebf3d08717ad4d66878fe7ed",
+      "url": "https://basescan.org/tx/0x180f452efa7ee76848dd20822ddd2c8887107356ebf3d08717ad4d66878fe7ed",
+      "status": 1,
+      "block": 53070519,
+      "gasUsed": "983606",
+      "fillId": "0x78371bf56a1f77744f708f95dadb442f049cb6e4c14cf059e84a7e834d0c14c7",
+      "filledIntents": true,
+      "nonce": "1",
+      "trader": "0x518634753C61342298c3E04326056b3Ce596a566",
+      "margin": "4000",
+      "leverage": 2,
+      "escrowAfter": "0",
+      "borrowSource": "erc20BorrowEscrow[solver][USDC]",
+      "position": {
+        "trader": "0x518634753C61342298c3E04326056b3Ce596a566",
+        "collateral": "3420895939262",
+        "borrowed": "4000",
+        "leverage": 2,
+        "isLong": true
+      }
+    }
+  ],
+  "appData": {
+    "json": "{\"version\":1,\"appCode\":\"eswap\",\"metadata\":{\"eswapLeverage\":\"2\"}}",
+    "hash": "0xe41487c9526647cd735c32eb215d78c1ede38b416a351fb6eb4a75c321291bfb"
+  },
+  "cow": {
+    "orderUid": "0xa4a4e2e834ec0898e0cc3b27c7a1d97dfe8f26fe768da8988561c22217c0e9bdd9aba9723d14b36588bcf9d47c2ff355eec47f3c6ade004d",
+    "owner": "0xd9Aba9723d14b36588bcF9D47c2FF355EEC47F3c",
+    "margin": "4000",
+    "buyToken": "0x4200000000000000000000000000000000000006"
+  },
+  "finishedAt": "2026-10-25T12:13:08.538Z"
+}
