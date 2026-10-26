@@ -1019,3 +1019,54 @@ node scripts/v4/live/verify-adapter.cjs 0x972f11c04a0e0e5eea6bf7b71305fe86462d9c
 node scripts/v4/live/verify-cow-intent.cjs
 node scripts/v4/live/verify-fusion.cjs
 ```
+
+## 16. Fixes to the §15 caveats (2026-10-26)
+
+Caveats that depend on funding (the 750-unit margin size) were left alone.
+
+### 16.1 UniswapX verifier: closed
+
+`scripts/v4/live/verify-uniswapx.cjs` is a read-only verifier for the live
+fill `0x649d1c99…7506`. It decodes `fill(order, sig)`, re-derives the
+PriorityOrder hash with the reactor's EIP-712 rules, and recovers the swapper
+from the Permit2 witness signature. Result: **14/14**
+(`scripts/v4/live/proofs/uniswapx-live.json`). The re-derived order hash is
+`0x8f8bc916b5749e9eb0f83fd5b3c4041801d606388093860e7a0e8f25e04e32a0`, which
+matches the reported value. The reactor's fill event carries the same hash.
+
+### 16.2 Router-direct fills: LP deployment fixed (fork-proven)
+
+`scripts/v4/live/agg-fill.cjs` now sends `hookData = abi.encode(true, leverage,
+trader)`. That is the flag `EswapRouter` checks before `deployCollateral`
+(lines 1005-1014). On a local Base fork, a router-direct Enso fill deployed LP:
+liquidity `5,186,829,947` across ticks `[-198720, -198120]`, status 1. Before the
+change, the same path deployed nothing. The fork is a rehearsal, not a live
+proof. A live proof needs a funded run, which is out of scope here.
+
+The broadcaster also gained an optional `AGG_TRADER_SALT`. It only changes the
+deterministic trader key when set, so default runs are unchanged. It exists so a
+rehearsal can use a fresh trader on the fork.
+
+### 16.3 Fusion settler: split caps (code and tests done; not redeployed)
+
+`EswapOneInchFusionSettlement` replaces the single `maxFillAmount` with
+`maxMakingAmount` (USDC-side) and `maxTakingAmount` (WETH-side). The LOP
+approval and the taking-amount check use `maxTakingAmount`. The making-amount
+check uses `maxMakingAmount`. The constructor takes both.
+
+- `forge test --match-path src/v4/test/EswapVenueSettlementTest.t.sol`: **23/23**,
+  including a new test that the two caps are stored independently.
+- Deploy scripts read the new `ONEINCH_FUSION_MAX_TAKING`. When it is unset, the
+  taking cap falls back to `ONEINCH_FUSION_MAX_FILL`, so existing deploy
+  behaviour is unchanged.
+
+**Not done:** the live settler still has the old single cap. Redeploying it is a
+mainnet action, and it needs a chosen WETH cap. The value is your decision.
+After redeploy, `fusion-fill.cjs`, `fusion-probe.cjs`, and `verify-fusion.cjs`
+still read `maxFillAmount()` and must be updated to the new getters.
+
+### 16.4 Socket: still blocked
+
+The Socket quote API needs `API-KEY`, which is not configured. Nothing can be
+fixed without a key. The whitelist script already gates Socket on a live quote,
+so adding `SOCKET_API_KEY` to `.env` is the only step needed.

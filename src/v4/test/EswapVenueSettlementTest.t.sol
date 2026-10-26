@@ -324,7 +324,7 @@ contract EswapVenueSettlementTest is Test {
 
     function _fiDeploy() internal returns (EswapOneInchFusionSettlement s, MockLOP lop) {
         lop = new MockLOP();
-        s = new EswapOneInchFusionSettlement(IOrderMixin(address(lop)), IERC20(address(inputToken)), IERC20(address(outputToken)), 1000e18);
+        s = new EswapOneInchFusionSettlement(IOrderMixin(address(lop)), IERC20(address(inputToken)), IERC20(address(outputToken)), 1000e18, 1000e18);
         s.setOperator(operator);
         inputToken.mint(trader, 1000e18);
         vm.prank(trader);
@@ -332,6 +332,15 @@ contract EswapVenueSettlementTest is Test {
         // The settler is the taker: it must HOLD the takerAsset it owes the maker.
         outputToken.mint(address(s), 1000e18);
         outputToken.mint(address(lop), 1000e18);
+    }
+
+    function test_FI_CapsAreIndependentPerAsset() public {
+        MockLOP lop = new MockLOP();
+        EswapOneInchFusionSettlement s = new EswapOneInchFusionSettlement(
+            IOrderMixin(address(lop)), IERC20(address(inputToken)), IERC20(address(outputToken)), 5e9, 2e18
+        );
+        assertEq(s.maxMakingAmount(), 5e9);
+        assertEq(s.maxTakingAmount(), 2e18);
     }
 
     function test_FI_FillHappyPathFiresPostInteraction() public {

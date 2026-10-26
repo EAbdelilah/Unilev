@@ -80,7 +80,8 @@ async function waitFor(label, read, ok, tries = 30) {
 // (pool, trader), and the earlier CoW/intent/Fusion proofs already own the
 // three funded EOAs.
 function traderFor(venue) {
-  return new ethers.Wallet(ethers.keccak256(ethers.toUtf8Bytes(`eswap-aggregator-live-v1/${venue}`)));
+  const salt = process.env.AGG_TRADER_SALT ? `/${process.env.AGG_TRADER_SALT}` : '';
+  return new ethers.Wallet(ethers.keccak256(ethers.toUtf8Bytes(`eswap-aggregator-live-v1/${venue}${salt}`)));
 }
 
 // ── venue quote adapters ───────────────────────────────────────────────────
@@ -319,7 +320,7 @@ async function main() {
       amountSpecified: -MARGIN,
       leverage: LEVERAGE,
       solver: solverAddr,
-      hookData: '0x',
+      hookData: ethers.AbiCoder.defaultAbiCoder().encode(['bool', 'uint8', 'address'], [true, LEVERAGE, traderAddr]),
       deadline,
       minAmountOut: minOut,
     };

@@ -1,0 +1,24 @@
+{
+  "mode": "broadcast",
+  "rpc": "http://127.0.0.1:8545",
+  "chainId": 8453,
+  "startedAt": "2026-10-25T22:26:09.257Z",
+  "startBlock": 53088892,
+  "leverage": 2,
+  "margin": "4000",
+  "notional": "8000",
+  "hookPoolId": "0xdd4958586bcbc340177b3b18ecbf31cfa277e5a8a78735deee01218f54a1d512",
+  "steps": [
+    {
+      "step": "fill-enso",
+      "venue": "Enso Router V2",
+      "status": "preflight-revert",
+      "error": "execution reverted (unknown custom error)",
+      "revertData": "0x1f19c11d",
+      "exchangeProxy": "0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf",
+      "minOut": "3413400692068",
+      "calldataLen": 4228
+    }
+  ],
+  "finishedAt": "2026-10-25T22:26:10.824Z"
+}

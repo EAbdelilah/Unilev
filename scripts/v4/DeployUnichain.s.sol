@@ -715,7 +715,8 @@ contract DeployUnichain is Script {
         }
 
         EswapOneInchFusionSettlement settler =
-            new EswapOneInchFusionSettlement(IOrderMixin(lop), IERC20(makerAsset), IERC20(takerAsset), maxFill);
+            uint256 maxTaking = vm.envOr("ONEINCH_FUSION_MAX_TAKING", maxFill);
+        new EswapOneInchFusionSettlement(IOrderMixin(lop), IERC20(makerAsset), IERC20(takerAsset), maxFill, maxTaking);
 
         address operator = vm.envOr("SETTLEMENT_OPERATOR_ADDRESS", address(0));
         if (operator != address(0)) {

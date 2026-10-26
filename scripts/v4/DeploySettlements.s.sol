@@ -134,7 +134,8 @@ contract DeploySettlements is Script {
                 console.log("  [PENDING] 1inch Fusion settlement (lop/maker/taker/maxFill incomplete)");
             } else {
                 EswapOneInchFusionSettlement fi =
-                    new EswapOneInchFusionSettlement(IOrderMixin(lop), IERC20(makerAsset), IERC20(takerAsset), maxFill);
+                    uint256 maxTaking = vm.envOr("ONEINCH_FUSION_MAX_TAKING", maxFill);
+        new EswapOneInchFusionSettlement(IOrderMixin(lop), IERC20(makerAsset), IERC20(takerAsset), maxFill, maxTaking);
                 _setOperator(address(fi));
                 console.log(string.concat("FusionSettlement: ", vm.toString(address(fi))));
             }

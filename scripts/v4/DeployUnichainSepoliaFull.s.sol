@@ -531,7 +531,8 @@ contract DeployUnichainSepoliaFull is Script {
         }
 
         EswapOneInchFusionSettlement settler =
-            new EswapOneInchFusionSettlement(IOrderMixin(lop), IERC20(makerAsset), IERC20(takerAsset), maxFill);
+            uint256 maxTaking = vm.envOr("ONEINCH_FUSION_MAX_TAKING", maxFill);
+        new EswapOneInchFusionSettlement(IOrderMixin(lop), IERC20(makerAsset), IERC20(takerAsset), maxFill, maxTaking);
 
         _configureSettlerOperator(address(settler));
 

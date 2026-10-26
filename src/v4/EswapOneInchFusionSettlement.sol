@@ -47,7 +47,10 @@ contract EswapOneInchFusionSettlement is IPostInteraction, Ownable {
     IOrderMixin public immutable lop;
     IERC20 public immutable makerAsset;
     IERC20 public immutable takerAsset;
-    uint256 public immutable maxFillAmount;
+    /// @notice Cap on the maker-asset (making) amount, in maker-asset units.
+    uint256 public immutable maxMakingAmount;
+    /// @notice Cap on the taker-asset (taking) amount, in taker-asset units.
+    uint256 public immutable maxTakingAmount;
 
     address public operator;
 
@@ -76,14 +79,21 @@ contract EswapOneInchFusionSettlement is IPostInteraction, Ownable {
     event OrderFilled(bytes32 indexed orderHash, address indexed recipient, uint256 makingAmount, uint256 takingAmount);
     event OperatorSet(address indexed operator);
 
-    constructor(IOrderMixin _lop, IERC20 _makerAsset, IERC20 _takerAsset, uint256 _maxFillAmount) Ownable(msg.sender) {
+    constructor(
+        IOrderMixin _lop,
+        IERC20 _makerAsset,
+        IERC20 _takerAsset,
+        uint256 _maxMakingAmount,
+        uint256 _maxTakingAmount
+    ) Ownable(msg.sender) {
         if (address(_lop) == address(0) || address(_makerAsset) == address(0) || address(_takerAsset) == address(0)) {
             revert ZeroAddress();
         }
         lop = _lop;
         makerAsset = _makerAsset;
         takerAsset = _takerAsset;
-        maxFillAmount = _maxFillAmount;
+        maxMakingAmount = _maxMakingAmount;
+        maxTakingAmount = _maxTakingAmount;
         operator = msg.sender;
     }
 
@@ -124,7 +134,7 @@ contract EswapOneInchFusionSettlement is IPostInteraction, Ownable {
         if (address(uint160(order.makerAsset)) != address(makerAsset) || address(uint160(order.takerAsset)) != address(takerAsset)) {
             revert WrongAsset();
         }
-        if (order.makingAmount > maxFillAmount || amount > maxFillAmount) revert AmountTooLarge();
+        if (order.makingAmount > maxMakingAmount || amount > maxMakingAmount) revert AmountTooLarge();
         if (recipient == address(0)) revert ZeroAddress();
         if (address(uint160(order.receiver)) != recipient) revert WrongReceiver();
 
@@ -143,13 +153,13 @@ contract EswapOneInchFusionSettlement is IPostInteraction, Ownable {
 
         pendingFills[lop.hashOrder(order)] = PendingFill({recipient: recipient, initiated: true, fulfilled: false});
 
-        takerAsset.forceApprove(address(lop), maxFillAmount);
+        takerAsset.forceApprove(address(lop), maxTakingAmount);
 
         (uint256 makingAmount, uint256 takingAmount, bytes32 orderHash) =
             lop.fillOrderArgs(order, r, vs, amount, takerTraits, args);
 
         if (!pendingFills[orderHash].fulfilled) revert PostInteractionNotFired();
-        if (takingAmount > maxFillAmount) revert AmountTooLarge();
+        if (takingAmount > maxTakingAmount) revert AmountTooLarge();
 
         emit OrderFilled(orderHash, recipient, makingAmount, takingAmount);
     }

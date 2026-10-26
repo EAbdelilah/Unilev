@@ -1,0 +1,82 @@
+{
+  "chainId": 8453,
+  "rpc": "https://mainnet.base.org",
+  "verifiedAt": "2026-10-25T22:25:11.390Z",
+  "tx": {
+    "hash": "0x649d1c9977f14578ddc4319b72e04b6e339b74e3967d3d19c962473921447506",
+    "block": 52996607,
+    "timestamp": 1792782561,
+    "gasUsed": "216080",
+    "effectiveGasPrice": "6000000",
+    "from": "0x3fc88b834aC96Fa4c65913a6D3d5523418f7F037",
+    "to": "0xEA8fE55Ae47f334c6594a3fd57Dc6952b7F8cC33",
+    "function": "fill"
+  },
+  "orderHash": "0x8f8bc916b5749e9eb0f83fd5b3c4041801d606388093860e7a0e8f25e04e32a0",
+  "digest": "0xcda86244e4547b1a5f27caf8972b60b3c3cad7b809c3ae33c5241a2d06946669",
+  "swapper": "0xd9Aba9723d14b36588bcF9D47c2FF355EEC47F3c",
+  "nonce": "57896044618658097711785492504343953926634992332820282019728792004846869126890",
+  "deadline": "1792784358",
+  "reactorFillTopics": [
+    "0x8f8bc916b5749e9eb0f83fd5b3c4041801d606388093860e7a0e8f25e04e32a0"
+  ],
+  "checks": [
+    {
+      "label": "tx mined with status 1",
+      "ok": true
+    },
+    {
+      "label": "tx sent to the EswapUniswapXSettlement",
+      "ok": true
+    },
+    {
+      "label": "tx sent by the solver operator",
+      "ok": true
+    },
+    {
+      "label": "calldata is fill((bytes order, bytes sig))",
+      "ok": true
+    },
+    {
+      "label": "re-derived order hash == reported order hash",
+      "ok": true
+    },
+    {
+      "label": "Permit2 witness signature recovers the swapper",
+      "ok": true
+    },
+    {
+      "label": "order reactor == UniswapX PriorityOrderReactor",
+      "ok": true
+    },
+    {
+      "label": "order input == USDC 1000 units",
+      "ok": true
+    },
+    {
+      "label": "order output == WETH 2e9 wei to the swapper",
+      "ok": true
+    },
+    {
+      "label": "fill inside the order deadline",
+      "ok": true
+    },
+    {
+      "label": "reactor logged a fill for this order hash",
+      "ok": true
+    },
+    {
+      "label": "USDC moved swapper -> settler == input amount",
+      "ok": true
+    },
+    {
+      "label": "WETH moved settler -> swapper == output amount",
+      "ok": true
+    },
+    {
+      "label": "settler holds no WETH after the fill block",
+      "ok": true
+    }
+  ],
+  "allPassed": true
+}

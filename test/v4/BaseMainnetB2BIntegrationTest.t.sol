@@ -306,7 +306,7 @@ contract BaseMainnetB2BIntegrationTest is Test, IUnlockCallback {
         );
         uniswapx.setPendingRecipient(swapRecipient);
         fusion = new EswapOneInchFusionSettlement(
-            IOrderMixin(ONEINCH_LOP_V4), IERC20(BASE_USDC), IERC20(BASE_WETH), 1e18
+            IOrderMixin(ONEINCH_LOP_V4), IERC20(BASE_USDC), IERC20(BASE_WETH), 1e18, 1e18
         );
 
         deal(BASE_USDC, trader, 1_000_000e6);

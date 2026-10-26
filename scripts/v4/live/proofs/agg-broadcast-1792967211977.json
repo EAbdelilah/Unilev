@@ -1,0 +1,49 @@
+{
+  "mode": "broadcast",
+  "rpc": "http://127.0.0.1:8545",
+  "chainId": 8453,
+  "startedAt": "2026-10-25T22:26:46.181Z",
+  "startBlock": 53088895,
+  "leverage": 2,
+  "margin": "4000",
+  "notional": "8000",
+  "hookPoolId": "0xdd4958586bcbc340177b3b18ecbf31cfa277e5a8a78735deee01218f54a1d512",
+  "steps": [
+    {
+      "step": "fill-enso",
+      "venue": "Enso Router V2",
+      "action": "EswapRouter.swapMultiPoolForAggregator (leveraged open)",
+      "status": "filled",
+      "tx": "0x9a2ebedf28a5766ac9f2e56195dfd417b7282ff897e998fc59ddc9737801a799",
+      "url": "https://basescan.org/tx/0x9a2ebedf28a5766ac9f2e56195dfd417b7282ff897e998fc59ddc9737801a799",
+      "block": 53088896,
+      "gasUsed": "1617454",
+      "effectiveGasPrice": "3297826",
+      "trader": "0xF3cA2C475bBf81eD41755882fBD0765B6e0D6A09",
+      "exchangeProxy": "0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf",
+      "sellAmount": "8000",
+      "expectedOut": "3518946503310",
+      "minOut": "3413378108210",
+      "calldataLen": 4228,
+      "before": {
+        "traderUsdc": "4000",
+        "solverUsdc": "4000",
+        "routerWeth": "852386635144"
+      },
+      "after": {
+        "traderUsdc": "0",
+        "solverUsdc": "0",
+        "routerWeth": "852386635144"
+      },
+      "position": {
+        "trader": "0xF3cA2C475bBf81eD41755882fBD0765B6e0D6A09",
+        "collateral": "3517187030059",
+        "borrowed": "4000",
+        "leverage": 2,
+        "isLong": true
+      },
+      "logs": 30
+    }
+  ],
+  "finishedAt": "2026-10-25T22:26:51.976Z"
+}

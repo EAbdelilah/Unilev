@@ -103,7 +103,8 @@ contract DeployInventorySettlers is Script {
             require(maxFill > 0, "maxFill must be > 0");
 
             EswapOneInchFusionSettlement fi =
-                new EswapOneInchFusionSettlement(IOrderMixin(lop), IERC20(makerAsset), IERC20(takerAsset), maxFill);
+                uint256 maxTaking = vm.envOr("ONEINCH_FUSION_MAX_TAKING", maxFill);
+        new EswapOneInchFusionSettlement(IOrderMixin(lop), IERC20(makerAsset), IERC20(takerAsset), maxFill, maxTaking);
             require(fi.operator() == deployer, "fi.operator != deployer");
             if (operator != address(0)) IEswapSettlementOps(address(fi)).setOperator(operator);
             if (!router.registeredSolvers(address(fi))) router.setSolverWhitelist(address(fi), true);
@@ -111,7 +112,8 @@ contract DeployInventorySettlers is Script {
             console.log(string.concat("FusionSettlement:  ", vm.toString(address(fi))));
             console.log(string.concat("  lop:             ", vm.toString(address(fi.lop()))));
             console.log(string.concat("  maker/taker:     ", vm.toString(address(fi.makerAsset())), "/", vm.toString(address(fi.takerAsset()))));
-            console.log(string.concat("  maxFillAmount:   ", vm.toString(fi.maxFillAmount())));
+            console.log(string.concat("  maxMakingAmount: ", vm.toString(fi.maxMakingAmount())));
+        console.log(string.concat("  maxTakingAmount: ", vm.toString(fi.maxTakingAmount())));
             console.log(string.concat("  operator:        ", vm.toString(fi.operator())));
             console.log(string.concat("  whitelisted:     ", vm.toString(router.registeredSolvers(address(fi)))));
         }
