@@ -207,6 +207,8 @@ contract EswapSepoliaPipelineForkTest is Test, IUnlockCallback {
         RealIERC20(SEPOLIA_USDC).approve(address(router), type(uint256).max);
         vm.prank(solver);
         RealIERC20(SEPOLIA_USDC).approve(address(router), type(uint256).max);
+        vm.prank(solver);
+        RealIERC20(SEPOLIA_USDC).approve(address(settlement), type(uint256).max);
         vm.deal(trader, 5 ether);
 
         rpcAvailable = true;
@@ -343,6 +345,7 @@ contract EswapSepoliaPipelineForkTest is Test, IUnlockCallback {
             leverage: leverage, solver: solver, key: hookLocalKey, standardPoolKey: standardLocalKey
         });
 
+        vm.prank(solver);
         address recovered = settlement.fillOrder(order, CowSigning.Scheme.Eip712, sig, params);
         assertEq(recovered, owner, "recovered owner must equal signer");
 

@@ -73,7 +73,7 @@ contract V4DeepPoolVenue is IExternalVenue, IUnlockCallback, Ownable {
         uint256 amountIn,
         uint256 minAmountOut,
         bytes calldata data
-    ) external onlyOwner returns (uint256 amountOut) {
+    ) external payable onlyOwner returns (uint256 amountOut) {
         if (amountIn == 0) return 0;
 
         PoolKey memory key = abi.decode(data, (PoolKey));
@@ -86,11 +86,12 @@ contract V4DeepPoolVenue is IExternalVenue, IUnlockCallback, Ownable {
             )
         ) revert CurrencyMismatch();
 
-        // Pull the input into this contract so the unlock callback can settle it.
+        // Take the input into this contract so the unlock callback can settle it.
+        // Native input arrives as msg.value; never send this contract's ETH out.
         if (tokenIn == address(0)) {
-            (bool ok,) = payable(msg.sender).call{value: amountIn}("");
-            if (!ok) revert NativePullFailed();
+            if (msg.value != amountIn) revert NativePullFailed();
         } else {
+            if (msg.value != 0) revert NativePullFailed();
             IERC20(tokenIn).safeTransferFrom(msg.sender, address(this), amountIn);
         }
 

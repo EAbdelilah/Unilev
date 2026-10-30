@@ -1,8 +1,9 @@
 /**
  * Independent verifier for a live adapter-path aggregator canary
  * (EswapLeverageAdapter.exactInputSingleWithLeverageAggregator, Base 8453).
- * Supports LI.FI, WOOFi and 1inch Classic. Amounts and the venue proxy are read
- * from the mined calldata; the venue must be one of the known proxies below.
+ * Supports LI.FI, Socket Swap V3, WOOFi and 1inch Classic. Amounts and the venue
+ * proxy are read from the mined calldata; the venue must be one of the known
+ * proxies below.
  *
  *   node scripts/v4/live/verify-adapter.cjs <txHash>
  *
@@ -20,8 +21,11 @@ const ADAPTER = ethers.getAddress('0x14FBAF1858d37BF994BDAF9ab4b31A664D4663aD');
 const HOOK = ethers.getAddress('0xe33A630503c640143126BBF222a82689D49b50c8');
 const POOL_MGR = ethers.getAddress('0x498581fF718922c3f8e6A244956aF099B2652b2b');
 const SOLVER = ethers.getAddress('0x3fc88b834aC96Fa4c65913a6D3d5523418f7F037');
+const SOCKET_HOLDER = ethers.getAddress('0x50c4E75a512F2A14A7b304787Adf79C4531A5909');
+const SOCKET_OPEN_ROUTER = ethers.getAddress('0x50cFe7c1938dB66A1a6D2e86D36F39FBef3d5c4a');
 const VENUES = {
   [ethers.getAddress('0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE')]: 'LI.FI Diamond',
+  [SOCKET_HOLDER]: 'Socket Allowance Holder (Swap V3)',
   [ethers.getAddress('0x4c4AF8DBc524681930a27b2F1Af5bcC8062E6fB7')]: 'WOOFi Router V2.1',
   [ethers.getAddress('0x111111125421cA6dc452d289314280a0f8842A65')]: '1inch Classic Router V6',
 };
@@ -68,6 +72,13 @@ const sqrtAtTick = (t) => Math.sqrt(Math.pow(1.0001, t));
   if (!venueName) throw new Error(`route.exchangeProxy ${route.exchangeProxy} is not a known venue`);
   const woofiSwap = ethers.getAddress(route.exchangeProxy) === WOOFI
     ? new ethers.Interface(['function swap(address fromToken,address toToken,uint256 fromAmount,uint256 minToAmount,address to,address rebateTo) returns (uint256)']).decodeFunctionData('swap', route.callData)
+    : null;
+  // Socket Swap V3: txData is AllowanceHolder.exec(openRouter, token, amount,
+  // target, routeData). The holder pulls the input from the router (its
+  // caller) into the Open Router and replays the route from there.
+  const isSocket = ethers.getAddress(route.exchangeProxy) === SOCKET_HOLDER;
+  const socketExec = isSocket
+    ? new ethers.Interface(['function exec(address,address,uint256,address,bytes)']).decodeFunctionData('exec', route.callData)
     : null;
 
   const transfers = rc.logs
@@ -123,6 +134,9 @@ const sqrtAtTick = (t) => Math.sqrt(Math.pow(1.0001, t));
     [`route.exchangeProxy == ${venueName} (whitelisted venue)`, !!venueName],
     ['route.value == 0 (no native leg)', route.value === 0n],
     ['router pushed the full notional to the venue', sum(usdcFromRouter) === NOTIONAL],
+    ['[socket] calldata is AllowanceHolder.exec(...) with arg0/arg3 == Open Router', !isSocket || (!!socketExec && socketExec[0] === SOCKET_OPEN_ROUTER && socketExec[3] === SOCKET_OPEN_ROUTER)],
+    ['[socket] exec amount == notional, token == USDC', !isSocket || (socketExec[2] === NOTIONAL && socketExec[1] === USDC)],
+    ['[socket] holder pulled the notional from the router into the Open Router', !isSocket || sum(usdcFromRouter.filter((t) => t.to === SOCKET_OPEN_ROUTER)) === NOTIONAL],
     ['solver funded the borrow leg (margin) to the router', sum(usdcFromSolver) === MARGIN],
     ['WOOFi calldata is swap(USDC,WETH,notional,minOut,router,router)', venueName !== 'WOOFi Router V2.1' || (!!woofiSwap && woofiSwap.fromToken.toLowerCase() === USDC.toLowerCase() && woofiSwap.toToken.toLowerCase() === WETH.toLowerCase() && woofiSwap.fromAmount === NOTIONAL && woofiSwap.to.toLowerCase() === ROUTER.toLowerCase())],
     ['venue delivered WETH to the router', received > 0n],

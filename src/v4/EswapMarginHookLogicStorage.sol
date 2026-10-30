@@ -91,6 +91,7 @@ abstract contract EswapMarginHookLogicStorage {
     error NotOwner();
     error ZeroAddress();
     error PositionAlreadyOpen();
+    error PositionAlreadyHasSolver(address existing);
     error ReentrantSwap();
     error NoActivePosition();
     error FeeTooHigh();

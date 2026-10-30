@@ -43,7 +43,7 @@ contract EswapSecurityTest is BaseV4Test {
         vm.stopPrank();
 
         uint256 claimId = uint256(uint160(address(token1)));
-        assertEq(hook._claimBalances(address(this), claimId), 477.6 ether);
+        assertEq(hook._claimBalances(address(this), claimId), 479.52 ether);
 
         // bob attempts to transfer alice's funds
         address bob = address(0xBAD);

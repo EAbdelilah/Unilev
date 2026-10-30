@@ -71,51 +71,39 @@ contract TestFlashProvider is IFlashLoanProvider, Ownable, ReentrancyGuard {
     /// @inheritdoc IFlashLoanProvider
     function flashLoanSimple(
         address receiverAddress,
-        address[] calldata assets,
-        uint256[] calldata amounts,
-        uint256[] calldata modes,
-        address,
-        /* onBehalfOf */
+        address asset,
+        uint256 amount,
         bytes calldata params,
         uint16
         /* referralCode */
     ) external nonReentrant {
-        if (assets.length == 0 || assets.length != amounts.length || assets.length != modes.length) {
-            revert EmptyAssets();
+        if (amount == 0) revert BadAmount();
+        // Aave's flashLoanSimple always charges the premium.
+        uint256 premium = (amount * premiumBps) / 10_000;
+        if (premium > amount) revert PremiumOverflow();
+
+        uint256 owed = amount + premium;
+
+        if (asset == address(0)) {
+            if (address(this).balance < owed) revert BadAmount();
+            (bool sent,) = payable(receiverAddress).call{value: amount}("");
+            require(sent, "ETH send failed");
+        } else {
+            if (IERC20(asset).balanceOf(address(this)) < owed) revert UnsupportedAsset(asset);
+            IERC20(asset).safeTransfer(receiverAddress, amount);
         }
 
-        for (uint256 i = 0; i < assets.length; ++i) {
-            address asset = assets[i];
-            uint256 amount = amounts[i];
-            uint256 mode = modes[i];
-            if (amount == 0) revert BadAmount();
-            // mode 0 = no premium requested; any non-zero mode charges `premiumBps`.
-            uint256 premium = mode == 0 ? 0 : (amount * premiumBps) / 10_000;
-            if (premium > amount) revert PremiumOverflow();
+        emit FlashLoanIssued(receiverAddress, asset, amount, premium);
 
-            uint256 owed = amount + premium;
+        bool ok = IFlashLoanSimpleReceiver(receiverAddress).executeOperation(asset, amount, premium, receiverAddress, params);
+        require(ok, "receiver rejected the flash loan");
 
-            if (asset == address(0)) {
-                if (address(this).balance < owed) revert BadAmount();
-                (bool sent,) = payable(receiverAddress).call{value: amount}("");
-                require(sent, "ETH send failed");
-            } else {
-                if (IERC20(asset).balanceOf(address(this)) < owed) revert UnsupportedAsset(asset);
-                IERC20(asset).safeTransfer(receiverAddress, amount);
-            }
-
-            emit FlashLoanIssued(receiverAddress, asset, amount, premium);
-
-            bool ok = IFlashLoanSimpleReceiver(receiverAddress).executeOperation(asset, amount, premium, receiverAddress, params);
-            require(ok, "receiver rejected the flash loan");
-
-            // Pull principal + premium back. The receiver's approval is set inside
-            // its callback, mirroring how Aave settles.
-            if (asset == address(0)) {
-                require(address(this).balance >= owed, "ETH repayment short");
-            } else {
-                IERC20(asset).safeTransferFrom(receiverAddress, address(this), owed);
-            }
+        // Pull principal + premium back. The receiver's approval is set inside
+        // its callback, mirroring how Aave settles.
+        if (asset == address(0)) {
+            require(address(this).balance >= owed, "ETH repayment short");
+        } else {
+            IERC20(asset).safeTransferFrom(receiverAddress, address(this), owed);
         }
     }
 

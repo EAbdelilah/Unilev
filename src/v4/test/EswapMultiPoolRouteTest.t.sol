@@ -148,7 +148,7 @@ minAmountOut: 0
         assertEq(posTrader, trader);
         assertEq(posLeverage, leverage);
         assertEq(borrowed, margin * (leverage - 1));
-        assertEq(collateral, (28 ether * 9950) / 10000);
+        assertEq(collateral, (28 ether * 9990) / 10000);
         assertGt(liquidity, 0, "deployCollateral should deploy the position liquidity");
 
         // [FIX V2] Single-pool execution: exactly ONE swap on the hook pool,
@@ -205,7 +205,7 @@ minAmountOut: 0
         assertEq(posTrader, trader);
         assertTrue(isLong, "base currency unset -> currency0 buy must be a LONG");
         assertEq(borrowed, margin * (leverage - 1));
-        assertEq(collateral, (28 ether * 9950) / 10000);
+        assertEq(collateral, (28 ether * 9990) / 10000);
         assertGt(liquidity, 0);
 
         // [FIX V2] Single-pool execution: exactly ONE swap on the hook pool.
@@ -302,7 +302,7 @@ minAmountOut: 0
         assertEq(posTrader, trader);
         assertEq(posLeverage, leverage);
         assertEq(borrowed, margin * (leverage - 1));
-        assertEq(collateral, (48 ether * 9950) / 10000);
+        assertEq(collateral, (48 ether * 9990) / 10000);
         assertGt(liquidity, 0, "deployCollateral should deploy the position liquidity");
 
         // Verify Solver Debt registration
@@ -317,16 +317,16 @@ minAmountOut: 0
         // Let's set the mock swap output to 50 ether of token0 when the standard pool swap is executed during close.
         // During close, the hook does `manager.swap(standardKey, ...)`
         // So we can set the next swap delta.
-        // Collateral is 48 ether * 9950 / 10000 = 47.76 ether.
-        // Let's mock a standard pool swap that converts 47.76 ether of collateral (token1) back to 50 ether of token0.
+        // Collateral is 48 ether * 9990 / 10000 = 47.952 ether.
+        // Let's mock a standard pool swap that converts 47.952 ether of collateral (token1) back to 50 ether of token0.
         // delta in manager.swap is from swapper's perspective: selling token1 (delta.amount1 < 0) and receiving token0 (delta.amount0 > 0).
-        // So we want delta.amount0 = 50 ether, delta.amount1 = -47.76 ether.
-        int128 outAmt = int128(uint128(47.76 ether));
+        // So we want delta.amount0 = 50 ether, delta.amount1 = -47.952 ether.
+        int128 outAmt = int128(uint128(47.952 ether));
         int128 inAmt = int128(uint128(50 ether));
         // For zeroForOne=false (selling token1):
         manager.setNextSwapDelta(inAmt, -outAmt);
 
-        token1.mint(address(manager), 47.76 ether); // For settlement burn
+        token1.mint(address(manager), 47.952 ether); // For settlement burn
         token0.mint(address(manager), 50 ether); // For taking
 
         // Mint the recovered debt tokens (token0) to the hook contract since the mock take() is a no-op

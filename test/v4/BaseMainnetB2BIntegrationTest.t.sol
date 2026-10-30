@@ -320,6 +320,8 @@ contract BaseMainnetB2BIntegrationTest is Test, IUnlockCallback {
         IERC20(BASE_USDC).approve(address(router), type(uint256).max);
         vm.prank(cowSolver);
         IERC20(BASE_USDC).approve(address(router), type(uint256).max);
+        vm.prank(cowSolver);
+        IERC20(BASE_USDC).approve(address(cow), type(uint256).max);
         vm.prank(intentSolver);
         IERC20(BASE_USDC).approve(address(router), type(uint256).max);
 
@@ -711,6 +713,7 @@ contract BaseMainnetB2BIntegrationTest is Test, IUnlockCallback {
             standardPoolKey: standardLocalKey
         });
 
+        vm.prank(cowSolver);
         address owner = cow.fillOrder(order, CowSigning.Scheme.Eip712, signature, params);
         assertEq(owner, trader);
 

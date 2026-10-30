@@ -448,6 +448,17 @@ contract EswapRouter is
         payable
         returns (bytes memory)
     {
+        // [AUDIT CRIT-4b] The margin leg is a `safeTransferFrom(marginFunder, ...)`
+        // and the position is credited to an arbitrary `trader`. Without a gate
+        // ANY caller could name a trader who approved this router as
+        // `marginFunder`, name itself as `trader`, open at leverage 1 (so none of
+        // the solver authorization legs are reachable), and walk away with a
+        // position bought with the victim's allowance. Only the address whose
+        // tokens are actually pulled may initiate. Relays that fund on a third
+        // party's behalf (bridge/CoW settlements) must pull the margin
+        // themselves and pass THEMSELVES as `marginFunder` — see
+        // EswapSettlement.fill and EswapCoWSettlement._fillOrder.
+        if (msg.sender != marginFunder) revert ExecutorUnauthorized();
         return manager.unlock(
             abi.encode(CallType.MULTI_POOL_SOLVER_FUNDED, params, trader, marginFunder, msg.value, msg.sender)
         );
@@ -607,6 +618,14 @@ contract EswapRouter is
      *      swapMultiPoolFor; the cross-chain order signature domain stays pinned
      *      to THIS router (ext mirrors it).
      */
+    error HookMismatch();
+
+    /// @dev The hook address in calldata must be the pool's own hook. Otherwise
+    ///      a caller could route a privileged hook call to an arbitrary contract.
+    function _requireKeyHook(address hook, PoolKey memory key) internal pure {
+        if (key.hooks != hook) revert HookMismatch();
+    }
+
     function unlockCallback(bytes calldata data) external returns (bytes memory) {
         require(msg.sender == address(manager), "Not manager");
 
@@ -635,11 +654,13 @@ contract EswapRouter is
         } else if (callType == CallType.CLOSE) {
             (, address hook, PoolKey memory key, address trader, address solver, uint256 minAmountOut) =
                 abi.decode(data, (CallType, address, PoolKey, address, address, uint256));
+            _requireKeyHook(hook, key);
             _closeCallback(hook, key, trader, solver, minAmountOut);
             return "";
         } else if (callType == CallType.LIQUIDATE) {
             (, address hook, PoolKey memory key, address trader, uint256 minAmountOut, address liquidator) =
                 abi.decode(data, (CallType, address, PoolKey, address, uint256, address));
+            _requireKeyHook(hook, key);
             IEswapHook(hook).executeLiquidation(key, trader, minAmountOut, liquidator);
             return "";
         } else if (callType == CallType.PARTIAL_LIQUIDATION) {
@@ -652,11 +673,13 @@ contract EswapRouter is
                 uint256 liquidationBps,
                 address liquidator
             ) = abi.decode(data, (CallType, address, PoolKey, address, uint256, uint256, address));
+            _requireKeyHook(hook, key);
             IEswapHook(hook).partialLiquidation(key, trader, minAmountOut, liquidator, liquidationBps);
             return "";
         } else if (callType == CallType.REBALANCE) {
             (, address hook, PoolKey memory key, address trader) =
                 abi.decode(data, (CallType, address, PoolKey, address));
+            _requireKeyHook(hook, key);
             IEswapHook(hook).rebalancePosition(key, trader);
             return "";
         }
@@ -726,6 +749,12 @@ contract EswapRouter is
             uint256 escrowed = erc20BorrowEscrow[params.solver][Currency.unwrap(input)];
             if (escrowed < borrowAmount) revert SolverNotAuthorized();
         }
+        // The per-solver notional cap binds every solver-funded borrow, registered
+        // or not. The multi-pool path already enforced it; this path did not.
+        if (params.leverage > 1) {
+            uint256 cap = solverNotionalCap[params.solver];
+            if (cap > 0 && borrowAmount > cap) revert BorrowExceedsSolverNotionalCap(borrowAmount, cap);
+        }
 
         BalanceDelta delta = manager.swap(
             params.key,
@@ -785,8 +814,20 @@ contract EswapRouter is
                 manager.sync(input);
                 manager.settleFor{value: borrowAmount}(address(params.key.hooks));
             } else {
+                // Draw the borrow from the solver's escrow first (router-held, so
+                // no transferFrom), then pull only the uncovered remainder. Matches
+                // the multi-pool path so escrow is spent, not merely checked.
+                address borrowToken = Currency.unwrap(input);
+                uint256 escrowed = erc20BorrowEscrow[params.solver][borrowToken];
+                uint256 fromEscrow = escrowed >= borrowAmount ? borrowAmount : escrowed;
                 manager.sync(input);
-                IERC20(Currency.unwrap(input)).safeTransferFrom(params.solver, address(manager), borrowAmount);
+                if (fromEscrow > 0) {
+                    erc20BorrowEscrow[params.solver][borrowToken] = escrowed - fromEscrow;
+                    IERC20(borrowToken).safeTransfer(address(manager), fromEscrow);
+                }
+                if (borrowAmount > fromEscrow) {
+                    IERC20(borrowToken).safeTransferFrom(params.solver, address(manager), borrowAmount - fromEscrow);
+                }
                 manager.settleFor(address(params.key.hooks));
             }
         }
@@ -843,6 +884,9 @@ contract EswapRouter is
         address refundRecipient,
         bool solverAuthorizedByIntent
     ) internal returns (bytes memory) {
+        // Aggregator/relay integrators routinely omit `hookData`. Default it so
+        // rehypothecation is never skipped by a caller that forgot the flag.
+        _defaultHookData(params, trader);
         // [FIX L-4] Reject fills past the signed deadline.
         if (block.timestamp > params.deadline) revert DeadlineExpired();
         uint256 marginAmount =
@@ -1014,6 +1058,33 @@ contract EswapRouter is
         }
 
         return abi.encode(stdDelta);
+    }
+
+    /**
+     * @notice Fills in the LP-rehypothecation flag when the caller left
+     *         `hookData` empty.
+     * @dev `hookData` carries `(isMargin, leverage, trader)` and only the hook
+     *      reads it. It is OPTIONAL, so an integrator that forgets it silently
+     *      skipped `deployCollateral`: the position opened, but with no pinned
+     *      LP band and no rehypothecated collateral. That is exactly the failure
+     *      that hit some aggregator routes, where each off-chain integration
+     *      builds its own calldata (0x, Enso, ParaSwap, Kyber, OpenOcean).
+     *
+     *      Both call sites below are margin opens, so the correct default is
+     *      unambiguous: `isMargin = true`, the caller's own leverage, and the
+     *      position owner as the trader. This makes rehypothecation a property
+     *      of the route rather than of the integrator's calldata, and it is a
+     *      no-op when the hook has nothing to deploy (`collateralAmount == 0`
+     *      or `liquidity > 0`).
+     *
+     *      Consequences for callers: every open now reaches the deploy site, so
+     *      `MIN_DEPLOY_COLLATERAL_GAS` must still be available there. Budget the
+     *      same gas a caller that passes `hookData` explicitly would.
+     */
+    function _defaultHookData(SwapParams memory params, address trader) internal pure {
+        if (params.hookData.length == 0) {
+            params.hookData = abi.encode(true, params.leverage, trader);
+        }
     }
 
     /**
@@ -1235,9 +1306,13 @@ contract EswapRouter is
         uint256 ethAttached,
         address refundRecipient
     ) internal returns (bytes memory) {
+        // Same default as `_multiPoolOpen`: an aggregator route that omits
+        // `hookData` must still pin the LP band. This is the case the live 0x /
+        // Enso / ParaSwap / Kyber / OpenOcean canaries hit.
+        _defaultHookData(params, trader);
         require(outputAmount > 0, "Aggregator output zero");
         if (outputAmount < params.minAmountOut) revert SwapOutputBelowMinimum(outputAmount, params.minAmountOut);
-return _aggregatorSettle(params, trader, outputAmount, notional, ethAttached, refundRecipient);
+        return _aggregatorSettle(params, trader, outputAmount, notional, ethAttached, refundRecipient);
     }
 
     /**

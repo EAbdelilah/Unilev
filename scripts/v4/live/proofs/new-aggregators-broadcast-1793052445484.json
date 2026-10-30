@@ -1,0 +1,51 @@
+{
+  "mode": "broadcast",
+  "startBlock": 53131546,
+  "startedAt": "2026-10-26T22:07:19.487Z",
+  "steps": [
+    {
+      "venue": "socket",
+      "label": "Socket Swap V3 (Allowance Holder)",
+      "status": "filled",
+      "tx": "0x46bcffaabce3cb5b75bda465b0b4d32b2b8c3ff99b2b0259764b1c99770b3861",
+      "block": 53131549,
+      "gasUsed": "1316860",
+      "effectiveGasPrice": "6000000",
+      "trader": "0xE13cAf603e000B0CfD904064A97cF7B5fb1AD425",
+      "exchangeProxy": "0x50c4E75a512F2A14A7b304787Adf79C4531A5909",
+      "quote": {
+        "provider": "zeroxv2",
+        "quoteId": "0x140531521ae50502cd66e764bda5119d42fa665678ef055a4bafb924c93e6e43",
+        "expiresAt": 1793052502,
+        "gasLimit": 392911,
+        "routes": 5,
+        "rejected": 2
+      },
+      "minOut": "6724969712",
+      "expectedOut": "6932958466",
+      "before": {
+        "trader": "8",
+        "solver": "8",
+        "routerWeth": "852386635144",
+        "routerUsdcToProxy": "0"
+      },
+      "after": {
+        "trader": "0",
+        "solver": "0",
+        "routerWeth": "852386635144",
+        "routerUsdcToProxy": "0"
+      },
+      "position": {
+        "collateral": "6929491987",
+        "borrowed": "8",
+        "leverage": 2,
+        "isLong": true,
+        "liquidity": "10157861",
+        "tickLower": -198840,
+        "tickUpper": -198240
+      },
+      "logs": 19
+    }
+  ],
+  "finishedAt": "2026-10-26T22:07:25.483Z"
+}

@@ -807,13 +807,15 @@ canary fill ran end-to-end through `EswapLeverageAdapter` (LI.FI), with every
 invariant the task listed checked. The other three venues have no live fill
 yet: Socket needs an API key, and WOOFi and 1inch Classic need a quote adapter
 and funding. Two requested addresses were wrong and were not whitelisted.
+(The Socket key requirement was later removed by using Swap V3's keyless public
+endpoint; that live fill is in §17.)
 
 ### 14.1 Requested targets, checked on-chain before any transaction
 
 | Requested | On-chain check (Base 8453) | Outcome |
 |---|---|---|
 | LI.FI / Jumper `0x123151509706580380423f72322400a08` | Malformed: 33 hex characters | Not whitelisted. Used the LI.FI Diamond `0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE` instead: the live quote's `transactionRequest.to` and `estimate.approvalAddress` both equal it. **Whitelisted**, tx `0x535f03047e8c2896eb11ada9a4842ea5ab57b78eb0842f6666bea074dc6efd88` (block 53,085,614). |
-| Socket / Bungee `0x3a23f3e7313593b5a2701331c430e8a71c841369` | No bytecode | Not whitelisted. Candidate Socket Gateway `0x3a23F943181408EAC424116Af7b7790c94Cb97a5` has bytecode, but the Socket quote API returns `401` without `API-KEY`, and no key exists in `.env`. **Not whitelisted; blocked.** |
+| Socket / Bungee `0x3a23f3e7313593b5a2701331c430e8a71c841369` | No bytecode | Not whitelisted. Candidate Socket Gateway `0x3a23F943181408EAC424116Af7b7790c94Cb97a5` has bytecode, but the Socket quote API returns `401` without `API-KEY`, and no key exists in `.env`. **Not whitelisted; blocked.** Superseded by §17: the keyless Swap V3 endpoint targets the Allowance Holder `0x50c4E75a512F2A14A7b304787Adf79C4531A5909`, which was already whitelisted. |
 | 1inch Classic `0x111111125421ca6dc452d289314280a0f8842a65` | Bytecode present | **Already whitelisted** (`allowedAggregators == true`); nothing to do. |
 | OpenOcean `0x6352a56caadc4f1e25cd6c773226378215f740b3` | No bytecode | Not whitelisted. The router used in §13, `0x6352a56caadC4F1E25CD6c75970Fa768A3304e64`, is **already whitelisted**. |
 | WOOFi Router V2 `0x133857502e604f32d8479e0a293a5530fa01cc3a` | No bytecode | Not whitelisted. WOOFi Router V2.1 `0x4c4AF8DBc524681930a27b2F1Af5bcC8062E6fB7` is confirmed as WOOFi on-chain (`quoteToken()` = Base USDC, `WETH()` = Base WETH). **Whitelisted**, tx `0x10bb0814d83dc0c40c96d5594a770d0cb1d24fc508bc8b8b54cd29fb6050e241` (block 53,085,616). |
@@ -874,7 +876,8 @@ target, that is a contract change, not a verification result.
 
 - **Socket / Bungee:** blocked. The quote API requires `API-KEY`, which is not
   in `.env`. Nothing was whitelisted or filled. The gateway in §14.1 still needs
-  its route checked with a real key.
+  its route checked with a real key. **Closed later:** §17 fills through the
+  Allowance Holder using the keyless Swap V3 endpoint, so no key is needed.
 - **WOOFi Router V2.1:** whitelisted and verified on-chain, but there is no quote
   adapter yet and no fill. The venue's quote API was not checked from here.
 - **1inch Classic V6:** already whitelisted, no adapter, no fill. The API key is
@@ -942,6 +945,11 @@ Both are at the **750-unit margin / 1,500-unit notional** the funding decision
 allowed (§15.5), not the 4,000-unit size used elsewhere. Their LP deployment
 is at 0.9 of max liquidity, verified with the same closed-form check as LI.FI.
 
+Added 2026-10-26: Socket Swap V3 (Allowance Holder) through the adapter, tx
+`0x46bcffaabce3cb5b75bda465b0b4d32b2b8c3ff99b2b0259764b1c99770b3861`, block
+53,131,549, gas 1,316,860, LP deployed with liquidity `10,157,861`, **27/27**.
+That fill is §17.
+
 ### 15.3 Intent solvers
 
 | Protocol | Path | Tx | Block | Gas | Verified |
@@ -966,7 +974,7 @@ is at 0.9 of max liquidity, verified with the same closed-form check as LI.FI.
   `scripts/v4/live/ux-fill.cjs` and the helpers `state.cjs` and `env.cjs` are in
   the repo.
 - **Socket / Bungee.** Not run. The quote API requires an `API-KEY` that is not
-  configured (§14.4).
+  configured (§14.4). **Since resolved:** the live keyless Swap V3 fill is §17.
 - **Fork rehearsals.** WOOFi and 1inch were also run on a local anvil fork of
   Base before the live fills (`http://127.0.0.1:8545`). Those are not mainnet
   proofs and are not in the tables above.
@@ -1065,8 +1073,218 @@ mainnet action, and it needs a chosen WETH cap. The value is your decision.
 After redeploy, `fusion-fill.cjs`, `fusion-probe.cjs`, and `verify-fusion.cjs`
 still read `maxFillAmount()` and must be updated to the new getters.
 
-### 16.4 Socket: still blocked
+### 16.4 Socket: closed in §17
 
-The Socket quote API needs `API-KEY`, which is not configured. Nothing can be
-fixed without a key. The whitelist script already gates Socket on a live quote,
-so adding `SOCKET_API_KEY` to `.env` is the only step needed.
+Socket no longer needs an `API-KEY`. Swap V3 exposes a keyless public quote
+endpoint, and the route it returns is executable through the already-whitelisted
+Allowance Holder. The live Base fill, the address it actually targets, and the
+two failed gas-sizing attempts are documented in §17.
+
+## 17. Socket Swap V3: live Base mainnet fill (2026-10-26)
+
+A real Socket route was quoted, whitelisted-checked, and filled through
+`EswapLeverageAdapter.exactInputSingleWithLeverageAggregator` on Base mainnet.
+Every number below is from chain state; nothing is a fork rehearsal.
+
+### 17.1 Keyless endpoint, and the contract that actually executes
+
+Socket v2 (`/v2/quote`) rejects requests with `401` unless `API-KEY` is set, which
+is what blocked §14.1. Swap V3 exposes an unauthenticated quote endpoint:
+
+```
+GET https://public-backend.socket.tech/v3/swap/quote
+```
+
+No `x-api-key`, no header at all beyond `accept: application/json`.
+
+The important correction is **which contract the route targets**. §14.1 tracked
+the Socket Gateway `0x3a23F943181408EAC424116Af7b7790c94Cb97a5`. A V3 `userOps=tx`
+route does not call it. Its `txData.to` is the **Socket Allowance Holder**
+`0x50c4E75a512F2A14A7b304787Adf79C4531A5909`, which wraps the **Socket Open
+Router** `0x50cFe7c1938dB66A1a6D2e86D36F39FBef3d5c4a`.
+
+| Check | Result |
+|---|---|
+| Holder bytecode on Base | 1,469 bytes, present |
+| `EswapRouter.allowedAggregators(holder)` | `true` (read at block 53,131,641) |
+| `setAllowedAggregator` transaction needed | **No**; none was sent |
+
+Quote parameters used for both the preflight and the broadcast:
+
+| Parameter | Value |
+|---|---|
+| `userOps` | `tx` (executable route, not a deposit address) |
+| `originChainId` / `destinationChainId` | `8453` / `8453` |
+| `inputToken` → `outputToken` | USDC `0x8335…2913` → WETH `0x4200…0006` |
+| `inputAmount` | notional in USDC base units (see §17.3) |
+| `userAddress` / `receiverAddress` | both the EswapRouter, so WETH lands on the router |
+| `slippage` | `3` (300 bps) |
+
+`contractCaller` is sent when the API accepts it. The quote is retried once
+without it if the API answers `400`, because it is optional and the on-chain
+pull does not depend on it.
+
+### 17.2 Who pulls the tokens (proven, not assumed)
+
+`EswapRouter` calls `route.exchangeProxy.call(route.callData)` itself, so
+`msg.sender` at the Holder is the router. To prove what the Holder then does, a
+real Base `exec` transaction was replayed on a fork with its original sender
+impersonated:
+
+| Item | Value |
+|---|---|
+| Replayed tx | `0x993665a31338d22564a890cbf862d82258803a2883fedad7277d9ca229f3a684` |
+| Calldata | `exec(address,address,uint256,address,bytes)`, selector `0x2213bc0b` |
+| `arg0` / `arg3` | Open Router / Open Router |
+| Token, amount | USDC, `1,931,282,250` |
+
+Traced call path:
+
+```
+sender -> Holder                    0x2213bc0b exec(...)
+  Holder -> OpenRouter              0x70a08231 balanceOf
+  Holder -> OpenRouter              0xb18248d5 (route)
+    OpenRouter -> Holder            0x15dacbea (pull callback)
+      Holder -> USDC                0x23b872dd transferFrom(sender, OpenRouter, amount)
+```
+
+The spender in that `transferFrom` is the **Holder**, and the funds land in the
+Open Router. Output is delivered to the quote's `receiverAddress`, which is the
+router. This is exactly what `EswapRouter._aggregatorPrefill` assumes: it pulls
+margin and borrow into itself, `forceApprove(proxy, notional)`, calls the
+aggregator, measures the output, then `forceApprove(proxy, 0)`. No allowance
+survives the call.
+
+### 17.3 Requested size vs. what was funded
+
+The requested probe used `fromAmount=8000` (8,000 USDC base units = 0.008 USDC).
+That notional could not be funded: the sum of all USDC across the deployer,
+solver, maker and the deterministic trader was about 16 base units. The live run
+was therefore scaled down by the same factor, keeping every code path identical:
+
+| Quantity | Requested | Live run |
+|---|---|---|
+| Margin | 4,000 units | **8 units** |
+| Notional (2x) | 8,000 units | **16 units** |
+
+The route, the Holder call shape, the approval reset and the gas profile do not
+depend on the amount, so the smaller fill proves the integration. It does not
+prove depth at the requested size; that is a funding limit, not a code limit.
+
+### 17.4 Route selection and the two failed attempts
+
+The endpoint returns several routes per quote and some providers misquote dust
+sizes by orders of magnitude (one quoted 346,369,104,590 wei of WETH for the
+same 16-unit input, roughly 50x the median). Selection therefore:
+
+1. drops routes whose output is more than 2x away from the median output;
+2. prefers routes with `gasFee.gasLimit <= 500,000`, falling back to all sane
+   routes when none fit.
+
+Both failed attempts are recorded because the failure mode is non-obvious:
+
+| Attempt | Tx | gasUsed / gasLimit | Diagnosis |
+|---|---|---|---|
+| 1 | `0xedbce71da72159614ff9a9c7d89a86cc0a1192a828876910be15a75a6f9d0bfa` | 374,927 / 392,779 | Out of gas (burned 95.5% of the limit). The limit had been sized from the aggregator quote, which only covers the swap leg; the adapter's own open costs ~1.2M on top. |
+| 2 | `0xccf4d4730ddf5bc6994e034924cd7d855426beff2d98b5b53f779ac8e8847447` | 1,199,853 / 1,600,000 | Reverted with custom gas-reserve data, not out of gas. |
+
+Attempt 2 was diagnosed without asking Socket for another quote. Replaying the
+same calldata against its own block with no gas cap **succeeds**
+(returns 6,922,325,533 wei), so the state was fine. Varying only the gas limit
+reproduces the failure deterministically:
+
+| Replay gas limit | Result |
+|---|---|
+| unlimited | OK |
+| 1,200,000 | revert, no data |
+| 1,400,000 | revert `0x0564e6be(remaining, 349488)` |
+| 1,600,000 | revert `0x0564e6be(remaining, 349488)` |
+| 1,650,000 | OK |
+
+`0x0564e6be` takes `(remaining, required)` with a **constant 349,488 required**
+and is not in 4byte. It behaves as an on-chain gas reservation inside the route:
+the calldata must arrive with that much gas still available. The gas policy is
+now:
+
+```
+gasLimit = min(2_000_000, max(1_800_000, ceil(quotedGas * 1.3) + 1_500_000))
+```
+
+and the signer must hold `gasLimit * maxFeePerGas` before the send, or the step
+is reported as `unfunded` instead of being broadcast.
+
+### 17.5 The fill
+
+| Field | Value |
+|---|---|
+| Tx | `0x46bcffaabce3cb5b75bda465b0b4d32b2b8c3ff99b2b0259764b1c99770b3861` |
+| Block / status | 53,131,549 / `1` |
+| gasUsed | 1,316,860 (limit 2,000,000, `estimateGas` 1,629,234) |
+| Fee | max 0.012 gwei, priority 0.001 gwei, base 0.005 gwei |
+| Venue | Socket Allowance Holder `0x50c4…5909` |
+| Route provider | `zeroxv2` |
+| WETH out | 6,932,958,466 wei |
+| `minAmountOut` | 6,724,969,712 wei |
+| Position collateral | 6,929,491,987 wei |
+| LP liquidity / ticks | 10,157,861 across `[-198840, -198240]` |
+
+Independent verification, `scripts/v4/live/verify-adapter.cjs`:
+**27/27 PASS**. Three checks are Socket-specific:
+
+- `calldata is AllowanceHolder.exec(...) with arg0/arg3 == Open Router`
+- `exec amount == notional, token == USDC`
+- `holder pulled the notional from the router into the Open Router`
+
+The remaining checks cover the parts the task demanded: the router pushed the
+full notional to the venue, the venue delivered WETH to the router, the router
+forwarded all of it to the PoolManager, the ERC-6909 claim went to the hook,
+`allowance(router -> venue)` is **0** after the call, the pool id matches
+`[WETH,USDC,3000,60,hook]`, the output cleared `minAmountOut`, and the stored
+position matches the trader, 2x leverage, and long side.
+
+The same verifier was re-run against the earlier LI.FI fill
+`0xb2b5d32c378de0d68cd005f7477bb72e7bf18abaab68419a566699218a1106ef`:
+**27/27**, with the three Socket checks no-oping. So the new assertions cannot
+pass on a non-Socket venue.
+
+Artifacts:
+
+- `scripts/v4/live/proofs/adapter-46bcffaa.json` — verifier output
+- `scripts/v4/live/proofs/new-aggregators-broadcast-1793052445484.json` — run record (quote + tx)
+- `scripts/v4/live/proofs/socket-attempt-1793052442477.json` — the exact quote/calldata sent, kept so the fill can be replayed without re-quoting
+
+### 17.6 Reproduce
+
+```bash
+# 1. confirm the venue on-chain and that the holder has code
+#    (scripts/v4/live/whitelist-new-aggregators.cjs now verifies the keyless V3
+#    quote against the Allowance Holder instead of an API key)
+node scripts/v4/live/whitelist-new-aggregators.cjs
+
+# 2. preflight: quote + eth_call only, no transaction
+BASE_RPC_URL=https://mainnet.base.org \
+  node scripts/v4/live/test-new-aggregators.cjs sim --only=socket --margin=8
+
+# 3. broadcast (funds the deterministic trader and the solver first)
+BASE_RPC_URL=https://mainnet.base.org MAX_FEE_GWEI=0.012 PRIORITY_FEE_GWEI=0.001 \
+  node scripts/v4/live/test-new-aggregators.cjs broadcast --only=socket --margin=8
+
+# 4. independent verification of any adapter fill
+node scripts/v4/live/verify-adapter.cjs 0x46bcffaabce3cb5b75bda465b0b4d32b2b8c3ff99b2b0259764b1c99770b3861
+```
+
+`--margin` is in USDC base units and the notional is always `2 * margin`.
+
+### 17.7 Operational notes
+
+- The public endpoint is Cloudflare rate limited per IP (HTTP `429`, error
+  `1015`). Retrying extends the block; it cleared only after roughly an hour of
+  zero requests. The scripts therefore fail fast on `429` and never loop.
+- Quotes carry `expiresAt` about 60 seconds out. Quote and send happen in
+  sequence; a stale quote is rejected before the send rather than broadcast.
+- Base gas for the whole round was 0.005 gwei base fee, so a 2M-gas limit costs
+  about 1.2e13 wei. Attempt 2 burned 1,199,853 gas (~7.2e12 wei) before
+  reverting, which is why the `unfunded` pre-check compares the signer balance
+  against `gasLimit * maxFeePerGas` before any send.
+- `proofs/new-aggregators-sim-1793048*.json` are rate-limit dumps from the
+  blocked window, not proofs.

@@ -477,13 +477,21 @@ error NativePayoutFailed();
     ///           (`SwapOutputBelowMinimum`, enforced by the router's fill path).
     ///      Margin is pulled from `trader`, borrow from `params.solver` — mirror
     ///      of `EswapRouter.swapMultiPoolForAggregator`. NOTE: any native-ETH
-    ///      excess refund from the underlying open is credited to THIS contract
-    ///      (it is the router's caller); the owner should sweep it.
+    ///      excess native refund from the underlying open is forwarded back to
+    ///      `msg.sender` before this call returns.
     function swapMultiPoolBestRoute(EswapRouter.SwapParams calldata params, address trader, EswapRouter.AggregatorRoute calldata route)
         external
         payable
         returns (bytes memory)
     {
+        // [AUDIT CRIT-4c] This contract is executor-whitelisted on the router, so
+        // it relays `swapMultiPoolFor(params, trader)` — which pulls the margin
+        // from `trader` — for ANYONE. Without a caller gate any address could
+        // force-open a position against a victim's router allowance with an
+        // attacker-chosen `minAmountOut` (including zero), i.e. a free sandwich
+        // on a fill the victim never requested. Only the trader itself or a
+        // governance-whitelisted relay may select the trader.
+        if (msg.sender != trader && !router.executorWhitelist(msg.sender)) revert NotOwner();
         require(router.allowedAggregators(route.exchangeProxy), "Aggregator not whitelisted");
         if (block.timestamp > params.deadline) revert DeadlineExpired();
 
@@ -495,10 +503,20 @@ error NativePayoutFailed();
         (uint256 standardOut, bool standardComputable) =
             _quoteStandardFill(params.standardPoolKey, params.zeroForOne, notional);
 
-        if (!standardComputable || standardOut >= params.minAmountOut) {
-            return router.swapMultiPoolFor{value: msg.value}(params, trader);
+        // The router refunds excess ETH to its caller (this contract). Forward
+        // whatever came back to the original caller, measured against the balance
+        // before this call so ETH already held here is never swept.
+        uint256 ethBefore = address(this).balance - msg.value;
+        bytes memory result = (!standardComputable || standardOut >= params.minAmountOut)
+            ? router.swapMultiPoolFor{value: msg.value}(params, trader)
+            : router.swapMultiPoolForAggregator{value: msg.value}(params, trader, route);
+
+        uint256 refund = address(this).balance - ethBefore;
+        if (refund > 0) {
+            (bool ok,) = payable(msg.sender).call{value: refund}("");
+            require(ok, "refund failed");
         }
-        return router.swapMultiPoolForAggregator{value: msg.value}(params, trader, route);
+        return result;
     }
 
     /// @dev Deterministic spot-depth estimate of a NOTIONAL-sized fill on the

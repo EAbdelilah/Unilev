@@ -56,18 +56,30 @@ contract UsdcTwapFeed is IAggregatorV3 {
     address public immutable usdc;
     /// @notice WETH (the other pool token).
     address public immutable weth;
+    /// @notice Max age (seconds) accepted for the Chainlink ETH/USD answer. Set at
+    ///         deploy to at least that feed's heartbeat; a stale answer yields 0.
+    uint256 public immutable maxEthFeedAge;
 
     error BadPool();
     error ZeroAnswer();
     error Unsupported();
 
-    /// @param pool_     Uniswap V3 USDC/WETH pool (token0 = USDC, token1 = WETH).
-    /// @param ethUsd_   Chainlink ETH/USD aggregator.
-    /// @param window_   TWAP window in seconds (e.g. 1800).
-    /// @param usdc_     USDC address, validated against the pool's token0.
-    /// @param weth_     WETH address, validated against the pool's token1.
-    constructor(address pool_, address ethUsd_, uint32 window_, address usdc_, address weth_) {
-        if (pool_ == address(0) || ethUsd_ == address(0) || window_ == 0) revert BadPool();
+    /// @param pool_          Uniswap V3 USDC/WETH pool (token0 = USDC, token1 = WETH).
+    /// @param ethUsd_        Chainlink ETH/USD aggregator.
+    /// @param window_        TWAP window in seconds (e.g. 1800).
+    /// @param usdc_          USDC address, validated against the pool's token0.
+    /// @param weth_          WETH address, validated against the pool's token1.
+    /// @param maxEthFeedAge_ Max accepted age of the ETH/USD answer, in seconds.
+    constructor(
+        address pool_,
+        address ethUsd_,
+        uint32 window_,
+        address usdc_,
+        address weth_,
+        uint256 maxEthFeedAge_
+    ) {
+        if (pool_ == address(0) || ethUsd_ == address(0) || window_ == 0 || maxEthFeedAge_ == 0) revert BadPool();
+        maxEthFeedAge = maxEthFeedAge_;
         IUniswapV3Pool p = IUniswapV3Pool(pool_);
         // Fail loudly at deploy time unless the pool is exactly {USDC, WETH}. Either
         // orientation is accepted so the same adapter serves Unichain (token0=USDC)
@@ -122,12 +134,18 @@ contract UsdcTwapFeed is IAggregatorV3 {
     // ─── Pricing ──────────────────────────────────────────────────────────────
 
     /// @notice USDC price in USD, 18 decimals.
+    /// @dev Returns 0 ("no price") when the ETH/USD leg is stale or incomplete,
+    ///      so the failure is fail-closed rather than pricing off an old anchor.
     function usdcPerUsd18() public view returns (uint256) {
         uint256 usdcPerWeth18 = V3TwapMath.consultUsdcPerWeth18(address(pool), window, usdc, weth);
         if (usdcPerWeth18 == 0) return 0;
 
-        (, int256 ethUsd,,,) = IAggregatorV3(ethUsdFeed).latestRoundData();
+        (uint80 ethRoundId, int256 ethUsd,, uint256 ethUpdatedAt, uint80 ethAnsweredIn) =
+            IAggregatorV3(ethUsdFeed).latestRoundData();
         if (ethUsd <= 0) return 0;
+        if (ethAnsweredIn < ethRoundId) return 0;
+        // A future `updatedAt` must not underflow into "fresh".
+        if (ethUpdatedAt > block.timestamp || block.timestamp - ethUpdatedAt > maxEthFeedAge) return 0;
 
         // Normalise the Chainlink leg to 18 decimals: Unichain's ETH/USD feed is
         // 18-dec but Base's is 8-dec, so the raw answer must not be assumed 18-dec.

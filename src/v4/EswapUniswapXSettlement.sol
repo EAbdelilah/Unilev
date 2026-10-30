@@ -128,6 +128,10 @@ contract EswapUniswapXSettlement is IValidationCallback, Ownable {
         uint256 inputBefore = inputToken.balanceOf(address(this));
         uint256 outputBefore = outputToken.balanceOf(address(this));
         reactor.execute{value: msg.value}(order);
+        // [AUDIT L-?] Never leave the capped reactor allowance dangling: on the
+        // real reactor `execute` pulls at most the order's output through the
+        // standing `maxFillAmount` approval, so reset it to zero after the fill.
+        outputToken.forceApprove(address(reactor), 0);
         uint256 received = inputToken.balanceOf(address(this)) - inputBefore;
         uint256 sent = outputBefore - outputToken.balanceOf(address(this));
 

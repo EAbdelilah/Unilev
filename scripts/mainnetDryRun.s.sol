@@ -142,6 +142,9 @@ contract MainnetDryRun is Script, StdCheats {
         // ---- Execute, measuring execution gas -----------------------------
         uint256 gasBefore = gasleft();
         bool ok;
+        // The solver-funded entrypoint only accepts the margin funder as the
+        // caller (anti-drain gate), so relay as the trader who approved here.
+        vm.prank(trader);
         try router.swapMultiPoolForSolverFunded(params, trader, trader) {
             ok = true;
         } catch Error(string memory reason) {

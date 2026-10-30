@@ -136,7 +136,7 @@ contract EswapIntentSolverTest is BaseV4Test {
         assertEq(posTrader, trader, "position credited to the signing trader");
         assertEq(posLeverage, 5);
         assertEq(borrowed, 40 ether);
-        assertEq(collateral, (48 ether * 9950) / 10000); // 0.5% protocol fee
+        assertEq(collateral, (48 ether * 9990) / 10000); // 0.1% protocol fee
         assertGt(liquidity, 0, "collateral rehypothecation deployed");
         assertEq(hook.positionSolver(key.toId(), trader), solver, "signed solver recorded");
     }
@@ -315,6 +315,7 @@ contract EswapIntentSolverTest is BaseV4Test {
         token0.approve(address(router), type(uint256).max);
 
         _mockFill();
+        vm.prank(trader);
         vm.expectRevert(EswapRouter.SolverNotAuthorized.selector);
         router.swapMultiPoolForSolverFunded(_cowParams(), trader, trader);
     }
@@ -331,6 +332,7 @@ contract EswapIntentSolverTest is BaseV4Test {
         token0.approve(address(router), type(uint256).max);
 
         _mockFill();
+        vm.prank(trader);
         vm.expectRevert(EswapRouter.SolverNotAuthorized.selector);
         router.swapMultiPoolForSolverFunded(_cowParams(), trader, trader);
     }
@@ -351,6 +353,7 @@ contract EswapIntentSolverTest is BaseV4Test {
         token0.approve(address(router), type(uint256).max);
 
         _mockFill();
+        vm.prank(solver);
         router.swapMultiPoolForSolverFunded(_cowParams(), trader, solver);
 
         (address posTrader, uint256 collateral, uint256 borrowed, uint8 posLeverage,,,,, uint128 liquidity) =
@@ -358,7 +361,7 @@ contract EswapIntentSolverTest is BaseV4Test {
         assertEq(posTrader, trader, "position credited to the CoW order owner");
         assertEq(posLeverage, 5);
         assertEq(borrowed, 40 ether, "full notional borrowed from the bond");
-        assertEq(collateral, (48 ether * 9950) / 10000);
+        assertEq(collateral, (48 ether * 9990) / 10000);
         assertGt(liquidity, 0, "collateral rehypothecation deployed");
 
         // The solver is recorded as the position's solver, which is what routes
@@ -384,6 +387,7 @@ contract EswapIntentSolverTest is BaseV4Test {
         token0.approve(address(router), type(uint256).max);
 
         _mockFill();
+        vm.prank(trader);
         router.swapMultiPoolForSolverFunded(_cowParams(), trader, trader);
 
         (,, uint256 borrowed,,,,,,) = hook.positions(key.toId(), trader);
@@ -404,6 +408,7 @@ contract EswapIntentSolverTest is BaseV4Test {
         token0.approve(address(router), type(uint256).max);
 
         _mockFill();
+        vm.prank(trader);
         vm.expectRevert(abi.encodeWithSelector(EswapRouter.BorrowExceedsSolverNotionalCap.selector, 40 ether, 30 ether));
         router.swapMultiPoolForSolverFunded(_cowParams(), trader, trader);
     }
@@ -421,12 +426,14 @@ contract EswapIntentSolverTest is BaseV4Test {
         token0.approve(address(router), type(uint256).max);
 
         _mockFill();
+        vm.prank(solver);
         router.swapMultiPoolForSolverFunded(_cowParams(), trader, solver);
         assertEq(router.erc20BorrowEscrow(solver, address(token0)), 0, "bond spent, not held against the position");
 
         // Second fill: escrow is now empty, so the solver is no longer capitalised
         // and the uncollateralised remainder leg is refused.
         _mockFill();
+        vm.prank(trader);
         vm.expectRevert(EswapRouter.SolverNotAuthorized.selector);
         router.swapMultiPoolForSolverFunded(_cowParams(), trader, trader);
     }

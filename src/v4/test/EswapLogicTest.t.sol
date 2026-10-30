@@ -32,8 +32,8 @@ contract EswapLogicTest is BaseV4Test {
 
         (address trader, uint256 collateral, uint256 borrow, uint8 lev,,,,,) = hook.positions(key.toId(), address(this));
         assertEq(trader, address(this));
-        // positionCollateral = boughtAmount * (1 - 0.5% fee) = 9.5 ether * 9950/10000
-        assertEq(collateral, (9.5 ether * 9950) / 10000);
+        // positionCollateral = boughtAmount * (1 - 0.1% fee) = 9.5 ether * 9990/10000
+        assertEq(collateral, (9.5 ether * 9990) / 10000);
         assertEq(borrow, 0);
         assertEq(lev, 1);
     }
@@ -58,8 +58,8 @@ contract EswapLogicTest is BaseV4Test {
 
         (address trader, uint256 collateral, uint256 borrow, uint8 lev,,,,,) = hook.positions(key.toId(), address(this));
         assertEq(trader, address(this));
-        // positionCollateral = boughtAmount * (1 - 0.5% fee) = 48 ether * 9950/10000
-        assertEq(collateral, (48 ether * 9950) / 10000);
+        // positionCollateral = boughtAmount * (1 - 0.1% fee) = 48 ether * 9990/10000
+        assertEq(collateral, (48 ether * 9990) / 10000);
         assertEq(borrow, 40 ether);
         assertEq(lev, 5);
     }

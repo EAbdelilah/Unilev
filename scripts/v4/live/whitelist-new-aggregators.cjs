@@ -14,6 +14,9 @@
  * whitelisted:
  *   - Li.Fi  0x123151509706580380423f72322400a08  malformed (33 hex chars)
  *   - Socket 0x3a23f3e7313593b5a2701331c430e8a71c841369  no bytecode on Base
+ *     (the live V3 gateway is the Socket Allowance Holder 0x50c4E75a…5909,
+ *     confirmed by docs.socket.tech/integrate/contract-addresses and by the
+ *     txData.to of a live public-backend.socket.tech /v3/swap/quote)
  *   - OpenOcean 0x6352a56caadc4f1e25cd6c773226378215f740b3  no bytecode on Base
  *   - WOOFi  0x133857502e604f32d8479e0a293a5530fa01cc3a  no bytecode on Base
  */
@@ -78,22 +81,50 @@ const TARGETS = [
     },
   },
   {
-    name: 'Socket Gateway',
-    addr: '0x3a23F943181408EAC424116Af7b7790c94Cb97a5',
+    // Socket Swap V3 is keyless on the public backend. The executable target is
+    // the Socket Allowance Holder, which exec()s the Socket Open Router.
+    name: 'Socket Allowance Holder (Swap V3)',
+    addr: '0x50c4E75a512F2A14A7b304787Adf79C4531A5909',
     async verify(p) {
-      if (!env.SOCKET_API_KEY) throw new Error('SOCKET_API_KEY not set; Socket quote API returns 401 without it');
-      const r = await fetch(
-        `https://api.socket.tech/v2/quote?fromChainId=8453&toChainId=8453`
-        + `&fromTokenAddress=${USDC}&toTokenAddress=${WETH}&fromAmount=8000`
-        + `&userAddress=${ROUTER}&recipient=${ROUTER}&sort=output`,
-        { headers: { 'API-KEY': env.SOCKET_API_KEY } },
-      );
-      const b = await r.json();
-      const route = b.result?.routes?.[0];
-      if (!route) throw new Error(`no route: ${JSON.stringify(b).slice(0, 200)}`);
-      const to = route.userTxs?.[0]?.steps?.[0]?.to || route.userTxs?.[0]?.toAddress;
-      if (!to || to.toLowerCase() !== this.addr.toLowerCase()) throw new Error(`route targets ${to}`);
-      return 'route.to == Socket Gateway';
+      if ((await p.getCode(this.addr)).length <= 2) throw new Error('no bytecode');
+      const q = new URLSearchParams({
+        userOps: 'tx',
+        originChainId: '8453',
+        destinationChainId: '8453',
+        inputToken: USDC,
+        outputToken: WETH,
+        inputAmount: '8000',
+        userAddress: ROUTER,
+        receiverAddress: ROUTER,
+        slippage: '3',
+        contractCaller: ROUTER,
+      });
+      let b = null;
+      let lastErr = '';
+      for (let i = 0; i < 2; i++) {
+        const r = await fetch(`https://public-backend.socket.tech/v3/swap/quote?${q}`, {
+          headers: { accept: 'application/json' },
+        });
+        const txt = await r.text();
+        try {
+          b = JSON.parse(txt);
+        } catch {
+          b = null;
+        }
+        if (r.ok && b?.result?.routes?.length) break;
+        lastErr = `HTTP ${r.status} ${txt.slice(0, 200)}`;
+        // A rate limit must not be retried in a tight loop.
+        if (r.status === 429) break;
+        await new Promise((res) => setTimeout(res, 1200 * (i + 1)));
+      }
+      const route = b?.result?.routes?.[0];
+      if (!route) throw new Error(`no route: ${lastErr || JSON.stringify(b).slice(0, 200)}`);
+      const to = ethers.getAddress(route.txData.object.to);
+      if (to !== ethers.getAddress(this.addr)) throw new Error(`route targets ${to}`);
+      if (route.approval && ethers.getAddress(route.approval.spenderAddress) !== to) {
+        throw new Error(`approval spender ${route.approval.spenderAddress} differs`);
+      }
+      return `V3 txData.to == approval spender == target (${route.routeDetails?.dexDetails?.protocol?.name})`;
     },
   },
 ];

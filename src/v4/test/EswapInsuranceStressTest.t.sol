@@ -144,7 +144,7 @@ contract EswapInsuranceStressTest is BaseV4Test {
 
         // 300 bps of the post-solver surplus lands in the insurance fund.
         uint256 bought = (100 ether * 5 * 96) / 100;
-        uint256 c = (bought * 9950) / 10000;
+        uint256 c = (bought * 9990) / 10000;
         uint256 R = (c * 90) / 100;
         uint256 b = 4 * 100 ether;
         uint256 expectedAccrual = ((R - b) * 300) / 10000;

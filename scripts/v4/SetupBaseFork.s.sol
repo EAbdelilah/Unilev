@@ -109,6 +109,10 @@ contract SetupBaseFork is Script, StdCheats {
         } else {
             console.log("  [WARN] BASE_SOLVER_ADDRESS unset; vault.solver left unset");
         }
+        // [AUDIT CRIT-ACT-04] `pull` may only pay the solver or this router, so
+        // the escrow-booking destination must be wired explicitly.
+        vault.setSolverRouter(routerAddr);
+        console.log("  vault solver router:", routerAddr);
 
         vm.stopBroadcast();
 

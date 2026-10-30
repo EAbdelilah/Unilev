@@ -89,7 +89,7 @@ contract EswapOpenInterestCapsTest is BaseV4Test {
         // aggregate cap -- preserved original semantics saturate immediately.
         _open(traderA, 51_000 ether, 3);
 
-        uint256 tvlExpected = (153_000 ether * 9950) / 10000; // 50bps open fee shaves collateral
+        uint256 tvlExpected = (153_000 ether * 9990) / 10000; // 10bps open fee shaves collateral
         (bool active, uint256 tvl, uint256 oi, uint256 maxSingle, uint256 remaining) = hook.openInterestCapacity();
         assertTrue(active, "caps activate past the floor");
         assertEq(tvl, tvlExpected);
@@ -149,50 +149,50 @@ contract EswapOpenInterestCapsTest is BaseV4Test {
         // Wide aggregate cap (60% TVL) so several 2x positions coexist.
         hook.setOpenInterestCaps(1000, 6000, 10_000 ether);
 
-        _open(traderA, 20_000 ether, 2); // TVL 39.8k (fee-shaved), OI 20k
+        _open(traderA, 20_000 ether, 2); // TVL 39.96k (fee-shaved), OI 20k
 
         (,,, uint256 maxSingle, uint256 remaining) = hook.openInterestCapacity();
-        assertEq(maxSingle, 3_980 ether, "10% of TVL");
-        assertEq(remaining, (39_800 ether * 6000) / 10000 - 20_000 ether);
+        assertEq(maxSingle, 3_996 ether, "10% of TVL");
+        assertEq(remaining, (39_960 ether * 6000) / 10000 - 20_000 ether);
 
         // Consumes part of the headroom...
-        _open(traderB, 2_000 ether, 2); // TVL 43.78k, OI 22k
+        _open(traderB, 2_000 ether, 2); // TVL 43.956k, OI 22k
         (,,, maxSingle, remaining) = hook.openInterestCapacity();
-        assertEq(maxSingle, 4_378 ether);
-        assertEq(remaining, (43_780 ether * 6000) / 10000 - 22_000 ether);
+        assertEq(maxSingle, 4_395.6 ether);
+        assertEq(remaining, (43_956 ether * 6000) / 10000 - 22_000 ether);
 
         // Over single cap -> SINGLE_TRADE_CAP; over headroom -> OPEN_INTEREST_CAP.
         vm.prank(address(manager));
         vm.expectRevert(
-            abi.encodeWithSelector(EswapMarginHook.PositionExceedsSingleCap.selector, 5_000 ether, 4_378 ether)
+            abi.encodeWithSelector(EswapMarginHook.PositionExceedsSingleCap.selector, 5_000 ether, 4_395.6 ether)
         );
         hook.beforeSwap(
             address(this), key, IPoolManager.SwapParams(true, -int256(5_000 ether), 0), abi.encode(true, 2, traderC)
         );
 
-        uint256 remAfterB = (43_780 ether * 6000) / 10000 - 22_000 ether; // 4268
+        uint256 remAfterB = (43_956 ether * 6000) / 10000 - 22_000 ether; // 4373.6
         vm.prank(address(manager));
         vm.expectRevert(
             abi.encodeWithSelector(
                 EswapMarginHook.OpenInterestExceedsCapacity.selector,
-                22_000 ether + 4_300 ether,
+                22_000 ether + 4_380 ether,
                 22_000 ether + remAfterB
             )
         );
         hook.beforeSwap(
-            address(this), key, IPoolManager.SwapParams(true, -int256(4_300 ether), 0), abi.encode(true, 2, traderC)
+            address(this), key, IPoolManager.SwapParams(true, -int256(4_380 ether), 0), abi.encode(true, 2, traderC)
         );
     }
 
     function test_MaxOpenBorrowRaw_Boundary() public {
         // Configure BEFORE building TVL so the seed position bypasses the caps.
         hook.setOpenInterestCaps(1000, 7000, 10_000 ether);
-        _open(traderA, 20_000 ether, 2); // TVL 39.8k, OI 20k -> single 3.98k, remaining ~7.86k
+        _open(traderA, 20_000 ether, 2); // TVL 39.96k, OI 20k -> single 3.996k, remaining ~7.972k
 
         uint256 capRaw = hook.maxOpenBorrowRaw(key.currency0);
         (,,, uint256 maxSingle, uint256 remaining) = hook.openInterestCapacity();
         assertEq(capRaw, maxSingle < remaining ? maxSingle : remaining, "raw == min(single, remaining)");
-        assertEq(capRaw, 3_980 ether);
+        assertEq(capRaw, 3_996 ether);
 
         // View-level boundary: exactly the advertised capacity fits, one more doesn't.
         address probe = makeAddr("oiProbe");

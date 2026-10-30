@@ -68,9 +68,17 @@ contract EswapSettlementTest is BaseV4Test {
     }
 
     function _originData(uint256 margin, uint256 minAmountOut) internal view returns (bytes memory) {
+        return _originDataFor(margin, minAmountOut, trader);
+    }
+
+    function _originDataFor(uint256 margin, uint256 minAmountOut, address recipient)
+        internal
+        view
+        returns (bytes memory)
+    {
         return abi.encode(
             key, standardPoolKey, true, int256(margin), uint8(5), address(0),
-            abi.encode(true, uint8(5), trader), minAmountOut
+            abi.encode(true, uint8(5), recipient), minAmountOut
         );
     }
 
@@ -107,31 +115,23 @@ contract EswapSettlementTest is BaseV4Test {
         assertGt(collateral, 0, "position not opened");
     }
 
-    function test_Fill_RevertsWhenSettlementNotWhitelisted() public {
-        // fill() sets SwapParams.solver = address(this), so a settlement that is
-        // neither governance-registered, nor intent-authorised, nor holding a
-        // matching `erc20BorrowEscrow` bond cannot open a position. This settler
-        // is funded via `transferFrom` at fill time rather than a pre-funded
-        // borrow-leg bond, so it must be whitelisted: without the
-        // `setSolverWhitelist` call below every generic/relayer fill reverts.
+    function test_Fill_UnlistedSettlementFundsBorrowFromOwnEscrow() public {
+        // An unregistered settlement is authorised by its own borrow escrow: fill()
+        // deposits the bridged borrow leg into erc20BorrowEscrow[settlement] before
+        // the router call, so the router's solver check passes and the borrow is
+        // drawn from that escrow (no per-address governance entry needed).
         EswapSettlement unlisted = new EswapSettlement(router);
         assertFalse(router.registeredSolvers(address(unlisted)), "fresh settler must start unregistered");
 
         token0.mint(filler, 10 ether);
         vm.startPrank(filler);
         token0.approve(address(unlisted), type(uint256).max);
-
-        vm.expectRevert(EswapRouter.SolverNotAuthorized.selector);
         unlisted.fill(keccak256("unlisted-order"), _originData(10 ether, 0), "");
         vm.stopPrank();
 
-        router.setSolverWhitelist(address(unlisted), true);
-        assertTrue(router.registeredSolvers(address(unlisted)), "whitelist call must register the settler");
-
-        vm.prank(filler);
-        unlisted.fill(keccak256("unlisted-order"), _originData(10 ether, 0), "");
         (, uint256 collateral,,,,,,,) = hook.positions(key.toId(), trader);
-        assertGt(collateral, 0, "position must open once the settler is registered");
+        assertGt(collateral, 0, "position must open via the settler's own escrow");
+        assertEq(router.erc20BorrowEscrow(address(unlisted), address(token0)), 0, "borrow escrow fully consumed");
     }
 
     function test_RescueToken() public {
@@ -191,5 +191,103 @@ contract EswapSettlementTest is BaseV4Test {
         // The settlement only re-holds its SOLVER REPAYMENT (40 ether borrow
         // principal) — zero trader remainder is captured by it.
         assertEq(token0.balanceOf(address(settlement)), 40 ether, "settlement must hold only the borrow repayment");
+    }
+
+    /// @dev [AUDIT CRIT-ACT-02] The filler that bridged the notional is the
+    ///      position's solver, so a close returns the borrow principal HERE.
+    ///      It must be reclaimable by that filler alone, with no owner action.
+    function test_ClaimRepayment_FillerRecoversBorrowPrincipal() public {
+        bytes32 orderId = keccak256("test-order-claim");
+
+        vm.prank(filler);
+        settlement.fill(orderId, _originData(10 ether, 0), "");
+
+        vm.prank(trader);
+        router.closePosition(address(hook), key, trader, address(settlement), 0);
+
+        uint256 held = token0.balanceOf(address(settlement));
+        assertEq(held, 40 ether, "settlement holds the borrow repayment");
+        assertEq(settlement.fillerPrincipal(orderId), 40 ether, "principal recorded for the filler");
+
+        uint256 fillerBefore = token0.balanceOf(filler);
+        vm.prank(filler);
+        uint256 claimed = settlement.claimRepayment(orderId);
+
+        assertEq(claimed, 40 ether, "full principal claimed");
+        assertEq(token0.balanceOf(filler), fillerBefore + 40 ether, "filler made whole");
+        assertEq(token0.balanceOf(address(settlement)), 0, "nothing stranded");
+
+        // Replay / double-claim is impossible.
+        vm.prank(filler);
+        vm.expectRevert(EswapSettlement.NothingToClaim.selector);
+        settlement.claimRepayment(orderId);
+    }
+
+    /// @dev A third party must never be able to redirect a filler's repayment.
+    function test_ClaimRepayment_OnlyFiller() public {
+        bytes32 orderId = keccak256("test-order-claim-auth");
+
+        vm.prank(filler);
+        settlement.fill(orderId, _originData(10 ether, 0), "");
+
+        vm.prank(trader);
+        router.closePosition(address(hook), key, trader, address(settlement), 0);
+
+        vm.prank(trader);
+        vm.expectRevert(EswapSettlement.NotFiller.selector);
+        settlement.claimRepayment(orderId);
+    }
+
+    /// @dev [AUDIT NEW-CRIT-01] A filler whose position is still OPEN must not be
+    ///      able to claim: its principal has not been returned yet, so any payout
+    ///      would spend the repayment that another (already closed) order parked
+    ///      in this settlement.
+    function test_ClaimRepayment_RevertsWhilePositionOpen() public {
+        bytes32 orderId = keccak256("test-order-still-open");
+
+        vm.prank(filler);
+        settlement.fill(orderId, _originData(10 ether, 0), "");
+
+        // Position is live: the hook still records this settlement as its solver.
+        assertEq(hook.positionSolver(key.toId(), trader), address(settlement), "position must be open");
+
+        vm.prank(filler);
+        vm.expectRevert(EswapSettlement.PositionStillOpen.selector);
+        settlement.claimRepayment(orderId);
+    }
+
+    /// @dev [AUDIT NEW-CRIT-01] Cross-order theft: filler B (position open) must
+    ///      not be able to spend filler A's already-returned repayment.
+    function test_ClaimRepayment_CannotDrainAnotherOrdersRepayment() public {
+        bytes32 orderA = keccak256("order-a");
+        bytes32 orderB = keccak256("order-b");
+        address traderB = makeAddr("traderB");
+
+        // A fills and its trader closes: A's repayment now sits in the settlement.
+        vm.prank(filler);
+        settlement.fill(orderA, _originData(10 ether, 0), "");
+        vm.prank(trader);
+        router.closePosition(address(hook), key, trader, address(settlement), 0);
+        assertEq(token0.balanceOf(address(settlement)), 40 ether, "A's repayment parked");
+
+        // B fills for a DIFFERENT trader, and B's position stays OPEN.
+        address fillerB = makeAddr("fillerB");
+        token0.mint(fillerB, 50 ether);
+        vm.prank(fillerB);
+        token0.approve(address(settlement), type(uint256).max);
+        vm.prank(fillerB);
+        settlement.fill(orderB, _originDataFor(10 ether, 0, traderB), "");
+
+        // B cannot touch A's money while its own position is live.
+        vm.prank(fillerB);
+        vm.expectRevert(EswapSettlement.PositionStillOpen.selector);
+        settlement.claimRepayment(orderB);
+        assertEq(token0.balanceOf(address(settlement)), 40 ether, "A's repayment untouched");
+
+        // A still gets paid in full.
+        uint256 before = token0.balanceOf(filler);
+        vm.prank(filler);
+        assertEq(settlement.claimRepayment(orderA), 40 ether);
+        assertEq(token0.balanceOf(filler), before + 40 ether, "A made whole");
     }
 }

@@ -125,14 +125,14 @@ contract EswapPairRegistryAndFeesTest is BaseV4Test {
     }
 
     function test_ProtocolFee_DefaultForEveryone() public {
-        // Default reserveFactor = 50 bps (0.5%) applies to any trader without an override.
-        assertEq(hook.protocolFeeFor(address(0x1111)), 50, "default fee for everyone");
-        assertEq(hook.protocolFeeFor(address(0x2222)), 50, "default fee for everyone");
+        // Default reserveFactor = 10 bps (0.10%) applies to any trader without an override.
+        assertEq(hook.protocolFeeFor(address(0x1111)), 10, "default fee for everyone");
+        assertEq(hook.protocolFeeFor(address(0x2222)), 10, "default fee for everyone");
 
         _openShort2x(address(0x1111));
 
-        // boughtGross 1.92 ether × 0.5% = 0.0096 ether of protocol fees
-        assertEq(hook.protocolFees(key.currency1), (1.92 ether * 50) / 10000, "default 50 bps charged");
+        // boughtGross 1.92 ether × 0.10% = 0.00192 ether of protocol fees
+        assertEq(hook.protocolFees(key.currency1), (1.92 ether * 10) / 10000, "default 10 bps charged");
     }
 
     function test_ProtocolFee_SpecificAddressGetsSpecificFee() public {
@@ -140,7 +140,7 @@ contract EswapPairRegistryAndFeesTest is BaseV4Test {
         hook.setAddressProtocolFee(vip, 100); // 1% for this address only
 
         assertEq(hook.protocolFeeFor(vip), 100, "override applies to the specific address");
-        assertEq(hook.protocolFeeFor(address(0x3333)), 50, "everyone else keeps the default");
+        assertEq(hook.protocolFeeFor(address(0x3333)), 10, "everyone else keeps the default");
 
         _openShort2x(vip);
 
@@ -158,7 +158,7 @@ contract EswapPairRegistryAndFeesTest is BaseV4Test {
         assertEq(hook.protocolFeeFor(vip), 100);
 
         hook.setAddressProtocolFee(vip, 0);
-        assertEq(hook.protocolFeeFor(vip), 50, "bps=0 clears the override");
+        assertEq(hook.protocolFeeFor(vip), 10, "bps=0 clears the override");
     }
 
     function test_ProtocolFee_RevertsAboveCap() public {

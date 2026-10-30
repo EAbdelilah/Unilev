@@ -156,7 +156,7 @@ contract EswapCapStressTest is BaseV4Test {
 
         // ...WHICH means only ~29.9% of TVL works as 2x collateral under
         // legacy defaults. This is the saturation quirk, quantified.
-        uint256 deployed2xCollateral = (opened * m * L * 9950) / 10000;
+        uint256 deployed2xCollateral = (opened * m * L * 9990) / 10000;
         uint256 deployedBps = (deployed2xCollateral * 10_000) / tvlEnd;
         // Analytic steady state: 1500 * (2*0.995) / (1 + 0.15*1.99) = 2603bps
         // of TOTAL TVL, i.e. 2603/9950-of-deployed normalization lands the
@@ -198,7 +198,7 @@ contract EswapCapStressTest is BaseV4Test {
 
                 _open(t, m, L);
 
-                expTvl += (m * L * 9950) / 10000;
+                expTvl += (m * L * 9990) / 10000;
                 expOi += m * (L - 1);
 
                 (bool capsActive, uint256 tvl, uint256 oi,, uint256 remaining) = _capacity();

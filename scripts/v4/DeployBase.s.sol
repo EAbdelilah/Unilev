@@ -131,7 +131,11 @@ contract DeployBase is Script {
         //   USDC/USD = (V3 USDC/WETH TWAP) * (Chainlink ETH/USD)
         // The ETH/USD leg keeps a Chainlink anchor; the TWAP leg keeps it
         // independent of the V4 pool the hook circuit-breaks against.
-        UsdcTwapFeed usdcTwap = new UsdcTwapFeed(USDC_WETH_V3_POOL, ETH_USD_FEED, TWAP_WINDOW, USDC, WETH);
+        // The ETH/USD leg's max age is its own liveness bound, NOT the 1h
+        // PriceFeed bound: Unichain's ETH/USD aggregator has a ~24h heartbeat, so
+        // a 1h cap would make the USDC price read 0 for most of the day.
+        UsdcTwapFeed usdcTwap =
+            new UsdcTwapFeed(USDC_WETH_V3_POOL, ETH_USD_FEED, TWAP_WINDOW, USDC, WETH, 24 hours);
         priceFeed.setPriceFeed(USDC, address(usdcTwap), 18);
         console.log(string.concat("Configured USDC TWAP adapter: ", vm.toString(address(usdcTwap))));
         priceFeed.setSequencerUptimeFeed(L2_SEQUENCER_UPTIME_FEED);
@@ -287,7 +291,8 @@ contract DeployBase is Script {
 
         // RouterExt (JIT/trigger/best-route/atomic surfaces) and the LiquidationKeeper
         // are NOT on the CoW open/close path: the settlement only calls
-        // swapMultiPoolForSolverFunded (no executor gate) and closePosition. Gate the
+        // swapMultiPoolForSolverFunded (margin funder must be the caller) and
+        // closePosition. Gate the
         // two deploys so a one-off trade can skip ~5.5M gas of dead code; both default
         // ON so a production deploy is unchanged and either can be added later.
         EswapRouterExt routerExt;
@@ -312,7 +317,7 @@ contract DeployBase is Script {
         hook.setConfig(EswapMarginHook.ConfigParams({
             treasury: treasury,
             router: address(router),
-            reserveFactor: 5,
+            reserveFactor: 10,
             maxPriceSwingBps: 800,
             defaultMaxLeverage: 5,
             requireTwapOracle: vm.envOr("REQUIRE_TWAP_ORACLE", false)
@@ -516,16 +521,17 @@ contract DeployBase is Script {
         address lop = vm.envOr("ONEINCH_FUSION_LOP_ADDRESS", address(0));
         address makerAsset = vm.envOr("ONEINCH_FUSION_MAKER_ASSET", address(0));
         address takerAsset = vm.envOr("ONEINCH_FUSION_TAKER_ASSET", address(0));
-        uint256 maxFill = vm.envOr("ONEINCH_FUSION_MAX_FILL", uint256(0));
+        uint256 maxMaking = vm.envOr("ONEINCH_FUSION_MAX_FILL", uint256(0));
+        uint256 maxTaking = vm.envOr("ONEINCH_FUSION_MAX_TAKING", maxMaking);
 
-        if (lop == address(0) || makerAsset == address(0) || takerAsset == address(0) || maxFill == 0) {
-            console.log("  [PENDING] 1inch Fusion settlement (lop/maker/taker/maxFill incomplete)");
+        if (lop == address(0) || makerAsset == address(0) || takerAsset == address(0) || maxMaking == 0) {
+            console.log("  [PENDING] 1inch Fusion settlement (lop/maker/taker/maxMaking incomplete)");
             return;
         }
 
-        EswapOneInchFusionSettlement settler =
-            uint256 maxTaking = vm.envOr("ONEINCH_FUSION_MAX_TAKING", maxFill);
-        new EswapOneInchFusionSettlement(IOrderMixin(lop), IERC20(makerAsset), IERC20(takerAsset), maxFill, maxTaking);
+        EswapOneInchFusionSettlement settler = new EswapOneInchFusionSettlement(
+            IOrderMixin(lop), IERC20(makerAsset), IERC20(takerAsset), maxMaking, maxTaking
+        );
 
         address operator = vm.envOr("SETTLEMENT_OPERATOR_ADDRESS", address(0));
         if (operator != address(0)) {

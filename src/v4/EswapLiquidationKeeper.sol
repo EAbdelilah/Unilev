@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {PoolKey} from "./types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "./types/PoolId.sol";
 import {Currency} from "./types/Currency.sol";
@@ -183,11 +184,24 @@ contract EswapLiquidationKeeper is Ownable {
         }
 
         uint256 collateralUsd = hook.priceFeed().getAmountInUsd(collateralToken, physicalCollateral);
-        uint256 receivedUsdPer18 = hook.priceFeed().getAmountInUsd(receivedToken, 1e18);
-        if (receivedUsdPer18 == 0) return 0;
+        // getAmountInUsd takes RAW token units, so value one whole token of the
+        // received asset at its own decimals (1e18 is wrong for 6/8-decimal tokens).
+        uint256 receivedUnit = 10 ** _decimalsOf(receivedToken);
+        uint256 receivedUsdPerUnit = hook.priceFeed().getAmountInUsd(receivedToken, receivedUnit);
+        if (receivedUsdPerUnit == 0) return 0;
 
-        uint256 expectedOut = (collateralUsd * 1e18) / receivedUsdPer18;
+        uint256 expectedOut = (collateralUsd * receivedUnit) / receivedUsdPerUnit;
         return (expectedOut * (10000 - slippageBps)) / 10000;
+    }
+
+    /// @dev Native ETH (address(0)) and tokens without `decimals()` default to 18.
+    function _decimalsOf(address token) internal view returns (uint8) {
+        if (token == address(0)) return 18;
+        try IERC20Metadata(token).decimals() returns (uint8 d) {
+            return d;
+        } catch {
+            return 18;
+        }
     }
 
     function _isLiquidatable(PoolKey memory key, address trader) internal view returns (bool) {

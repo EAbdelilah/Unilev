@@ -3,11 +3,19 @@ pragma solidity ^0.8.24;
 
 import {EswapRouter} from "./EswapRouter.sol";
 import {PoolKey} from "./types/PoolKey.sol";
+import {PoolId, PoolIdLibrary} from "./types/PoolId.sol";
 import {Currency} from "./types/Currency.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {NativeTokens} from "./libraries/NativeTokens.sol";
+
+/// @dev Minimal read-only view of the hook's solver registry. A non-zero answer
+///      proves the position is still OPEN: the entry is written at open and
+///      deleted when the position is settled.
+interface IEswapPositionState {
+    function positionSolver(bytes32 poolId, address trader) external view returns (address);
+}
 
 /**
  * @title EswapSettlement
@@ -34,6 +42,7 @@ import {NativeTokens} from "./libraries/NativeTokens.sol";
  */
 contract EswapSettlement is Ownable {
     using SafeERC20 for IERC20;
+    using PoolIdLibrary for PoolKey;
 
     EswapRouter public immutable router;
 
@@ -46,11 +55,40 @@ error ZeroAddress();
         bytes32 indexed orderId, address indexed recipient, address indexed tokenIn, uint256 marginAmount
     );
 
+    /// @notice Emitted when a filler recovers the borrow leg a closed position
+    ///         returned to this settlement.
+    event RepaymentClaimed(
+        bytes32 indexed orderId, address indexed filler, address indexed token, uint256 amount
+    );
+
+    error NotFiller();
+    error NothingToClaim();
+    error PositionStillOpen();
+
     // M-3: orderId replay protection
     mapping(bytes32 => bool) public filledOrders;
 
     // H-4: orderId → credited recipient (on-chain lookup after a bridge fill)
     mapping(bytes32 => address) public filledRecipient;
+
+    // [AUDIT CRIT-ACT-02] The filler that bridged the notional is the economic
+    // owner of the BORROW leg: it is registered as the position's solver, so a
+    // close returns `principal + yield` to THIS contract. Without a per-order
+    // ledger that money was unattributable and only the owner could move it via
+    // `rescueToken`. Record who funded each order, in which token, and how much
+    // principal they are owed, so any filler can pull its own repayment.
+    //
+    // [AUDIT NEW-CRIT-01] Paying purely out of `balanceOf(this)` let a filler
+    // claim BEFORE its own position closed, spending another filler's repayment
+    // (which is already sitting here after THAT position closed). Repayment is
+    // therefore gated on the position actually being closed, which requires
+    // remembering where it lives.
+    mapping(bytes32 => address) public orderFiller;
+    mapping(bytes32 => address) public fillerToken;
+    mapping(bytes32 => uint256) public fillerPrincipal;
+    mapping(bytes32 => address) public orderHook;
+    mapping(bytes32 => bytes32) public orderPoolId;
+    mapping(bytes32 => address) public orderRecipient;
 
     constructor(EswapRouter _router) Ownable(msg.sender) {
         router = _router;
@@ -111,7 +149,8 @@ error ZeroAddress();
         // for native pairs). Native cannot be transferFrom'd, so the filler
         // funds it via msg.value exactly equal to the notional; ERC-20 legs
         // keep the transferFrom pull.
-        if (NativeTokens.isNative(inputCurrency)) {
+        bool native = NativeTokens.isNative(inputCurrency);
+        if (native) {
             if (msg.value != notional) revert InvalidNotional();
         } else {
             IERC20(inputToken).safeTransferFrom(msg.sender, address(this), notional);
@@ -134,10 +173,90 @@ error ZeroAddress();
         // `recipient` while BOTH legs (margin + borrow) are pulled from this
         // settlement, which already holds the filler-bridged notional. The
         // recipient never has to approve the router.
-        router.swapMultiPoolForSolverFunded(params, recipient, address(this));
+        // Fund the borrow leg through this settlement's own borrow escrow (ERC-20)
+        // or native borrow escrow (native), so the router's solver-authorization
+        // check passes and the borrow is drawn from capital the filler bridged.
+        // The margin leg follows: ERC-20 margin is pulled from this contract's
+        // approval (notional - borrow), native margin is forwarded as msg.value.
+        if (native) {
+            if (borrowAmount > 0) router.depositNativeBorrow{value: borrowAmount}(address(this));
+            router.swapMultiPoolForSolverFunded{value: marginAmount}(params, recipient, address(this));
+        } else {
+            if (borrowAmount > 0) router.depositBorrowEscrow(inputToken, borrowAmount);
+            router.swapMultiPoolForSolverFunded(params, recipient, address(this));
+        }
+
+        // The router consumed `marginAmount` of the `notional` approval; the
+        // borrow leg went in through the escrow above. Clear the residual so no
+        // standing allowance to the router survives the fill.
+        if (!native) IERC20(inputToken).forceApprove(address(router), 0);
 
         filledRecipient[orderId] = recipient;
+        orderFiller[orderId] = msg.sender;
+        fillerToken[orderId] = inputToken;
+        fillerPrincipal[orderId] = borrowAmount;
+        orderHook[orderId] = address(key.hooks);
+        orderPoolId[orderId] = PoolId.unwrap(key.toId());
+        orderRecipient[orderId] = recipient;
         emit PositionFilled(orderId, recipient, inputToken, marginAmount);
+    }
+
+    /**
+     * @notice Claim the borrow-leg principal that a closed position returned to
+     *         this settlement.
+     * @dev The filler fronts `notional` and is the position's `positionSolver`,
+     *      so `close`/`liquidation` pays `borrowAmount + yield` back here. This
+     *      lets the FILLER (not just the owner) recover its principal without
+     *      touching any other order's funds.
+     *
+     *      [AUDIT NEW-CRIT-01] The position MUST be closed before anything is
+     *      paid out. Previously the only check was this contract's aggregate
+     *      balance, so a filler whose position was still open could claim the
+     *      repayment that ANOTHER filler's already-closed position had parked
+     *      here, leaving the honest filler with nothing. The hook's
+     *      `positionSolver[poolId][recipient]` entry is set at open and deleted
+     *      at settlement, so a non-zero value proves the position is live.
+     *
+     *      The payout stays capped at the current balance: with an uncovered
+     *      liquidation shortfall no single filler can over-draw other orders'
+     *      proceeds. Yield above principal remains protocol-owned residue.
+     */
+    function claimRepayment(bytes32 orderId) external returns (uint256 amount) {
+        address filler = orderFiller[orderId];
+        if (filler == address(0) || msg.sender != filler) revert NotFiller();
+        amount = fillerPrincipal[orderId];
+        if (amount == 0) revert NothingToClaim();
+        if (_positionStillOpen(orderId)) revert PositionStillOpen();
+
+        fillerPrincipal[orderId] = 0;
+        address token = fillerToken[orderId];
+        if (token == address(0)) {
+            uint256 bal = address(this).balance;
+            if (amount > bal) amount = bal;
+            if (amount == 0) revert NothingToClaim();
+            NativeTokens.transfer(Currency.wrap(address(0)), filler, amount);
+        } else {
+            uint256 bal = IERC20(token).balanceOf(address(this));
+            if (amount > bal) amount = bal;
+            if (amount == 0) revert NothingToClaim();
+            IERC20(token).safeTransfer(filler, amount);
+        }
+        emit RepaymentClaimed(orderId, filler, token, amount);
+    }
+
+    /// @dev True while the hook still records a solver for the order's position.
+    ///      Fails CLOSED: a hook that cannot answer is treated as "still open" so
+    ///      an unverifiable order can never release funds.
+    function _positionStillOpen(bytes32 orderId) internal view returns (bool) {
+        address hook = orderHook[orderId];
+        if (hook == address(0) || hook.code.length == 0) return true;
+        try IEswapPositionState(hook).positionSolver(orderPoolId[orderId], orderRecipient[orderId]) returns (
+            address solver
+        ) {
+            return solver != address(0);
+        } catch {
+            return true;
+        }
     }
 
 // ─── Position Management ────────────────────────────────────────────

@@ -1,0 +1,13 @@
+{
+  "mode": "sim",
+  "startBlock": 53129654,
+  "startedAt": "2026-10-26T21:04:14.806Z",
+  "steps": [
+    {
+      "venue": "socket",
+      "status": "quote-failed",
+      "error": "socket: {\"type\":\"https://developers.cloudflare.com/support/troubleshooting/http-status-codes/cloudflare-1xxx-errors/error-1015/\",\"title\":\"Error 1015: You are being rate limited\",\"status\":429,\"detail\":\"You are being rate-limited by the website owner's configuration.\",\"instance\":\"a50c69d0aa8f1a5e\",\"error_code"
+    }
+  ],
+  "finishedAt": "2026-10-26T21:04:30.807Z"
+}

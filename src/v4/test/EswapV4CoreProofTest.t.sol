@@ -281,7 +281,7 @@ contract EswapV4CoreProofTest is BaseV4Test {
         assertEq(longTrader, address(this));
         assertTrue(longIsLong);
         assertEq(longBorrow, 400 ether);
-        assertEq(longCollateral, (480 ether * 9950) / 10000);
+        assertEq(longCollateral, (480 ether * 9990) / 10000);
 
         // SHORT: zeroForOne=false. Swapper perspective: paid -100 (token1),
         // received +480 (token0). The positive leg is amount0.
@@ -301,7 +301,7 @@ contract EswapV4CoreProofTest is BaseV4Test {
         assertEq(shortTrader, address(1));
         assertFalse(shortIsLong);
         assertEq(shortBorrow, 400 ether);
-        assertEq(shortCollateral, (480 ether * 9950) / 10000);
+        assertEq(shortCollateral, (480 ether * 9990) / 10000);
 
         // Zero received output on the bought leg must revert (SwapOutputZero).
         bytes memory data2 = abi.encode(true, uint8(5), address(2));

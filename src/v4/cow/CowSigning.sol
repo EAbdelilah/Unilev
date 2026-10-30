@@ -53,6 +53,11 @@ abstract contract CowSigning {
     ///      signature to that specific settlement deployment.
     bytes32 public immutable domainSeparator;
 
+    /// @dev The canonical CoW Protocol settlement this deployment mirrors. Used
+    ///      to consult the REAL `preSignature` ledger, because traders pre-sign
+    ///      on GPv2Settlement, not here (see `recoverPreSigner`).
+    address public immutable canonicalSettlement;
+
     /// @dev Storage flagging that an order UID has been pre-signed by its owner.
     mapping(bytes => uint256) public preSignature;
 
@@ -62,6 +67,7 @@ abstract contract CowSigning {
     /// @param verifyingContract The canonical CoW Protocol settlement contract
     ///        address whose signed orders this contract is compatible with.
     constructor(address verifyingContract) {
+        canonicalSettlement = verifyingContract;
         domainSeparator = keccak256(
             abi.encode(DOMAIN_TYPE_HASH, DOMAIN_NAME, DOMAIN_VERSION, block.chainid, verifyingContract)
         );
@@ -167,6 +173,24 @@ abstract contract CowSigning {
         }
 
         bytes memory orderUid = abi.encodePacked(orderDigest, owner, validTo);
-        require(preSignature[orderUid] == PRE_SIGNED, "Cow: order not presigned");
+        // [AUDIT HIGH-ACT-02] Accept EITHER ledger: the local one written by
+        // `setPreSignature` (used by Eswap-native flows and tests) OR the
+        // canonical CoW GPv2Settlement mapping, which is where a real CoW user's
+        // pre-signature actually lives. Checking only the local mapping rejected
+        // every genuine pre-signed CoW order.
+        require(
+            preSignature[orderUid] == PRE_SIGNED || _preSignedOnCanonical(orderUid),
+            "Cow: order not presigned"
+        );
+    }
+
+    /// @dev Reads `canonicalSettlement.preSignature(orderUid)` defensively: the
+    ///      canonical address may be a placeholder without code on testnets.
+    function _preSignedOnCanonical(bytes memory orderUid) internal view returns (bool signed_) {
+        address settlement = canonicalSettlement;
+        if (settlement.code.length == 0) return false;
+        (bool ok, bytes memory ret) = settlement.staticcall(abi.encodeWithSignature("preSignature(bytes)", orderUid));
+        if (!ok || ret.length < 32) return false;
+        signed_ = abi.decode(ret, (uint256)) == PRE_SIGNED;
     }
 }

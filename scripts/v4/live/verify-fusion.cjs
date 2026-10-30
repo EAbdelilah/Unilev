@@ -33,6 +33,21 @@ function abiOf(file) {
   return Array.isArray(j) ? j : j.abi;
 }
 
+// Read whichever cap surface the deployed settler exposes. The split build has
+// maxMakingAmount()/maxTakingAmount(); the original build only has the single
+// maxFillAmount() scalar, which it applied to BOTH legs. fill() approves the LOP
+// for the taking-side cap, so the approval check below must follow the same
+// surface the receipt was produced under.
+async function readCaps(fusion) {
+  try {
+    const [making, taking] = await Promise.all([fusion.maxMakingAmount(), fusion.maxTakingAmount()]);
+    return { making, taking, split: true };
+  } catch {
+    const single = await fusion.maxFillAmount();
+    return { making: single, taking: single, split: false };
+  }
+}
+
 function loadEnv() {
   const env = {};
   for (const line of fs.readFileSync('.env', 'utf8').split(/\r?\n/)) {
@@ -167,6 +182,7 @@ async function main() {
     lopEvents,
   };
 
+  const caps = await readCaps(fusion);
   const checks = [
     ['tx mined with status 1', rc.status === 1],
     ['tx sent to EswapOneInchFusionSettlement', tx.to.toLowerCase() === FUSION.toLowerCase()],
@@ -195,7 +211,7 @@ async function main() {
     ['order makingAmount == floor(takingAmount at Chainlink ETH/USD)', BigInt(orderFields.makingAmount) === fairMaking],
     ['settler holds the bought USDC afterwards', (await erc20.balanceOf(FUSION)) >= BigInt(orderFields.makingAmount)],
     ['maker received the WETH', (await weth.balanceOf(orderFields.maker)) >= BigInt(orderFields.takingAmount)],
-    ['WETH approval to the LOP was scoped to maxFillAmount', rc.logs.some((l) => l.address.toLowerCase() === WETH.toLowerCase() && l.topics[0] === APPROVAL_TOPIC && topicAddr(l.topics[1]).toLowerCase() === FUSION.toLowerCase() && topicAddr(l.topics[2]).toLowerCase() === LOP.toLowerCase() && BigInt(l.data) === 5000000000n)],
+    ['WETH approval to the LOP was scoped to the settler taking cap', rc.logs.some((l) => l.address.toLowerCase() === WETH.toLowerCase() && l.topics[0] === APPROVAL_TOPIC && topicAddr(l.topics[1]).toLowerCase() === FUSION.toLowerCase() && topicAddr(l.topics[2]).toLowerCase() === LOP.toLowerCase() && BigInt(l.data) === caps.taking)],
   ];
 
   proof.checks = checks.map(([label, ok]) => ({ label, ok }));

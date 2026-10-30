@@ -1,0 +1,15 @@
+{
+  "mode": "sim",
+  "startBlock": 53131385,
+  "startedAt": "2026-10-26T22:01:57.142Z",
+  "steps": [
+    {
+      "venue": "socket",
+      "status": "preflight-ok",
+      "exchangeProxy": "0x50c4E75a512F2A14A7b304787Adf79C4531A5909",
+      "minOut": "6729797759",
+      "trader": "0xE13cAf603e000B0CfD904064A97cF7B5fb1AD425"
+    }
+  ],
+  "finishedAt": "2026-10-26T22:01:57.952Z"
+}

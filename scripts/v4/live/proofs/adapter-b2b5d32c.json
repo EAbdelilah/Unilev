@@ -1,0 +1,160 @@
+{
+  "chainId": 8453,
+  "rpc": "https://mainnet.base.org",
+  "verifiedAt": "2026-10-26T21:05:55.739Z",
+  "tx": {
+    "hash": "0xb2b5d32c378de0d68cd005f7477bb72e7bf18abaab68419a566699218a1106ef",
+    "block": 53085680,
+    "timestamp": 1792960707,
+    "gasUsed": "1227912",
+    "effectiveGasPrice": "6000000",
+    "from": "0xD2E833134e997929eeD8179E1dd960a0dE898A32",
+    "to": "0x14FBAF1858d37BF994BDAF9ab4b31A664D4663aD",
+    "function": "exactInputSingleWithLeverageAggregator"
+  },
+  "venue": "LI.FI Diamond",
+  "flows": {
+    "usdcRouterToVenue": "8000",
+    "usdcSolverToRouter": "4000",
+    "wethOutput": "3398456839305",
+    "protocolFee": "1699228419",
+    "erc6909Mint": [
+      "3398456839305"
+    ]
+  },
+  "lp": {
+    "poolId": "0x90333bb05c258fe0dddb2840ef66f1a05165aa7dac6815d24e807cc6ebd943a0",
+    "sender": "0xe33A630503c640143126BBF222a82689D49b50c8",
+    "tickLower": -198660,
+    "tickUpper": -198060,
+    "liquidityDelta": "5024281015",
+    "maxLiquidityApprox": 5582534462.099845,
+    "deployedRatioApprox": 0.8999999998405992
+  },
+  "position": {
+    "trader": "0xD2E833134e997929eeD8179E1dd960a0dE898A32",
+    "collateral": "3396757610886",
+    "borrowed": "4000",
+    "leverage": 2,
+    "isLong": true,
+    "liquidity": "5024281015",
+    "tickLower": -198660,
+    "tickUpper": -198060
+  },
+  "routerWeth": {
+    "before": "852386635144",
+    "after": "852386635144"
+  },
+  "checks": [
+    {
+      "label": "tx mined with status 1",
+      "ok": true
+    },
+    {
+      "label": "tx sent to the live EswapLeverageAdapter",
+      "ok": true
+    },
+    {
+      "label": "tx sent by the trader (calldata recipient)",
+      "ok": true
+    },
+    {
+      "label": "calldata is exactInputSingleWithLeverageAggregator",
+      "ok": true
+    },
+    {
+      "label": "tokenIn == USDC, tokenOut == WETH, fee == 3000",
+      "ok": true
+    },
+    {
+      "label": "leverage == 2, notional == 2 x margin (4000 USDC-units)",
+      "ok": true
+    },
+    {
+      "label": "route.exchangeProxy == LI.FI Diamond (whitelisted venue)",
+      "ok": true
+    },
+    {
+      "label": "route.value == 0 (no native leg)",
+      "ok": true
+    },
+    {
+      "label": "router pushed the full notional to the venue",
+      "ok": true
+    },
+    {
+      "label": "[socket] calldata is AllowanceHolder.exec(...) with arg0/arg3 == Open Router",
+      "ok": true
+    },
+    {
+      "label": "[socket] exec amount == notional, token == USDC",
+      "ok": true
+    },
+    {
+      "label": "[socket] holder pulled the notional from the router into the Open Router",
+      "ok": true
+    },
+    {
+      "label": "solver funded the borrow leg (margin) to the router",
+      "ok": true
+    },
+    {
+      "label": "WOOFi calldata is swap(USDC,WETH,notional,minOut,router,router)",
+      "ok": true
+    },
+    {
+      "label": "venue delivered WETH to the router",
+      "ok": true
+    },
+    {
+      "label": "router forwarded the whole WETH output to the PoolManager",
+      "ok": true
+    },
+    {
+      "label": "PoolManager minted the ERC-6909 WETH claim to the hook",
+      "ok": true
+    },
+    {
+      "label": "allowance router -> venue reset to 0 (AUDIT CRIT-5)",
+      "ok": true
+    },
+    {
+      "label": "router WETH unchanged vs pre-tx block (no stranded value)",
+      "ok": true
+    },
+    {
+      "label": "output cleared minAmountOut",
+      "ok": true
+    },
+    {
+      "label": "hook pool id matches [WETH,USDC,3000,60,hook]",
+      "ok": true
+    },
+    {
+      "label": "position: trader == recipient, borrowed == margin, 2x, long",
+      "ok": true
+    },
+    {
+      "label": "position: collateral == output - protocol fee (5 bps)",
+      "ok": true
+    },
+    {
+      "label": "LP deployment: ModifyLiquidity from the hook on the standard pool",
+      "ok": true
+    },
+    {
+      "label": "LP deployment: liquidityDelta == position.liquidity",
+      "ok": true
+    },
+    {
+      "label": "LP deployment: ticks == position ticks",
+      "ok": true
+    },
+    {
+      "label": "LP deployment: 90% of max liquidity (approx., 1e-6 rel.)",
+      "ok": true
+    }
+  ],
+  "allPassed": true,
+  "netting": "PoolManager.unlock reverts CurrencyNotSettled on any nonzero currency delta at exit, so status 1 implies zero residual deltas. Not measured separately."
+}

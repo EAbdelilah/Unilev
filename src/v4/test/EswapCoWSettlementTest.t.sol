@@ -93,6 +93,9 @@ contract EswapCoWSettlementTest is BaseV4Test {
         // The solver funds margin + borrow; the trader never holds/approves tokens.
         token0.mint(solver, 100 ether);
         vm.startPrank(solver);
+        // The settlement pulls the margin from the solver (then funds the router
+        // itself); the router pulls the borrow leg directly from the solver.
+        token0.approve(address(settlement), type(uint256).max);
         token0.approve(address(router), type(uint256).max);
         vm.stopPrank();
 
@@ -208,6 +211,7 @@ contract EswapCoWSettlementTest is BaseV4Test {
         CowOrder.Data memory order = _order(margin, uint32(block.timestamp + 1000), 1 ether);
         bytes memory sig = _signEip712(order, traderPrivateKey);
 
+        vm.prank(solver);
         settlement.fillOrder(order, CowSigning.Scheme.Eip712, sig, _params(leverage));
 
         (address posTrader, uint256 collateral, uint256 borrow, uint8 posLev,,,,,) = hook.positions(key.toId(), trader);
@@ -235,6 +239,7 @@ contract EswapCoWSettlementTest is BaseV4Test {
         vm.expectEmit(true, true, true, true);
         emit EswapCoWSettlement.OrderFilled(uid, trader, solver, margin, 5);
 
+        vm.prank(solver);
         settlement.fillOrder(order, CowSigning.Scheme.Eip712, sig, _params(5));
     }
 
@@ -245,6 +250,7 @@ contract EswapCoWSettlementTest is BaseV4Test {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(traderPrivateKey, ethsignDigest);
         bytes memory sig = abi.encodePacked(r, s, v);
 
+        vm.prank(solver);
         settlement.fillOrder(order, CowSigning.Scheme.EthSign, sig, _params(5));
 
         (, uint256 collateral,,,,,,,) = hook.positions(key.toId(), trader);
@@ -258,6 +264,7 @@ contract EswapCoWSettlementTest is BaseV4Test {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(traderPrivateKey, digest);
         bytes memory sig = abi.encodePacked(address(verifier), r, s, v);
 
+        vm.prank(solver);
         settlement.fillOrder(order, CowSigning.Scheme.Eip1271, sig, _params(5));
 
         (, uint256 collateral,,,,,,,) = hook.positions(key.toId(), address(verifier));
@@ -272,6 +279,7 @@ contract EswapCoWSettlementTest is BaseV4Test {
         settlement.setPreSignature(uid, true);
 
         bytes memory sig = abi.encodePacked(trader);
+        vm.prank(solver);
         settlement.fillOrder(order, CowSigning.Scheme.PreSign, sig, _params(5));
 
         (, uint256 collateral,,,,,,,) = hook.positions(key.toId(), trader);
@@ -283,6 +291,43 @@ contract EswapCoWSettlementTest is BaseV4Test {
         bytes memory sig = abi.encodePacked(trader);
         vm.expectRevert(bytes("Cow: order not presigned"));
         settlement.fillOrder(order, CowSigning.Scheme.PreSign, sig, _params(5));
+    }
+
+    /// @dev [AUDIT CRIT-BP-03] Only the solver that is named to fund the borrow
+    ///      leg may submit the fill. A third party can no longer conscript a
+    ///      registered solver's credit line with an otherwise-valid signed order.
+    function test_Fill_RejectsThirdPartyFiller() public {
+        CowOrder.Data memory order = _order(2 ether, uint32(block.timestamp + 1000), 1 ether);
+        bytes memory sig = _signEip712(order, traderPrivateKey);
+
+        vm.prank(makeAddr("griefer"));
+        vm.expectRevert(EswapCoWSettlement.SolverNotCaller.selector);
+        settlement.fillOrder(order, CowSigning.Scheme.Eip712, sig, _params(5));
+    }
+
+    /// @dev [AUDIT CRIT-ACT-03] When the order owner has approved this settlement
+    ///      (the standalone-settler flow), the MARGIN must come from the owner so
+    ///      the solver only fronts the borrow leg and cannot lose the margin when
+    ///      the position is closed.
+    function test_Fill_OwnerFundedMargin_DoesNotConsumeSolverMargin() public {
+        CowOrder.Data memory order = _order(10 ether, uint32(block.timestamp + 1000), 1 ether);
+        bytes memory uid = settlement.uidOf(order, trader);
+
+        vm.prank(trader);
+        settlement.setPreSignature(uid, true);
+
+        token0.mint(trader, 10 ether);
+        vm.prank(trader);
+        token0.approve(address(settlement), type(uint256).max);
+
+        uint256 solverBefore = token0.balanceOf(solver);
+        uint256 traderBefore = token0.balanceOf(trader);
+
+        vm.prank(solver);
+        settlement.fillOrder(order, CowSigning.Scheme.PreSign, abi.encodePacked(trader), _params(5));
+
+        assertEq(traderBefore - token0.balanceOf(trader), 10 ether, "owner funds the margin");
+        assertEq(solverBefore - token0.balanceOf(solver), 40 ether, "solver funds only the borrow leg");
     }
 
     // ─── [AUDIT CRIT-05] Leverage must be committed in the signed appData ─────
@@ -374,6 +419,7 @@ contract EswapCoWSettlementTest is BaseV4Test {
         order.appData = settlement.leverageCommitment(leverage);
         bytes memory sig = _signEip712(order, traderPrivateKey);
 
+        vm.prank(solver);
         settlement.fillOrder(order, CowSigning.Scheme.Eip712, sig, _params(leverage));
 
         (, uint256 collateral, uint256 borrow, uint8 posLev,,,,,) = hook.positions(key.toId(), trader);
@@ -402,6 +448,7 @@ contract EswapCoWSettlementTest is BaseV4Test {
             params[i] = _params(2);
         }
 
+        vm.prank(solver);
         (uint256 count, uint256 failed) = settlement.fillOrders(orders, schemes, sigs, params);
         assertEq(count, 3, "all orders must fill");
         assertEq(failed, 0, "no order may fail");
@@ -438,6 +485,7 @@ contract EswapCoWSettlementTest is BaseV4Test {
             params[i] = _params(2);
         }
 
+        vm.prank(solver);
         (uint256 count, uint256 failed) = settlement.fillOrders(orders, schemes, sigs, params);
         assertEq(failed, 1, "the expired order must be isolated as failed");
         assertEq(count, 2, "the healthy orders must still fill");
@@ -451,6 +499,7 @@ contract EswapCoWSettlementTest is BaseV4Test {
         CowOrder.Data memory retry = orders[1];
         retry.validTo = uint32(block.timestamp + 1000);
         bytes memory retrySig = _signEip712(retry, keys[1]);
+        vm.prank(solver);
         settlement.fillOrder(retry, CowSigning.Scheme.Eip712, retrySig, _params(2));
         (, uint256 c1,,,,,,,) = hook.positions(key.toId(), vm.addr(keys[1]));
         assertGt(c1, 0, "the retried order fills after fixing its expiry");
@@ -461,6 +510,7 @@ contract EswapCoWSettlementTest is BaseV4Test {
     function test_Fill_Replay_Reverts() public {
         CowOrder.Data memory order = _order(2 ether, uint32(block.timestamp + 1000), 1 ether);
         bytes memory sig = _signEip712(order, traderPrivateKey);
+        vm.prank(solver);
         settlement.fillOrder(order, CowSigning.Scheme.Eip712, sig, _params(5));
 
         bytes memory uid = abi.encodePacked(settlement.hashOrder(order), trader, order.validTo);

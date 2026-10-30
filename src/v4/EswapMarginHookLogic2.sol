@@ -1001,6 +1001,15 @@ contract EswapMarginHookLogic2 is BaseHook, EswapMarginHookLogicStorage {
 
         (bool isMargin,, address trader) = abi.decode(data, (bool, uint8, address));
         if (isMargin && trader != address(0)) {
+            // [AUDIT CRIT-ACT-04] The single-pool path writes the position record
+            // here, so it is the ONLY place that can reject a second open on the
+            // same (pool, trader). Without this check a second open silently
+            // replaced the record (and `positionSolver`), orphaning the first
+            // solver's `solverDebts` entry: the close then repaid only the second
+            // solver while the first lost its principal. Mirrors `_validateOpen`
+            // on the multi-pool path.
+            if (positions[key.toId()][trader].collateralAmount != 0) revert PositionAlreadyOpen();
+
             uint256 borrow = _getKey(BORROW_BASE, trader).tloadUint();
             // Delta is provided from the swapper's perspective: the received currency
             // is positive (the output of the swap), regardless of zeroForOne direction.

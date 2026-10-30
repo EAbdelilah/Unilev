@@ -83,6 +83,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     ///      route every settlement through the wrong PoolManager.
     error LogicManagerMismatch();
     error PositionAlreadyOpen();
+    error PositionAlreadyHasSolver(address existing);
     error ReentrantSwap();
     error NoActivePosition();
     error FeeTooHigh();
@@ -230,7 +231,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     // Protocol fee revenue (separate from insurance fund)
     mapping(Currency => uint256) public protocolFees;
     address public treasury;
-    uint256 public reserveFactor = 50; // 0.5% Protocol Fee (Mutable, default 50 basis points)
+    uint256 public reserveFactor = 10; // 0.10% Protocol Fee (Mutable, default 10 basis points)
     // Per-trader protocol fee override in basis points. 0 = use the global
     // `reserveFactor` ("one fee for everyone"); a non-zero value gives that
     // specific address its own fee (VIP/partner/tiered pricing).
@@ -617,6 +618,9 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         // [AUDIT MED-1] A zero router would brick every onlyRouter path
         // (position management, settlement, liquidation). Reject it.
         if (params.router == address(0)) revert ZeroAddress();
+        // A zero treasury makes withdrawProtocolFee revert with TreasuryNotSet,
+        // silently stalling fee collection until someone sets it again.
+        if (params.treasury == address(0)) revert ZeroAddress();
 
         treasury = params.treasury;
         router = params.router;
@@ -811,7 +815,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         // unspecified delta is zero. Mapping by zeroForOne here would break the
         // short direction against the real PoolManager (the borrow would land on
         // the output leg and never be added to amountToSwap).
-        int128 deltaInput = -int128(uint128(borrowedAmount));
+        int128 deltaInput = -SafeCast.toInt128(int256(borrowedAmount));
 
         return (IHooks.beforeSwap.selector, BeforeSwapDeltaLibrary.toBeforeSwapDelta(deltaInput, 0), 0);
     }
@@ -1297,6 +1301,12 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         // [FIX H-8] A zero solver would silently leave the borrowed leg with no
         // designated repayer - the position would then resolve with no repayment.
         if (solver == address(0)) revert ZeroAddress();
+        // [AUDIT CRIT-ACT-04] A live position may only ever be backed by ONE
+        // solver. Overwriting `positionSolver` would orphan the previous solver's
+        // `solverDebts` entry (close only repays the recorded solver), so the old
+        // lender's principal would be lost. Same-solver re-registration is fine.
+        address existing = positionSolver[poolId][trader];
+        if (existing != address(0) && existing != solver) revert PositionAlreadyHasSolver(existing);
         Position storage pos = positions[poolId][trader];
         if (principal > pos.borrowedAmount) revert UnsupportedFeature();
         solverDebts[poolId][trader][solver] = SolverDebt({solver: solver, principal: principal, accumulatedYield: 0});

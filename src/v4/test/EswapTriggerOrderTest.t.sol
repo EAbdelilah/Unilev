@@ -90,7 +90,7 @@ contract EswapTriggerOrderTest is BaseV4Test {
 
     /// @dev Opens a 10 ether margin, 2x SHORT-token1 position for `trader`.
     ///      Borrow = 10 ether token0, collateral = 19.104 ether token1 (after the
-    ///      0.5% protocol fee on the mock's 19.2 ether fill output).
+    ///      0.1% protocol fee on the mock's 19.2 ether fill output).
     function _open() internal {
         bytes memory originData = abi.encode(
             key,

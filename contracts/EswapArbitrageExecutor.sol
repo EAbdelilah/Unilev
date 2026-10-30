@@ -73,14 +73,13 @@ interface IEswapRouter {
     ) external;
 }
 
-/// @dev Mirrors Aave V3 `IPoolManager.flashLoanSimple`.
+/// @dev Mirrors the canonical Aave V3 `IPool.flashLoanSimple` (single asset,
+///      premium always charged, no `modes`).
 interface IFlashLoanProvider {
     function flashLoanSimple(
         address receiverAddress,
-        address[] calldata assets,
-        uint256[] calldata amounts,
-        uint256[] calldata modes,
-        address onBehalfOf,
+        address asset,
+        uint256 amount,
         bytes calldata params,
         uint16 referralCode
     ) external;
@@ -140,7 +139,7 @@ interface IExternalVenue {
         uint256 amountIn,
         uint256 minAmountOut,
         bytes calldata data
-    ) external returns (uint256 amountOut);
+    ) external payable returns (uint256 amountOut);
 }
 
 /// @dev Read-only slice of `EswapMarginHook` used for invariant assertions.
@@ -432,18 +431,10 @@ contract EswapArbitrageExecutor is IFlashLoanSimpleReceiver, IBalancerFlashLoanR
             amounts[0] = plan.flashAmount;
             IBalancerVault(payable(address(flashProvider))).flashLoan(address(this), tokens, amounts, params);
         } else {
-            address[] memory assets = new address[](1);
-            uint256[] memory amounts = new uint256[](1);
-            uint256[] memory modes = new uint256[](1);
-            assets[0] = plan.flashAsset;
-            amounts[0] = plan.flashAmount;
-            // Ask for the provider's real premium so `maxPremiumBps` is exercised
-            // against an actual figure rather than an assumed zero.
-            modes[0] = 1;
-
-            flashProvider.flashLoanSimple(
-                address(this), assets, amounts, modes, address(this), params, 0
-            );
+            // The canonical flashLoanSimple always charges the provider's premium,
+            // so `maxPremiumBps` is exercised against a real figure. (Passing
+            // `modes = 1` previously opened a variable-debt position instead.)
+            flashProvider.flashLoanSimple(address(this), plan.flashAsset, plan.flashAmount, params, 0);
         }
 
         if (enforce) {
@@ -538,7 +529,9 @@ contract EswapArbitrageExecutor is IFlashLoanSimpleReceiver, IBalancerFlashLoanR
         // measured as a *delta*, so any pre-existing inventory held by this contract
         // (e.g. the canary's leftover collateral) is never swapped by the venue and
         // never reported as this trade's profit.
-        uint256 assetBaseline = IERC20(asset).balanceOf(address(this));
+        // Both providers transfer the loan BEFORE calling back, so the balance here
+        // already includes `amount`. Remove it to get the true pre-trade inventory.
+        uint256 assetBaseline = IERC20(asset).balanceOf(address(this)) - amount;
         uint256 collatBaseline = _balanceOf(plan.tokenOut);
 
         // ── Leg 1: open the leveraged position (margin comes from the flash loan)
@@ -572,7 +565,10 @@ contract EswapArbitrageExecutor is IFlashLoanSimpleReceiver, IBalancerFlashLoanR
             if (plan.tokenOut != address(0)) {
                 IERC20(plan.tokenOut).forceApprove(plan.venue, collateralInHand);
             }
-            venueOut = IExternalVenue(plan.venue).swap(
+            // Native collateral is forwarded as msg.value; the venue must accept
+            // it rather than pulling ETH back from this contract.
+            uint256 nativeValue = plan.tokenOut == address(0) ? collateralInHand : 0;
+            venueOut = IExternalVenue(plan.venue).swap{value: nativeValue}(
                 plan.tokenOut, plan.flashAsset, collateralInHand, plan.minVenueOut, plan.venueData
             );
             if (venueOut < plan.minVenueOut) revert VenueOutputBelowFloor();

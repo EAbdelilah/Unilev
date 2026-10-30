@@ -62,7 +62,7 @@ contract EswapLeverageQuoter is Ownable {
      * @param fee       Pool fee tier.
      * @param leverage  Position leverage (1-20). 1 = spot.
      * @param amountIn  Exact margin amount.
-     * @return amountOut  Estimated collateral amount (before 0.5% protocol fee).
+     * @return amountOut  Estimated collateral amount (before the protocol fee, 0.1% by default).
      */
     function quoteExactInputSingleWithLeverage(
         address tokenIn,

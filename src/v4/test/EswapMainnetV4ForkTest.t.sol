@@ -338,7 +338,7 @@ minAmountOut: 0
         // Solver lent principal at open and gets exactly it back at close.
         assertEq(RealIERC20(quote).balanceOf(solver), solverBefore, "solver nets out principal exactly");
         // Trader recovers the bulk of margin after real round-trip costs
-        // (0.5% open fee + venue fees both ways + impact ~1% on this thin pool).
+        // (0.1% open fee + venue fees both ways + impact ~1% on this thin pool).
         uint256 residual = RealIERC20(quote).balanceOf(trader) - traderBefore;
         assertGt(residual, margin * 80 / 100, "trader residual above 80% of margin");
         assertLt(residual, margin * 101 / 100, "no free money");

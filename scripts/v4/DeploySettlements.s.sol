@@ -47,7 +47,8 @@ interface IEswapSettlementOps {
 ///           UNISWAPX_SETTLEMENT_RECIPIENT
 ///         Optional env (1inch Fusion):
 ///           ONEINCH_FUSION_LOP_ADDRESS, ONEINCH_FUSION_MAKER_ASSET,
-///           ONEINCH_FUSION_TAKER_ASSET, ONEINCH_FUSION_MAX_FILL
+///           ONEINCH_FUSION_TAKER_ASSET, ONEINCH_FUSION_MAX_FILL,
+///           ONEINCH_FUSION_MAX_TAKING (optional; defaults to MAX_FILL)
 ///         Optional env (both inventory settlers):
 ///           SETTLEMENT_OPERATOR_ADDRESS
 ///
@@ -129,13 +130,17 @@ contract DeploySettlements is Script {
             address lop = vm.envOr("ONEINCH_FUSION_LOP_ADDRESS", address(0));
             address makerAsset = vm.envOr("ONEINCH_FUSION_MAKER_ASSET", address(0));
             address takerAsset = vm.envOr("ONEINCH_FUSION_TAKER_ASSET", address(0));
-            uint256 maxFill = vm.envOr("ONEINCH_FUSION_MAX_FILL", uint256(0));
-            if (lop == address(0) || makerAsset == address(0) || takerAsset == address(0) || maxFill == 0) {
-                console.log("  [PENDING] 1inch Fusion settlement (lop/maker/taker/maxFill incomplete)");
+            // Two independent caps: USDC-side (making) and WETH-side (taking).
+            // Reusing one scalar truncated institutional $100k orders because a
+            // 6-decimal USDC cap is ~1e12x a wei-denominated WETH cap.
+            uint256 maxMaking = vm.envOr("ONEINCH_FUSION_MAX_FILL", uint256(0));
+            uint256 maxTaking = vm.envOr("ONEINCH_FUSION_MAX_TAKING", maxMaking);
+            if (lop == address(0) || makerAsset == address(0) || takerAsset == address(0) || maxMaking == 0) {
+                console.log("  [PENDING] 1inch Fusion settlement (lop/maker/taker/maxMaking incomplete)");
             } else {
-                EswapOneInchFusionSettlement fi =
-                    uint256 maxTaking = vm.envOr("ONEINCH_FUSION_MAX_TAKING", maxFill);
-        new EswapOneInchFusionSettlement(IOrderMixin(lop), IERC20(makerAsset), IERC20(takerAsset), maxFill, maxTaking);
+                EswapOneInchFusionSettlement fi = new EswapOneInchFusionSettlement(
+                    IOrderMixin(lop), IERC20(makerAsset), IERC20(takerAsset), maxMaking, maxTaking
+                );
                 _setOperator(address(fi));
                 console.log(string.concat("FusionSettlement: ", vm.toString(address(fi))));
             }

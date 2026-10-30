@@ -40,7 +40,7 @@ contract EswapPositionLifecycleTest is BaseV4Test {
         token0.mint(address(hook), 35 ether);
         // The close's unwind swap leaves a transient debt in the COLLATERAL
         // currency (token1): fund it physically (no PM claims in direct mode).
-        token1.mint(address(hook), 27.86 ether);
+        token1.mint(address(hook), 27.972 ether);
 
         // Claim is populated for the bought currency (currency1 for zeroForOne=true)
         uint256 claimId = uint256(uint160(address(token1)));
@@ -79,7 +79,7 @@ contract EswapPositionLifecycleTest is BaseV4Test {
 
     function test_ClosePosition_Loss_RepaysBorrowWithInsuranceFund() public {
         // Open a 3x SHORT (zeroForOne=true): margin 10 ether, borrows 20 ether,
-        // receives ~9.95 ether of collateral (after the 0.5% protocol reserve).
+        // receives ~9.99 ether of collateral (after the 0.1% protocol reserve).
         bytes memory data = abi.encode(true, uint8(3), address(this));
         vm.prank(address(manager));
         hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -10 ether, 0), data);
@@ -112,7 +112,7 @@ contract EswapPositionLifecycleTest is BaseV4Test {
         manager.mint(address(hook), uint256(uint160(address(token0))), 100 ether);
 
         // Collateral-currency (token1) leg of the unwind swap: physical funding
-        token1.mint(address(hook), 9.95 ether);
+        token1.mint(address(hook), 9.99 ether);
 
         uint256 settleBefore = manager.settleCount();
 
@@ -168,7 +168,7 @@ contract EswapPositionLifecycleTest is BaseV4Test {
         // Fund the hook with the debt currency (token0 for a SHORT) for the surplus transfer (mock take() is a no-op).
         token0.mint(address(hook), 50 ether);
         // Collateral-currency (token1) leg of the unwind swap: physical funding.
-        token1.mint(address(hook), 47.76 ether);
+        token1.mint(address(hook), 47.952 ether);
 
         (, uint256 collateral, uint256 borrowed,,,,,,) = hook.positions(key.toId(), address(this));
         uint256 received = (collateral * 96) / 100; // mock swap recovers 96% of the collateral

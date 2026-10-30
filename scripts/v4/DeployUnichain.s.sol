@@ -701,22 +701,24 @@ contract DeployUnichain is Script {
         console.log(string.concat("  [SETTLER] UniswapX ", vm.toString(address(settler))));
     }
 
-    /// @dev Deploys + whitelists the 1inch classic Fusion settler. maxFill bounds
-    ///      both makingAmount and the fill amount, and caps the LOP allowance.
+    /// @dev Deploys + whitelists the 1inch classic Fusion settler. maxMaking
+    ///      bounds the order's makingAmount, maxTaking bounds the taker side and
+    ///      caps the LOP allowance.
     function _maybeDeployOneInchFusionSettlement(EswapRouter router) internal {
         address lop = vm.envOr("ONEINCH_FUSION_LOP_ADDRESS", address(0));
         address makerAsset = vm.envOr("ONEINCH_FUSION_MAKER_ASSET", address(0));
         address takerAsset = vm.envOr("ONEINCH_FUSION_TAKER_ASSET", address(0));
-        uint256 maxFill = vm.envOr("ONEINCH_FUSION_MAX_FILL", uint256(0));
+        uint256 maxMaking = vm.envOr("ONEINCH_FUSION_MAX_FILL", uint256(0));
+        uint256 maxTaking = vm.envOr("ONEINCH_FUSION_MAX_TAKING", maxMaking);
 
-        if (lop == address(0) || makerAsset == address(0) || takerAsset == address(0) || maxFill == 0) {
-            console.log("  [PENDING] 1inch Fusion settlement (lop/maker/taker/maxFill incomplete)");
+        if (lop == address(0) || makerAsset == address(0) || takerAsset == address(0) || maxMaking == 0) {
+            console.log("  [PENDING] 1inch Fusion settlement (lop/maker/taker/maxMaking incomplete)");
             return;
         }
 
-        EswapOneInchFusionSettlement settler =
-            uint256 maxTaking = vm.envOr("ONEINCH_FUSION_MAX_TAKING", maxFill);
-        new EswapOneInchFusionSettlement(IOrderMixin(lop), IERC20(makerAsset), IERC20(takerAsset), maxFill, maxTaking);
+        EswapOneInchFusionSettlement settler = new EswapOneInchFusionSettlement(
+            IOrderMixin(lop), IERC20(makerAsset), IERC20(takerAsset), maxMaking, maxTaking
+        );
 
         address operator = vm.envOr("SETTLEMENT_OPERATOR_ADDRESS", address(0));
         if (operator != address(0)) {

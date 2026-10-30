@@ -6,6 +6,8 @@ import {PoolKey} from "./types/PoolKey.sol";
 import {Currency} from "./types/Currency.sol";
 import {CowOrder} from "./cow/CowOrder.sol";
 import {CowSigning} from "./cow/CowSigning.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /**
  * @title EswapCoWSettlement
@@ -32,6 +34,12 @@ import {CowSigning} from "./cow/CowSigning.sol";
  *        3. The position is registered to the recovered order owner; the
  *           margin and borrow legs are pulled from the executing solver, so
  *           the trader never needs to approve the Eswap router.
+ *        4. The solver MUST be the caller (`fillOrder` is not a relay) and
+ *           MUST approve THIS settlement for the margin token. The settlement
+ *           pulls the margin itself, approves the router for exactly that
+ *           amount and passes itself as `marginFunder`, which is the only way
+ *           to satisfy the router's anti-drain rule (the address whose tokens
+ *           are pulled must be the caller).
  *
  *      This makes Eswap margin intents genuinely CoW-compatible: any solver
  *      that can settle a GPv2 batch can include these fills without bespoke
@@ -39,6 +47,7 @@ import {CowSigning} from "./cow/CowSigning.sol";
  */
 contract EswapCoWSettlement is CowSigning {
     using CowOrder for CowOrder.Data;
+    using SafeERC20 for IERC20;
 
     /// @dev The EswapRouter that executes the underlying margin swap.
     EswapRouter public immutable router;
@@ -77,6 +86,7 @@ contract EswapCoWSettlement is CowSigning {
     error InvalidAmount();
     error InvalidOwner();
     error ZeroSolver();
+    error SolverNotCaller();
     error NativeMarginNotSupported();
     // [AUDIT CRIT-05] The order's appData must commit the exact leverage the
     // fill is about to apply (an underwriting signal the trader signs).
@@ -181,6 +191,13 @@ contract EswapCoWSettlement is CowSigning {
         uint256 n = orders.length;
         require(n == schemes.length && n == signatures.length && n == params.length, "array length mismatch");
         for (uint256 i = 0; i < n; i++) {
+            // The per-order fill self-call loses `msg.sender`, so bind each
+            // solver to the batch caller here; `_fillOrder` accepts the
+            // self-call only for orders that passed this gate.
+            if (params[i].solver != msg.sender) {
+                failed++;
+                continue;
+            }
             try this.fillOrder(orders[i], schemes[i], signatures[i], params[i]) returns (address) {
                 count++;
             } catch {
@@ -260,7 +277,38 @@ contract EswapCoWSettlement is CowSigning {
             minAmountOut: order.buyAmount
         });
 
-        router.swapMultiPoolForSolverFunded(swapParams, owner, params.solver);
+        // [AUDIT CRIT-4b] The margin leg is funded by `params.solver`, so the
+        // solver nominating itself must be the caller. Without this, anyone could
+        // fill an (attacker-owned) order with `params.solver = <victim solver>`
+        // and convert that solver's allowance into a position for the attacker.
+        // `msg.sender == address(this)` is the batch path, whose caller is bound
+        // to `params.solver` in `fillOrders` before the self-call.
+        if (msg.sender != address(this) && params.solver != msg.sender) revert SolverNotCaller();
+
+        // The router only pulls the margin from the address that calls it (the
+        // strict anti-drain gate on swapMultiPoolForSolverFunded). Pull the
+        // margin into this settlement first, then fund the router from here, so
+        // the funder authorizes THIS contract and never the router.
+        //
+        // [AUDIT CRIT-ACT-03] MARGIN CUSTODY. When this contract settles the
+        // order itself, the trader never pays: pulling the margin from the
+        // solver means the solver finances the trader's collateral and only the
+        // BORROW leg is returned on close, so the trader walks away with the
+        // margin. Prefer the ORDER OWNER's own pre-approved sell leg (the CoW
+        // "sell" side) and fall back to the solver only when the owner has not
+        // approved this settlement — that is the GPv2-batch case, where the
+        // canonical settlement has already moved the sell amount to the solver.
+        address marginSource = params.solver;
+        if (IERC20(order.sellToken).allowance(owner, address(this)) >= margin) {
+            marginSource = owner;
+        }
+        IERC20(order.sellToken).safeTransferFrom(marginSource, address(this), margin);
+        IERC20(order.sellToken).forceApprove(address(router), margin);
+
+        router.swapMultiPoolForSolverFunded(swapParams, owner, address(this));
+        // The router consumes exactly `margin`; reset the standing approval so no
+        // residual allowance survives the fill.
+        IERC20(order.sellToken).forceApprove(address(router), 0);
 
         emit OrderFilled(orderUid, owner, params.solver, margin, params.leverage);
     }

@@ -165,7 +165,7 @@ contract EswapERC7683Test is BaseV4Test {
         assertEq(posTrader, trader);
         assertEq(posLeverage, 5);
         assertEq(borrowed, 40 ether);
-        assertEq(collateral, (48 ether * 9950) / 10000); // 0.5% fee deducted
+        assertEq(collateral, (48 ether * 9990) / 10000); // 0.1% fee deducted
         assertGt(liquidity, 0, "collateral rehypothecation should be deployed");
     }
 

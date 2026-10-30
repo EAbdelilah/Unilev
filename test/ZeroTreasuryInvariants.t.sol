@@ -225,6 +225,7 @@ contract ZeroTreasuryInvariants is Test {
         deal(UNICHAIN_USDC, relayer, 10_000_000e6);
         vm.startPrank(solver);
         usdc.approve(address(router), type(uint256).max);
+        usdc.approve(address(cow), type(uint256).max);
         vm.stopPrank();
         vm.startPrank(relayer);
         usdc.approve(address(settlement), type(uint256).max);
@@ -277,7 +278,7 @@ contract ZeroTreasuryInvariants is Test {
             sellAmount: margin,
             buyAmount: 0,
             validTo: uint32(block.timestamp + 15 minutes),
-            appData: keccak256("eswap-zero-treasury"),
+            appData: cow.leverageCommitment(leverage),
             feeAmount: 0,
             kind: KIND_SELL,
             partiallyFillable: false,
@@ -294,6 +295,7 @@ contract ZeroTreasuryInvariants is Test {
             key: hookLocalKey,
             standardPoolKey: standardLocalKey
         });
+        vm.prank(solver);
         address owner = cow.fillOrder(order, CowSigning.Scheme.Eip712, sig, params);
         if (openRecords.length < MAX_OPEN_RECORDS) {
             openRecords.push(OpenRecord({trader: owner, margin: margin, leverage: leverage, solverOf: solver}));

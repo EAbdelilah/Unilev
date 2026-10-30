@@ -29,6 +29,20 @@ const abiOf = (f) => {
   return Array.isArray(j) ? j : j.abi;
 };
 
+// Read whichever cap surface the deployed settler exposes: the split build has
+// maxMakingAmount()/maxTakingAmount(), the original build only the single
+// maxFillAmount() scalar applied to both legs. Keeps this probe working across
+// the pending split-cap redeploy.
+const readCaps = async (fusion) => {
+  try {
+    const [making, taking] = await Promise.all([fusion.maxMakingAmount(), fusion.maxTakingAmount()]);
+    return { making, taking, split: true };
+  } catch {
+    const single = await fusion.maxFillAmount();
+    return { making: single, taking: single, split: false };
+  }
+};
+
 const MAKER = '0xd9Aba9723d14b36588bcF9D47c2FF355EEC47F3c';
 
 const ORDER_FIELDS = [
@@ -66,20 +80,28 @@ async function main() {
 
   const [, ethAnswer] = await feed.latestRoundData();
   const p8 = BigInt(ethAnswer);
-  const maxFill = await fusion.maxFillAmount();
+  const caps = await readCaps(fusion);
   console.log('lod        ', LOP);
   console.log('fusion     ', FUSION);
   console.log('makerAsset ', await fusion.makerAsset(), '(USDC)');
   console.log('takerAsset ', await fusion.takerAsset(), '(WETH)');
   console.log('operator   ', await fusion.operator());
-  console.log('maxFillAmount', maxFill.toString());
+  console.log('caps        making', caps.making.toString(), '/ taking', caps.taking.toString(), `(${caps.split ? 'split' : 'legacy-single'})`);
   console.log('ETH/USD (8dp)', p8.toString(), '=', Number(p8) / 1e8);
   console.log('maker USDC   ', (await usdc.balanceOf(MAKER)).toString());
 
-  // Taker-side (WETH) amount is double-bounded by maxFillAmount, which the
-  // deployment set to 5000e6 -> a taker leg above 5e9 wei reverts AmountTooLarge.
-  const takingAmount = maxFill - 200_000_000n; // 4.8e9 wei, just under the cap
-  const makingAmount = (takingAmount * p8) / 10n ** 20n; // fair at the live ETH/USD price
+  // Size just under BOTH caps: the making leg is USDC (6dp), the taking leg is
+  // WETH (18dp). On a legacy single-cap settler both equal maxFillAmount, so
+  // this reproduces the old 4.8e9-wei taking size; on the split build it can
+  // reach the real WETH cap.
+  const makingCap = caps.making > 200_000_000n ? caps.making - 200_000_000n : caps.making;
+  const takingCap = caps.taking > 200_000_000n ? caps.taking - 200_000_000n : caps.taking;
+  let makingAmount = makingCap;
+  let takingAmount = (makingAmount * 10n ** 20n) / p8; // fair at the live ETH/USD price
+  if (takingAmount > takingCap) {
+    takingAmount = takingCap;
+    makingAmount = (takingAmount * p8) / 10n ** 20n;
+  }
   console.log('makingAmount', makingAmount.toString(), '(USDC units)');
   console.log('takingAmount', takingAmount.toString(), '(WETH wei)');
 

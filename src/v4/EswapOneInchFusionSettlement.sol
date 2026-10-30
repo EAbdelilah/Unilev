@@ -161,6 +161,15 @@ contract EswapOneInchFusionSettlement is IPostInteraction, Ownable {
         if (!pendingFills[orderHash].fulfilled) revert PostInteractionNotFired();
         if (takingAmount > maxTakingAmount) revert AmountTooLarge();
 
+        // [AUDIT MED-03] The taker-asset approval existed only to fund THIS fill;
+        // leaving `maxTakingAmount` live afterwards gave the LOP a permanent
+        // transfer right over the settlement's inventory (one stray/compromised
+        // order and the whole balance is drainable). Reset unconditionally.
+        takerAsset.forceApprove(address(lop), 0);
+
+        // [AUDIT MED-03] Emit the fill exactly once, here, with the FINAL
+        // making/taking amounts. `postInteraction` used to emit a second copy
+        // mid-fill, which double-counted volume in every indexer.
         emit OrderFilled(orderHash, recipient, makingAmount, takingAmount);
     }
 
@@ -184,7 +193,8 @@ contract EswapOneInchFusionSettlement is IPostInteraction, Ownable {
         if (pf.fulfilled) revert OrderAlreadyFulfilled();
         pf.fulfilled = true;
 
-        emit OrderFilled(orderHash, pf.recipient, makingAmount, takingAmount);
+        // [AUDIT MED-03] No event here: `fill` is the single emitter and it emits
+        // AFTER `fillOrderArgs` returns, with the same final amounts.
     }
 
     function rescueToken(address token, address to, uint256 amount) external onlyOwner {

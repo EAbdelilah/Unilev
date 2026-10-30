@@ -37,7 +37,9 @@ interface IEswapSettlementOps {
 ///           ONEINCH_FUSION_LOP_ADDRESS        canonical 1inch Limit Order Protocol
 ///           ONEINCH_FUSION_MAKER_ASSET        maker asset (we receive)
 ///           ONEINCH_FUSION_TAKER_ASSET        taker asset (we deliver), 6..18 dp
-///           ONEINCH_FUSION_MAX_FILL           per-fill cap
+///           ONEINCH_FUSION_MAX_FILL           making-side (maker asset) cap
+///           ONEINCH_FUSION_MAX_TAKING         taking-side cap (optional;
+///                                             defaults to MAX_FILL)
 ///         Optional env:
 ///           SETTLEMENT_OPERATOR_ADDRESS       authorized filler (both settlers)
 ///           UNISWAPX_SETTLEMENT_RECIPIENT     default pending recipient
@@ -96,15 +98,17 @@ contract DeployInventorySettlers is Script {
             address lop = vm.envAddress("ONEINCH_FUSION_LOP_ADDRESS");
             address makerAsset = vm.envAddress("ONEINCH_FUSION_MAKER_ASSET");
             address takerAsset = vm.envAddress("ONEINCH_FUSION_TAKER_ASSET");
-            uint256 maxFill = vm.envUint("ONEINCH_FUSION_MAX_FILL");
+            uint256 maxMaking = vm.envUint("ONEINCH_FUSION_MAX_FILL");
+            uint256 maxTaking = vm.envOr("ONEINCH_FUSION_MAX_TAKING", maxMaking);
             require(lop.code.length > 0, "ONEINCH_FUSION_LOP_ADDRESS has no code");
             require(makerAsset.code.length > 0, "1inch maker asset has no code");
             require(takerAsset.code.length > 0, "1inch taker asset has no code");
-            require(maxFill > 0, "maxFill must be > 0");
+            require(maxMaking > 0, "ONEINCH_FUSION_MAX_FILL must be > 0");
+            require(maxTaking > 0, "ONEINCH_FUSION_MAX_TAKING must be > 0");
 
-            EswapOneInchFusionSettlement fi =
-                uint256 maxTaking = vm.envOr("ONEINCH_FUSION_MAX_TAKING", maxFill);
-        new EswapOneInchFusionSettlement(IOrderMixin(lop), IERC20(makerAsset), IERC20(takerAsset), maxFill, maxTaking);
+            EswapOneInchFusionSettlement fi = new EswapOneInchFusionSettlement(
+                IOrderMixin(lop), IERC20(makerAsset), IERC20(takerAsset), maxMaking, maxTaking
+            );
             require(fi.operator() == deployer, "fi.operator != deployer");
             if (operator != address(0)) IEswapSettlementOps(address(fi)).setOperator(operator);
             if (!router.registeredSolvers(address(fi))) router.setSolverWhitelist(address(fi), true);
@@ -113,7 +117,7 @@ contract DeployInventorySettlers is Script {
             console.log(string.concat("  lop:             ", vm.toString(address(fi.lop()))));
             console.log(string.concat("  maker/taker:     ", vm.toString(address(fi.makerAsset())), "/", vm.toString(address(fi.takerAsset()))));
             console.log(string.concat("  maxMakingAmount: ", vm.toString(fi.maxMakingAmount())));
-        console.log(string.concat("  maxTakingAmount: ", vm.toString(fi.maxTakingAmount())));
+            console.log(string.concat("  maxTakingAmount: ", vm.toString(fi.maxTakingAmount())));
             console.log(string.concat("  operator:        ", vm.toString(fi.operator())));
             console.log(string.concat("  whitelisted:     ", vm.toString(router.registeredSolvers(address(fi)))));
         }

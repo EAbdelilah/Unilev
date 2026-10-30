@@ -43,7 +43,7 @@ contract TwapFeedForkTest is Test {
         vm.createSelectFork(rpcUrl);
 
         ethFeed = new EthTwapFeed(POOL, WINDOW, USDC, WETH);
-        usdcFeed = new UsdcTwapFeed(POOL, ETH_USD, WINDOW, USDC, WETH);
+        usdcFeed = new UsdcTwapFeed(POOL, ETH_USD, WINDOW, USDC, WETH, 24 hours);
     }
 
     // ─── Plumbing ─────────────────────────────────────────────────────────────
@@ -66,7 +66,7 @@ contract TwapFeedForkTest is Test {
         new EthTwapFeed(POOL, WINDOW, address(0xdEaD), WETH); // usdc_ not a pool token
 
         vm.expectRevert(UsdcTwapFeed.BadPool.selector);
-        new UsdcTwapFeed(POOL, ETH_USD, WINDOW, USDC, address(0xdEaD)); // weth_ not a pool token
+        new UsdcTwapFeed(POOL, ETH_USD, WINDOW, USDC, address(0xdEaD), 24 hours); // weth_ not a pool token
     }
 
     function test_RejectsZeroWindowAndZeroPool() public {

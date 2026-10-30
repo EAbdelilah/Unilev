@@ -121,7 +121,7 @@ contract EswapSolverYieldTest is Test {
     function test_Rebalance_RoutesYieldSurplusToSolver() public {
         _open(trader, 100 ether, 3); // bought 300 TK1 -> collateral 298.5 TK1
         (, uint256 collateralRecorded, uint256 borrowed,,,,,,) = hook.positions(key.toId(), trader);
-        assertEq(collateralRecorded, 298.5 ether, "50bps fee shaves collateral");
+        assertEq(collateralRecorded, 299.7 ether, "10bps fee shaves collateral");
         assertGt(borrowed, 0);
 
         hook.registerSolverDebt(key.toId(), trader, solver, borrowed);

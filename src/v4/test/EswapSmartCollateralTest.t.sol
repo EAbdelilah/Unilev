@@ -50,8 +50,8 @@ contract EswapSmartCollateralTest is BaseV4Test {
         ) = hook.positions(key.toId(), address(this));
 
         assertEq(trader, address(this));
-        // positionCollateral = 480 ether * 9950/10000 (0.5% fee deducted)
-        assertEq(collateral, (480 ether * 9950) / 10000);
+        // positionCollateral = 480 ether * 9990/10000 (0.1% fee deducted)
+        assertEq(collateral, (480 ether * 9990) / 10000);
         assertEq(borrow, 400 ether); // 100 * (5-1)
         assertEq(lev, 5);
         assertFalse(isLong);
@@ -157,7 +157,7 @@ contract EswapSmartCollateralTest is BaseV4Test {
         // Double: _settleTransientDebt + _settle each burn up to collateralAmount
         manager.mint(address(hook), uint256(uint160(address(token1))), 480 ether * 2);
 
-        uint256 collateralAmount = (480 ether * 9950) / 10000; // 477.6 ether
+        uint256 collateralAmount = (480 ether * 9990) / 10000; // 479.52 ether
 
         // Register the solver's debt so close pays the yield to it
         hook.registerSolverDebt(key.toId(), address(this), solver, 400 ether);
@@ -210,7 +210,7 @@ contract EswapSmartCollateralTest is BaseV4Test {
         // Double: _settleTransientDebt + _settle each burn up to collateralAmount
         manager.mint(address(hook), uint256(uint160(address(token1))), 99.9 ether * 2);
 
-        uint256 collateralAmount = (99.9 ether * 9950) / 10000;
+        uint256 collateralAmount = (99.9 ether * 9990) / 10000;
         hook.deployCollateral(key, address(this));
 
         manager.setNextModifyLiquidityDelta(0, int128(110 ether));
@@ -260,7 +260,7 @@ contract EswapSmartCollateralTest is BaseV4Test {
         token0.mint(address(hook), 800 ether);
         // The unwind swap's transient COLLATERAL-currency (token1) debt: no PM
         // claims exist in direct-call mode, so physical tokens must cover it.
-        token1.mint(address(hook), 477.6 ether);
+        token1.mint(address(hook), 479.52 ether);
 
         uint256 solverToken0Before = token0.balanceOf(solver);
         uint256 solverToken1Before = token1.balanceOf(solver);

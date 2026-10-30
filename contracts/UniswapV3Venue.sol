@@ -120,7 +120,7 @@ contract UniswapV3Venue is IExternalVenue, IUniswapV3SwapCallback, Ownable, Reen
         uint256 amountIn,
         uint256 minAmountOut,
         bytes calldata data
-    ) external onlyOwner nonReentrant returns (uint256 amountOut) {
+    ) external payable onlyOwner nonReentrant returns (uint256 amountOut) {
         if (amountIn == 0) return 0;
         if (tokenOut == address(0)) revert TokenMismatch();
 
@@ -144,12 +144,13 @@ contract UniswapV3Venue is IExternalVenue, IUniswapV3SwapCallback, Ownable, Reen
         }
         if (v3Pool.fee() != feeTier) revert TokenMismatch();
 
-        // Pull the input.
+        // Take the input. Native collateral arrives as msg.value from the caller;
+        // this contract must never send its own ETH back to the caller.
         if (tokenIn == address(0)) {
-            (bool ok,) = payable(msg.sender).call{value: amountIn}("");
-            if (!ok) revert NativePullFailed();
+            if (msg.value != amountIn) revert NativePullFailed();
             weth.deposit{value: amountIn}();
         } else {
+            if (msg.value != 0) revert NativePullFailed();
             IERC20(tokenIn).safeTransferFrom(msg.sender, address(this), amountIn);
         }
 

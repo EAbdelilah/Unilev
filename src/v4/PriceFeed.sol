@@ -123,14 +123,44 @@ contract PriceFeed {
      * @param decimals_ Decimals of the feed answer (8 for most USD feeds)
      */
     function setPriceFeed(address token, address feed, uint8 decimals_) external onlyOwner {
+        // [AUDIT MED-12] The configured decimals drive the 18-decimal
+        // normalisation of EVERY price read for this token. If they disagree
+        // with the feed, every collateral valuation, liquidation threshold and
+        // OI cap is scaled by 10**|actual - declared| — off by 1e10 for a
+        // 6-decimal USDC feed declared as 8 or vice versa. Bind the two together
+        // at registration instead of trusting the caller's number.
+        uint8 declared = decimals_ == 0 ? 8 : decimals_;
+        _assertFeedDecimals(feed, declared);
         priceFeeds[token] = feed;
-        feedDecimals[token] = decimals_ == 0 ? 8 : decimals_;
+        feedDecimals[token] = declared;
     }
 
-    /// @notice Legacy 2-param overload – assumes 8-decimal USD feed.
+    /// @notice Legacy 2-param overload — derives the feed decimals on-chain when
+    ///         possible, falling back to 8-decimal USD feeds.
     function setPriceFeed(address token, address feed) external onlyOwner {
         priceFeeds[token] = feed;
-        feedDecimals[token] = 8;
+        feedDecimals[token] = _feedDecimalsOrDefault(feed, 8);
+    }
+
+    /// @dev Reverts when a live feed reports different decimals than `expected`.
+    ///      Feeds without code (off-chain placeholders, address(0)) are skipped.
+    function _assertFeedDecimals(address feed, uint8 expected) internal view {
+        if (feed.code.length == 0) return;
+        try AggregatorV3Interface(feed).decimals() returns (uint8 actual) {
+            require(actual == expected, "PriceFeed: decimals mismatch");
+        } catch {
+            // A feed that does not expose decimals() cannot be cross-checked.
+        }
+    }
+
+    /// @dev Reads the feed's own decimals(), defaulting when unavailable.
+    function _feedDecimalsOrDefault(address feed, uint8 fallback_) internal view returns (uint8) {
+        if (feed.code.length == 0) return fallback_;
+        try AggregatorV3Interface(feed).decimals() returns (uint8 actual) {
+            return actual == 0 ? fallback_ : actual;
+        } catch {
+            return fallback_;
+        }
     }
 
     function setAnswerBounds(address token, int256 min, int256 max) external onlyOwner {
@@ -182,7 +212,13 @@ contract PriceFeed {
     }
 
     function valideBounds(address token, int256 price) internal view {
-        if (requireBounds && minAnswers[token] <= 0 && maxAnswers[token] <= 0) revert BoundsNotConfigured();
+        // [AUDIT HIGH-ACT-03] `requireBounds` means "every priced token MUST have
+        // a two-sided circuit breaker". With `&&` a token configured with only a
+        // floor (or only a ceiling) silently skipped the completeness check, so
+        // the missing side was never enforced. `||` rejects any single-sided (or
+        // absent) configuration while bounds stay fully optional when
+        // `requireBounds == false`.
+        if (requireBounds && (minAnswers[token] <= 0 || maxAnswers[token] <= 0)) revert BoundsNotConfigured();
         if (minAnswers[token] > 0 && price <= minAnswers[token]) revert OraclePriceOutOfBounds();
         if (maxAnswers[token] > 0 && price >= maxAnswers[token]) revert OraclePriceOutOfBounds();
     }

@@ -23,12 +23,13 @@
  * TransferFromMakerToTakerFailed when the allowance is missing); both EIP-712
  * encodings revert BadSignature().
  *
- * SIZING CAVEAT: the deployed settler carries ONE scalar `maxFillAmount`
- * (5e9) that is applied to the USDC making leg AND the 18-decimal WETH taking
- * leg, so the WETH out is capped at 5 gwei. At the live ETH/USD price that is
- * ~11 USDC-units of notional. The cap is a deployment misconfiguration (see
- * MAINNET_PROOF.md §11); this script therefore sizes the fill at the cap
- * instead of inventing a bigger order, and reports the exact numbers.
+ * SIZING CAVEAT: the settler applies TWO caps, `maxMakingAmount` (USDC side) and
+ * `maxTakingAmount` (WETH side). Older deployments carry a single scalar
+ * `maxFillAmount` that is applied to both legs, so a 6-decimal USDC cap reused
+ * for 18-decimal WETH capped the out leg at 5 gwei (see MAINNET_PROOF.md §11).
+ * readCaps() below reads whichever build is live, so this script works before
+ * and after the split-cap redeploy. It always sizes to the real cap instead of
+ * inventing a bigger order, and reports the exact numbers.
  */
 const { ethers } = require('ethers');
 const fs = require('fs');
@@ -84,6 +85,21 @@ function loadEnv() {
 function abiOf(file) {
   const j = JSON.parse(fs.readFileSync(path.resolve(process.cwd(), file), 'utf8'));
   return Array.isArray(j) ? j : j.abi;
+}
+
+// Read whichever cap surface the DEPLOYED settler exposes. The split build has
+// maxMakingAmount()/maxTakingAmount(); the original build only has the single
+// maxFillAmount() scalar, which it applies to BOTH legs. Keeping this probe
+// means the script still runs against the live single-cap settler while the
+// split-cap redeploy is pending, and automatically switches afterwards.
+async function readCaps(fusion) {
+  try {
+    const [making, taking] = await Promise.all([fusion.maxMakingAmount(), fusion.maxTakingAmount()]);
+    return { making, taking, split: true };
+  } catch {
+    const single = await fusion.maxFillAmount();
+    return { making: single, taking: single, split: false };
+  }
 }
 
 const gwei = (v) => BigInt(Math.round(Number(v) * 1e9));
@@ -145,15 +161,24 @@ async function main() {
   console.log(`mode ${mode}  rpc ${RPC}  block ${blk.number}`);
 
   // ── deployed settler wiring ───────────────────────────────────────────
-  const [settlerLop, makerAsset, takerAsset, maxFill, operator, owner] = await Promise.all([
+  const [settlerLop, makerAsset, takerAsset, caps, operator, owner] = await Promise.all([
     fusion.lop(),
     fusion.makerAsset(),
     fusion.takerAsset(),
-    fusion.maxFillAmount(),
+    readCaps(fusion),
     fusion.operator(),
     fusion.owner(),
   ]);
-  const wiring = { settlerLop, makerAsset, takerAsset, maxFill: maxFill.toString(), operator, owner };
+  const wiring = {
+    settlerLop,
+    makerAsset,
+    takerAsset,
+    maxMaking: caps.making.toString(),
+    maxTaking: caps.taking.toString(),
+    caps: caps.split ? 'split' : 'legacy-single',
+    operator,
+    owner,
+  };
   console.log('settler wiring', JSON.stringify(wiring, null, 0));
   if (settlerLop.toLowerCase() !== LOP.toLowerCase()) throw new Error('settler LOP mismatch');
   if (makerAsset.toLowerCase() !== USDC.toLowerCase()) throw new Error('settler makerAsset is not USDC');
@@ -167,25 +192,39 @@ async function main() {
   const makerUsdc = await usdc.balanceOf(maker.address);
   const solverWeth = await weth.balanceOf(solver.address);
 
-  // WETH out is bounded by maxFillAmount (wei) because fill() checks
-  // `takingAmount > maxFillAmount`. Stay 4% under the cap for rounding slack.
-  const takingAmount = (maxFill * 96n) / 100n;
-  // Fair value at the live Chainlink ETH/USD price: making(6dp) = taking(wei)*p8/1e20
-  const makingAmount = (takingAmount * p8) / 10n ** 20n;
+  // Two independent caps: the USDC (making) leg and the WETH (taking) leg. Size
+  // the order at the live Chainlink price and take whichever cap binds first.
+  // Stay 4% under each cap for rounding slack.
+  const makingCap = (caps.making * 96n) / 100n;
+  const takingCap = (caps.taking * 96n) / 100n;
+  let makingAmount = makingCap;
+  // Fair value at the live Chainlink ETH/USD price: taking(wei) = making(6dp)*1e20/p8
+  let takingAmount = (makingAmount * 10n ** 20n) / p8;
+  if (takingAmount > takingCap) {
+    takingAmount = takingCap;
+    makingAmount = (takingAmount * p8) / 10n ** 20n;
+  }
   if (makingAmount === 0n) throw new Error('cap leaves no room for a non-zero USDC leg');
   if (makingAmount > makerUsdc) throw new Error(`maker USDC ${makerUsdc} < makingAmount ${makingAmount}`);
   if (takingAmount > solverWeth) throw new Error(`solver WETH ${solverWeth} < takingAmount ${takingAmount}`);
-  if (makingAmount > maxFill) throw new Error('making leg exceeds maxFillAmount');
+  if (makingAmount > caps.making) throw new Error('making leg exceeds maxMakingAmount');
+  if (takingAmount > caps.taking) throw new Error('taking leg exceeds maxTakingAmount');
 
   console.log(`ETH/USD ${Number(p8) / 1e8}  maker USDC ${makerUsdc} units  solver WETH ${solverWeth} wei`);
-  console.log(`sized making ${makingAmount} USDC-units  taking ${takingAmount} wei WETH  (cap ${maxFill})`);
+  console.log(
+    `sized making ${makingAmount} USDC-units  taking ${takingAmount} wei WETH  (caps making ${caps.making} / taking ${caps.taking}, ${caps.split ? 'split' : 'legacy-single'})`
+  );
   results.sizing = {
     ethUsd8: p8.toString(),
     makingAmount: makingAmount.toString(),
     takingAmount: takingAmount.toString(),
-    maxFillAmount: maxFill.toString(),
+    maxMakingAmount: caps.making.toString(),
+    maxTakingAmount: caps.taking.toString(),
+    caps: caps.split ? 'split' : 'legacy-single',
     makerUsdcBalance: makerUsdc.toString(),
-    note: 'WETH leg is capped by the settler maxFillAmount (5e9 wei = 5 gwei); the USDC leg is the fair value of that WETH at the live Chainlink price.',
+    note: caps.split
+      ? 'Split caps: making leg bounded by maxMakingAmount (maker asset) and taking leg by maxTakingAmount (taker asset); sized at the live Chainlink ETH/USD price, 4% under each cap.'
+      : 'Legacy single cap: maxFillAmount applies to BOTH legs, so the WETH out is capped by the USDC-scaled scalar (see MAINNET_PROOF.md §11). Redeploy the split-cap settler to lift it.',
   };
 
   // ── order + signature ─────────────────────────────────────────────────

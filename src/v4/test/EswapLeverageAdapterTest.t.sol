@@ -113,7 +113,7 @@ contract EswapLeverageAdapterTest is BaseV4Test {
         assertEq(posTrader, user);
         assertEq(posLeverage, 5);
         assertEq(borrowed, 40 ether);
-        assertEq(collateral, (48 ether * 9950) / 10000); // 0.5% fee
+        assertEq(collateral, (48 ether * 9990) / 10000); // 0.1% fee
         assertGt(liquidity, 0, "collateral rehypothecation deployed");
     }
 
@@ -128,7 +128,7 @@ contract EswapLeverageAdapterTest is BaseV4Test {
         (, uint256 collateral, uint256 borrowed, uint8 posLeverage,,,,,) = hook.positions(key.toId(), user);
         assertEq(posLeverage, 2);
         assertEq(borrowed, 10 ether);
-        assertEq(collateral, (19 ether * 9950) / 10000);
+        assertEq(collateral, (19 ether * 9990) / 10000);
     }
 
     /// @dev [FIX H-3] The minAmountOut is now forwarded into the router and
@@ -238,16 +238,36 @@ contract EswapLeverageAdapterTest is BaseV4Test {
         assertEq(sk.fee, 500);
     }
 
-    // ─── [AUDIT CRIT-6] Multicall restricted to selfPermit ─────────────
+    // --- [AUDIT HIGH-ACT-02] Multicall: permit + leverage swaps, no admin ---
 
-    function test_Adapter_Multicall_RejectsArbitrarySelector() public {
-        // Swaps delegatecalled through the adapter could bind a caller-controlled
-        // route/exchangeProxy — must be unreachable via multicall.
+    /// @dev The advertised atomic `[selfPermit, exactInputSingleWithLeverage]`
+    ///      batch must be usable. The leverage entry points are user-facing and
+    ///      bind the trader to `msg.sender` (preserved across delegatecall), so a
+    ///      delegatecall behaves exactly like a direct call.
+    function test_Adapter_Multicall_AllowsSwapEntryPoints() public {
         bytes[] memory data = new bytes[](1);
         data[0] = abi.encodeWithSelector(
-            adapter.exactInputSingleWithLeverage.selector, address(token0), address(token1), 3000, 5, MARGIN, 0, user
+            adapter.exactInputSingleWithLeverage.selector, address(token1), address(token0), 3000, 5, MARGIN, 0, user
         );
-        vm.expectRevert(bytes("unauthorized delegatecall"));
+        // Reaching the function body (unregistered pool) proves the selector gate
+        // accepted the payload instead of reverting "unauthorized delegatecall".
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                EswapLeverageAdapter.PoolNotRegistered.selector, address(token1), address(token0), 3000
+            )
+        );
+        adapter.multicall(data);
+    }
+
+    function test_Adapter_Multicall_RejectsNonSwapSelectors() public {
+        // Anything outside {selfPermit, the four leverage entry points} is blocked.
+        bytes[] memory data = new bytes[](1);
+        data[0] = abi.encodeWithSelector(adapter.getPoolKey.selector, address(token0), address(token1), 3000);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                EswapLeverageAdapter.UnauthorizedDelegatecall.selector, adapter.getPoolKey.selector
+            )
+        );
         adapter.multicall(data);
     }
 
@@ -255,17 +275,25 @@ contract EswapLeverageAdapterTest is BaseV4Test {
         // Admin actions must NOT be reachable via delegatecall from any caller.
         bytes[] memory data = new bytes[](1);
         data[0] = abi.encodeWithSelector(adapter.setDefaultSolver.selector, makeAddr("evilSolver"));
-        vm.expectRevert(bytes("unauthorized delegatecall"));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                EswapLeverageAdapter.UnauthorizedDelegatecall.selector, adapter.setDefaultSolver.selector
+            )
+        );
         adapter.multicall(data);
 
         data[0] = abi.encodeWithSelector(
             adapter.registerPool.selector, address(token0), address(token1), 100, standardPoolKey, standardPoolKey
         );
-        vm.expectRevert(bytes("unauthorized delegatecall"));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                EswapLeverageAdapter.UnauthorizedDelegatecall.selector, adapter.registerPool.selector
+            )
+        );
         adapter.multicall(data);
     }
 
-    function test_Adapter_Multicall_AllowsSelfPermitOnly() public {
+    function test_Adapter_Multicall_AllowsSelfPermit() public {
         PermitTracker permitToken = new PermitTracker();
 
         bytes[] memory data = new bytes[](1);

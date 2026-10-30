@@ -1,0 +1,14 @@
+{
+  "mode": "broadcast",
+  "startBlock": 53131480,
+  "startedAt": "2026-10-26T22:05:06.495Z",
+  "steps": [
+    {
+      "venue": "socket",
+      "status": "unfunded",
+      "error": "trader 0xE13cAf603e000B0CfD904064A97cF7B5fb1AD425 ETH 28711153078598 < gas reserve 32000000000000 (gasLimit 1600000 @ 20000000)",
+      "exchangeProxy": "0x50c4E75a512F2A14A7b304787Adf79C4531A5909"
+    }
+  ],
+  "finishedAt": "2026-10-26T22:05:09.325Z"
+}

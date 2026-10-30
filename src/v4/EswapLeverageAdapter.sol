@@ -62,6 +62,7 @@ contract EswapLeverageAdapter is Ownable {
     ///      executor. Prevents an arbitrary caller from selecting (and thereby
     ///      drawing down) another party's bonded/whitelisted solver credit.
     error SolverSelectionUnauthorized();
+    error UnauthorizedDelegatecall(bytes4 selector);
 
     event PoolRegistered(address indexed tokenIn, address indexed tokenOut, uint24 fee);
     event DefaultSolverSet(address indexed solver);
@@ -300,18 +301,24 @@ contract EswapLeverageAdapter is Ownable {
 
     /**
      * @notice Batch multiple calls in one transaction (Enso executor pattern).
-     * @dev [AUDIT CRIT-6] Multicall is restricted to `selfPermit` payloads only.
-     *      Arbitrary-selector delegatecall would let a caller execute ANY adapter
-     *      function in the adapter's context, including `exactInputSingle*` with a
-     *      caller-supplied (potentially malicious) aggregator `route.exchangeProxy`.
-     *      Authenticated admin actions (`registerPool`, `setDefaultSolver`) stay
-     *      owner-gated and must NOT be reachable via delegatecall.
+     * @dev [AUDIT CRIT-6] Arbitrary-selector delegatecall would let a caller
+     *      execute ANY adapter function in the adapter's context, including
+     *      owner-gated admin actions (`registerPool`, `setDefaultSolver`,
+     *      `setBackupSolver`) that would then run with `msg.sender == adapter`
+     *      from the router's perspective.
+     *
+     *      [AUDIT HIGH-ACT-02] The previous allowlist accepted ONLY `selfPermit`,
+     *      which made the advertised atomic `[selfPermit, exactInputSingle*]`
+     *      batch impossible: the swap payload always reverted with
+     *      "unauthorized delegatecall". The allowlist now covers the four
+     *      user-facing entry points (all of which bind the trader to `msg.sender`,
+     *      which survives delegatecall) and still excludes every admin action.
      */
     function multicall(bytes[] calldata data) external returns (bytes[] memory results) {
         results = new bytes[](data.length);
         for (uint256 i = 0; i < data.length; i++) {
             bytes4 selector = bytes4(data[i]);
-            require(selector == this.selfPermit.selector, "unauthorized delegatecall");
+            if (!_isAllowedMulticallSelector(selector)) revert UnauthorizedDelegatecall(selector);
             (bool success, bytes memory result) = address(this).delegatecall(data[i]);
             if (!success) {
                 assembly {
@@ -320,6 +327,15 @@ contract EswapLeverageAdapter is Ownable {
             }
             results[i] = result;
         }
+    }
+
+    /// @dev Selectors safe to delegatecall: permit + the leverage entry points.
+    ///      Admin setters are deliberately absent.
+    function _isAllowedMulticallSelector(bytes4 selector) internal pure returns (bool) {
+        return selector == this.selfPermit.selector || selector == this.exactInputSingleWithLeverage.selector
+            || selector == this.exactInputSingleWithLeverageFor.selector
+            || selector == this.exactInputSingleWithLeverageAggregator.selector
+            || selector == this.exactInputSingleWithLeverageAggregatorFor.selector;
     }
 
     // ─── View Helpers ───────────────────────────────────────────────────
