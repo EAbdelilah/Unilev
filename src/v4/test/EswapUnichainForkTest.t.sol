@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
 import {EswapMarginHook} from "../EswapMarginHook.sol";
+import {EswapMarginHookLogic} from "../EswapMarginHookLogic.sol";
 import {PoolKey} from "../types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "../types/PoolId.sol";
 import {Currency} from "../types/Currency.sol";
@@ -85,14 +86,14 @@ contract EswapUnichainForkTest is Test {
             hooks: address(hook)
         });
 
-        hook.setAuthorizedPool(key.toId(), true);
+        EswapMarginHookLogic(payable(address(hook))).setAuthorizedPool(key.toId(), true);
         // WETH is the base token: "long WETH" positions report isLong=true. On
         // Unichain USDC < WETH, so currency0=USDC and currency1=WETH.
-        hook.setBaseCurrency(key.toId(), Currency.wrap(UNICHAIN_WETH));
+        EswapMarginHookLogic(payable(address(hook))).setBaseCurrency(key.toId(), Currency.wrap(UNICHAIN_WETH));
         // Configure decimals so the V4-spot vs V3-TWAP circuit breaker compares
         // like-for-like prices (USDC is 6-decimal, WETH 18-decimal).
-        hook.setTokenDecimals(UNICHAIN_WETH, 18);
-        hook.setTokenDecimals(UNICHAIN_USDC, 6);
+        EswapMarginHookLogic(payable(address(hook))).setTokenDecimals(UNICHAIN_WETH, 18);
+        EswapMarginHookLogic(payable(address(hook))).setTokenDecimals(UNICHAIN_USDC, 6);
 
         // Initialize the V4 pool with a starting price of 3000 USDC per WETH.
         // sqrtPriceX96 is computed from the raw token1/token0 ratio (decimals-aware):

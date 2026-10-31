@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
 import {EswapMarginHook, IPriceFeed} from "../EswapMarginHook.sol";
+import {EswapMarginHookLogic} from "../EswapMarginHookLogic.sol";
 import {EswapRouter} from "../EswapRouter.sol";
 import {EswapRouterExt} from "../EswapRouterExt.sol";
 import {IPriceFeedForTrigger} from "../EswapRouterExt.sol";
@@ -73,8 +74,9 @@ contract EswapJITSpotTest is Test {
         ext = new EswapRouterExt(manager, address(router));
         router.setRouterExt(address(ext));
         hook.setRouterAndMinCollateralUsd(address(router), 0);
-        hook.setAuthorizedPool(key.toId(), true);
+        EswapMarginHookLogic(payable(address(hook))).setAuthorizedPool(key.toId(), true);
         ext.setJitApprovedSwapper(swapper, true);
+        ext.setTriggerPriceFeed(IPriceFeedForTrigger(address(priceFeed)));
         // [AUDIT HIGH-1] JIT counterparties must be whitelisted protocol solvers.
         router.setSolverWhitelist(solver, true);
 
@@ -97,7 +99,7 @@ contract EswapJITSpotTest is Test {
 
     function test_JITSpotExecution_BypassesAMM() public {
         uint256 amountIn = 100 ether;
-        uint256 amountOut = 300 ether;
+        uint256 amountOut = 100 ether;
 
         uint256 swapperTok0Before = token0.balanceOf(swapper);
         uint256 swapperTok1Before = token1.balanceOf(swapper);
@@ -136,7 +138,7 @@ contract EswapJITSpotTest is Test {
             zeroForOne: true,
             amountSpecified: -int256(100 ether),
             solver: solver,
-            solverOutput: 300 ether,
+            solverOutput: 100 ether,
             minSolverOutput: 0, // No min in test
             swapper: swapper
         });
@@ -181,7 +183,7 @@ contract EswapJITSpotTest is Test {
             zeroForOne: true,
             amountSpecified: -int256(100 ether),
             solver: solver,
-            solverOutput: 300 ether, // well above the 1:1 oracle floor
+            solverOutput: 100 ether, // fair fill at 1:1 oracle price
             minSolverOutput: 0,
             swapper: swapper
         });
@@ -190,11 +192,9 @@ contract EswapJITSpotTest is Test {
         ext.executeJITSpotSwap(params);
     }
 
-    function test_JITSpot_FloorDisabledByDefault() public {
-        assertEq(ext.jitOracleFloorLeniencyBps(), 0);
+    function test_JITSpot_FloorArmedByDefault() public {
+        assertEq(ext.jitOracleFloorLeniencyBps(), 200);
 
-        // With the floor disabled (0) a below-oracle fill still executes, which
-        // is the legacy behaviour — documents that the owner MUST opt in.
         EswapRouterExt.JITSpotParams memory params = EswapRouterExt.JITSpotParams({
             key: key,
             zeroForOne: true,
@@ -206,6 +206,7 @@ contract EswapJITSpotTest is Test {
         });
 
         vm.prank(swapper);
+        vm.expectRevert();
         ext.executeJITSpotSwap(params);
     }
 
@@ -227,10 +228,10 @@ contract EswapJITSpotTest is Test {
             tickSpacing: 60,
             hooks: address(hook)
         });
-        hook.setAuthorizedPool(nativeKey.toId(), true);
+        EswapMarginHookLogic(payable(address(hook))).setAuthorizedPool(nativeKey.toId(), true);
 
         uint256 amountIn = 3 ether;
-        uint256 amountOut = 300 ether;
+        uint256 amountOut = 3 ether;
 
         vm.deal(swapper, 10 ether);
         uint256 swapperEthBefore = swapper.balance;
@@ -267,10 +268,10 @@ contract EswapJITSpotTest is Test {
             tickSpacing: 60,
             hooks: address(hook)
         });
-        hook.setAuthorizedPool(nativeKey.toId(), true);
+        EswapMarginHookLogic(payable(address(hook))).setAuthorizedPool(nativeKey.toId(), true);
 
         uint256 amountIn = 1 ether;
-        uint256 amountOut = 100 ether;
+        uint256 amountOut = 1 ether;
         uint256 sent = 2 ether; // deliberately over-sent
 
         vm.deal(swapper, 10 ether);
@@ -303,14 +304,14 @@ contract EswapJITSpotTest is Test {
             tickSpacing: 60,
             hooks: address(hook)
         });
-        hook.setAuthorizedPool(nativeKey.toId(), true);
+        EswapMarginHookLogic(payable(address(hook))).setAuthorizedPool(nativeKey.toId(), true);
 
         EswapRouterExt.JITSpotParams memory params = EswapRouterExt.JITSpotParams({
             key: nativeKey,
             zeroForOne: true, // input token1, output native
             amountSpecified: -int256(1 ether),
             solver: solver,
-            solverOutput: 100 ether,
+            solverOutput: 1 ether,
             minSolverOutput: 0,
             swapper: swapper
         });
@@ -328,14 +329,14 @@ contract EswapJITSpotTest is Test {
             tickSpacing: 60,
             hooks: address(hook)
         });
-        hook.setAuthorizedPool(nativeKey.toId(), true);
+        EswapMarginHookLogic(payable(address(hook))).setAuthorizedPool(nativeKey.toId(), true);
 
         EswapRouterExt.JITSpotParams memory params = EswapRouterExt.JITSpotParams({
             key: nativeKey,
             zeroForOne: true,
             amountSpecified: -int256(5 ether),
             solver: solver,
-            solverOutput: 100 ether,
+            solverOutput: 5 ether,
             minSolverOutput: 0,
             swapper: swapper
         });

@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
 import {EswapMarginHook} from "../EswapMarginHook.sol";
+import {EswapMarginHookLogic} from "../EswapMarginHookLogic.sol";
 import {PoolKey} from "../types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "../types/PoolId.sol";
 import {Currency} from "../types/Currency.sol";
@@ -86,10 +87,10 @@ contract EswapMainnetOneCentMarginForkTest is Test {
             hooks: address(hook)
         });
 
-        hook.setAuthorizedPool(key.toId(), true);
-        hook.setBaseCurrency(key.toId(), Currency.wrap(UNICHAIN_WETH));
-        hook.setTokenDecimals(UNICHAIN_WETH, 18);
-        hook.setTokenDecimals(UNICHAIN_USDC, 6);
+        EswapMarginHookLogic(payable(address(hook))).setAuthorizedPool(key.toId(), true);
+        EswapMarginHookLogic(payable(address(hook))).setBaseCurrency(key.toId(), Currency.wrap(UNICHAIN_WETH));
+        EswapMarginHookLogic(payable(address(hook))).setTokenDecimals(UNICHAIN_WETH, 18);
+        EswapMarginHookLogic(payable(address(hook))).setTokenDecimals(UNICHAIN_USDC, 6);
 
         manager.setSlot0(key.toId(), 1446501726624926496477173928747177, 0); // 3000 USDC/WETH, USDC=currency0
 

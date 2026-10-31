@@ -1,0 +1,14 @@
+﻿Compiling 83 files with Solc 0.8.27
+Solc 0.8.27 finished in 537.83ms
+forge : Error: Compiler run failed:
+Au caractère Ligne:1 : 1
++ forge build 2>&1 | Out-File -FilePath build_out3.txt -Encoding utf8;  ...
++ ~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Error: Compiler run failed::String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Error (6933): Expected primary expression.
+   --> src/v4/EswapMarginHookLogic.sol:804:5:
+    |
+804 |     fallback() external payable {
+    |     ^^^^^^^^

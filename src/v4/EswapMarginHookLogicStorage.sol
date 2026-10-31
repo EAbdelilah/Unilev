@@ -119,6 +119,13 @@ abstract contract EswapMarginHookLogicStorage {
     error NothingToStake();
     error NothingToUnstake();
     error StakeCapExceeded();
+    /// @dev [AUDIT F-03] The unwind swap returned materially less than the
+    ///      oracle value of the collateral it sold.
+    error UnwindBelowOracleFloor(uint256 receivedUsd, uint256 floorUsd);
+    /// @dev [AUDIT F-05] Neither a live oracle value nor a cached price exists.
+    error OraclePriceUnavailable();
+    /// @dev [AUDIT F-08] No deferred payout to claim.
+    error NoPayoutCredit();
 
     // ─── Events ───────────────────────────────────────────────────────────────
     event HookSwap(
@@ -161,6 +168,17 @@ abstract contract EswapMarginHookLogicStorage {
     // fallback). Makes the abnormal "debt not accounted via registerSolverDebt"
     // path auditable instead of silently zero-paying the solver.
     event SolverDebtFallbackUsed(PoolId indexed poolId, address indexed trader, uint256 borrowedAmount);
+
+    // [AUDIT F-05] Last validated USD-per-whole-token price observed on a
+    // non-view path. Written on every margin open so the liquidation health
+    // check can degrade to a cached mark instead of reverting during a feed
+    // outage (sequencer restart / heartbeat gap / depeg band breach).
+    event PriceCached(address indexed token, uint256 usdPerWholeToken);
+    // [AUDIT F-08] A payout that could not be delivered (blacklisted or
+    // reverting recipient) was credited instead of bricking the settlement.
+    event PayoutDeferred(address indexed recipient, Currency indexed currency, uint256 amount);
+    event PayoutClaimed(address indexed recipient, Currency indexed currency, uint256 amount);
+    event PayoutRedirectSet(address indexed account, address indexed redirect);
 
     // ─── Storage layout (MUST mirror EswapMarginHook exactly) ──────────────────
     mapping(PoolId => bool) public isAuthorizedPool;
@@ -240,6 +258,43 @@ abstract contract EswapMarginHookLogicStorage {
     // fallback routes those selectors here.
     address internal logic2;
 
+    // [INSURANCE POLICY] Share of an uncovered shortfall the insurance fund may
+    // cover, in bps. Initialised to 10000 (full coverage) by EswapMarginHook's
+    // constructor. Appended AFTER `logic2` so every existing slot is unchanged.
+    uint256 internal insuranceCoverageBps;
+
+    // [LIVENESS] Bumped on every new position open for (pool, trader). A settlement
+    // records the value it saw when it filled; a later bump proves that position
+    // has since closed, because a new open requires the previous one to be gone.
+    mapping(PoolId => mapping(address => uint256)) internal positionEpoch;
+
+    // ─── [AUDIT F-05/F-08] Appended state (every earlier slot unchanged) ──────
+
+    /// @dev [AUDIT F-05] Last validated oracle price per token, as USD per WHOLE
+    ///      token (18 decimals) — exactly what `PriceFeed.getAmountInUsd(token,
+    ///      10 ** decimals)` returns. Written only from non-view execution paths
+    ///      (`registerMarginOpen`, margin `afterSwap`) so the liquidation health
+    ///      check can fall back to a known-good mark when the live feed reverts
+    ///      (sequencer restart grace window, heartbeat gap, depeg band breach).
+    ///      A revert in a *view* is harmless; a revert in `isLiquidatable` is what
+    ///      disables every liquidation, which is the bug this closes.
+    mapping(address => uint256) internal cachedPriceUsd;
+
+    /// @dev [AUDIT F-05] Block timestamp of the last `cachedPriceUsd` write.
+    ///      Observability only: the circuit-breaker mode does not gate on age,
+    ///      because staleness alone must never re-disable liquidations.
+    mapping(address => uint256) internal cachedPriceAt;
+
+    /// @dev [AUDIT F-08] Payouts that could not be delivered (blacklisted token
+    ///      recipient, reverting `receive()`) are credited here instead of
+    ///      reverting the whole settlement. Pull-claimed via `claimPayout`.
+    mapping(address => mapping(Currency => uint256)) internal payoutCredits;
+
+    /// @dev [AUDIT F-08] Optional redirect: proceeds credited/paid to an account
+    ///      are sent to `payoutRedirect[account]` when set, so a compromised or
+    ///      blacklisted address can route proceeds to a clean one.
+    mapping(address => address) internal payoutRedirect;
+
     bytes32 constant TRADER_BASE = keccak256("TRADER");
     bytes32 constant BORROW_BASE = keccak256("BORROW");
     bytes32 constant LEVERAGE_BASE = keccak256("LEVERAGE");
@@ -250,6 +305,22 @@ abstract contract EswapMarginHookLogicStorage {
     uint256 public constant MAX_PAUSE_DURATION = 72 hours;
     uint256 public constant INSURANCE_STAKE_MAX_BPS = 5000;
     int24 public constant INSURANCE_STAKE_RANGE_SPACINGS = 10;
+    /// @dev [AUDIT F-05] Extra maintenance-threshold buffer applied when the
+    ///      health check had to fall back to the cached oracle mark. Widens the
+    ///      liquidation band by 5 pts of collateralisation instead of disabling
+    ///      liquidation entirely while the feed is unhealthy.
+    uint256 internal constant CIRCUIT_BREAKER_BPS = 500;
+    /// @dev [AUDIT F-03] Maximum tolerated shortfall of an unwind swap's realised
+    ///      USD value versus the oracle value of the collateral sold, in bps.
+    ///      5% rather than ~1% so a legitimate large liquidation (the swap itself
+    ///      moves price) is not DoS-able by the floor; beyond 5% the fill is
+    ///      treated as adversarial and reverted.
+    uint256 internal constant MAX_UNWIND_SLIPPAGE_BPS = 500;
+    /// @dev [AUDIT F-07] Floor on the direct liquidator bounty. Even when the
+    ///      owner leaves `liquidatorIncentiveBps` at 0, a keeper is paid this
+    ///      share of the post-solver surplus so liquidation liveness does not
+    ///      depend on a permissioned team keeper. Event-driven, so 0% carry holds.
+    uint256 internal constant LIQUIDATOR_MIN_INCENTIVE_BPS = 50;
     uint256 internal constant INSURANCE_STAKE_TAG = uint256(keccak256("INSURANCE_STAKE"));
     uint256 internal constant INSURANCE_UNSTAKE_TAG = uint256(keccak256("INSURANCE_UNSTAKE"));
     uint256 internal constant DEPLOY_TAG = uint256(keccak256("DEPLOY_COLLATERAL"));

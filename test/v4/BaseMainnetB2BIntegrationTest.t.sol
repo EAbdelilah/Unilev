@@ -6,6 +6,7 @@ import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interf
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {EswapMarginHook} from "../../src/v4/EswapMarginHook.sol";
+import {EswapMarginHookLogic} from "../../src/v4/EswapMarginHookLogic.sol";
 import {EswapRouter} from "../../src/v4/EswapRouter.sol";
 import {EswapLeverageAdapter} from "../../src/v4/EswapLeverageAdapter.sol";
 import {EswapLeverageQuoter} from "../../src/v4/EswapLeverageQuoter.sol";
@@ -249,8 +250,8 @@ contract BaseMainnetB2BIntegrationTest is Test, IUnlockCallback {
         router = EswapRouter(payable(BaseEnsoRoute.TAKER));
 
         hook.setRouterAndMinCollateralUsd(address(router), 0);
-        hook.setTokenDecimals(BASE_WETH, 18);
-        hook.setTokenDecimals(BASE_USDC, 6);
+        EswapMarginHookLogic(payable(hook)).setTokenDecimals(BASE_WETH, 18);
+        EswapMarginHookLogic(payable(hook)).setTokenDecimals(BASE_USDC, 6);
 
         hookLocalKey = PoolKey({
             currency0: Currency.wrap(BASE_WETH),
@@ -278,9 +279,9 @@ contract BaseMainnetB2BIntegrationTest is Test, IUnlockCallback {
         (uint160 hookSqrt,,,) = StateLibrary.getSlot0(pm, hookReal.toId());
         if (hookSqrt == 0) pm.initialize(hookReal, stdSqrt);
 
-        hook.setAuthorizedPool(hookLocalKey.toId(), true);
-        hook.setStandardPoolKey(hookLocalKey.toId(), standardLocalKey);
-        hook.setBaseCurrency(hookLocalKey.toId(), Currency.wrap(BASE_WETH));
+        EswapMarginHookLogic(payable(hook)).setAuthorizedPool(hookLocalKey.toId(), true);
+        EswapMarginHookLogic(payable(hook)).setStandardPoolKey(hookLocalKey.toId(), standardLocalKey);
+        EswapMarginHookLogic(payable(hook)).setBaseCurrency(hookLocalKey.toId(), Currency.wrap(BASE_WETH));
 
         priceFeed.setPrice(BASE_USDC, 1e18);
         priceFeed.setPrice(BASE_WETH, _wethUsd18FromSqrt(stdSqrt));

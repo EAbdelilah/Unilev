@@ -6,6 +6,7 @@ import {console} from "forge-std/console.sol";
 import {EswapMarginHook, IPriceFeed} from "../../src/v4/EswapMarginHook.sol";
 import {EswapMarginHookLogic} from "../../src/v4/EswapMarginHookLogic.sol";
 import {EswapMarginHookLogic2} from "../../src/v4/EswapMarginHookLogic2.sol";
+import {EswapMarginHookLogic3} from "../../src/v4/EswapMarginHookLogic3.sol";
 import {IPriceFeedLogic} from "../../src/v4/EswapMarginHookLogicStorage.sol";
 import {EswapMarginLib} from "../../src/v4/EswapMarginLib.sol";
 import {IPoolManager} from "../../src/v4/interfaces/IPoolManager.sol";
@@ -75,6 +76,7 @@ contract RedeployHookLogic2 is Script {
     /// Fixed salts for the two logic contracts, so their addresses (and therefore
     /// the hook's initcode) are known before the broadcast begins.
     bytes32 constant LOGIC2_SALT = keccak256("eswap.logic2.v1");
+    bytes32 constant LOGIC3_SALT = keccak256("eswap.logic3.v1");
     bytes32 constant LOGIC1_SALT = keccak256("eswap.logic1.v1");
 
     address constant PM = 0x1F98400000000000000000000000000000000004;
@@ -151,10 +153,14 @@ contract RedeployHookLogic2 is Script {
         return keccak256(abi.encodePacked(type(EswapMarginHookLogic2).creationCode, abi.encode(PM, PRICE_FEED)));
     }
 
-    function _logic1InitCodeHash(address logic2) private view returns (bytes32) {
+    function _logic1InitCodeHash(address logic2, address logic3) private view returns (bytes32) {
         return keccak256(
-            abi.encodePacked(type(EswapMarginHookLogic).creationCode, abi.encode(PM, PRICE_FEED, logic2))
+            abi.encodePacked(type(EswapMarginHookLogic).creationCode, abi.encode(PM, PRICE_FEED, logic2, logic3))
         );
+    }
+
+    function _logic3InitCodeHash() private view returns (bytes32) {
+        return keccak256(abi.encodePacked(type(EswapMarginHookLogic3).creationCode, abi.encode(PM, PRICE_FEED)));
     }
 
     function _hookInitCode(address logic1, address logic2, address initialOwner)
@@ -181,8 +187,10 @@ contract RedeployHookLogic2 is Script {
         console.log("EswapMarginLib:", libAddr);
 
         address l2 = _derive(LOGIC2_SALT, _logic2InitCodeHash());
-        address l1 = _derive(LOGIC1_SALT, _logic1InitCodeHash(l2));
+        address l3 = _derive(LOGIC3_SALT, _logic3InitCodeHash());
+        address l1 = _derive(LOGIC1_SALT, _logic1InitCodeHash(l2, l3));
         console.log("logic2 (derived):", l2);
+        console.log("logic3 (derived):", l3);
         console.log("logic1 (derived):", l1);
         require(l2 != address(0) && l1 != address(0), "logic derivation failed");
 
@@ -252,14 +260,21 @@ contract RedeployHookLogic2 is Script {
                 new EswapMarginHookLogic2{salt: LOGIC2_SALT}(IPoolManager(PM), IPriceFeedLogic(PRICE_FEED));
             require(address(deployed2) == l2, "logic2 address drift");
         }
-        address l1 = _derive(LOGIC1_SALT, _logic1InitCodeHash(l2));
+        address l3 = _derive(LOGIC3_SALT, _logic3InitCodeHash());
+        if (l3.code.length == 0) {
+            EswapMarginHookLogic3 deployed3 =
+                new EswapMarginHookLogic3{salt: LOGIC3_SALT}(IPoolManager(PM), IPriceFeedLogic(PRICE_FEED));
+            require(address(deployed3) == l3, "logic3 address drift");
+        }
+        address l1 = _derive(LOGIC1_SALT, _logic1InitCodeHash(l2, l3));
         if (l1.code.length == 0) {
             EswapMarginHookLogic deployed1 = new EswapMarginHookLogic{salt: LOGIC1_SALT}(
-                IPoolManager(PM), IPriceFeedLogic(PRICE_FEED), l2
+                IPoolManager(PM), IPriceFeedLogic(PRICE_FEED), l2, l3
             );
             require(address(deployed1) == l1, "logic1 address drift");
         }
         console.log("HookLogic2:", l2);
+        console.log("HookLogic3:", l3);
         console.log("HookLogic :", l1);
 
         require(EswapMarginHookLogic(payable(l1)).manager() == IPoolManager(PM), "logic manager mismatch");

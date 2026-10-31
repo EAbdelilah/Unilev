@@ -714,9 +714,13 @@ contract EswapRouter is
 
         // C-2 FIX: Validate that hookData trader matches the trader parameter
         if (params.hookData.length > 0) {
-            (bool isMargin,, address hookDataTrader) = abi.decode(params.hookData, (bool, uint8, address));
+            (bool isMargin, uint8 hookLeverage, address hookDataTrader) =
+                abi.decode(params.hookData, (bool, uint8, address));
             if (isMargin) {
                 require(hookDataTrader == trader, "hookData trader mismatch");
+                // [I3] The hook books margin * (hookLeverage - 1) as its borrow delta;
+                // the borrow settled below uses params.leverage. They must agree.
+                require(hookLeverage == params.leverage, "hookData leverage mismatch");
             }
         }
 
@@ -744,7 +748,13 @@ contract EswapRouter is
         //
         // The whitelist is retained for the two cases escrow cannot cover: the
         // uncollateralised remainder leg, and native-margin borrows.
-        if (params.leverage > 1 && !registeredSolvers[params.solver]) {
+        // [CONSENT] A registered solver's WALLET may only be drawn by the solver
+        // itself. When anyone else (the trader, an executor) names it, the borrow
+        // must be fully bonded in escrow, so the solver consented to exactly that
+        // amount by depositing it. Without this, any trader could pull a whitelisted
+        // solver's allowance up to its cap with no consent from that solver.
+        bool thirdPartyDraw = refundRecipient != params.solver;
+        if (params.leverage > 1 && (!registeredSolvers[params.solver] || thirdPartyDraw)) {
             if (inputNative) revert SolverNotAuthorized();
             uint256 escrowed = erc20BorrowEscrow[params.solver][Currency.unwrap(input)];
             if (escrowed < borrowAmount) revert SolverNotAuthorized();

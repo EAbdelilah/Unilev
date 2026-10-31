@@ -5,6 +5,7 @@ import {Vm} from "forge-std/Vm.sol";
 import {EswapMarginHook} from "../EswapMarginHook.sol";
 import {EswapMarginHookLogic} from "../EswapMarginHookLogic.sol";
 import {EswapMarginHookLogic2} from "../EswapMarginHookLogic2.sol";
+import {EswapMarginHookLogic3} from "../EswapMarginHookLogic3.sol";
 import {IPriceFeedLogic} from "../EswapMarginHookLogicStorage.sol";
 import {IPoolManager} from "../interfaces/IPoolManager.sol";
 
@@ -53,7 +54,12 @@ library EswapHookDeployLib {
     ///      a `PriceFeedMock`, or an already-`address`-cast value).
     function deployLogic(address manager, address priceFeed) internal returns (address logic, address logic2) {
         EswapMarginHookLogic2 l2 = new EswapMarginHookLogic2(IPoolManager(manager), IPriceFeedLogic(priceFeed));
-        EswapMarginHookLogic l1 = new EswapMarginHookLogic(IPoolManager(manager), IPriceFeedLogic(priceFeed), address(l2));
+        // [EIP-170] Third logic contract: owns the partial-liquidation engine so
+        // Logic2 can hold the third-audit settlement work under the size cap.
+        EswapMarginHookLogic3 l3 = new EswapMarginHookLogic3(IPoolManager(manager), IPriceFeedLogic(priceFeed));
+        EswapMarginHookLogic l1 = new EswapMarginHookLogic(
+            IPoolManager(manager), IPriceFeedLogic(priceFeed), address(l2), address(l3)
+        );
         logic = address(l1);
         logic2 = address(l2);
     }

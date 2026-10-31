@@ -1,0 +1,1150 @@
+﻿Compiling 83 files with Solc 0.8.27
+Solc 0.8.27 finished in 2.69s
+forge : Error: Compiler run failed:
+Au caractère Ligne:1 : 1
++ forge build 2>&1 | Out-File -FilePath build_out12.txt -Encoding utf8; ...
++ ~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Error: Compiler run failed::String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Warning (2519): This declaration shadows an existing declaration.
+   --> src/v4/EswapLeverageAdapter.sol:111:31:
+    |
+111 |     function setDefaultSolver(address _solver) external onlyOwner {
+    |                               ^^^^^^^^^^^^^^^
+Note: The shadowed declaration is here:
+   --> src/v4/EswapLeverageAdapter.sol:145:5:
+    |
+145 |     function _solver() internal view returns (address) {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2519): This declaration shadows an existing declaration.
+   --> src/v4/EswapLeverageAdapter.sol:119:30:
+    |
+119 |     function setBackupSolver(address _solver) external onlyOwner {
+    |                              ^^^^^^^^^^^^^^^
+Note: The shadowed declaration is here:
+   --> src/v4/EswapLeverageAdapter.sol:145:5:
+    |
+145 |     function _solver() internal view returns (address) {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (3628): This contract has a payable fallback function, but no receive ether function. Consider adding a 
+receive ether function.
+  --> src/v4/EswapMarginHookLogic.sol:43:1:
+   |
+43 | contract EswapMarginHookLogic is BaseHook, EswapMarginHookLogicStorage {
+   | ^ (Relevant source part starts here and spans across multiple lines).
+Note: The payable fallback function is defined here.
+   --> src/v4/EswapMarginHookLogic.sol:806:5:
+    |
+806 |     fallback() external payable {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/BaseV4Test.t.sol:75:9:
+   |
+75 |         EswapMarginHookLogic(address(hook)).setAuthorizedPool(key.toId(), true);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/AuditMarginFunderPoC.t.sol:67:9:
+   |
+67 |         EswapMarginHookLogic(address(hook)).setAuthorizedPool(key.toId(), true);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/AuditSolverConsentPoC.t.sol:84:9:
+   |
+84 |         EswapMarginHookLogic(address(hook)).setAuthorizedPool(key.toId(), true);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/AuditThirdAdversarialPoC.t.sol:62:9:
+   |
+62 |         EswapMarginHookLogic(address(hook)).setAuthorizedPool(key.toId(), true);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/AuditThirdAdversarialPoC.t.sol:63:9:
+   |
+63 |         EswapMarginHookLogic(address(hook)).setStandardPoolKey(key.toId(), standardPoolKey);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/AuditThirdAdversarialPoC.t.sol:246:9:
+    |
+246 |         EswapMarginHookLogic(address(hook)).setAuthorizedPool(key.toId(), true);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/EswapAggregatorWhitelistTest.t.sol:72:9:
+   |
+72 |         EswapMarginHookLogic(address(hook)).setAuthorizedPool(key.toId(), true);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/EswapAggregatorWhitelistTest.t.sol:73:9:
+   |
+73 |         EswapMarginHookLogic(address(hook)).setStandardPoolKey(key.toId(), standardPoolKey);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/EswapAtomicMarginTest.t.sol:96:9:
+   |
+96 |         EswapMarginHookLogic(address(hook)).setAuthorizedPool(key.toId(), true);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapBaseEnsoFullCycleForkTest.t.sol:186:9:
+    |
+186 |         EswapMarginHookLogic(address(hook)).setAuthorizedPool(hookLocalKey.toId(), true);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapBaseEnsoFullCycleForkTest.t.sol:187:9:
+    |
+187 |         EswapMarginHookLogic(address(hook)).setStandardPoolKey(hookLocalKey.toId(), standardLocalKey);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapBaseEnsoFullCycleForkTest.t.sol:188:9:
+    |
+188 |         EswapMarginHookLogic(address(hook)).setBaseCurrency(hookLocalKey.toId(), Currency.wrap(BASE_WETH));
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapBaseEnsoFullCycleForkTest.t.sol:189:9:
+    |
+189 |         EswapMarginHookLogic(address(hook)).setTokenDecimals(BASE_WETH, 18);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapBaseEnsoFullCycleForkTest.t.sol:190:9:
+    |
+190 |         EswapMarginHookLogic(address(hook)).setTokenDecimals(BASE_USDC, 6);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapBestRouteForkTest.t.sol:189:9:
+    |
+189 |         EswapMarginHookLogic(address(hook)).setAuthorizedPool(hookLocalKey.toId(), true);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapBestRouteForkTest.t.sol:190:9:
+    |
+190 |         EswapMarginHookLogic(address(hook)).setStandardPoolKey(hookLocalKey.toId(), standardLocalKey);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapBestRouteForkTest.t.sol:191:9:
+    |
+191 |         EswapMarginHookLogic(address(hook)).setBaseCurrency(hookLocalKey.toId(), Currency.wrap(MAINNET_WETH));
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapBestRouteForkTest.t.sol:192:9:
+    |
+192 |         EswapMarginHookLogic(address(hook)).setTokenDecimals(MAINNET_WETH, 18);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapBestRouteForkTest.t.sol:193:9:
+    |
+193 |         EswapMarginHookLogic(address(hook)).setTokenDecimals(MAINNET_USDC, 6);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/EswapCapStressTest.t.sol:57:9:
+   |
+57 |         EswapMarginHookLogic(address(hook)).setAuthorizedPool(key.toId(), true);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapCapStressTest.t.sol:175:9:
+    |
+175 |         EswapMarginHookLogic(address(hook)).setOpenInterestCaps(hook.maxSingleOIBps(), hook.maxTotalOIBps(), 
+1_000 ether);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapCapStressTest.t.sol:224:9:
+    |
+224 |         EswapMarginHookLogic(address(hook)).setOpenInterestCaps(200, 6500, 100_000 ether);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapCapStressTest.t.sol:270:9:
+    |
+270 |         EswapMarginHookLogic(address(hook)).setOpenInterestCaps(200, 6500, 100_000 ether);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/EswapCoWSettlementTest.t.sol:80:9:
+   |
+80 |         EswapMarginHookLogic(address(hook)).setAuthorizedPool(key.toId(), true);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/EswapCoWSettlementTest.t.sol:81:9:
+   |
+81 |         EswapMarginHookLogic(address(hook)).setStandardPoolKey(key.toId(), standardPoolKey);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/EswapERC7683Test.t.sol:57:9:
+   |
+57 |         EswapMarginHookLogic(address(hook)).setAuthorizedPool(key.toId(), true);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/EswapEmergencyPauseTest.t.sol:48:9:
+   |
+48 |         EswapMarginHookLogic(address(hook)).setAuthorizedPool(key.toId(), true);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/EswapEmergencyPauseTest.t.sol:70:9:
+   |
+70 |         EswapMarginHookLogic(address(hook)).setEmergencyPause(true);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/EswapEmergencyPauseTest.t.sol:92:9:
+   |
+92 |         EswapMarginHookLogic(address(hook)).setEmergencyPause(true);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/EswapEmergencyPauseTest.t.sol:94:9:
+   |
+94 |         EswapMarginHookLogic(address(hook)).setEmergencyPause(false);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapEmergencyPauseTest.t.sol:101:9:
+    |
+101 |         EswapMarginHookLogic(address(hook)).setEmergencyPause(true);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapEmergencyPauseTest.t.sol:108:9:
+    |
+108 |         EswapMarginHookLogic(address(hook)).setEmergencyPause(true);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapEmergencyPauseTest.t.sol:112:9:
+    |
+112 |         EswapMarginHookLogic(address(hook)).setEmergencyPause(true); // re-toggle attempt
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapEmergencyPauseTest.t.sol:138:9:
+    |
+138 |         EswapMarginHookLogic(address(hook)).setEmergencyPause(true);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapEmergencyPauseTest.t.sol:156:9:
+    |
+156 |         EswapMarginHookLogic(address(hook)).setEmergencyPause(false);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapExitOracleIndependenceTest.t.sol:101:9:
+    |
+101 |         EswapMarginHookLogic(address(hook)).setAuthorizedPool(key.toId(), true);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapForkVerification.t.sol:155:9:
+    |
+155 |         EswapMarginHookLogic(address(hook)).setTokenDecimals(USDC, 6);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapForkVerification.t.sol:156:9:
+    |
+156 |         EswapMarginHookLogic(address(hook)).setTokenDecimals(WETH, 18);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapForkVerification.t.sol:173:9:
+    |
+173 |         EswapMarginHookLogic(address(hook)).setAuthorizedPool(poolId, true);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapInsuranceYieldTest.t.sol:102:9:
+    |
+102 |         EswapMarginHookLogic(address(realHook)).setAuthorizedPool(hookLocalKey.toId(), true);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapInsuranceYieldTest.t.sol:103:9:
+    |
+103 |         EswapMarginHookLogic(address(realHook)).setStandardPoolKey(hookLocalKey.toId(), standardLocalKey);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapInsuranceYieldTest.t.sol:117:9:
+    |
+117 |         EswapMarginHookLogic(address(realHook)).setTokenDecimals(address(token0), 18);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapInsuranceYieldTest.t.sol:118:9:
+    |
+118 |         EswapMarginHookLogic(address(realHook)).setTokenDecimals(address(token1), 18);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/EswapIntentSolverTest.t.sol:61:9:
+   |
+61 |         EswapMarginHookLogic(address(hook)).setAuthorizedPool(key.toId(), true);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/EswapJITSpotTest.t.sol:77:9:
+   |
+77 |         EswapMarginHookLogic(address(hook)).setAuthorizedPool(key.toId(), true);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapJITSpotTest.t.sol:231:9:
+    |
+231 |         EswapMarginHookLogic(address(hook)).setAuthorizedPool(nativeKey.toId(), true);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapJITSpotTest.t.sol:271:9:
+    |
+271 |         EswapMarginHookLogic(address(hook)).setAuthorizedPool(nativeKey.toId(), true);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapJITSpotTest.t.sol:307:9:
+    |
+307 |         EswapMarginHookLogic(address(hook)).setAuthorizedPool(nativeKey.toId(), true);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapJITSpotTest.t.sol:332:9:
+    |
+332 |         EswapMarginHookLogic(address(hook)).setAuthorizedPool(nativeKey.toId(), true);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/EswapLeverageAdapterTest.t.sol:72:9:
+   |
+72 |         EswapMarginHookLogic(address(hook)).setAuthorizedPool(key.toId(), true);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/EswapLeverageAdapterTest.t.sol:73:9:
+   |
+73 |         EswapMarginHookLogic(address(hook)).setStandardPoolKey(key.toId(), standardPoolKey);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/EswapLiquidationKeeperTest.t.sol:49:9:
+   |
+49 |         EswapMarginHookLogic(address(hook)).setAuthorizedPool(key.toId(), true);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/EswapLiquidatorIncentiveTest.t.sol:50:9:
+   |
+50 |         EswapMarginHookLogic(address(hook)).setAuthorizedPool(key.toId(), true);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapLiquidatorIncentiveTest.t.sol:119:9:
+    |
+119 |         EswapMarginHookLogic(address(hook)).setLiquidatorIncentiveBps(200); // 2% of the post-solver surplus
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapLiquidatorIncentiveTest.t.sol:143:9:
+    |
+143 |         EswapMarginHookLogic(address(hook)).setLiquidatorIncentiveBps(200); // 2% of the post-solver surplus 
+(partial slice too)
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapLiquidatorIncentiveTest.t.sol:173:9:
+    |
+173 |         EswapMarginHookLogic(address(hook)).setLiquidatorIncentiveBps(200);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapLiquidatorIncentiveTest.t.sol:177:9:
+    |
+177 |         EswapMarginHookLogic(address(hook)).setLiquidatorIncentiveBps(10000);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapLiquidatorIncentiveTest.t.sol:181:9:
+    |
+181 |         EswapMarginHookLogic(address(hook)).setLiquidatorIncentiveBps(300);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapMainnet0xFullCycleForkTest.t.sol:189:9:
+    |
+189 |         EswapMarginHookLogic(address(hook)).setAuthorizedPool(hookLocalKey.toId(), true);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapMainnet0xFullCycleForkTest.t.sol:190:9:
+    |
+190 |         EswapMarginHookLogic(address(hook)).setStandardPoolKey(hookLocalKey.toId(), standardLocalKey);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapMainnet0xFullCycleForkTest.t.sol:191:9:
+    |
+191 |         EswapMarginHookLogic(address(hook)).setBaseCurrency(hookLocalKey.toId(), Currency.wrap(MAINNET_WETH));
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapMainnet0xFullCycleForkTest.t.sol:192:9:
+    |
+192 |         EswapMarginHookLogic(address(hook)).setTokenDecimals(MAINNET_WETH, 18);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapMainnet0xFullCycleForkTest.t.sol:193:9:
+    |
+193 |         EswapMarginHookLogic(address(hook)).setTokenDecimals(MAINNET_USDC, 6);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapMainnetEnsoFullCycleForkTest.t.sol:193:9:
+    |
+193 |         EswapMarginHookLogic(address(hook)).setAuthorizedPool(hookLocalKey.toId(), true);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapMainnetEnsoFullCycleForkTest.t.sol:194:9:
+    |
+194 |         EswapMarginHookLogic(address(hook)).setStandardPoolKey(hookLocalKey.toId(), standardLocalKey);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapMainnetEnsoFullCycleForkTest.t.sol:195:9:
+    |
+195 |         EswapMarginHookLogic(address(hook)).setBaseCurrency(hookLocalKey.toId(), Currency.wrap(MAINNET_WETH));
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapMainnetEnsoFullCycleForkTest.t.sol:196:9:
+    |
+196 |         EswapMarginHookLogic(address(hook)).setTokenDecimals(MAINNET_WETH, 18);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapMainnetEnsoFullCycleForkTest.t.sol:197:9:
+    |
+197 |         EswapMarginHookLogic(address(hook)).setTokenDecimals(MAINNET_USDC, 6);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/EswapMainnetOneCentMarginForkTest.t.sol:90:9:
+   |
+90 |         EswapMarginHookLogic(address(hook)).setAuthorizedPool(key.toId(), true);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/EswapMainnetOneCentMarginForkTest.t.sol:91:9:
+   |
+91 |         EswapMarginHookLogic(address(hook)).setBaseCurrency(key.toId(), Currency.wrap(UNICHAIN_WETH));
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/EswapMainnetOneCentMarginForkTest.t.sol:92:9:
+   |
+92 |         EswapMarginHookLogic(address(hook)).setTokenDecimals(UNICHAIN_WETH, 18);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/EswapMainnetOneCentMarginForkTest.t.sol:93:9:
+   |
+93 |         EswapMarginHookLogic(address(hook)).setTokenDecimals(UNICHAIN_USDC, 6);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapMainnetV4ForkTest.t.sol:190:9:
+    |
+190 |         EswapMarginHookLogic(address(hook)).setAuthorizedPool(hookLocalKey.toId(), true);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapMainnetV4ForkTest.t.sol:191:9:
+    |
+191 |         EswapMarginHookLogic(address(hook)).setStandardPoolKey(hookLocalKey.toId(), standardLocalKey);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapMainnetV4ForkTest.t.sol:192:9:
+    |
+192 |         EswapMarginHookLogic(address(hook)).setBaseCurrency(hookLocalKey.toId(), Currency.wrap(base));
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapMainnetV4ForkTest.t.sol:193:9:
+    |
+193 |         EswapMarginHookLogic(address(hook)).setTokenDecimals(base, _tokenDecimals(base));
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapMainnetV4ForkTest.t.sol:194:9:
+    |
+194 |         EswapMarginHookLogic(address(hook)).setTokenDecimals(quote, _tokenDecimals(quote));
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapMainnetV4LiquidationForkTest.t.sol:226:9:
+    |
+226 |         EswapMarginHookLogic(address(hook)).setAuthorizedPool(hookLocalKey.toId(), true);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapMainnetV4LiquidationForkTest.t.sol:227:9:
+    |
+227 |         EswapMarginHookLogic(address(hook)).setStandardPoolKey(hookLocalKey.toId(), standardLocalKey);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapMainnetV4LiquidationForkTest.t.sol:228:9:
+    |
+228 |         EswapMarginHookLogic(address(hook)).setBaseCurrency(hookLocalKey.toId(), Currency.wrap(base));
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapMainnetV4LiquidationForkTest.t.sol:229:9:
+    |
+229 |         EswapMarginHookLogic(address(hook)).setTokenDecimals(base, _tokenDecimals(base));
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapMainnetV4LiquidationForkTest.t.sol:230:9:
+    |
+230 |         EswapMarginHookLogic(address(hook)).setTokenDecimals(quote, _tokenDecimals(quote));
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapMainnetV4LiquidationForkTest.t.sol:653:9:
+    |
+653 |         EswapMarginHookLogic(address(hook)).setBandConsumptionTriggerBps(300);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/EswapMaxLeverageForPoolTest.t.sol:50:9:
+   |
+50 |         EswapMarginHookLogic(address(hook)).setAuthorizedPool(key.toId(), true);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/EswapMaxLeverageForPoolTest.t.sol:51:9:
+   |
+51 |         EswapMarginHookLogic(address(hook)).setAuthorizedPool(otherKey.toId(), true);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/EswapMaxLeverageForPoolTest.t.sol:82:9:
+   |
+82 |         EswapMarginHookLogic(address(hook)).setMaxLeverageForPool(key.toId(), 10);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/EswapMaxLeverageForPoolTest.t.sol:95:9:
+   |
+95 |         EswapMarginHookLogic(address(hook)).setMaxLeverageForPool(key.toId(), 2);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapMaxLeverageForPoolTest.t.sol:118:9:
+    |
+118 |         EswapMarginHookLogic(address(hook)).setMaxLeverageForPool(key.toId(), 2);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapMaxLeverageForPoolTest.t.sol:121:9:
+    |
+121 |         EswapMarginHookLogic(address(hook)).setMaxLeverageForPool(key.toId(), 0); // clear override
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapMaxLeverageForPoolTest.t.sol:144:9:
+    |
+144 |         EswapMarginHookLogic(address(hook)).setMaxLeverageForPool(key.toId(), 10);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapMaxLeverageForPoolTest.t.sol:156:9:
+    |
+156 |         EswapMarginHookLogic(address(hook)).setMaxLeverageForPool(key.toId(), 10);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapMaxLeverageForPoolTest.t.sol:159:9:
+    |
+159 |         EswapMarginHookLogic(address(hook)).setMaxLeverageForPool(key.toId(), 1);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapMaxLeverageForPoolTest.t.sol:161:9:
+    |
+161 |         EswapMarginHookLogic(address(hook)).setMaxLeverageForPool(key.toId(), 21);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapMaxLeverageForPoolTest.t.sol:165:9:
+    |
+165 |         EswapMarginHookLogic(address(hook)).setMaxLeverageForPool(key.toId(), 12);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapMultiPoolOpenTest.t.sol:114:9:
+    |
+114 |         EswapMarginHookLogic(address(realHook)).setAuthorizedPool(hookLocalKey.toId(), true);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapMultiPoolOpenTest.t.sol:115:9:
+    |
+115 |         EswapMarginHookLogic(address(realHook)).setStandardPoolKey(hookLocalKey.toId(), standardLocalKey);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapMultiPoolOpenTest.t.sol:129:9:
+    |
+129 |         EswapMarginHookLogic(address(realHook)).setTokenDecimals(address(token0), 18);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapMultiPoolOpenTest.t.sol:130:9:
+    |
+130 |         EswapMarginHookLogic(address(realHook)).setTokenDecimals(address(token1), 18);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/EswapMultiPoolRouteTest.t.sol:59:9:
+   |
+59 |         EswapMarginHookLogic(address(hook)).setAuthorizedPool(key.toId(), true);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/EswapOpenInterestCapsTest.t.sol:49:9:
+   |
+49 |         EswapMarginHookLogic(address(hook)).setAuthorizedPool(key.toId(), true);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapOpenInterestCapsTest.t.sol:129:9:
+    |
+129 |         EswapMarginHookLogic(address(hook)).setOpenInterestCaps(100, 1500, 1 ether);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapOpenInterestCapsTest.t.sol:132:9:
+    |
+132 |         EswapMarginHookLogic(address(hook)).setOpenInterestCaps(0, 1500, 1 ether);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapOpenInterestCapsTest.t.sol:135:9:
+    |
+135 |         EswapMarginHookLogic(address(hook)).setOpenInterestCaps(10_000, 1500, 1 ether);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapOpenInterestCapsTest.t.sol:138:9:
+    |
+138 |         EswapMarginHookLogic(address(hook)).setOpenInterestCaps(200, 199, 1 ether);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapOpenInterestCapsTest.t.sol:141:9:
+    |
+141 |         EswapMarginHookLogic(address(hook)).setOpenInterestCaps(200, 10_000, 1 ether);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapOpenInterestCapsTest.t.sol:143:9:
+    |
+143 |         EswapMarginHookLogic(address(hook)).setOpenInterestCaps(500, 2500, 5 ether);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapOpenInterestCapsTest.t.sol:151:9:
+    |
+151 |         EswapMarginHookLogic(address(hook)).setOpenInterestCaps(1000, 6000, 10_000 ether);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapOpenInterestCapsTest.t.sol:190:9:
+    |
+190 |         EswapMarginHookLogic(address(hook)).setOpenInterestCaps(1000, 7000, 10_000 ether);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/EswapPartialLiquidationTest.t.sol:47:9:
+   |
+47 |         EswapMarginHookLogic(address(hook)).setAuthorizedPool(key.toId(), true);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapRealPM_OpenNettingTest.t.sol:112:9:
+    |
+112 |         EswapMarginHookLogic(address(realHook)).setAuthorizedPool(_localId(realHookAddr), true);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapRealPM_OpenNettingTest.t.sol:122:9:
+    |
+122 |         EswapMarginHookLogic(address(realHook)).setTokenDecimals(address(token0), 18);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapRealPM_OpenNettingTest.t.sol:123:9:
+    |
+123 |         EswapMarginHookLogic(address(realHook)).setTokenDecimals(address(token1), 18);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/EswapV4CoreProofTest.t.sol:76:9:
+   |
+76 |         EswapMarginHookLogic(address(hook)).setAuthorizedPool(_localIdFor(realHookAddr), true);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapV4CoreProofTest.t.sol:271:9:
+    |
+271 |         EswapMarginHookLogic(address(hook)).setBaseCurrency(key.toId(), Currency.wrap(address(token1)));
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/EswapRealPoolManagerLifecycleTest.t.sol:65:9:
+   |
+65 |         EswapMarginHookLogic(address(realHook)).setTokenDecimals(address(token0), 18);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/EswapRealPoolManagerLifecycleTest.t.sol:66:9:
+   |
+66 |         EswapMarginHookLogic(address(realHook)).setTokenDecimals(address(token1), 18);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/EswapRealPoolManagerLifecycleTest.t.sol:90:9:
+   |
+90 |         EswapMarginHookLogic(address(realHook)).setTokenDecimals(address(token0), 18);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/EswapRealPoolManagerLifecycleTest.t.sol:91:9:
+   |
+91 |         EswapMarginHookLogic(address(realHook)).setTokenDecimals(address(token1), 18);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/EswapRouterAccessTest.t.sol:49:9:
+   |
+49 |         EswapMarginHookLogic(address(hook)).setAuthorizedPool(key.toId(), true);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapSepoliaEthFullCycleForkTest.t.sol:183:9:
+    |
+183 |         EswapMarginHookLogic(address(hook)).setAuthorizedPool(hookLocalKey.toId(), true);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapSepoliaEthFullCycleForkTest.t.sol:184:9:
+    |
+184 |         EswapMarginHookLogic(address(hook)).setStandardPoolKey(hookLocalKey.toId(), standardLocalKey);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapSepoliaEthFullCycleForkTest.t.sol:185:9:
+    |
+185 |         EswapMarginHookLogic(address(hook)).setBaseCurrency(hookLocalKey.toId(), Currency.wrap(SEPOLIA_WETH));
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapSepoliaEthFullCycleForkTest.t.sol:186:9:
+    |
+186 |         EswapMarginHookLogic(address(hook)).setTokenDecimals(SEPOLIA_WETH, 18);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapSepoliaEthFullCycleForkTest.t.sol:187:9:
+    |
+187 |         EswapMarginHookLogic(address(hook)).setTokenDecimals(SEPOLIA_USDC, 6);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapSepoliaPipelineForkTest.t.sol:178:9:
+    |
+178 |         EswapMarginHookLogic(address(hook)).setAuthorizedPool(hookLocalKey.toId(), true);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapSepoliaPipelineForkTest.t.sol:179:9:
+    |
+179 |         EswapMarginHookLogic(address(hook)).setStandardPoolKey(hookLocalKey.toId(), standardLocalKey);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapSepoliaPipelineForkTest.t.sol:180:9:
+    |
+180 |         EswapMarginHookLogic(address(hook)).setBaseCurrency(hookLocalKey.toId(), Currency.wrap(SEPOLIA_WETH));
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapSepoliaPipelineForkTest.t.sol:181:9:
+    |
+181 |         EswapMarginHookLogic(address(hook)).setTokenDecimals(SEPOLIA_WETH, 18);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapSepoliaPipelineForkTest.t.sol:182:9:
+    |
+182 |         EswapMarginHookLogic(address(hook)).setTokenDecimals(SEPOLIA_USDC, 6);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/EswapSettlementTest.t.sol:50:9:
+   |
+50 |         EswapMarginHookLogic(address(hook)).setAuthorizedPool(key.toId(), true);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/EswapSettlementTest.t.sol:51:9:
+   |
+51 |         EswapMarginHookLogic(address(hook)).setStandardPoolKey(key.toId(), standardPoolKey);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/EswapSolverYieldTest.t.sol:82:9:
+   |
+82 |         EswapMarginHookLogic(address(hook)).setAuthorizedPool(key.toId(), true);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/EswapTimelockTest.t.sol:43:9:
+   |
+43 |         EswapMarginHookLogic(address(hook)).transferOwnership(address(timelock));
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/EswapTriggerOrderTest.t.sol:66:9:
+   |
+66 |         EswapMarginHookLogic(address(hook)).setAuthorizedPool(key.toId(), true);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/EswapTriggerOrderTest.t.sol:67:9:
+   |
+67 |         EswapMarginHookLogic(address(hook)).setStandardPoolKey(key.toId(), standardPoolKey);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/EswapTwapCircuitBreakerTest.t.sol:84:9:
+   |
+84 |         EswapMarginHookLogic(address(hook)).setAuthorizedPool(key.toId(), true);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/EswapTwapCircuitBreakerTest.t.sol:94:9:
+   |
+94 |         EswapMarginHookLogic(address(hook)).setTokenDecimals(address(weth), 18);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/EswapTwapCircuitBreakerTest.t.sol:95:9:
+   |
+95 |         EswapMarginHookLogic(address(hook)).setTokenDecimals(address(usdc), 6);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapTwapCircuitBreakerTest.t.sol:129:9:
+    |
+129 |         EswapMarginHookLogic(address(hook)).setTokenDecimals(address(weth), 18);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapTwapCircuitBreakerTest.t.sol:130:9:
+    |
+130 |         EswapMarginHookLogic(address(hook)).setTokenDecimals(address(usdc), 6);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapTwapCircuitBreakerTest.t.sol:139:9:
+    |
+139 |         EswapMarginHookLogic(address(hook)).setTokenDecimals(address(weth), 18);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapTwapCircuitBreakerTest.t.sol:140:9:
+    |
+140 |         EswapMarginHookLogic(address(hook)).setTokenDecimals(address(usdc), 6);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapTwapCircuitBreakerTest.t.sol:171:9:
+    |
+171 |         EswapMarginHookLogic(address(hook)).setTokenDecimals(address(weth), 18);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapTwapCircuitBreakerTest.t.sol:172:9:
+    |
+172 |         EswapMarginHookLogic(address(hook)).setTokenDecimals(address(usdc), 6);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapTwapCircuitBreakerTest.t.sol:173:9:
+    |
+173 |         EswapMarginHookLogic(address(hook)).setStandardPoolKey(key.toId(), _standardKey());
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/EswapTwapCircuitBreakerTest.t.sol:197:9:
+    |
+197 |         EswapMarginHookLogic(address(hook)).setStandardPoolKey(key.toId(), _standardKey());
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/EswapUnichainForkTest.t.sol:89:9:
+   |
+89 |         EswapMarginHookLogic(address(hook)).setAuthorizedPool(key.toId(), true);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/EswapUnichainForkTest.t.sol:92:9:
+   |
+92 |         EswapMarginHookLogic(address(hook)).setBaseCurrency(key.toId(), Currency.wrap(UNICHAIN_WETH));
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/EswapUnichainForkTest.t.sol:95:9:
+   |
+95 |         EswapMarginHookLogic(address(hook)).setTokenDecimals(UNICHAIN_WETH, 18);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/EswapUnichainForkTest.t.sol:96:9:
+   |
+96 |         EswapMarginHookLogic(address(hook)).setTokenDecimals(UNICHAIN_USDC, 6);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/GasProfileOpenTest.t.sol:100:9:
+    |
+100 |         EswapMarginHookLogic(address(realHook)).setAuthorizedPool(hookLocalKey.toId(), true);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/GasProfileOpenTest.t.sol:101:9:
+    |
+101 |         EswapMarginHookLogic(address(realHook)).setStandardPoolKey(hookLocalKey.toId(), standardLocalKey);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/GasProfileOpenTest.t.sol:113:9:
+    |
+113 |         EswapMarginHookLogic(address(realHook)).setTokenDecimals(address(token0), 18);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/GasProfileOpenTest.t.sol:114:9:
+    |
+114 |         EswapMarginHookLogic(address(realHook)).setTokenDecimals(address(token1), 18);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+  --> src/v4/test/LiveDeployCollateralReproTest.t.sol:79:9:
+   |
+79 |         EswapMarginHookLogic(address(newHook)).setTokenDecimals(USDC, 6);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/LiveDeployCollateralReproTest.t.sol:104:9:
+    |
+104 |         EswapMarginHookLogic(address(newHook)).setAuthorizedPool(hookPoolId, true);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (7398): Explicit type conversion not allowed from non-payable "address" to "contract EswapMarginHookLogic", 
+which has a payable fallback function.
+   --> src/v4/test/LiveDeployCollateralReproTest.t.sol:105:9:
+    |
+105 |         EswapMarginHookLogic(address(newHook)).setStandardPoolKey(hookPoolId, _stdKeyLocal());
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Error (9582): Member "setAuthorizedPool" not found or not visible after argument-dependent lookup in contract 
+EswapMarginHook.
+  --> src/v4/test/LiveNativeShort.t.sol:50:9:
+   |
+50 |         EswapMarginHook(payable(LIVE_HOOK)).setAuthorizedPool(nativeHookKey.toId(), true);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

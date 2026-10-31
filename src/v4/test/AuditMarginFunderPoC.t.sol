@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
 import {EswapMarginHook} from "../EswapMarginHook.sol";
+import {EswapMarginHookLogic} from "../EswapMarginHookLogic.sol";
 import {EswapRouter} from "../EswapRouter.sol";
 import {PoolKey} from "../types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "../types/PoolId.sol";
@@ -63,7 +64,7 @@ contract AuditMarginFunderPoC is BaseV4Test {
             PoolKey({currency0: key.currency0, currency1: key.currency1, fee: 0, tickSpacing: 60, hooks: address(0)});
 
         hook.setRouterAndMinCollateralUsd(address(router), 0);
-        hook.setAuthorizedPool(key.toId(), true);
+        EswapMarginHookLogic(payable(address(hook))).setAuthorizedPool(key.toId(), true);
         pm.setSlot0(key.toId(), 1 << 96, 0);
         pm.setSlot0(standardPoolKey.toId(), 1 << 96, 0);
 

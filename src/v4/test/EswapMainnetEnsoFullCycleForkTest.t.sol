@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Test, console2} from "forge-std/Test.sol";
 import {EswapMarginHook} from "../EswapMarginHook.sol";
+import {EswapMarginHookLogic} from "../EswapMarginHookLogic.sol";
 import {EswapRouter} from "../EswapRouter.sol";
 import {EswapLeverageAdapter} from "../EswapLeverageAdapter.sol";
 import {PoolKey} from "../types/PoolKey.sol";
@@ -189,11 +190,11 @@ contract EswapMainnetEnsoFullCycleForkTest is Test, IUnlockCallback {
         }
         console2.log("[step] pool wiring");
 
-        hook.setAuthorizedPool(hookLocalKey.toId(), true);
-        hook.setStandardPoolKey(hookLocalKey.toId(), standardLocalKey);
-        hook.setBaseCurrency(hookLocalKey.toId(), Currency.wrap(MAINNET_WETH));
-        hook.setTokenDecimals(MAINNET_WETH, 18);
-        hook.setTokenDecimals(MAINNET_USDC, 6);
+        EswapMarginHookLogic(payable(address(hook))).setAuthorizedPool(hookLocalKey.toId(), true);
+        EswapMarginHookLogic(payable(address(hook))).setStandardPoolKey(hookLocalKey.toId(), standardLocalKey);
+        EswapMarginHookLogic(payable(address(hook))).setBaseCurrency(hookLocalKey.toId(), Currency.wrap(MAINNET_WETH));
+        EswapMarginHookLogic(payable(address(hook))).setTokenDecimals(MAINNET_WETH, 18);
+        EswapMarginHookLogic(payable(address(hook))).setTokenDecimals(MAINNET_USDC, 6);
 
         // Oracle mock tracks the REAL mainnet venue price (stable $1 USDC).
         priceFeed.setPrice(MAINNET_USDC, 1e18);

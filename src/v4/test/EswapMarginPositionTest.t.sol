@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {BaseV4Test} from "./BaseV4Test.t.sol";
+import {EswapMarginHook} from "../EswapMarginHook.sol";
 import {BeforeSwapDelta} from "../types/BeforeSwapDelta.sol";
 import {Currency} from "../types/Currency.sol";
 import {IHooks} from "../interfaces/IHooks.sol";
@@ -48,13 +49,24 @@ contract EswapMarginPositionTest is BaseV4Test {
         assertEq(specified, -100 ether); // margin * (3 - 1)
     }
 
-    function test_NormalSwap_ReturnsZeroDelta() public {
+    /// @dev [I6] An external caller may not use the empty-hookData fast path.
+    function test_EmptyData_ExternalCaller_Reverts() public {
+        bytes memory data = ""; // No margin data
+        vm.prank(address(manager));
+        vm.expectRevert(EswapMarginHook.UnsupportedFeature.selector);
+        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -10 ether, 0), data);
+    }
+
+    /// @dev The hook's own internal unwind swaps reach beforeSwap with
+    ///      sender == the hook, so they still take the empty-data path and get a
+    ///      zero BeforeSwapDelta (they hold no borrowed leg of their own).
+    function test_EmptyData_SelfSender_ReturnsZeroDelta() public {
         int128 amount = -10 ether;
         bytes memory data = ""; // No margin data
 
         vm.prank(address(manager));
         (bytes4 selector, BeforeSwapDelta delta,) =
-            hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, amount, 0), data);
+            hook.beforeSwap(address(hook), key, IPoolManager.SwapParams(true, amount, 0), data);
 
         assertEq(selector, IHooks.beforeSwap.selector);
         assertEq(BeforeSwapDelta.unwrap(delta), 0);

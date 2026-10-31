@@ -115,36 +115,50 @@ contract EswapRouterExt is Ownable2Step {
     // swapper, and the swapper supplies BOTH `solverOutput` and
     // `minSolverOutput`, so that require could never fail. Worse, the RFQ price
     // is entirely swapper-chosen, so an approved swapper could force a passive
-    // whitelisted solver to dump inventory at any rate. The floor below is the
-    // only trustless bound: the RFQ may not pay materially less than the
-    // Chainlink-implied rate for the same input, up to this leniency.
-    // 0 = oracle floor DISABLED (owner must opt in per deployment).
+    // whitelisted solver to dump inventory at any rate. The bound below is the
+    // only trustless reference: the RFQ may not deviate from the
+    // Chainlink-implied rate for the same input by more than this leniency.
+    //
+    // [AUDIT F-01] The floor is FAIL-CLOSED. Previously `0` (the default) meant
+    // "no floor", and an unset `triggerPriceFeed` silently disabled it too, so
+    // the deployed default was a critical drain. Now `0` and an unset feed are
+    // both hard reverts, and the constructor arms a non-zero default.
     uint256 public jitOracleFloorLeniencyBps;
+
+    /// @dev [AUDIT F-01] Mirror of the floor. `solverOutput` is swapper-supplied,
+    ///      so the floor alone bounds only the DOWN side: an approved-but-
+    ///      compromised swapper key could price the fill far ABOVE oracle and
+    ///      drain a passive solver's standing router allowance through the
+    ///      output leg. Solver inventory is paid market + this premium at most.
+    uint256 public constant JIT_ORACLE_CEILING_PREMIUM_BPS = 200;
 
     event JitOracleFloorLeniencyBpsSet(uint256 bps);
 
     error JitFillBelowOracleFloor(uint256 solverOutput, uint256 oracleMinOutput);
+    error JitFillAboveOracleCeiling(uint256 solverOutput, uint256 oracleMaxOutput);
     error JitOraclePriceUnavailable();
     error JitNativeCurrencyUnsupported();
     error NativeInsufficient();
 
+    /// @dev [AUDIT F-01] The floor can be tightened but never disabled: `0` is
+    ///      rejected, so there is no configuration that re-opens the drain.
     function setJitOracleFloorLeniencyBps(uint256 bps) external onlyOwner {
-        if (bps > 1000) revert BpsTooHigh();
+        if (bps == 0 || bps > 1000) revert BpsTooHigh();
         jitOracleFloorLeniencyBps = bps;
         emit JitOracleFloorLeniencyBpsSet(bps);
     }
 
-    /// @dev Oracle-implied minimum acceptable RFQ output for `inputAmount` of
-    ///      `input`, i.e. the same input priced through the Chainlink feed,
-    ///      scaled DOWN by the owner-configured leniency. Returns 0 when the
-    ///      floor is disabled (leniency sentinel 0 is ambiguous with a real
-    ///      zero, so callers gate on the explicit `oracleFloorEnabled` read).
-    function _jitOracleMinOutput(
-        Currency input,
-        Currency output,
-        uint256 inputAmount
-    ) internal view returns (uint256 minOutput) {
-        if (address(triggerPriceFeed) == address(0)) return 0;
+    /// @dev Oracle-implied acceptable RFQ output BAND for `inputAmount` of
+    ///      `input`: the same input priced through the Chainlink feed and then
+    ///      scaled by the configured floor leniency (down) and the fixed ceiling
+    ///      premium (up). Reverts when the feed is unset or a leg is unpriced so
+    ///      a missing oracle can never be read as "no bound".
+    function _jitOracleBounds(Currency input, Currency output, uint256 inputAmount)
+        internal
+        view
+        returns (uint256 minOutput, uint256 maxOutput)
+    {
+        if (address(triggerPriceFeed) == address(0)) revert JitOraclePriceUnavailable();
 
         address inToken = Currency.unwrap(input);
         address outToken = Currency.unwrap(output);
@@ -153,11 +167,13 @@ contract EswapRouterExt is Ownable2Step {
         if (priceIn == 0 || priceOut == 0) revert JitOraclePriceUnavailable();
 
         uint256 leniency = jitOracleFloorLeniencyBps;
-        if (leniency == 0) return 0;
+        if (leniency == 0) revert JitOraclePriceUnavailable();
 
         uint256 inputUsd = triggerPriceFeed.getAmountInUsd(inToken, inputAmount);
-        minOutput = FullMath.mulDiv(inputUsd, 10 ** _tokenDecimals(outToken), priceOut);
-        minOutput = FullMath.mulDiv(minOutput, 10000 - leniency, 10000);
+        // Oracle-implied fair output, in output-token units.
+        uint256 fairOutput = FullMath.mulDiv(inputUsd, 10 ** _tokenDecimals(outToken), priceOut);
+        minOutput = FullMath.mulDiv(fairOutput, 10000 - leniency, 10000);
+        maxOutput = FullMath.mulDiv(fairOutput, 10000 + JIT_ORACLE_CEILING_PREMIUM_BPS, 10000);
     }
 
     // ─── [P0#2] Signed limit / stop-loss TriggerOrder ────────────────────────
@@ -285,6 +301,11 @@ error NativePayoutFailed();
     constructor(IPoolManager _manager, address _domainRouter) Ownable(msg.sender) {
         manager = _manager;
         router = EswapRouter(payable(_domainRouter));
+        // [AUDIT F-01] Ship with the oracle band armed. 200 bps leaves a normal
+        // RFQ spread intact (and matches the ceiling), while a swapper-priced
+        // drain is now strictly -EV instead of free.
+        jitOracleFloorLeniencyBps = 200;
+        emit JitOracleFloorLeniencyBpsSet(200);
         DOMAIN_SEPARATOR = keccak256(
             abi.encode(
                 keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
@@ -815,14 +836,19 @@ error NativePayoutFailed();
         // [FIX H-5] Enforce minimum solver output before executing to protect swapper
         require(params.solverOutput >= params.minSolverOutput, "JIT: solver output below minimum acceptable");
 
-        // [AUDIT HIGH-2] Trustless fill-price floor. The AMM leg is neutralized
-        // by the hook (its beforeSwapDelta drives amountToSwap to 0), so there is
-        // no pool output to anchor to — the oracle is the only sound reference.
+        // [AUDIT HIGH-2 / F-01] Trustless fill-price BAND. The AMM leg is
+        // neutralized by the hook (its beforeSwapDelta drives amountToSwap to 0),
+        // so there is no pool output to anchor to — the oracle is the only sound
+        // reference. Fail-closed: an unavailable oracle reverts inside the bound
+        // helper rather than silently disabling the check.
         uint256 jitInputAmount =
             uint256(params.amountSpecified < 0 ? -params.amountSpecified : params.amountSpecified);
-        uint256 oracleMin = _jitOracleMinOutput(input, output, jitInputAmount);
-        if (oracleMin != 0 && params.solverOutput < oracleMin) {
+        (uint256 oracleMin, uint256 oracleMax) = _jitOracleBounds(input, output, jitInputAmount);
+        if (params.solverOutput < oracleMin) {
             revert JitFillBelowOracleFloor(params.solverOutput, oracleMin);
+        }
+        if (params.solverOutput > oracleMax) {
+            revert JitFillAboveOracleCeiling(params.solverOutput, oracleMax);
         }
 
         bytes memory hookData = abi.encode(false, params.solver, params.solverOutput);

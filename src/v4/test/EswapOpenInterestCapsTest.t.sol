@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {BaseV4Test, PriceFeedMock, ERC20Mock} from "./BaseV4Test.t.sol";
 import {PoolManagerCallbackMock} from "./mocks/PoolManagerMock.sol";
 import {EswapMarginHook} from "../EswapMarginHook.sol";
+import {EswapMarginHookLogic} from "../EswapMarginHookLogic.sol";
 import {EswapRouter} from "../EswapRouter.sol";
 import {PoolKey} from "../types/PoolKey.sol";
 import {PoolIdLibrary} from "../types/PoolId.sol";
@@ -45,7 +46,7 @@ contract EswapOpenInterestCapsTest is BaseV4Test {
         });
 
         hook.setRouterAndMinCollateralUsd(address(new EswapRouter(manager)), 0);
-        hook.setAuthorizedPool(key.toId(), true);
+        EswapMarginHookLogic(payable(address(hook))).setAuthorizedPool(key.toId(), true);
         // Initialize slot0 so sqrtPriceX96 is non-zero (prevents TwapManipulated revert)
         manager.setSlot0(key.toId(), 79228162514264337593543950336, 0);
     }
@@ -125,21 +126,21 @@ contract EswapOpenInterestCapsTest is BaseV4Test {
     function test_Setter_AuthAndBounds() public {
         vm.prank(makeAddr("notOwner"));
         vm.expectRevert();
-        hook.setOpenInterestCaps(100, 1500, 1 ether);
+        EswapMarginHookLogic(payable(address(hook))).setOpenInterestCaps(100, 1500, 1 ether);
 
         vm.expectRevert("single cap out of range");
-        hook.setOpenInterestCaps(0, 1500, 1 ether);
+        EswapMarginHookLogic(payable(address(hook))).setOpenInterestCaps(0, 1500, 1 ether);
 
         vm.expectRevert("single cap out of range");
-        hook.setOpenInterestCaps(10_000, 1500, 1 ether);
+        EswapMarginHookLogic(payable(address(hook))).setOpenInterestCaps(10_000, 1500, 1 ether);
 
         vm.expectRevert("total cap out of range");
-        hook.setOpenInterestCaps(200, 199, 1 ether);
+        EswapMarginHookLogic(payable(address(hook))).setOpenInterestCaps(200, 199, 1 ether);
 
         vm.expectRevert("total cap out of range");
-        hook.setOpenInterestCaps(200, 10_000, 1 ether);
+        EswapMarginHookLogic(payable(address(hook))).setOpenInterestCaps(200, 10_000, 1 ether);
 
-        hook.setOpenInterestCaps(500, 2500, 5 ether);
+        EswapMarginHookLogic(payable(address(hook))).setOpenInterestCaps(500, 2500, 5 ether);
         assertEq(hook.maxSingleOIBps(), 500);
         assertEq(hook.maxTotalOIBps(), 2500);
         assertEq(hook.oiCapTvlFloorUsd(), 5 ether);
@@ -147,7 +148,7 @@ contract EswapOpenInterestCapsTest is BaseV4Test {
 
     function test_ConfigurableCaps_MultiPositionHeadroom() public {
         // Wide aggregate cap (60% TVL) so several 2x positions coexist.
-        hook.setOpenInterestCaps(1000, 6000, 10_000 ether);
+        EswapMarginHookLogic(payable(address(hook))).setOpenInterestCaps(1000, 6000, 10_000 ether);
 
         _open(traderA, 20_000 ether, 2); // TVL 39.96k (fee-shaved), OI 20k
 
@@ -186,7 +187,7 @@ contract EswapOpenInterestCapsTest is BaseV4Test {
 
     function test_MaxOpenBorrowRaw_Boundary() public {
         // Configure BEFORE building TVL so the seed position bypasses the caps.
-        hook.setOpenInterestCaps(1000, 7000, 10_000 ether);
+        EswapMarginHookLogic(payable(address(hook))).setOpenInterestCaps(1000, 7000, 10_000 ether);
         _open(traderA, 20_000 ether, 2); // TVL 39.96k, OI 20k -> single 3.996k, remaining ~7.972k
 
         uint256 capRaw = hook.maxOpenBorrowRaw(key.currency0);

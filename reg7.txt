@@ -1,0 +1,26 @@
+﻿No files changed, compilation skipped
+
+Ran 10 tests for src/v4/test/EswapJITSpotTest.t.sol:EswapJITSpotTest
+[PASS] test_JITSpotExecution_BypassesAMM() (gas: 418902)
+[PASS] test_JITSpot_AcceptsFillAtOrAboveOracleFloor() (gas: 487734)
+[PASS] test_JITSpot_FloorArmedByDefault() (gas: 56605)
+[FAIL: Error != expected error: JitFillAboveOracleCeiling(100000000000000000000 [1e20], 5100000000000000000 [5.1e18]) != NativeInsufficient()] test_JITSpot_NativeInput_InsufficientValueReverts() (gas: 90080)
+[FAIL: JitFillAboveOracleCeiling(100000000000000000000 [1e20], 1020000000000000000 [1.02e18])] test_JITSpot_NativeInput_RefundsSurplus() (gas: 89551)
+[FAIL: JitFillAboveOracleCeiling(100000000000000000000 [1e20], 3060000000000000000 [3.06e18])] test_JITSpot_NativeInput_SettlesViaMsgValue() (gas: 92894)
+[PASS] test_JITSpot_NativeOutput_RevertsExplicitly() (gas: 70442)
+[PASS] test_JITSpot_OnlyCalledBySwapper() (gas: 23034)
+[PASS] test_JITSpot_RejectsFillBelowOracleFloor() (gas: 137480)
+[PASS] test_SetJitOracleFloorLeniencyBps_RejectsAbove1000() (gas: 11171)
+Suite result: FAILED. 7 passed; 3 failed; 0 skipped; finished in 9.72ms (13.05ms CPU time)
+
+Ran 1 test suite in 48.01ms (9.72ms CPU time): 7 tests passed, 3 failed, 0 skipped (10 total tests)
+
+Failing tests:
+Encountered 3 failing tests in src/v4/test/EswapJITSpotTest.t.sol:EswapJITSpotTest
+[FAIL: Error != expected error: JitFillAboveOracleCeiling(100000000000000000000 [1e20], 5100000000000000000 [5.1e18]) != NativeInsufficient()] test_JITSpot_NativeInput_InsufficientValueReverts() (gas: 90080)
+[FAIL: JitFillAboveOracleCeiling(100000000000000000000 [1e20], 1020000000000000000 [1.02e18])] test_JITSpot_NativeInput_RefundsSurplus() (gas: 89551)
+[FAIL: JitFillAboveOracleCeiling(100000000000000000000 [1e20], 3060000000000000000 [3.06e18])] test_JITSpot_NativeInput_SettlesViaMsgValue() (gas: 92894)
+
+Encountered a total of 3 failing tests, 7 tests succeeded
+
+Tip: Run `forge test --rerun` to retry only the 3 failed tests

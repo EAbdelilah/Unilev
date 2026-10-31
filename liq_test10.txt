@@ -1,0 +1,7 @@
+﻿No files changed, compilation skipped
+
+Ran 1 test for src/v4/test/AuditThirdLiquidationPoC.t.sol:AuditThirdLiquidationPoC
+[PASS] test_F05_CachedOracleKeepsLiquidationLive() (gas: 14093059)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 10.88ms (3.04ms CPU time)
+
+Ran 1 test suite in 41.72ms (10.88ms CPU time): 1 tests passed, 0 failed, 0 skipped (1 total tests)

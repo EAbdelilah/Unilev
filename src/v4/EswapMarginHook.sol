@@ -106,6 +106,8 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     error InsufficientResidue(uint256 requested, uint256 available);
     error ZeroSweepRecipient();
     error EmergencyPaused();
+    // [AUDIT F-05] Neither a live oracle read nor a cached mark is available.
+    error OraclePriceUnavailable();
 
     /// @dev First-word tag of self-wrapped `deployCollateral` unlock payloads.
     ///      Must match the constant in EswapMarginHookLogic.
@@ -273,11 +275,6 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     ///         the pool falls back to `defaultMaxLeverage`. Bounds mirror the
     ///         default (2..20) validated in `configure`. [P2#9] provides the
     ///         setter the storage comment promised; read via `_maxLeverageForPool`.
-    function setMaxLeverageForPool(PoolId poolId, uint8 leverage) external onlyOwner {
-        if (leverage != 0 && (leverage < 2 || leverage > 20)) revert InvalidLeverageRange();
-        emit MaxLeverageForPoolSet(poolId, leverage);
-        maxLeverageByPool[poolId] = leverage;
-    }
     uint256 public constant LIQUIDATION_REWARD_BPS = 300; // 3% of recovered output routed to insurance fund
     uint256 public constant MIN_COLLATERAL = 0.01 ether;
     // USD-denominated collateral floor override (18-decimals, e.g. 200000 = $0.20).
@@ -336,6 +333,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         }
         priceFeed = _priceFeed;
         owner = initialOwner;
+        insuranceCoverageBps = 10_000;
         if (uint160(address(this)) & getHookFlags() != getHookFlags()) revert InvalidHookAddress();
         hookLogic = _hookLogic;
         logic2 = _hookLogic2;
@@ -373,32 +371,15 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         return int256(uint256(abi.decode(data, (bytes32))));
     }
 
-    function setAuthorizedPool(PoolId poolId, bool authorized) external onlyOwner {
-        isAuthorizedPool[poolId] = authorized;
-    }
-
-    function setStandardPoolKey(PoolId poolId, PoolKey calldata key) external {
-        if (msg.sender != owner && msg.sender != router) revert Unauthorized();
-        standardPoolKeys[poolId] = key;
-    }
 
     /// @notice [FIX M-9] When true, close/liquidation/rebalance unwind swaps may
     ///         only run against a configured standard (deep) pool.
-    function setRequireStandardPoolKey(bool required) external onlyOwner {
-        requireStandardPoolKey = required;
-        emit StandardPoolRequirementSet(required);
-    }
-
     /**
      * @notice Configures the ERC-20 decimals for a pool token.
      * @dev Required for pools containing non-18-decimal tokens (e.g. 6-decimal USDC)
      *      so the V4-spot vs V3-TWAP circuit breaker compares like-for-like prices.
      *      Unconfigured tokens are assumed to be 18 decimals.
      */
-    function setTokenDecimals(address token, uint8 decimals) external onlyOwner {
-        tokenDecimals[token] = decimals;
-    }
-
     /// @notice Fraction of a collateral band's width that price may consume from
     ///         the collateral side before rebalancePosition re-centers an
     ///         IN-RANGE band, in bps of band width. 2500 = 25%. Prevents the
@@ -407,12 +388,6 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     uint256 public bandConsumptionTriggerBps = 2500;
 
     event BandConsumptionTriggerSet(uint256 oldBps, uint256 newBps);
-
-    function setBandConsumptionTriggerBps(uint256 bps) external onlyOwner {
-        require(bps > 0 && bps < 10000, "trigger out of range");
-        emit BandConsumptionTriggerSet(bandConsumptionTriggerBps, bps);
-        bandConsumptionTriggerBps = bps;
-    }
 
     // --- Open-interest risk caps (aggregator-friendly sizing) --------------
     // Per-trade and aggregate OI limits as fractions of tracked collateral
@@ -427,15 +402,6 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
 
     event OpenInterestCapsSet(uint256 maxSingleBps, uint256 maxTotalBps, uint256 tvlFloorUsd);
 
-    function setOpenInterestCaps(uint256 _maxSingleBps, uint256 _maxTotalBps, uint256 _tvlFloorUsd) external onlyOwner {
-        require(_maxSingleBps > 0 && _maxSingleBps < 10000, "single cap out of range");
-        require(_maxTotalBps >= _maxSingleBps && _maxTotalBps < 10000, "total cap out of range");
-        emit OpenInterestCapsSet(_maxSingleBps, _maxTotalBps, _tvlFloorUsd);
-        maxSingleOIBps = _maxSingleBps;
-        maxTotalOIBps = _maxTotalBps;
-        oiCapTvlFloorUsd = _tvlFloorUsd;
-    }
-
     /// @notice Toggles the emergency pause. When active, all new position opens
     ///         (beforeSwap margin mode + registerMarginOpen) are blocked.
     ///         Close, liquidate, and rebalance remain operational so existing
@@ -444,19 +410,6 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     ///      pause: re-toggling `true` while ALREADY paused must NOT reset the
     ///      expiry clock, otherwise a compromised owner could extend the pause
     ///      forever one toggle at a time.
-    function setEmergencyPause(bool paused) external onlyOwner {
-        if (paused) {
-            emergencyPaused = true;
-            if (block.timestamp >= pauseExpiry) {
-                pauseExpiry = block.timestamp + MAX_PAUSE_DURATION;
-            }
-        } else {
-            emergencyPaused = false;
-            pauseExpiry = 0;
-        }
-        emit EmergencyPauseToggled(paused);
-    }
-
     /// @dev Checks emergency pause with auto-expiry. If paused but expired, auto-unpauses.
     function _checkEmergencyPause() internal {
         if (!emergencyPaused) return;
@@ -470,11 +423,6 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
 
     /// @notice Transfers hook ownership to a new address. Only callable by current owner.
     ///         Use with TimelockController for time-gated governance.
-    function transferOwnership(address newOwner) external onlyOwner {
-        if (newOwner == address(0)) revert ZeroAddress();
-        owner = newOwner;
-    }
-
     /**
      * @notice Configures the base (underlying) token for a pool.
      * @dev Determines the meaning of the reported `isLong` flag: a position whose
@@ -482,11 +430,6 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
      *      currency0 when unset. On Unichain (currency0=USDC, currency1=WETH) set
      *      this to WETH so "long WETH" positions report isLong=true.
      */
-    function setBaseCurrency(PoolId poolId, Currency currency) external onlyOwner {
-        baseCurrency[poolId] = currency;
-        emit BaseCurrencySet(poolId, currency);
-    }
-
     /**
      * @notice Withdraws physically settled tokens from the Insurance Fund.
      */
@@ -531,14 +474,30 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     // EswapMarginHookLogicStorage, so EswapMarginHookLogic's fallback (running
     // against THIS hook's storage via delegatecall) reads the right address.
     address private logic2;
+    // Mirrors EswapMarginHookLogicStorage (appended after `logic2`, same order).
+    uint256 public insuranceCoverageBps;
+    mapping(PoolId => mapping(address => uint256)) public positionEpoch;
+    // [AUDIT F-05/F-08] Mirror of EswapMarginHookLogicStorage's appended state.
+    // `internal` on purpose: only the delegatecall'd logic reads/writes these, so
+    // the hook needs the slots but not the auto-generated getters (byte budget).
+    mapping(address => uint256) internal cachedPriceUsd;
+    mapping(address => uint256) internal cachedPriceAt;
+    mapping(address => mapping(Currency => uint256)) internal payoutCredits;
+    mapping(address => address) internal payoutRedirect;
+
+    event InsuranceCoverageBpsSet(uint256 bps);
+
+    /// @notice Share of an uncovered shortfall the insurance fund may cover (bps).
+    /// @dev Arbitrary placeholder default of 10000 (full coverage, the prior behaviour).
+    ///      Lower it to make the insurance fund cover only part of a shortfall.
+    function setInsuranceCoverageBps(uint256 bps) external onlyOwner {
+        if (bps > 10_000) revert BpsTooHigh();
+        insuranceCoverageBps = bps;
+        emit InsuranceCoverageBpsSet(bps);
+    }
 
     event LiquidatorIncentiveSet(uint256 oldBps, uint256 newBps);
 
-    function setLiquidatorIncentiveBps(uint256 bps) external onlyOwner {
-        require(bps < 10000, "incentive out of range");
-        emit LiquidatorIncentiveSet(liquidatorIncentiveBps, bps);
-        liquidatorIncentiveBps = bps;
-    }
 
     function withdrawInsuranceFund(Currency currency, address to, uint256 amount) external onlyOwner {
         // [FIX C-9] Cooldown prevents repeated 50%-cap drains that could gut the
@@ -753,7 +712,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         return IHooks.afterInitialize.selector;
     }
 
-    function beforeSwap(address, PoolKey calldata key, IPoolManager.SwapParams calldata params, bytes calldata data)
+    function beforeSwap(address sender, PoolKey calldata key, IPoolManager.SwapParams calldata params, bytes calldata data)
         external
         override
         onlyPoolManager
@@ -763,7 +722,13 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         PoolId poolId = key.toId();
         if (!isAuthorizedPool[poolId]) revert NotAuthorizedPool();
 
-        if (data.length == 0) return (IHooks.beforeSwap.selector, BeforeSwapDeltaLibrary.toBeforeSwapDelta(0, 0), 0);
+        // [I6] Empty-hookData swaps skip every fee path, so external callers may
+        // not use them. Only the hook's own internal unwind swaps (issued by the
+        // hook through the PoolManager, so sender == this) may run without data.
+        if (data.length == 0) {
+            if (sender != address(this)) revert UnsupportedFeature();
+            return (IHooks.beforeSwap.selector, BeforeSwapDeltaLibrary.toBeforeSwapDelta(0, 0), 0);
+        }
 
         bool isMargin = abi.decode(data, (bool));
 
@@ -787,6 +752,8 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
 
         // Margin Mode
         (, uint8 leverage, address trader) = abi.decode(data, (bool, uint8, address));
+        // [I1] Trader zero would make the TRADER guard inert and skip afterSwap's record.
+        if (trader == address(0)) revert ZeroAddress();
 
         _checkEmergencyPause();
 
@@ -1085,11 +1052,79 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
      */
     function isLiquidatable(Position memory pos, PoolKey calldata key) public view returns (bool) {
         if (pos.collateralAmount == 0) return false;
-        uint256 collateralValueUsd =
-            priceFeed.getAmountInUsd(Currency.unwrap(_collateralCurrency(pos, key)), pos.collateralAmount);
-        uint256 borrowedValueUsd =
-            priceFeed.getAmountInUsd(Currency.unwrap(_debtCurrency(pos, key)), pos.borrowedAmount);
-        return EswapMarginLib.isLiquidatable(collateralValueUsd, borrowedValueUsd, pos.leverage);
+
+        // [AUDIT F-05/F-06] This MUST stay a real function of the hook: keepers
+        // read it through a STATICCALL, and a delegatecall inside a static context
+        // is an exceptional halt. So the improved formula (cached-oracle fallback
+        // + actual-holdings valuation) is mirrored here from
+        // EswapMarginHookLogic2, which is the same formula the on-chain gates use.
+        PoolId poolId = key.toId();
+        Currency collateral = _collateralCurrency(pos, key);
+        bool isCurrency0 = Currency.unwrap(collateral) == Currency.unwrap(key.currency0);
+        uint256 collateralAmount = pos.collateralAmount;
+        uint256 debtLegRaw;
+
+        // [AUDIT F-06] Value what the hook ACTUALLY holds. `collateralAmount` is a
+        // book value only refreshed by `rebalancePosition`, which nobody is
+        // obliged to call; meanwhile the LP band may have sold most of the
+        // collateral into the debt currency. The retained part never left the
+        // accounting pool, the band is priced off the pool's live slot0.
+        uint256 deployed = rehypPrincipal[poolId][pos.trader];
+        if (pos.liquidity > 0 && deployed > 0) {
+            uint256 retained = collateralAmount > deployed ? collateralAmount - deployed : 0;
+            PoolKey memory scoped = standardPoolKeys[poolId];
+            PoolKey memory lpKey = Currency.unwrap(scoped.currency1) != address(0) ? scoped : key;
+            (uint160 sqrtPriceX96,,,) = _slot0(lpKey.toId());
+            (uint256 amount0, uint256 amount1) = sqrtPriceX96 == 0
+                ? (uint256(0), uint256(0))
+                : LiquidityAmounts.getAmountsForLiquidity(
+                    sqrtPriceX96,
+                    TickMath.getSqrtRatioAtTick(pos.tickLower),
+                    TickMath.getSqrtRatioAtTick(pos.tickUpper),
+                    pos.liquidity
+                );
+            collateralAmount = (isCurrency0 ? amount0 : amount1) + retained;
+            debtLegRaw = isCurrency0 ? amount1 : amount0;
+        }
+
+        (uint256 collateralValueUsd, bool breaker) = _usdOrCached(Currency.unwrap(collateral), collateralAmount);
+        if (debtLegRaw > 0) {
+            (uint256 debtLegUsd, bool breaker2) = _usdOrCached(
+                Currency.unwrap(isCurrency0 ? key.currency1 : key.currency0), debtLegRaw
+            );
+            collateralValueUsd += debtLegUsd;
+            breaker = breaker || breaker2;
+        }
+
+        uint256 borrowedValueUsd;
+        if (pos.borrowedAmount > 0) {
+            bool breaker3;
+            (borrowedValueUsd, breaker3) = _usdOrCached(Currency.unwrap(_debtCurrency(pos, key)), pos.borrowedAmount);
+            breaker = breaker || breaker3;
+        }
+
+        // [AUDIT F-05] Circuit breaker: a stale cached mark widens the band
+        // (CIRCUIT_BREAKER_BPS) instead of disabling liquidation entirely.
+        return EswapMarginLib.isLiquidatable(
+            collateralValueUsd, borrowedValueUsd, pos.leverage, breaker ? 500 : 0
+        );
+    }
+
+    /// @dev [AUDIT F-05] Live oracle value, or the last cached mark when the live
+    ///      read reverts (see EswapMarginHookLogic2._usdOrCache). `cached == true`
+    ///      signals circuit-breaker mode.
+    function _usdOrCached(address token, uint256 amount) internal view returns (uint256 usd, bool cached) {
+        if (address(priceFeed) != address(0)) {
+            try priceFeed.getAmountInUsd(token, amount) returns (uint256 value) {
+                return (value, false);
+            } catch {}
+        }
+        uint256 perWhole = cachedPriceUsd[token];
+        if (perWhole == 0) revert OraclePriceUnavailable();
+        uint8 d = tokenDecimals[token];
+        if (d == 0) d = 18;
+        usd = FullMath.mulDiv(amount, perWhole, 10 ** uint256(d));
+        cached = true;
     }
 
     /// @notice [P0#2] Storage-backed convenience for external trigger-order
@@ -1328,6 +1363,19 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         return uint256(_getKey(TRADER_BASE, msg.sender).tloadUint());
     }
 
+    /// @notice Test-only view of every transient margin slot for `trader`. Must be
+    ///         read in the same transaction as the swap (transient storage is
+    ///         cleared at transaction end). Used by the I1 residue assertions.
+    function getTransientMarginState(address trader)
+        external
+        view
+        returns (bytes32 traderSlot, bytes32 borrowSlot, bytes32 leverageSlot)
+    {
+        traderSlot = _getKey(TRADER_BASE, trader).tload();
+        borrowSlot = _getKey(BORROW_BASE, trader).tload();
+        leverageSlot = _getKey(LEVERAGE_BASE, trader).tload();
+    }
+
     /**
      * @notice Resolves the collateral and debt currencies for a trader's position.
      * @dev Needed by off-chain/keeper consumers because `isLong` is anchored to the
@@ -1439,6 +1487,24 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
                 && sig != this.rebalancePosition.selector && sig != this.deployCollateral.selector
                 && sig != this.registerMarginOpen.selector && sig != this.partialLiquidation.selector
                 && sig != this.insuranceStake.selector && sig != this.insuranceUnstake.selector
+                // [AUDIT F-08] Pull-claim surface for payouts that could not be
+                // delivered at settlement time. Literal selectors because these
+                // are functions of EswapMarginHookLogic, reachable only through
+                // this fallback, so `this.x.selector` cannot be used.
+                && sig != bytes4(keccak256("claimPayout(address)"))
+                && sig != bytes4(keccak256("setPayoutRedirect(address)"))
+                // [EIP-170] Owner setters relocated to Logic1.
+                && sig != EswapMarginHookLogic.setMaxLeverageForPool.selector
+                && sig != EswapMarginHookLogic.setAuthorizedPool.selector
+                && sig != EswapMarginHookLogic.setStandardPoolKey.selector
+                && sig != EswapMarginHookLogic.setRequireStandardPoolKey.selector
+                && sig != EswapMarginHookLogic.setTokenDecimals.selector
+                && sig != EswapMarginHookLogic.setBandConsumptionTriggerBps.selector
+                && sig != EswapMarginHookLogic.setOpenInterestCaps.selector
+                && sig != EswapMarginHookLogic.setEmergencyPause.selector
+                && sig != EswapMarginHookLogic.setBaseCurrency.selector
+                && sig != EswapMarginHookLogic.transferOwnership.selector
+                && sig != EswapMarginHookLogic.setLiquidatorIncentiveBps.selector
         ) {
             revert UnsupportedFeature();
         }

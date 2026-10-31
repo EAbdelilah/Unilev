@@ -11,6 +11,7 @@ import {BalanceDelta, BalanceDeltaLibrary} from "./types/BalanceDelta.sol";
 import {IPriceFeedLogic, EswapMarginHookLogicStorage} from "./EswapMarginHookLogicStorage.sol";
 import {EswapMarginLib} from "./EswapMarginLib.sol";
 import {NativeTokens} from "./libraries/NativeTokens.sol";
+import {LiquidityAmounts} from "./libraries/LiquidityAmounts.sol";
 import {TickMath} from "./libraries/TickMath.sol";
 import {FullMath} from "@uniswap/v4-core/src/libraries/FullMath.sol";
 import {IPoolManager as RealIPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
@@ -106,7 +107,10 @@ contract EswapMarginHookLogic2 is BaseHook, EswapMarginHookLogicStorage {
             collateralAmount,
             rehypPrincipal[poolId][trader],
             hadBand,
-            type(uint256).max
+            type(uint256).max,
+            // [AUDIT F-03] The position owner chose to exit: no oracle floor, so
+            // an unhealthy feed can never strand the trader's collateral.
+            false
         );
 
         address actualSolver = positionSolver[poolId][trader];
@@ -172,7 +176,10 @@ contract EswapMarginHookLogic2 is BaseHook, EswapMarginHookLogicStorage {
             collateralAmount,
             rehypPrincipal[poolId][trader],
             hadBand,
-            type(uint256).max
+            type(uint256).max,
+            // [AUDIT F-03] Liquidation unwinds collateral the owner did not
+            // choose to sell: require an oracle-floored fill.
+            true
         );
 
         // Guard on the TOTAL recovered value (swap output + band proceeds): a
@@ -205,138 +212,6 @@ contract EswapMarginHookLogic2 is BaseHook, EswapMarginHookLogicStorage {
             afterSolver - liqReward,
             pos.borrowedAmount,
             bandProceeds
-        );
-    }
-
-    // ─── [P1#3] Partial liquidation ──────────────────────────────────────────
-
-    /**
-     * @notice Liquidates ONLY `liquidationBps` (1-9999) of an underwater
-     *         position, keeping the remainder open with reduced collateral and
-     *         debt. Unlike a full liquidation (which closes entirely), a partial:
-     *          1. Unwinds a proportional slice of the collateral, repaid debt, and
-     *             the LP band (if any).
-     *          2. Seizes `(1 + LIQUIDATION_COVER_BPS) × proportional` collateral so
-     *             the position's collateralization RATIO improves (a plain f/f
-     *             shrink would leave the ratio unchanged and therefore the position
-     *             still liquidatable).
-     *          3. Repays the proportional solver principal and updates all ledger
-     *             aggregates; the position SURVIVES and can be closed or re-armed
-     *             by the trader later.
-     * @param liquidationBps Fraction of the position to liquidate, in basis points
-     *                       (1 through 9999). 10000 (full) must use
-     *                       `executeLiquidation` instead.
-     */
-    function partialLiquidation(
-        PoolKey calldata key,
-        address trader,
-        uint256 minAmountOut,
-        address liquidator,
-        uint256 liquidationBps
-    ) external onlyRouter {
-        if (liquidationBps == 0 || liquidationBps >= 10000) revert InvalidLiquidationBps();
-        // [AUDIT HIGH-4] A partial liquidation seizes `(1 + COVER_BPS) × bps` of
-        // the collateral. Above ~9523 bps the cover-inflated slice caps at the
-        // whole position — silently converting the "partial" into a full
-        // liquidation that bypasses executeLiquidation's stricter flow. Reject
-        // outright instead of relying on the downstream `liqCollateral` cap.
-        if (FullMath.mulDiv(liquidationBps, 10000 + LIQUIDATION_COVER_BPS, 10000) >= 10000) {
-            revert InvalidLiquidationBps();
-        }
-
-        PoolId poolId = key.toId();
-        Position storage pos = positions[poolId][trader];
-        if (!isLiquidatable(pos, key)) revert PositionNotLiquidatable();
-
-        bool hadBand = pos.liquidity > 0;
-        BalanceDelta removeDelta;
-        if (hadBand) {
-            PoolKey memory lpPool = _rehypothecationPool(poolId, key);
-            (removeDelta,) = manager.modifyLiquidity(
-                lpPool, IPoolManager.ModifyLiquidityParams(pos.tickLower, pos.tickUpper, -int128(pos.liquidity), 0), ""
-            );
-            _netLiquidityDelta(lpPool, removeDelta);
-            pos.liquidity = 0;
-        }
-
-        Currency collateralCurrency = _collateralCurrency(pos, key);
-        Currency debtCurrency = _debtCurrency(pos, key);
-        uint256 collateralAmount = pos.collateralAmount;
-        uint256 borrowedAmount = pos.borrowedAmount;
-
-        address yieldRecipient = positionSolver[poolId][trader];
-        if (yieldRecipient == address(0)) yieldRecipient = trader;
-        _distributeRehypothecation(key, removeDelta, collateralCurrency, rehypPrincipal[poolId][trader], yieldRecipient);
-
-        // [P1#3] Collateral to seize: proportional slice plus the cover bonus
-        // (thinner collateral than debt ⇒ the surviving position's health rises).
-        uint256 liqCollateral = FullMath.mulDiv(collateralAmount, liquidationBps, 10000);
-        liqCollateral = FullMath.mulDiv(liqCollateral, 10000 + LIQUIDATION_COVER_BPS, 10000);
-        if (liqCollateral > collateralAmount) liqCollateral = collateralAmount;
-
-        // The remainder of the collateral that never left the accounting pool stays
-        // behind as the reduced position's backing (see _unwindBand: available =
-        // band-recovered + retained, capped at the book collateralAmount).
-        (uint256 receivedAmount, uint256 bandProceeds, uint256 unwindAmount) = _unwindBand(
-            key,
-            poolId,
-            removeDelta,
-            collateralCurrency,
-            collateralAmount,
-            rehypPrincipal[poolId][trader],
-            hadBand,
-            liqCollateral
-        );
-
-        uint256 totalSource = receivedAmount + bandProceeds;
-        if (totalSource == 0) revert SlippageExceeded(0, minAmountOut);
-        if (totalSource < minAmountOut) revert SlippageExceeded(totalSource, minAmountOut);
-
-        // Repay the proportional share of the solver claim first.
-        address solver = positionSolver[poolId][trader];
-        SolverDebt storage debt = solverDebts[poolId][trader][solver];
-        uint256 totalPayout = debt.principal + debt.accumulatedYield;
-        if (totalPayout == 0 && borrowedAmount > 0) totalPayout = borrowedAmount;
-        uint256 liqDebt = FullMath.mulDiv(totalPayout, liquidationBps, 10000);
-        if (liqDebt > borrowedAmount) liqDebt = borrowedAmount;
-
-        uint256 afterSolver = totalSource >= liqDebt ? totalSource - liqDebt : 0;
-        uint256 liqReward = (afterSolver * LIQUIDATION_REWARD_BPS) / 10000;
-
-        // [AUDIT CRIT-04] The surviving position must clear the maintenance
-        // threshold. Leaving a still-liquidatable remainder lets any keeper
-        // repeat small slices indefinitely, skimming the cover bonus + reward
-        // each round until the stake is dust. Revert instead, so an underwater
-        // position can only be settled by a FULL liquidation (100% of the debt
-        // repaid in one pass). NOTE: the check runs AFTER the unwind swap but is
-        // still atomic — a revert rolls the whole transaction back untouched.
-        if (unwindAmount < collateralAmount) {
-            uint256 remainingCollateral = collateralAmount - unwindAmount;
-            uint256 remainingDebt = borrowedAmount > liqDebt ? borrowedAmount - liqDebt : 0;
-            if (
-                EswapMarginLib.isLiquidatable(
-                    _usdValueOf(Currency.unwrap(collateralCurrency), remainingCollateral),
-                    _usdValueOf(Currency.unwrap(debtCurrency), remainingDebt),
-                    pos.leverage
-                )
-            ) revert PartialLiquidationLeavesUnhealthyPosition();
-        }
-
-        _settlePartial(
-            poolId,
-            trader,
-            pos,
-            collateralCurrency,
-            debtCurrency,
-            unwindAmount,
-            receivedAmount,
-            solver,
-            liquidator,
-            liqReward,
-            afterSolver - liqReward,
-            liqDebt,
-            bandProceeds,
-            collateralAmount
         );
     }
 
@@ -470,7 +345,9 @@ contract EswapMarginHookLogic2 is BaseHook, EswapMarginHookLogicStorage {
             uint256 shortfall = totalPayout > payableAmount ? totalPayout - payableAmount : 0;
             if (shortfall > 0) {
                 uint256 claimId = uint256(uint160(Currency.unwrap(debtCurrency)));
-                uint256 covered = shortfall > insuranceFund[debtCurrency] ? insuranceFund[debtCurrency] : shortfall;
+                // [INSURANCE POLICY] The fund covers at most `insuranceCoverageBps` of the shortfall.
+                uint256 coverable = FullMath.mulDiv(shortfall, insuranceCoverageBps, 10000);
+                uint256 covered = coverable > insuranceFund[debtCurrency] ? insuranceFund[debtCurrency] : coverable;
                 // [FIX C-2] Insurance coverage is claim-backed: on the real
                 // PoolManager a bare take() debits a transient delta against the
                 // hook that never nets, reverting the unlock with
@@ -496,22 +373,30 @@ contract EswapMarginHookLogic2 is BaseHook, EswapMarginHookLogicStorage {
             if (solver != address(0)) {
                 uint256 solverPayout = totalPayout > payableAmount ? payableAmount : totalPayout;
                 payableAmount -= solverPayout;
-                NativeTokens.transfer(debtCurrency, solver, solverPayout);
+                // [AUDIT F-08] Non-reverting: a blacklisted solver (often the
+                // settlement contract) must not freeze every position it funded.
+                _payOrCredit(debtCurrency, solver, solverPayout);
             }
         }
         // [P2#8] Optional executor incentive: a bps share of the post-solver surplus
         // (= liquidatorReward + traderPayout) paid DIRECTLY to the liquidator in
-        // the debt currency BEFORE the insurance credit/trader payout. 0 by
-        // default preserves the H-5b insurance-only routing; enabling it makes
-        // liquidations permissionless while the solver claim (above) still takes
-        // precedence. Close calls with liquidator == address(0) → never paid.
-        if (liquidator != address(0) && liquidatorIncentiveBps > 0) {
+        // the debt currency BEFORE the insurance credit/trader payout. Close calls
+        // with liquidator == address(0) → never paid.
+        // [AUDIT F-07] FLOORED at LIQUIDATOR_MIN_INCENTIVE_BPS: leaving
+        // `liquidatorIncentiveBps` at 0 used to make every liquidation strictly
+        // -EV for a third party, so insolvency (badDebt) was the rational outcome
+        // and liveness depended on a permissioned team keeper. The bounty is
+        // event-driven (a share of the realised surplus), so 0% carry is
+        // preserved — nobody is paid for the passage of time.
+        if (liquidator != address(0)) {
+            uint256 effBps =
+                liquidatorIncentiveBps > LIQUIDATOR_MIN_INCENTIVE_BPS ? liquidatorIncentiveBps : LIQUIDATOR_MIN_INCENTIVE_BPS;
             uint256 lpIncentive = liquidatorReward + traderPayout;
-            lpIncentive = (lpIncentive * liquidatorIncentiveBps) / 10000;
+            lpIncentive = (lpIncentive * effBps) / 10000;
             if (lpIncentive > payableAmount) lpIncentive = payableAmount;
             if (lpIncentive > 0) {
                 payableAmount -= lpIncentive;
-                NativeTokens.transfer(debtCurrency, liquidator, lpIncentive);
+                _payOrCredit(debtCurrency, liquidator, lpIncentive);
             }
         }
         // [FIX H-5b] The liquidation reward (300 bps of the post-solver surplus)
@@ -539,7 +424,10 @@ contract EswapMarginHookLogic2 is BaseHook, EswapMarginHookLogicStorage {
             uint256 finalTraderPayout = traderPayout > payableAmount ? payableAmount : traderPayout;
             if (finalTraderPayout > 0) {
                 payableAmount -= finalTraderPayout;
-                NativeTokens.transfer(debtCurrency, trader, finalTraderPayout);
+                // [AUDIT F-08] Non-reverting: a trader with a reverting `receive()`
+                // (or a blacklisted address) can no longer brick its own close or
+                // the liquidation that protects the protocol.
+                _payOrCredit(debtCurrency, trader, finalTraderPayout);
             }
         }
         _clearCollateralAccounting(trader, collateralCurrency, collateralAmount);
@@ -566,140 +454,6 @@ contract EswapMarginHookLogic2 is BaseHook, EswapMarginHookLogicStorage {
         rehypPrincipal[poolId][trader] = 0;
     }
 
-    // ─── [P1#3] Partial-liquidation settlement ───────────────────────────────
-
-    /**
-     * @notice Settlement for a PARTIAL liquidation. Unlike _settle this does NOT
-     *         delete the position: it shaves `liqDebt` off `borrowedAmount` and
-     *         `unwindAmount` off `collateralAmount` (leaving the surviving stake),
-     *         repays the solver share with cover-backed proceeds, credits the
-     *         liquidation reward to the insurance fund, and pays the remainder to
-     *         the liquidator/trader as in a full liquidation.
-     * @dev The reduced position keeps its leverage discipline via the fee-bps
-     *      check on the next open. The LP band is fully removed for the unwind
-     *      and re-established by the next deployCollateral/rebalance call.
-     */
-    function _settlePartial(
-        PoolId poolId,
-        address trader,
-        Position storage pos,
-        Currency collateralCurrency,
-        Currency debtCurrency,
-        uint256 unwindAmount,
-        uint256 receivedAmount,
-        address solver,
-        address liquidator,
-        uint256 liquidatorReward,
-        uint256 traderPayout,
-        uint256 liqDebt,
-        uint256 extraProceeds,
-        uint256 collateralAmount
-    ) internal {
-        if (receivedAmount > 0) {
-            manager.take(debtCurrency, address(this), receivedAmount);
-        }
-        SolverDebt storage debt = solverDebts[poolId][trader][solver];
-        uint256 totalPayout = debt.principal + debt.accumulatedYield;
-        uint256 payableAmount = receivedAmount + extraProceeds;
-        // Never repay more than the ledger actually owes the solver.
-        if (liqDebt > totalPayout && totalPayout > 0) liqDebt = totalPayout;
-        // [P2#8] Emit the partial-liquidation summary HERE while `totalPayout`
-        // is still live (its slot is reused by later locals): keeps the inlined
-        // partialLiquidation graph under via-ir stack depth.
-        emit PositionPartiallyLiquidated(
-            poolId, trader, liquidationBpsOf(liqDebt, totalPayout), unwindAmount, liqDebt, receivedAmount
-        );
-        // Shortfall: insurance covers what the seized collateral could not
-        // physically produce; the uncovered remainder books as bad debt.
-        if (liqDebt > 0) {
-            uint256 shortfall = liqDebt > payableAmount ? liqDebt - payableAmount : 0;
-            if (shortfall > 0) {
-                uint256 covered = shortfall > insuranceFund[debtCurrency] ? insuranceFund[debtCurrency] : shortfall;
-                // [FIX FEE-BACKING] Cap at burnable claims (excludes fee/insurance
-                // reservation) so insurance coverage never eats fee backing.
-                uint256 claimsHeld = _burnableClaims(debtCurrency);
-                if (covered > claimsHeld) covered = claimsHeld;
-                insuranceFund[debtCurrency] -= covered;
-                if (covered > 0) {
-                    manager.burn(address(this), uint256(uint160(Currency.unwrap(debtCurrency))), covered);
-                    manager.take(debtCurrency, address(this), covered);
-                    payableAmount += covered;
-                }
-                uint256 uncovered = shortfall - covered;
-                if (uncovered > 0) {
-                    badDebt[debtCurrency] += uncovered;
-                    emit BadDebtRecorded(debtCurrency, uncovered);
-                }
-            }
-            uint256 solverPayout = liqDebt > payableAmount ? payableAmount : liqDebt;
-            payableAmount -= solverPayout;
-            if (solver != address(0)) NativeTokens.transfer(debtCurrency, solver, solverPayout);
-        }
-        // [P2#8] Direct liquidator share on the partial slice (see _settle).
-        if (liquidator != address(0) && liquidatorIncentiveBps > 0) {
-            uint256 lpIncentive = liquidatorReward + traderPayout;
-            lpIncentive = (lpIncentive * liquidatorIncentiveBps) / 10000;
-            if (lpIncentive > payableAmount) lpIncentive = payableAmount;
-            if (lpIncentive > 0) {
-                payableAmount -= lpIncentive;
-                NativeTokens.transfer(debtCurrency, liquidator, lpIncentive);
-            }
-        }
-        if (liquidatorReward > 0) {
-            uint256 liqCredit = liquidatorReward > payableAmount ? payableAmount : liquidatorReward;
-            if (liqCredit > 0) {
-                payableAmount -= liqCredit;
-                insuranceFund[debtCurrency] += liqCredit;
-                _settleToManager(debtCurrency, liqCredit);
-                manager.mint(address(this), uint256(uint160(Currency.unwrap(debtCurrency))), liqCredit);
-            }
-        }
-        if (traderPayout > 0) {
-            uint256 finalTraderPayout = traderPayout > payableAmount ? payableAmount : traderPayout;
-            if (finalTraderPayout > 0) {
-                payableAmount -= finalTraderPayout;
-                NativeTokens.transfer(debtCurrency, trader, finalTraderPayout);
-            }
-        }
-        // Clear the trader's accounting claim on the LIQUIDATED collateral slice
-        // only; the remainder stays backing the surviving position.
-        if (unwindAmount > 0) {
-            _clearCollateralAccounting(trader, collateralCurrency, unwindAmount);
-        }
-        pos.collateralAmount = pos.collateralAmount > unwindAmount ? pos.collateralAmount - unwindAmount : 0;
-        pos.borrowedAmount = pos.borrowedAmount > liqDebt ? pos.borrowedAmount - liqDebt : 0;
-
-        if (liqDebt > 0) {
-            // [PHASE-0 FIX] Never-reverting open-interest release: this is a
-            // counter decrement, and letting the live feed revert here blocked
-            // the liquidation itself.
-            _releaseOpenInterest(Currency.unwrap(debtCurrency), liqDebt);
-            totalBorrowedByToken[debtCurrency] = EswapMarginLib.saturatingSub(totalBorrowedByToken[debtCurrency], liqDebt);
-        }
-        if (unwindAmount > 0 && collateralAmount > 0) {
-            uint256 removedCollateralUsd =
-                FullMath.mulDiv(positionCollateralUSD[poolId][trader], unwindAmount, collateralAmount);
-            uint256 pc = positionCollateralUSD[poolId][trader];
-            positionCollateralUSD[poolId][trader] = pc > removedCollateralUsd ? pc - removedCollateralUsd : 0;
-            totalCollateralUSDRunning = EswapMarginLib.saturatingSub(totalCollateralUSDRunning, removedCollateralUsd);
-        }
-        // Reduce the solver debt ledger: principal first, then yield.
-        uint256 payPrincipal = liqDebt > debt.principal ? debt.principal : liqDebt;
-        debt.principal -= payPrincipal;
-        uint256 payYield = liqDebt - payPrincipal;
-        if (payYield > 0) {
-            debt.accumulatedYield = debt.accumulatedYield > payYield ? debt.accumulatedYield - payYield : 0;
-        }
-        // Band fully removed; clear stale deployed-principal bookkeeping so a
-        // future deploy starts clean.
-        rehypPrincipal[poolId][trader] = 0;
-    }
-
-    /// @dev Recover the bps share of a partial liquidation for the event.
-    function liquidationBpsOf(uint256 part, uint256 whole) internal pure returns (uint256) {
-        if (whole == 0) return 0;
-        return (part * 10000) / whole;
-    }
 
     function _distributeRehypothecation(
         PoolKey calldata key,
@@ -778,11 +532,150 @@ contract EswapMarginHookLogic2 is BaseHook, EswapMarginHookLogicStorage {
 
     function isLiquidatable(Position memory pos, PoolKey calldata key) public view returns (bool) {
         if (pos.collateralAmount == 0) return false;
-        uint256 collateralValueUsd =
-            priceFeed.getAmountInUsd(Currency.unwrap(_collateralCurrency(pos, key)), pos.collateralAmount);
-        uint256 borrowedValueUsd =
-            priceFeed.getAmountInUsd(Currency.unwrap(_debtCurrency(pos, key)), pos.borrowedAmount);
-        return EswapMarginLib.isLiquidatable(collateralValueUsd, borrowedValueUsd, pos.leverage);
+
+        // [AUDIT F-06] Value the assets the hook ACTUALLY holds, not the book.
+        // `pos.collateralAmount` is only rewritten by `rebalancePosition`, which
+        // nobody is obliged to call: between rebalances the LP band may already
+        // have sold collateral into the debt currency (and back). Valuing the
+        // stale book makes the check both premature (liquidating a physically
+        // solvent position) and lagging (under-pricing risk until the next
+        // rebalance).
+        Currency collateralCurrency = _collateralCurrency(pos, key);
+        (uint256 collateralValueUsd, uint256 debtLegUsd, bool cached) = _actualValue(pos, key, collateralCurrency);
+
+        uint256 borrowedValueUsd;
+        if (pos.borrowedAmount > 0) {
+            (borrowedValueUsd,) = _usdOrCache(Currency.unwrap(_debtCurrency(pos, key)), pos.borrowedAmount);
+        }
+
+        // [AUDIT F-05] Circuit-breaker mode: when either leg had to fall back to
+        // the cached oracle mark, widen the liquidation band by
+        // CIRCUIT_BREAKER_BPS instead of reverting. The previous bare
+        // `getAmountInUsd` meant ANY feed fault (sequencer restart grace, stale
+        // heartbeat, depeg band) disabled every liquidation while `closePosition`
+        // — which touches no oracle — kept working: a free American option for
+        // the trader and pure bad debt for the protocol.
+        return EswapMarginLib.isLiquidatable(
+            collateralValueUsd + debtLegUsd,
+            borrowedValueUsd,
+            pos.leverage,
+            cached ? CIRCUIT_BREAKER_BPS : 0
+        );
+    }
+
+    /// @dev [AUDIT F-06] Mark-to-market of a position's real holdings, split into
+    ///      the collateral-currency value and the debt-currency value of the LP
+    ///      band's other leg.
+    ///      - `retained = collateralAmount - rehypPrincipal` never left the
+    ///        accounting pool and is held in the collateral currency.
+    ///      - The rehypothecated band is priced at the pool's CURRENT slot0 with
+    ///        Uniswap's own `getAmountsForLiquidity`, so the collateral/debt split
+    ///        reflects the price move instead of the book.
+    ///      `cached` reports whether any leg had to be valued off the cached
+    ///      oracle mark (drives the F-05 circuit breaker).
+    function _actualValue(Position memory pos, PoolKey calldata key, Currency collateralCurrency)
+        internal
+        view
+        returns (uint256 collateralValueUsd, uint256 debtLegUsd, bool cached)
+    {
+        uint256 deployed = rehypPrincipal[key.toId()][pos.trader];
+        uint256 collateralAmount = pos.collateralAmount;
+
+        // With no band (or no recorded principal) the whole book sits in the
+        // accounting pool: value it exactly as before this change.
+        if (pos.liquidity == 0 || deployed == 0) {
+            (collateralValueUsd, cached) = _usdOrCache(Currency.unwrap(collateralCurrency), collateralAmount);
+            return (collateralValueUsd, 0, cached);
+        }
+
+        uint256 retained = collateralAmount > deployed ? collateralAmount - deployed : 0;
+
+        bool isCurrency0 = Currency.unwrap(collateralCurrency) == Currency.unwrap(key.currency0);
+        (uint160 sqrtPriceX96,,,) = _slot0(_rehypothecationPool(key.toId(), key).toId());
+        (uint256 amount0, uint256 amount1) = sqrtPriceX96 == 0
+            ? (uint256(0), uint256(0))
+            : LiquidityAmounts.getAmountsForLiquidity(
+                sqrtPriceX96,
+                TickMath.getSqrtRatioAtTick(pos.tickLower),
+                TickMath.getSqrtRatioAtTick(pos.tickUpper),
+                pos.liquidity
+            );
+
+        uint256 collateralLeg = (isCurrency0 ? amount0 : amount1) + retained;
+        uint256 debtLeg = isCurrency0 ? amount1 : amount0;
+
+        (collateralValueUsd, cached) = _usdOrCache(Currency.unwrap(collateralCurrency), collateralLeg);
+        if (debtLeg > 0) {
+            Currency debtCurrency = isCurrency0 ? key.currency1 : key.currency0;
+            (debtLegUsd, cached) = _usdOrCache(Currency.unwrap(debtCurrency), debtLeg);
+        }
+    }
+
+    /// @dev [AUDIT F-05] Live oracle value, or the last cached mark when the live
+    ///      read reverts. `cached == true` tells the caller the protocol is
+    ///      running on a stale price. Reverts `OraclePriceUnavailable` only when
+    ///      neither a live read nor a cached mark exists (a brand-new token with
+    ///      no successful open since deployment).
+    function _usdOrCache(address token, uint256 amount) internal view returns (uint256 usd, bool cached) {
+        if (address(priceFeed) != address(0)) {
+            try priceFeed.getAmountInUsd(token, amount) returns (uint256 value) {
+                return (value, false);
+            } catch {}
+        }
+        uint256 perWhole = cachedPriceUsd[token];
+        if (perWhole == 0) revert OraclePriceUnavailable();
+        uint8 d = tokenDecimals[token];
+        if (d == 0) d = 18;
+        usd = FullMath.mulDiv(amount, perWhole, 10 ** uint256(d));
+        cached = true;
+    }
+
+    /// @dev [AUDIT F-05] Records the current oracle mark for `token` as USD per
+    ///      WHOLE token (18 decimals). Uses the hook's registry decimals on both
+    ///      write and read, so any registry/oracle scale mismatch cancels. Never
+    ///      reverts: a failed read leaves the previous mark in place.
+    function _cachePrice(address token) internal {
+        if (address(priceFeed) == address(0)) return;
+        uint8 d = tokenDecimals[token];
+        if (d == 0) d = 18;
+        try priceFeed.getAmountInUsd(token, 10 ** uint256(d)) returns (uint256 price18) {
+            if (price18 != 0) {
+                cachedPriceUsd[token] = price18;
+                cachedPriceAt[token] = block.timestamp;
+                emit PriceCached(token, price18);
+            }
+        } catch {}
+    }
+
+    /// @dev [AUDIT F-08] Pays `amount` of `currency` to `to` (or its configured
+    ///      redirect). A reverting/failing transfer is CREDITED to
+    ///      `payoutCredits` instead of reverting the settlement, so one
+    ///      blacklisted or non-receiving recipient can never freeze a position
+    ///      (nor every position funded by a blacklisted solver). Pull-claim via
+    ///      `EswapMarginHookLogic.claimPayout`.
+    function _payOrCredit(Currency currency, address to, uint256 amount) internal {
+        if (amount == 0 || to == address(0)) return;
+        address dest = payoutRedirect[to];
+        if (dest == address(0)) dest = to;
+
+        bool success;
+        if (NativeTokens.isNative(currency)) {
+            (success,) = dest.call{value: amount}("");
+        } else {
+            (bool ok, bytes memory ret) = address(Currency.unwrap(currency)).call(
+                abi.encodeCall(IERC20.transfer, (dest, amount))
+            );
+            uint256 word;
+            assembly ("memory-safe") {
+                word := mload(add(ret, 32))
+            }
+            // Empty returndata is a success for non-standard (USDT-style) tokens.
+            success = ok && (ret.length == 0 || word != 0);
+        }
+        if (!success) {
+            payoutCredits[to][currency] += amount;
+            emit PayoutDeferred(to, currency, amount);
+        }
     }
 
     function _rehypothecationPool(PoolId poolId, PoolKey calldata key) internal view returns (PoolKey memory) {
@@ -842,7 +735,8 @@ contract EswapMarginHookLogic2 is BaseHook, EswapMarginHookLogicStorage {
         uint256 collateralAmount,
         uint256 deployedPrincipal,
         bool hadBand,
-        uint256 maxUnwind
+        uint256 maxUnwind,
+        bool enforceFloor
     ) internal returns (uint256 receivedAmount, uint256 bandProceeds, uint256 actualUnwound) {
         bool zeroForOne = Currency.unwrap(collateralCurrency) == Currency.unwrap(key.currency0);
         uint256 availableCollateral = collateralAmount;
@@ -874,6 +768,23 @@ contract EswapMarginHookLogic2 is BaseHook, EswapMarginHookLogicStorage {
 
         int128 removedDebtInt = zeroForOne ? removeDelta.amount1() : removeDelta.amount0();
         bandProceeds = removedDebtInt > 0 ? uint256(uint128(removedDebtInt)) : 0;
+
+        // [AUDIT F-03] Oracle floor on the realised unwind value. The swap is
+        // executed against whatever liquidity the resolved pool offers, at a
+        // limit price of "no limit", so an adversary who controls the block can
+        // sell the liquidation's collateral into their own thin liquidity and
+        // take the difference. The floor compares USD values (so the two legs
+        // need not share decimals) of everything recovered against the oracle
+        // value of the collateral sold, with MAX_UNWIND_SLIPPAGE_BPS of slack.
+        // `_usdOrCache` keeps an oracle outage from re-breaking liquidation
+        // liveness (F-05).
+        if (enforceFloor && availableCollateral > 0) {
+            Currency debtCurrency = zeroForOne ? key.currency1 : key.currency0;
+            (uint256 outUsd,) = _usdOrCache(Currency.unwrap(debtCurrency), receivedAmount + bandProceeds);
+            (uint256 inUsd,) = _usdOrCache(Currency.unwrap(collateralCurrency), availableCollateral);
+            uint256 floorUsd = FullMath.mulDiv(inUsd, 10000 - MAX_UNWIND_SLIPPAGE_BPS, 10000);
+            if (inUsd > 0 && outUsd < floorUsd) revert UnwindBelowOracleFloor(outUsd, floorUsd);
+        }
 
         _settleTransientDebt(collateralCurrency, availableCollateral);
     }
@@ -1050,6 +961,7 @@ contract EswapMarginHookLogic2 is BaseHook, EswapMarginHookLogicStorage {
                 totalOpenInterestUSD += tradeOIUsd;
             }
 
+            positionEpoch[key.toId()][trader] += 1;
             positions[key.toId()][trader] = Position({
                 trader: trader,
                 collateralAmount: positionCollateral,
@@ -1062,7 +974,16 @@ contract EswapMarginHookLogic2 is BaseHook, EswapMarginHookLogicStorage {
                 liquidity: 0
             });
 
-            _getKey(TRADER_BASE, trader).tstore(address(0));
+            // [AUDIT F-05] Refresh the cached oracle marks from this non-view
+            // path. The health check degrades to these when the live feed
+            // reverts, so an oracle outage can no longer switch liquidation off.
+            _cachePrice(Currency.unwrap(boughtCurrency));
+            if (borrow > 0) _cachePrice(Currency.unwrap(borrowedToken));
+
+            // [I1] Clear every margin transient slot, not only the reentrancy guard.
+            _getKey(TRADER_BASE, trader).tstore(bytes32(0));
+            _getKey(BORROW_BASE, trader).tstore(bytes32(0));
+            _getKey(LEVERAGE_BASE, trader).tstore(bytes32(0));
             emit HookSwap(key.toId(), trader, delta.amount0(), delta.amount1(), 0);
         }
         return (IHooks.afterSwap.selector, 0);

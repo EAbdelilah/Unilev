@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {BaseV4Test} from "./BaseV4Test.t.sol";
+import {EswapMarginHook} from "../EswapMarginHook.sol";
 import {PoolKey} from "../types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "../types/PoolId.sol";
 import {IPoolManager} from "../interfaces/IPoolManager.sol";
@@ -53,9 +54,12 @@ contract EswapEdgeCaseTest is BaseV4Test {
         hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -100 ether, 0), data);
     }
 
-    function test_EmptyData_BehavesAsNormalSwap() public {
+    /// @dev [I6] Empty-hookData swaps skip every fee path, so an external caller
+    ///      (anything other than the hook's own internal unwind swap) is rejected.
+    function test_EmptyData_ExternalCaller_Reverts() public {
         bytes memory data = "";
         vm.prank(address(manager));
+        vm.expectRevert(EswapMarginHook.UnsupportedFeature.selector);
         hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -100 ether, 0), data);
     }
 

@@ -1,0 +1,9 @@
+﻿No files changed, compilation skipped
+
+Ran 3 tests for src/v4/test/AuditThirdAdversarialPoC.t.sol:AuditThirdJITDrainPoC
+[PASS] test_PoC_JIT_AboveCeiling_Reverts() (gas: 259512)
+[PASS] test_PoC_JIT_FairFill_Succeeds() (gas: 614705)
+[PASS] test_PoC_JIT_UnsetFeed_Reverts() (gas: 44193)
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 8.65ms (2.11ms CPU time)
+
+Ran 1 test suite in 34.68ms (8.65ms CPU time): 3 tests passed, 0 failed, 0 skipped (3 total tests)

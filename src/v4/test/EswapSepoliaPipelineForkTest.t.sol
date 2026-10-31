@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Test, console2} from "forge-std/Test.sol";
 import {EswapMarginHook} from "../EswapMarginHook.sol";
+import {EswapMarginHookLogic} from "../EswapMarginHookLogic.sol";
 import {EswapRouter} from "../EswapRouter.sol";
 import {EswapCoWSettlement, CowOrder} from "../EswapCoWSettlement.sol";
 import {CowSigning} from "../cow/CowSigning.sol";
@@ -174,11 +175,11 @@ contract EswapSepoliaPipelineForkTest is Test, IUnlockCallback {
             pm.initialize(hookReal, initSqrt);
         }
 
-        hook.setAuthorizedPool(hookLocalKey.toId(), true);
-        hook.setStandardPoolKey(hookLocalKey.toId(), standardLocalKey);
-        hook.setBaseCurrency(hookLocalKey.toId(), Currency.wrap(SEPOLIA_WETH));
-        hook.setTokenDecimals(SEPOLIA_WETH, 18);
-        hook.setTokenDecimals(SEPOLIA_USDC, 6);
+        EswapMarginHookLogic(payable(address(hook))).setAuthorizedPool(hookLocalKey.toId(), true);
+        EswapMarginHookLogic(payable(address(hook))).setStandardPoolKey(hookLocalKey.toId(), standardLocalKey);
+        EswapMarginHookLogic(payable(address(hook))).setBaseCurrency(hookLocalKey.toId(), Currency.wrap(SEPOLIA_WETH));
+        EswapMarginHookLogic(payable(address(hook))).setTokenDecimals(SEPOLIA_WETH, 18);
+        EswapMarginHookLogic(payable(address(hook))).setTokenDecimals(SEPOLIA_USDC, 6);
 
         // Oracle mock tracks the venue price (stable $1 USDC).
         priceFeed.setPrice(SEPOLIA_USDC, 1e18);

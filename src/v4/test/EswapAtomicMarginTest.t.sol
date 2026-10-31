@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {BaseV4Test, PriceFeedMock, ERC20Mock} from "./BaseV4Test.t.sol";
 import {PoolManagerCallbackMock} from "./mocks/PoolManagerMock.sol";
 import {EswapMarginHook} from "../EswapMarginHook.sol";
+import {EswapMarginHookLogic} from "../EswapMarginHookLogic.sol";
 import {EswapRouter} from "../EswapRouter.sol";
 import {EswapRouterExt} from "../EswapRouterExt.sol";
 import {PoolKey} from "../types/PoolKey.sol";
@@ -92,7 +93,7 @@ contract EswapAtomicMarginTest is BaseV4Test {
             PoolKey({currency0: key.currency0, currency1: key.currency1, fee: 0, tickSpacing: 60, hooks: address(0)});
 
         hook.setRouterAndMinCollateralUsd(address(router), 0);
-        hook.setAuthorizedPool(key.toId(), true);
+        EswapMarginHookLogic(payable(address(hook))).setAuthorizedPool(key.toId(), true);
 
         atomicManager.setSlot0(key.toId(), 1 << 96, 0);
         atomicManager.setSlot0(standardPoolKey.toId(), 1 << 96, 0);

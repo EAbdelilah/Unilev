@@ -5,6 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {EswapMarginHook} from "../EswapMarginHook.sol";
 import {EswapMarginHookLogic} from "../EswapMarginHookLogic.sol";
 import {EswapMarginHookLogic2} from "../EswapMarginHookLogic2.sol";
+import {EswapMarginHookLogic3} from "../EswapMarginHookLogic3.sol";
 import {EswapHookDeployLib} from "./EswapHookDeployLib.sol";
 import {PriceFeedMock} from "./BaseV4Test.t.sol";
 import {PoolManagerMock} from "./mocks/PoolManagerMock.sol";
@@ -237,7 +238,8 @@ contract EswapHookConstructorTest is Test {
     function test_CombinedDeploymentFitsEip3860() public {
         uint256 total = type(EswapMarginHook).creationCode.length
             + type(EswapMarginHookLogic).creationCode.length
-            + type(EswapMarginHookLogic2).creationCode.length;
+            + type(EswapMarginHookLogic2).creationCode.length
+            + type(EswapMarginHookLogic3).creationCode.length;
         // Sibling contracts each have their own tx, so this is not a hard limit,
         // but it documents that the hook alone no longer dominates the budget.
         assertLt(type(EswapMarginHook).creationCode.length, total, "hook is the largest child");

@@ -63,6 +63,20 @@ contract EswapLeverageAdapter is Ownable {
     ///      drawing down) another party's bonded/whitelisted solver credit.
     error SolverSelectionUnauthorized();
     error UnauthorizedDelegatecall(bytes4 selector);
+    /// @dev [AUDIT F-02] The adapter is executor-whitelisted on the router, so
+    ///      `_open` relays a router open that pulls the MARGIN from `recipient`.
+    ///      Without a caller gate any address could name a victim as `recipient`
+    ///      and force-open a position against the victim's standing router
+    ///      allowance with an attacker-chosen `minAmountOut` (including zero).
+    error ExecutorNotApproved(address trader, address executor);
+
+    /// @dev [AUDIT F-02] Per-trader executor approvals. A trader delegates the
+    ///      right to name them as `recipient` to an aggregator/relay/router
+    ///      contract (ODOS executor, Enso wallet, a smart-account module) without
+    ///      having to hand out a router allowance to the world.
+    mapping(address => mapping(address => bool)) public approvedExecutor;
+
+    event ExecutorApprovalSet(address indexed trader, address indexed executor, bool approved);
 
     event PoolRegistered(address indexed tokenIn, address indexed tokenOut, uint24 fee);
     event DefaultSolverSet(address indexed solver);
@@ -106,6 +120,17 @@ contract EswapLeverageAdapter is Ownable {
         if (_solver == address(0)) revert ZeroAddress();
         backupSolver = _solver;
         emit BackupSolverSet(_solver);
+    }
+
+    /// @notice [AUDIT F-02] Approve (or revoke) an aggregator/relay that may
+    ///         name `msg.sender` as the `recipient` of a leveraged open.
+    /// @dev Only the trader can grant this, and the grant never moves funds by
+    ///      itself: the router still pulls margin from the trader's own router
+    ///      allowance, so a revoked approval immediately removes the attack.
+    function setExecutorApproval(address executor, bool approved) external {
+        if (executor == address(0)) revert ZeroAddress();
+        approvedExecutor[msg.sender][executor] = approved;
+        emit ExecutorApprovalSet(msg.sender, executor, approved);
     }
 
     // ─── Solver resolution ────────────────────────────────────────────────
@@ -252,6 +277,16 @@ contract EswapLeverageAdapter is Ownable {
     ) internal returns (uint256 amountOut) {
         if (recipient == address(0)) revert ZeroAddress();
 
+        // [AUDIT F-02] The router open below pulls `amountIn` of margin from
+        // `recipient`. Only the recipient itself, or an executor it explicitly
+        // approved, may select that recipient — otherwise any caller could
+        // force-open an attacker-shaped position against a victim's router
+        // allowance (zero-minAmountOut sandwich on a fill the victim never
+        // requested). Delegation is per-trader and revocable.
+        if (msg.sender != recipient && !approvedExecutor[recipient][msg.sender]) {
+            revert ExecutorNotApproved(recipient, msg.sender);
+        }
+
         PoolRegistration storage reg = _getPool(tokenIn, tokenOut, fee);
         bool zeroForOne = _isCurrency0(tokenIn, reg.hookPoolKey);
 
@@ -330,12 +365,16 @@ contract EswapLeverageAdapter is Ownable {
     }
 
     /// @dev Selectors safe to delegatecall: permit + the leverage entry points.
-    ///      Admin setters are deliberately absent.
+    ///      Admin setters are deliberately absent. `setExecutorApproval` is
+    ///      user-scoped (it only ever writes `msg.sender`'s own mapping), so it is
+    ///      safe to batch — an aggregator can approve the relay and open
+    ///      atomically in one transaction.
     function _isAllowedMulticallSelector(bytes4 selector) internal pure returns (bool) {
         return selector == this.selfPermit.selector || selector == this.exactInputSingleWithLeverage.selector
             || selector == this.exactInputSingleWithLeverageFor.selector
             || selector == this.exactInputSingleWithLeverageAggregator.selector
-            || selector == this.exactInputSingleWithLeverageAggregatorFor.selector;
+            || selector == this.exactInputSingleWithLeverageAggregatorFor.selector
+            || selector == this.setExecutorApproval.selector;
     }
 
     // ─── View Helpers ───────────────────────────────────────────────────

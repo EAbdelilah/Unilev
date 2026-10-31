@@ -1,0 +1,14 @@
+﻿Compiling 83 files with Solc 0.8.27
+Solc 0.8.27 finished in 800.89ms
+forge : Error: Compiler run failed:
+Au caractère Ligne:1 : 1
++ forge build --sizes 2>&1 | Out-File -FilePath build_out2.txt -Encodin ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Error: Compiler run failed::String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Error (9182): Function, variable, struct or modifier declaration expected.
+   --> src/v4/EswapMarginHookLogic.sol:798:6:
+    |
+798 |     }","oldString">
+    |      ^^^

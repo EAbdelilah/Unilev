@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {BaseV4Test} from "./BaseV4Test.t.sol";
 import {EswapMarginHook} from "../EswapMarginHook.sol";
+import {EswapMarginHookLogic} from "../EswapMarginHookLogic.sol";
 import {PoolKey} from "../types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "../types/PoolId.sol";
 import {Currency} from "../types/Currency.sol";
@@ -72,7 +73,7 @@ contract EswapV4CoreProofTest is BaseV4Test {
         realHook = EswapMarginHook(payable(realHookAddr));
         realHook.setRouterAndMinCollateralUsd(address(this), 0);
         // Note: RealPoolId must be cast to the local mock PoolId type to call the hook's setAuthorizedPool
-        realHook.setAuthorizedPool(_localIdFor(realHookAddr), true);
+        EswapMarginHookLogic(payable(address(hook))).setAuthorizedPool(_localIdFor(realHookAddr), true);
 
         realKey = RealPoolKey({
             currency0: RealCurrency.wrap(address(token0)),
@@ -123,11 +124,11 @@ contract EswapV4CoreProofTest is BaseV4Test {
     /**
      * @notice End-to-end against the REAL PoolManager: initialize the pool (real
      *         PM invokes beforeInitialize/afterInitialize via abi.encodeCall),
-     *         seed liquidity, then run a non-margin swap (real PM invokes
+     *         seed liquidity, then run a 1x margin open (real PM invokes
      *         beforeSwap/afterSwap). Proves the migrated hook ABI surface is
      *         accepted by the real PoolManager.
      */
-    function test_RealPoolManager_InitializeAndNonMarginSwap() public {
+    function test_RealPoolManager_InitializeAndMarginOpen() public {
         int24 tick = realManager.initialize(realKey, SQRT_PRICE_1_1);
         assertEq(tick, 0);
 
@@ -144,9 +145,13 @@ contract EswapV4CoreProofTest is BaseV4Test {
             RealIPoolManager.ModifyLiquidityParams({tickLower: -60, tickUpper: 60, liquidityDelta: 1e21, salt: 0});
         lq.modifyLiquidity(realKey, lp, "");
 
-        // Non-margin swap with empty hookData. The real PM calls the hook's
-        // beforeSwap (expects 96-byte return) and afterSwap (expects 64-byte
-        // return); both must pass selector/return-length validation.
+        // [I6] Empty hookData is now rejected for external callers, so the real
+        // PM must be driven with a valid payload. A 1x margin open books no
+        // borrow delta (margin * (leverage - 1) == 0), so it needs no settlement
+        // leg from the hook while still exercising beforeSwap (96-byte return)
+        // and afterSwap (64-byte return) through the real PoolManager.
+        bytes memory hookData = abi.encode(true, uint8(1), address(this));
+
         PoolSwapTest swapper = new PoolSwapTest(realManager);
         token0.approve(address(swapper), type(uint256).max);
         token1.approve(address(swapper), type(uint256).max);
@@ -158,17 +163,19 @@ contract EswapV4CoreProofTest is BaseV4Test {
                 zeroForOne: true, amountSpecified: -1 ether, sqrtPriceLimitX96: MIN_SQRT_RATIO + 1
             }),
             PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
-            ""
+            hookData
         );
         BalanceDelta delta = BalanceDelta.wrap(RealBalanceDelta.unwrap(rawDelta));
         assertLt(delta.amount0(), 0);
         assertGt(delta.amount1(), 0);
         assertGt(token1.balanceOf(address(this)) - balBefore, 0);
 
-        // No margin hookData -> no position created.
-        (address posTrader, uint256 posCollateral,,,,,,,) = realHook.positions(poolId, address(this));
-        assertEq(posTrader, address(0));
-        assertEq(posCollateral, 0);
+        // Margin hookData -> the position record is written, with a 1x (zero) borrow.
+        (address posTrader, uint256 posCollateral, uint256 posBorrowed,,,,,,) =
+            realHook.positions(poolId, address(this));
+        assertEq(posTrader, address(this));
+        assertGt(posCollateral, 0);
+        assertEq(posBorrowed, 0);
     }
 
     /**
@@ -261,7 +268,7 @@ contract EswapV4CoreProofTest is BaseV4Test {
      */
     function test_MarginPath_AfterSwap_SwapperPerspective_SignFix() public {
         // Anchor LONG to token1 (base currency), as on Unichain (USDC/WETH).
-        hook.setBaseCurrency(key.toId(), Currency.wrap(address(token1)));
+        EswapMarginHookLogic(payable(address(hook))).setBaseCurrency(key.toId(), Currency.wrap(address(token1)));
         bytes memory data = abi.encode(true, uint8(5), address(this));
 
         // LONG: zeroForOne=true. Swapper perspective: paid -100 (token0),

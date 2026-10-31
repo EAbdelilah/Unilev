@@ -28,6 +28,7 @@ import {NativeTokens} from "./libraries/NativeTokens.sol";
 
 import {IPriceFeedLogic, EswapMarginHookLogicStorage} from "./EswapMarginHookLogicStorage.sol";
 import {EswapMarginHookLogic2} from "./EswapMarginHookLogic2.sol";
+import {EswapMarginHookLogic3} from "./EswapMarginHookLogic3.sol";
 
 /**
  * @title EswapMarginHookLogic
@@ -63,10 +64,17 @@ contract EswapMarginHookLogic is BaseHook, EswapMarginHookLogicStorage {
         _;
     }
 
-    constructor(IPoolManager _manager, IPriceFeedLogic _priceFeed, address _logic2) BaseHook(_manager) {
+    constructor(IPoolManager _manager, IPriceFeedLogic _priceFeed, address _logic2, address _logic3)
+        BaseHook(_manager)
+    {
         priceFeed = _priceFeed;
         logic2 = _logic2;
+        logic3 = _logic3;
     }
+
+    /// @dev [AUDIT F-08] Owner of the partial-liquidation family (see `fallback`).
+    ///      Immutable, so it is a code constant and cannot be repointed at runtime.
+    address internal immutable logic3;
 
     // ─── External functions (called via delegatecall from hook) ────────────────
     // Close / liquidation / partial-liquidation / rebalance now live in
@@ -344,6 +352,25 @@ contract EswapMarginHookLogic is BaseHook, EswapMarginHookLogicStorage {
             totalOpenInterestUSD += tradeOIUsd;
         }
 
+        positionEpoch[poolId][trader] += 1;
+        _recordMarginOpen(key, trader, leverage, borrowedAmount, boughtCurrency, positionCollateral, inputCurrency);
+
+        emit MultiPoolMarginOpened(poolId, trader, leverage, marginAmount, boughtAmount);
+    }
+
+    /// @dev Stores the position record and refreshes the [AUDIT F-05] cached
+    ///      oracle marks. Split out of `registerMarginOpen` purely to keep that
+    ///      function's live-variable count under the via-ir stack limit.
+    function _recordMarginOpen(
+        PoolKey calldata key,
+        address trader,
+        uint8 leverage,
+        uint256 borrowedAmount,
+        Currency boughtCurrency,
+        uint256 positionCollateral,
+        Currency inputCurrency
+    ) internal {
+        PoolId poolId = key.toId();
         positions[poolId][trader] = Position({
             trader: trader,
             collateralAmount: positionCollateral,
@@ -356,7 +383,60 @@ contract EswapMarginHookLogic is BaseHook, EswapMarginHookLogicStorage {
             liquidity: 0
         });
 
-        emit MultiPoolMarginOpened(poolId, trader, leverage, marginAmount, boughtAmount);
+        // [AUDIT F-05] Refresh the cached oracle marks from this non-view path.
+        // The health check degrades to these when the live feed reverts, so an
+        // outage can no longer switch liquidation off.
+        _cachePrice(Currency.unwrap(boughtCurrency));
+        if (borrowedAmount > 0) _cachePrice(Currency.unwrap(inputCurrency));
+    }
+
+    // ─── [AUDIT F-08] Non-reverting payout surface ────────────────────────────
+
+    /**
+     * @notice Claims a payout that settlement could not deliver because the
+     *         recipient's transfer reverted (blacklisted token recipient, a
+     *         contract wallet whose `receive()` reverts, ...). [AUDIT F-08]
+     * @dev `_settle`/`_settlePartial` credit instead of reverting, so a single
+     *      bad recipient can no longer freeze a position (and, when the solver is
+     *      the bad recipient, every position it funded). Deliberately a separate
+     *      pull step: the claim itself may revert for a blacklisted claimant
+     *      without affecting anybody else's settlement.
+     */
+    function claimPayout(Currency currency) external returns (uint256 amount) {
+        amount = payoutCredits[msg.sender][currency];
+        if (amount == 0) revert NoPayoutCredit();
+        payoutCredits[msg.sender][currency] = 0;
+        NativeTokens.transfer(currency, msg.sender, amount);
+        emit PayoutClaimed(msg.sender, currency, amount);
+    }
+
+    /**
+     * @notice Routes every future payout credited to `msg.sender` to `redirect`.
+     *         [AUDIT F-08] Lets a compromised or blacklisted account hand its
+     *         proceeds to a clean address without moving the position itself.
+     *         Pass `address(0)` to clear. Already-credited balances follow the
+     *         redirect too, so clearing it is the only way to pull them locally.
+     */
+    function setPayoutRedirect(address redirect) external {
+        payoutRedirect[msg.sender] = redirect;
+        emit PayoutRedirectSet(msg.sender, redirect);
+    }
+
+    /// @dev [AUDIT F-05] Records the current oracle mark for `token` as USD per
+    ///      WHOLE token (18 decimals). Uses the hook's registry decimals on both
+    ///      the write and the read so any registry/oracle scale mismatch cancels
+    ///      exactly. Never reverts: a failed read simply leaves the previous mark.
+    function _cachePrice(address token) internal {
+        if (address(priceFeed) == address(0)) return;
+        uint8 d = tokenDecimals[token];
+        if (d == 0) d = 18;
+        try priceFeed.getAmountInUsd(token, 10 ** uint256(d)) returns (uint256 price18) {
+            if (price18 != 0) {
+                cachedPriceUsd[token] = price18;
+                cachedPriceAt[token] = block.timestamp;
+                emit PriceCached(token, price18);
+            }
+        } catch {}
     }
 
     // ─── Internal helpers (same logic as EswapMarginHook) ─────────────────────
@@ -627,7 +707,95 @@ function _isLong(PoolKey calldata key, Currency boughtCurrency) internal view re
         }
     }
 
-    // ─── EIP-170 split: route the close/liquidation/rebalance family ──────────
+    // ─── [EIP-170] Owner setters relocated from the hook to stay under the cap ──
+    //      These run via delegatecall (shared storage), so `msg.sender`/`owner`
+    //      resolve against the hook's storage. Re-declared events keep the same
+    //      signature so `vm.expectEmit` against the hook still matches.
+
+    event MaxLeverageForPoolSet(PoolId indexed poolId, uint8 leverage);
+    event StandardPoolRequirementSet(bool required);
+    event BandConsumptionTriggerSet(uint256 oldBps, uint256 newBps);
+    event OpenInterestCapsSet(uint256 maxSingleBps, uint256 maxTotalBps, uint256 tvlFloorUsd);
+    event InsuranceCoverageBpsSet(uint256 bps);
+    event LiquidatorIncentiveSet(uint256 oldBps, uint256 newBps);
+
+    function setMaxLeverageForPool(PoolId poolId, uint8 leverage) external {
+        if (msg.sender != owner) revert NotOwner();
+        if (leverage != 0 && (leverage < 2 || leverage > 20)) revert InvalidLeverageRange();
+        emit MaxLeverageForPoolSet(poolId, leverage);
+        maxLeverageByPool[poolId] = leverage;
+    }
+
+    function setAuthorizedPool(PoolId poolId, bool authorized) external {
+        if (msg.sender != owner) revert NotOwner();
+        isAuthorizedPool[poolId] = authorized;
+    }
+
+    function setStandardPoolKey(PoolId poolId, PoolKey calldata key) external {
+        if (msg.sender != owner && msg.sender != router) revert Unauthorized();
+        standardPoolKeys[poolId] = key;
+    }
+
+    function setRequireStandardPoolKey(bool required) external {
+        if (msg.sender != owner) revert NotOwner();
+        requireStandardPoolKey = required;
+        emit StandardPoolRequirementSet(required);
+    }
+
+    function setTokenDecimals(address token, uint8 decimals) external {
+        if (msg.sender != owner) revert NotOwner();
+        tokenDecimals[token] = decimals;
+    }
+
+    function setBandConsumptionTriggerBps(uint256 bps) external {
+        if (msg.sender != owner) revert NotOwner();
+        require(bps > 0 && bps < 10000, "trigger out of range");
+        emit BandConsumptionTriggerSet(bandConsumptionTriggerBps, bps);
+        bandConsumptionTriggerBps = bps;
+    }
+
+    function setOpenInterestCaps(uint256 _maxSingleBps, uint256 _maxTotalBps, uint256 _tvlFloorUsd) external {
+        if (msg.sender != owner) revert NotOwner();
+        require(_maxSingleBps > 0 && _maxSingleBps < 10000, "single cap out of range");
+        require(_maxTotalBps >= _maxSingleBps && _maxTotalBps < 10000, "total cap out of range");
+        emit OpenInterestCapsSet(_maxSingleBps, _maxTotalBps, _tvlFloorUsd);
+        maxSingleOIBps = _maxSingleBps;
+        maxTotalOIBps = _maxTotalBps;
+        oiCapTvlFloorUsd = _tvlFloorUsd;
+    }
+
+    function setEmergencyPause(bool paused) external {
+        if (msg.sender != owner) revert NotOwner();
+        if (paused) {
+            emergencyPaused = true;
+            if (block.timestamp >= pauseExpiry) {
+                pauseExpiry = block.timestamp + MAX_PAUSE_DURATION;
+            }
+        } else {
+            emergencyPaused = false;
+            pauseExpiry = 0;
+        }
+        emit EmergencyPauseToggled(paused);
+    }
+
+    function setBaseCurrency(PoolId poolId, Currency currency) external {
+        if (msg.sender != owner) revert NotOwner();
+        baseCurrency[poolId] = currency;
+        emit BaseCurrencySet(poolId, currency);
+    }
+
+    function transferOwnership(address newOwner) external {
+        if (msg.sender != owner) revert NotOwner();
+        if (newOwner == address(0)) revert ZeroAddress();
+        owner = newOwner;
+    }
+
+    function setLiquidatorIncentiveBps(uint256 bps) external {
+        if (msg.sender != owner) revert NotOwner();
+        require(bps < 10000, "incentive out of range");
+        emit LiquidatorIncentiveSet(liquidatorIncentiveBps, bps);
+        liquidatorIncentiveBps = bps;
+    }
 
     /// @dev The close / liquidation / partial-liquidation / rebalance surface was
     ///      split into EswapMarginHookLogic2 (TWO logic contracts each under the
@@ -638,15 +806,21 @@ function _isLong(PoolKey calldata key, Currency boughtCurrency) internal view re
     fallback() external payable {
         if (msg.data.length < 4) revert UnsupportedFeature();
         bytes4 sig = bytes4(msg.data[0:4]);
-        if (
-            sig != EswapMarginHookLogic2.closePosition.selector
-                && sig != EswapMarginHookLogic2.executeLiquidation.selector
-                && sig != EswapMarginHookLogic2.partialLiquidation.selector
-                && sig != EswapMarginHookLogic2.rebalancePosition.selector
+        address target;
+        if (sig == EswapMarginHookLogic3.partialLiquidation.selector) {
+            // [EIP-170] The partial-liquidation engine moved to a THIRD logic
+            // contract so EswapMarginHookLogic2 could take on the F-03/F-05/F-06/
+            // F-07/F-08 settlement work without crossing the 24,576-byte cap.
+            target = logic3;
+        } else if (
+            sig == EswapMarginHookLogic2.closePosition.selector
+                || sig == EswapMarginHookLogic2.executeLiquidation.selector
+                || sig == EswapMarginHookLogic2.rebalancePosition.selector
         ) {
+            target = logic2;
+        } else {
             revert UnsupportedFeature();
         }
-        address target = logic2;
         assembly {
             calldatacopy(0, 0, calldatasize())
             let result := delegatecall(gas(), target, 0, calldatasize(), 0, 0)

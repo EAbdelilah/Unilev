@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
 import {EswapMarginHook, IPriceFeed} from "../EswapMarginHook.sol";
+import {EswapMarginHookLogic} from "../EswapMarginHookLogic.sol";
 import {EswapRouter} from "../EswapRouter.sol";
 import {PoolManagerRealTokenMock} from "./mocks/PoolManagerMock.sol";
 import {PoolKey} from "../types/PoolKey.sol";
@@ -78,7 +79,7 @@ contract EswapSolverYieldTest is Test {
         // so registerSolverDebt / deployCollateral / rebalancePosition are all
         // callable directly.
         hook.setRouterAndMinCollateralUsd(address(this), 0);
-        hook.setAuthorizedPool(key.toId(), true);
+        EswapMarginHookLogic(payable(address(hook))).setAuthorizedPool(key.toId(), true);
 
         // The manager must hold real tokens so removal take()s can pay out.
         token0.mint(address(manager), 10_000 ether);

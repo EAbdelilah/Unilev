@@ -1,0 +1,29 @@
+﻿No files changed, compilation skipped
+
+Ran 7 tests for src/v4/test/EswapOpenInterestCapsTest.t.sol:EswapOpenInterestCapsTest
+[PASS] test_Caps_InactiveBelowTvlFloor() (gas: 17711)
+[PASS] test_ConfigurableCaps_MultiPositionHeadroom() (gas: 890719)
+[PASS] test_Defaults_PreserveOriginalCaps() (gas: 658019)
+[PASS] test_MaxOpenBorrowRaw_Boundary() (gas: 878728)
+[PASS] test_OneX_ExemptFromCaps() (gas: 798912)
+[PASS] test_QuoteOpenFit_MirrorsValidation() (gas: 644144)
+[PASS] test_Setter_AuthAndBounds() (gas: 92709)
+Suite result: ok. 7 passed; 0 failed; 0 skipped; finished in 9.81ms (8.56ms CPU time)
+
+Ran 5 tests for src/v4/test/EswapMaxLeverageForPoolTest.t.sol:EswapMaxLeverageForPoolTest
+[PASS] test_PerPoolOverride_AccessControlAndBounds() (gas: 91223)
+[PASS] test_PerPoolOverride_ClearFallsBackToDefault() (gas: 670478)
+[PASS] test_PerPoolOverride_DoesNotAffectOtherPools() (gas: 75314)
+[PASS] test_PerPoolOverride_LowerThanDefault_RejectsHigher() (gas: 676870)
+[PASS] test_PerPoolOverride_RaisesCap_AboveDefault() (gas: 668365)
+Suite result: ok. 5 passed; 0 failed; 0 skipped; finished in 9.74ms (5.40ms CPU time)
+
+Ran 5 tests for src/v4/test/EswapEmergencyPauseTest.t.sol:EswapEmergencyPauseTest
+[PASS] test_Pause_BlocksMultiPoolSwap() (gas: 332310)
+[PASS] test_Pause_OnlyOwner() (gas: 20592)
+[PASS] test_Pause_ReToggleDoesNotExtendExpiry() (gas: 1090111)
+[PASS] test_Pause_Toggle() (gas: 53625)
+[PASS] test_Pause_UnpauseRestoresTrading() (gas: 1282341)
+Suite result: ok. 5 passed; 0 failed; 0 skipped; finished in 10.71ms (5.19ms CPU time)
+
+Ran 3 test suites in 35.72ms (30.26ms CPU time): 17 tests passed, 0 failed, 0 skipped (17 total tests)

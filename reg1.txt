@@ -1,0 +1,10 @@
+﻿No files changed, compilation skipped
+
+Ran 4 tests for src/v4/test/EswapLiquidatorIncentiveTest.t.sol:EswapLiquidatorIncentiveTest
+[PASS] test_LiquidatorIncentive_DefaultDisabled_PaysFlooredBounty() (gas: 987382)
+[PASS] test_LiquidatorIncentive_Enabled_FullLiquidation() (gas: 1007451)
+[PASS] test_LiquidatorIncentive_PartialLiquidation_UnhealthyRemainder_Reverts() (gas: 1089646)
+[PASS] test_LiquidatorIncentive_Setter_OnlyOwner_And_Cap() (gas: 67530)
+Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 7.23ms (7.85ms CPU time)
+
+Ran 1 test suite in 31.47ms (7.23ms CPU time): 4 tests passed, 0 failed, 0 skipped (4 total tests)

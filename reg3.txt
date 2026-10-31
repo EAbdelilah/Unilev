@@ -1,0 +1,29 @@
+﻿No files changed, compilation skipped
+
+Ran 10 tests for src/v4/test/EswapJITSpotTest.t.sol:EswapJITSpotTest
+[FAIL: JitOraclePriceUnavailable()] test_JITSpotExecution_BypassesAMM() (gas: 57926)
+[FAIL: JitFillAboveOracleCeiling(300000000000000000000 [3e20], 102000000000000000000 [1.02e20])] test_JITSpot_AcceptsFillAtOrAboveOracleFloor() (gas: 151820)
+[FAIL: assertion failed: 200 != 0] test_JITSpot_FloorDisabledByDefault() (gas: 10953)
+[FAIL: Error != expected error: JitOraclePriceUnavailable() != NativeInsufficient()] test_JITSpot_NativeInput_InsufficientValueReverts() (gas: 77494)
+[FAIL: JitOraclePriceUnavailable()] test_JITSpot_NativeInput_RefundsSurplus() (gas: 76965)
+[FAIL: JitOraclePriceUnavailable()] test_JITSpot_NativeInput_SettlesViaMsgValue() (gas: 82808)
+[PASS] test_JITSpot_NativeOutput_RevertsExplicitly() (gas: 70442)
+[PASS] test_JITSpot_OnlyCalledBySwapper() (gas: 23034)
+[PASS] test_JITSpot_RejectsFillBelowOracleFloor() (gas: 154580)
+[PASS] test_SetJitOracleFloorLeniencyBps_RejectsAbove1000() (gas: 11149)
+Suite result: FAILED. 4 passed; 6 failed; 0 skipped; finished in 8.80ms (11.02ms CPU time)
+
+Ran 1 test suite in 34.50ms (8.80ms CPU time): 4 tests passed, 6 failed, 0 skipped (10 total tests)
+
+Failing tests:
+Encountered 6 failing tests in src/v4/test/EswapJITSpotTest.t.sol:EswapJITSpotTest
+[FAIL: JitOraclePriceUnavailable()] test_JITSpotExecution_BypassesAMM() (gas: 57926)
+[FAIL: JitFillAboveOracleCeiling(300000000000000000000 [3e20], 102000000000000000000 [1.02e20])] test_JITSpot_AcceptsFillAtOrAboveOracleFloor() (gas: 151820)
+[FAIL: assertion failed: 200 != 0] test_JITSpot_FloorDisabledByDefault() (gas: 10953)
+[FAIL: Error != expected error: JitOraclePriceUnavailable() != NativeInsufficient()] test_JITSpot_NativeInput_InsufficientValueReverts() (gas: 77494)
+[FAIL: JitOraclePriceUnavailable()] test_JITSpot_NativeInput_RefundsSurplus() (gas: 76965)
+[FAIL: JitOraclePriceUnavailable()] test_JITSpot_NativeInput_SettlesViaMsgValue() (gas: 82808)
+
+Encountered a total of 6 failing tests, 4 tests succeeded
+
+Tip: Run `forge test --rerun` to retry only the 6 failed tests

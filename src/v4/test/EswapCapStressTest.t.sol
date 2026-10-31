@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {BaseV4Test, PriceFeedMock, ERC20Mock} from "./BaseV4Test.t.sol";
 import {PoolManagerCallbackMock} from "./mocks/PoolManagerMock.sol";
 import {EswapMarginHook} from "../EswapMarginHook.sol";
+import {EswapMarginHookLogic} from "../EswapMarginHookLogic.sol";
 import {EswapRouter} from "../EswapRouter.sol";
 import {PoolKey} from "../types/PoolKey.sol";
 import {PoolIdLibrary} from "../types/PoolId.sol";
@@ -53,7 +54,7 @@ contract EswapCapStressTest is BaseV4Test {
         });
 
         hook.setRouterAndMinCollateralUsd(address(new EswapRouter(manager)), 0);
-        hook.setAuthorizedPool(key.toId(), true);
+        EswapMarginHookLogic(payable(address(hook))).setAuthorizedPool(key.toId(), true);
         manager.setSlot0(key.toId(), 79228162514264337593543950336, 0);
     }
 
@@ -171,7 +172,7 @@ contract EswapCapStressTest is BaseV4Test {
 
     function test_Stress_MixedPortfolio_AnalyticHeadroomExact() public {
         // Legacy cap VALUES; low activation floor so every round is capped.
-        hook.setOpenInterestCaps(hook.maxSingleOIBps(), hook.maxTotalOIBps(), 1_000 ether);
+        EswapMarginHookLogic(payable(address(hook))).setOpenInterestCaps(hook.maxSingleOIBps(), hook.maxTotalOIBps(), 1_000 ether);
 
         // Anchors lift TVL so even the largest per-trade OI (5x: 48_000e)
         // clears the 2%-of-TVL single gate from the first round on.
@@ -220,7 +221,7 @@ contract EswapCapStressTest is BaseV4Test {
     // ------------------------------------------------------------------
 
     function test_Stress_RecommendedPreset_AcceptsRealisticPortfolio() public {
-        hook.setOpenInterestCaps(200, 6500, 100_000 ether);
+        EswapMarginHookLogic(payable(address(hook))).setOpenInterestCaps(200, 6500, 100_000 ether);
 
         // 1x anchors push TVL far past the floor without OI cost.
         for (uint256 i = 0; i < 6; i++) {
@@ -266,7 +267,7 @@ contract EswapCapStressTest is BaseV4Test {
     // ------------------------------------------------------------------
 
     function test_Stress_Preset_SingleCapBoundaryExact() public {
-        hook.setOpenInterestCaps(200, 6500, 100_000 ether);
+        EswapMarginHookLogic(payable(address(hook))).setOpenInterestCaps(200, 6500, 100_000 ether);
 
         _open(_freshTrader(), 500_000 ether, 1); // deep anchor -> wide aggregate slack
 

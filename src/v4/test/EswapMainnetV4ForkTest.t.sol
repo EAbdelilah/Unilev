@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Test, console2} from "forge-std/Test.sol";
 import {EswapMarginHook} from "../EswapMarginHook.sol";
+import {EswapMarginHookLogic} from "../EswapMarginHookLogic.sol";
 import {EswapRouter} from "../EswapRouter.sol";
 import {PoolKey} from "../types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "../types/PoolId.sol";
@@ -186,11 +187,11 @@ hookRealKey = RealPoolKey({
             pm.initialize(hookRealKey, deepSqrtP);
         }
 
-        hook.setAuthorizedPool(hookLocalKey.toId(), true);
-        hook.setStandardPoolKey(hookLocalKey.toId(), standardLocalKey);
-        hook.setBaseCurrency(hookLocalKey.toId(), Currency.wrap(base));
-        hook.setTokenDecimals(base, _tokenDecimals(base));
-        hook.setTokenDecimals(quote, _tokenDecimals(quote));
+        EswapMarginHookLogic(payable(address(hook))).setAuthorizedPool(hookLocalKey.toId(), true);
+        EswapMarginHookLogic(payable(address(hook))).setStandardPoolKey(hookLocalKey.toId(), standardLocalKey);
+        EswapMarginHookLogic(payable(address(hook))).setBaseCurrency(hookLocalKey.toId(), Currency.wrap(base));
+        EswapMarginHookLogic(payable(address(hook))).setTokenDecimals(base, _tokenDecimals(base));
+        EswapMarginHookLogic(payable(address(hook))).setTokenDecimals(quote, _tokenDecimals(quote));
 
         // Oracle mock tracks the REAL deep-pool price so the TWAP circuit breaker
         // passes. Convention (PriceFeed.sol): USD_18dec per WHOLE token.

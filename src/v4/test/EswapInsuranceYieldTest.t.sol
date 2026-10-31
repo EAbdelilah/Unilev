@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
 import {EswapMarginHook} from "../EswapMarginHook.sol";
+import {EswapMarginHookLogic} from "../EswapMarginHookLogic.sol";
 import {EswapRouter} from "../EswapRouter.sol";
 import {PoolKey} from "../types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "../types/PoolId.sol";
@@ -98,8 +99,8 @@ contract EswapInsuranceYieldTest is Test {
 
         realManager.initialize(hookRealKey, SQRT_PRICE_1_1);
         realManager.initialize(standardRealKey, SQRT_PRICE_1_1);
-        realHook.setAuthorizedPool(hookLocalKey.toId(), true);
-        realHook.setStandardPoolKey(hookLocalKey.toId(), standardLocalKey);
+        EswapMarginHookLogic(payable(address(realHook))).setAuthorizedPool(hookLocalKey.toId(), true);
+        EswapMarginHookLogic(payable(address(realHook))).setStandardPoolKey(hookLocalKey.toId(), standardLocalKey);
 
         // Deep standard pool needs real liquidity for the full-range stake to be
         // placed and for swaps to cross it.
@@ -113,8 +114,8 @@ contract EswapInsuranceYieldTest is Test {
             RealIPoolManager.ModifyLiquidityParams({tickLower: -60, tickUpper: 60, liquidityDelta: 1e21, salt: 0});
         lq.modifyLiquidity(hookRealKey, lpThin, "");
 
-        realHook.setTokenDecimals(address(token0), 18);
-        realHook.setTokenDecimals(address(token1), 18);
+        EswapMarginHookLogic(payable(address(realHook))).setTokenDecimals(address(token0), 18);
+        EswapMarginHookLogic(payable(address(realHook))).setTokenDecimals(address(token1), 18);
         priceFeed.setPrice(address(token0), 1e18);
         priceFeed.setPrice(address(token1), 1e18);
 

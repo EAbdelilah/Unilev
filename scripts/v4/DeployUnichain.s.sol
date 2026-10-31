@@ -21,6 +21,7 @@ import {TickMath} from "../../src/v4/libraries/TickMath.sol";
 import {EswapMarginHook, IPriceFeed} from "../../src/v4/EswapMarginHook.sol";
 import {EswapMarginHookLogic} from "../../src/v4/EswapMarginHookLogic.sol";
 import {EswapMarginHookLogic2} from "../../src/v4/EswapMarginHookLogic2.sol";
+import {EswapMarginHookLogic3} from "../../src/v4/EswapMarginHookLogic3.sol";
 import {IPriceFeedLogic} from "../../src/v4/EswapMarginHookLogicStorage.sol";
 import {EswapMarginLib} from "../../src/v4/EswapMarginLib.sol";
 import {EswapRouter} from "../../src/v4/EswapRouter.sol";
@@ -333,7 +334,10 @@ contract DeployUnichain is Script {
         // needed manual patching.
         EswapMarginHookLogic2 logic2 = new EswapMarginHookLogic2(IPoolManager(address(pm)), IPriceFeedLogic(address(priceFeed)));
         console.log("HookLogic2 deployed at:", address(logic2));
-        EswapMarginHookLogic logic1 = new EswapMarginHookLogic(IPoolManager(address(pm)), IPriceFeedLogic(address(priceFeed)), address(logic2));
+        // [EIP-170] Logic3 owns the partial-liquidation engine.
+        EswapMarginHookLogic3 logic3 = new EswapMarginHookLogic3(IPoolManager(address(pm)), IPriceFeedLogic(address(priceFeed)));
+        console.log("HookLogic3 deployed at:", address(logic3));
+        EswapMarginHookLogic logic1 = new EswapMarginHookLogic(IPoolManager(address(pm)), IPriceFeedLogic(address(priceFeed)), address(logic2), address(logic3));
         console.log("HookLogic deployed at:", address(logic1));
 
         // The hook constructor re-checks both children's `manager()` immutables

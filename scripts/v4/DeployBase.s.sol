@@ -21,6 +21,7 @@ import {TickMath} from "../../src/v4/libraries/TickMath.sol";
 import {EswapMarginHook, IPriceFeed} from "../../src/v4/EswapMarginHook.sol";
 import {EswapMarginHookLogic} from "../../src/v4/EswapMarginHookLogic.sol";
 import {EswapMarginHookLogic2} from "../../src/v4/EswapMarginHookLogic2.sol";
+import {EswapMarginHookLogic3} from "../../src/v4/EswapMarginHookLogic3.sol";
 import {IPriceFeedLogic} from "../../src/v4/EswapMarginHookLogicStorage.sol";
 import {EswapMarginLib} from "../../src/v4/EswapMarginLib.sol";
 import {EswapRouter} from "../../src/v4/EswapRouter.sol";
@@ -109,6 +110,7 @@ contract DeployBase is Script {
     ///      are derivable before broadcast (the hook's initcode embeds both).
     bytes32 constant LOGIC2_SALT = keccak256("eswap.logic2.base.v1");
     bytes32 constant LOGIC1_SALT = keccak256("eswap.logic1.base.v1");
+    bytes32 constant LOGIC3_SALT = keccak256("eswap.logic3.base.v1");
 
     // --- Stage 1: PriceFeed -------------------------------------------------
     // Deployed SEPARATELY (its address is baked into the hook's initcode, so it
@@ -154,13 +156,15 @@ contract DeployBase is Script {
         address priceFeedAddr = vm.envAddress("PRICE_FEED_ADDRESS");
 
         address logic2 = _logic2Address(priceFeedAddr);
-        address logic1 = _logic1Address(priceFeedAddr, logic2);
+        address logic3 = _logic3Address(priceFeedAddr);
+        address logic1 = _logic1Address(priceFeedAddr, logic2, logic3);
         bytes memory linkedCreation = type(EswapMarginHook).creationCode;
         bytes memory initCode = abi.encodePacked(
             linkedCreation, abi.encode(address(BASE_PM), priceFeedAddr, logic1, logic2, owner)
         );
         bytes32 initCodeHash = keccak256(initCode);
         console.log("logic2 (derived):", logic2);
+        console.log("logic3 (derived):", logic3);
         console.log("logic1 (derived):", logic1);
         console.log("mining against initcodeHash:");
         console.logBytes32(initCodeHash);
@@ -242,11 +246,26 @@ contract DeployBase is Script {
         }
         console.log("HookLogic2 deployed at:", address(logic2));
 
-        address expectedLogic1 = _logic1Address(priceFeedAddr, expectedLogic2);
+        // [EIP-170] Logic3 owns the partial-liquidation engine and is an
+        // immutable of Logic1, so it must be deployed (and its address known)
+        // first.
+        address expectedLogic3 = _logic3Address(priceFeedAddr);
+        EswapMarginHookLogic3 logic3;
+        if (expectedLogic3.code.length == 0) {
+            logic3 = new EswapMarginHookLogic3{salt: LOGIC3_SALT}(
+                IPoolManager(address(pm)), IPriceFeedLogic(address(priceFeed))
+            );
+            require(address(logic3) == expectedLogic3, "logic3 address drift");
+        } else {
+            logic3 = EswapMarginHookLogic3(payable(expectedLogic3));
+        }
+        console.log("HookLogic3 deployed at:", address(logic3));
+
+        address expectedLogic1 = _logic1Address(priceFeedAddr, expectedLogic2, expectedLogic3);
         EswapMarginHookLogic logic1;
         if (expectedLogic1.code.length == 0) {
             logic1 = new EswapMarginHookLogic{salt: LOGIC1_SALT}(
-                IPoolManager(address(pm)), IPriceFeedLogic(address(priceFeed)), expectedLogic2
+                IPoolManager(address(pm)), IPriceFeedLogic(address(priceFeed)), expectedLogic2, address(logic3)
             );
         } else {
             logic1 = EswapMarginHookLogic(payable(expectedLogic1));
@@ -439,14 +458,21 @@ contract DeployBase is Script {
         return create2Address(CREATE2_DEPLOYER, LOGIC2_SALT, h);
     }
 
-    function _logic1Address(address priceFeedAddr, address logic2) internal pure returns (address) {
+    function _logic1Address(address priceFeedAddr, address logic2, address logic3) internal pure returns (address) {
         bytes32 h = keccak256(
             abi.encodePacked(
                 type(EswapMarginHookLogic).creationCode,
-                abi.encode(address(BASE_PM), priceFeedAddr, logic2)
+                abi.encode(address(BASE_PM), priceFeedAddr, logic2, logic3)
             )
         );
         return create2Address(CREATE2_DEPLOYER, LOGIC1_SALT, h);
+    }
+
+    function _logic3Address(address priceFeedAddr) internal pure returns (address) {
+        bytes32 h = keccak256(
+            abi.encodePacked(type(EswapMarginHookLogic3).creationCode, abi.encode(address(BASE_PM), priceFeedAddr))
+        );
+        return create2Address(CREATE2_DEPLOYER, LOGIC3_SALT, h);
     }
 
     function _deployedBytecodeLength() internal returns (uint256) {

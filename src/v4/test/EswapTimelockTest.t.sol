@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
 import {EswapMarginHook} from "../EswapMarginHook.sol";
+import {EswapMarginHookLogic} from "../EswapMarginHookLogic.sol";
 import {EswapTimelock} from "../EswapTimelock.sol";
 import {PriceFeedMock} from "./BaseV4Test.t.sol";
 import {PoolKey} from "../types/PoolKey.sol";
@@ -39,7 +40,7 @@ contract EswapTimelockTest is Test {
         timelock = new EswapTimelock(address(hook), admin, DELAY);
 
         // Transfer hook ownership to timelock
-        hook.transferOwnership(address(timelock));
+        EswapMarginHookLogic(payable(address(hook))).transferOwnership(address(timelock));
 
         ERC20Mock token0 = new ERC20Mock("T0", "T0");
         ERC20Mock token1 = new ERC20Mock("T1", "T1");

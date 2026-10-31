@@ -214,6 +214,30 @@ contract EswapVenueSettlementTest is Test {
         s.validate(address(s), o);
     }
 
+    /// @dev Per-order recipient: the order's own (swapper, nonce) entry is what is
+    ///      checked, so concurrent orders do not depend on one global value.
+    function test_UX_ValidateUsesPerOrderRecipient() public {
+        (EswapUniswapXSettlement s, MockReactor r) = _uxDeploy(100e18);
+        ResolvedOrder memory o = _resolvedOrder(address(s), address(s), recipient);
+        o.outputs[0] = OutputToken({token: address(outputToken), amount: 50e18, recipient: recipient});
+        s.setOrderRecipient(trader, 1, recipient);
+        r.configure(o);
+        vm.prank(address(r));
+        s.validate(address(s), o);
+    }
+
+    function test_UX_PerOrderRecipientOverridesGlobal() public {
+        (EswapUniswapXSettlement s, MockReactor r) = _uxDeploy(100e18);
+        address other = makeAddr("otherRecipient");
+        ResolvedOrder memory o = _resolvedOrder(address(s), address(s), recipient);
+        o.outputs[0] = OutputToken({token: address(outputToken), amount: 50e18, recipient: recipient});
+        s.setPendingRecipient(recipient);
+        s.setOrderRecipient(trader, 1, other);
+        vm.prank(address(r));
+        vm.expectRevert(EswapUniswapXSettlement.UnauthorizedRecipient.selector);
+        s.validate(address(s), o);
+    }
+
     function test_UX_ValidateRevertsIfCallerNotReactor() public {
         (EswapUniswapXSettlement s, MockReactor r) = _uxDeploy(100e18);
         ResolvedOrder memory o = _resolvedOrder(address(s), address(s), recipient);

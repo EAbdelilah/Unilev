@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
 import {EswapMarginHook, IPriceFeed} from "../EswapMarginHook.sol";
+import {EswapMarginHookLogic} from "../EswapMarginHookLogic.sol";
 import {PoolManagerMock} from "./mocks/PoolManagerMock.sol";
 import {LiquidityPoolMock} from "./mocks/LiquidityPoolMock.sol";
 import {PoolKey} from "../types/PoolKey.sol";
@@ -71,7 +72,7 @@ contract BaseV4Test is Test {
         });
 
         hook.setRouterAndMinCollateralUsd(address(this), 0);
-        hook.setAuthorizedPool(key.toId(), true);
+        EswapMarginHookLogic(payable(address(hook))).setAuthorizedPool(key.toId(), true);
         // Initialize slot0 so sqrtPriceX96 is non-zero (prevents TwapManipulated revert in checkTwap)
         manager.setSlot0(key.toId(), 79228162514264337593543950336, 0);
     }

@@ -9,12 +9,14 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {NativeTokens} from "./libraries/NativeTokens.sol";
+import {FullMath} from "@uniswap/v4-core/src/libraries/FullMath.sol";
 
 /// @dev Minimal read-only view of the hook's solver registry. A non-zero answer
 ///      proves the position is still OPEN: the entry is written at open and
 ///      deleted when the position is settled.
 interface IEswapPositionState {
     function positionSolver(bytes32 poolId, address trader) external view returns (address);
+    function positionEpoch(bytes32 poolId, address trader) external view returns (uint256);
 }
 
 /**
@@ -89,6 +91,20 @@ error ZeroAddress();
     mapping(bytes32 => address) public orderHook;
     mapping(bytes32 => bytes32) public orderPoolId;
     mapping(bytes32 => address) public orderRecipient;
+    // [LIVENESS] The hook's position epoch for (pool, recipient) right after this
+    // order opened. A later epoch means the order's position has since closed.
+    mapping(bytes32 => uint256) public orderEpoch;
+
+    // [AUDIT F-04] Aggregate principal owed per repayment token. `_settle` pays
+    // the settlement as a single `positionSolver`, so every order's borrow-leg
+    // repayment lands in ONE balance with no per-order attribution; the only cap
+    // on a claim used to be `balanceOf(this)`, which let the first claimer take
+    // another filler's repayment whole. Claims are now capped pro-rata:
+    // `principal * balance / totalOwed`, and the shortfall is shared instead of
+    // being absorbed by whoever claims last. Order-independent by construction.
+    mapping(address => uint256) public totalPrincipalOwed;
+
+    error RescueExceedsSurplus(uint256 requested, uint256 surplus);
 
     constructor(EswapRouter _router) Ownable(msg.sender) {
         router = _router;
@@ -198,6 +214,10 @@ error ZeroAddress();
         orderHook[orderId] = address(key.hooks);
         orderPoolId[orderId] = PoolId.unwrap(key.toId());
         orderRecipient[orderId] = recipient;
+        orderEpoch[orderId] = IEswapPositionState(address(key.hooks)).positionEpoch(PoolId.unwrap(key.toId()), recipient);
+        // [AUDIT F-04] Track the aggregate claimable principal for this token so
+        // claims can be proportionally capped against what has actually arrived.
+        totalPrincipalOwed[inputToken] += borrowAmount;
         emit PositionFilled(orderId, recipient, inputToken, marginAmount);
     }
 
@@ -217,28 +237,36 @@ error ZeroAddress();
      *      `positionSolver[poolId][recipient]` entry is set at open and deleted
      *      at settlement, so a non-zero value proves the position is live.
      *
-     *      The payout stays capped at the current balance: with an uncovered
-     *      liquidation shortfall no single filler can over-draw other orders'
-     *      proceeds. Yield above principal remains protocol-owned residue.
+     *      The payout is capped PRO-RATA, not at the aggregate balance: with an
+     *      uncovered liquidation shortfall the settlement holds less than it
+     *      owes, and the cap is `principal * balance / totalOwed`, so every
+     *      filler absorbs the same fraction of the loss regardless of the order
+     *      in which claims are made. [AUDIT F-04]
      */
     function claimRepayment(bytes32 orderId) external returns (uint256 amount) {
         address filler = orderFiller[orderId];
         if (filler == address(0) || msg.sender != filler) revert NotFiller();
-        amount = fillerPrincipal[orderId];
-        if (amount == 0) revert NothingToClaim();
+        uint256 principal = fillerPrincipal[orderId];
+        if (principal == 0) revert NothingToClaim();
         if (_positionStillOpen(orderId)) revert PositionStillOpen();
 
         fillerPrincipal[orderId] = 0;
         address token = fillerToken[orderId];
+
+        // [AUDIT F-04] Pro-rata cap across every still-unclaimed order in this
+        // token. In the healthy case `available >= owed`, the pro-rata share is
+        // >= principal and the claim is paid in full.
+        uint256 owed = totalPrincipalOwed[token];
+        if (owed == 0) revert NothingToClaim();
+        uint256 available = NativeTokens.balanceOf(Currency.wrap(token), address(this));
+        amount = FullMath.mulDiv(principal, available, owed);
+        if (amount > principal) amount = principal;
+        if (amount == 0) revert NothingToClaim();
+        totalPrincipalOwed[token] = owed - principal;
+
         if (token == address(0)) {
-            uint256 bal = address(this).balance;
-            if (amount > bal) amount = bal;
-            if (amount == 0) revert NothingToClaim();
             NativeTokens.transfer(Currency.wrap(address(0)), filler, amount);
         } else {
-            uint256 bal = IERC20(token).balanceOf(address(this));
-            if (amount > bal) amount = bal;
-            if (amount == 0) revert NothingToClaim();
             IERC20(token).safeTransfer(filler, amount);
         }
         emit RepaymentClaimed(orderId, filler, token, amount);
@@ -250,9 +278,18 @@ error ZeroAddress();
     function _positionStillOpen(bytes32 orderId) internal view returns (bool) {
         address hook = orderHook[orderId];
         if (hook == address(0) || hook.code.length == 0) return true;
-        try IEswapPositionState(hook).positionSolver(orderPoolId[orderId], orderRecipient[orderId]) returns (
-            address solver
-        ) {
+        bytes32 poolId = orderPoolId[orderId];
+        address trader = orderRecipient[orderId];
+        // A later open for the same (pool, trader) can only happen after this
+        // order's position closed, so an advanced epoch proves it is no longer open.
+        // This is what lets an earlier order claim even when the trader has since
+        // reopened the same pool.
+        try IEswapPositionState(hook).positionEpoch(poolId, trader) returns (uint256 epoch) {
+            if (epoch != orderEpoch[orderId]) return false;
+        } catch {
+            return true;
+        }
+        try IEswapPositionState(hook).positionSolver(poolId, trader) returns (address solver) {
             return solver != address(0);
         } catch {
             return true;
@@ -271,8 +308,15 @@ error ZeroAddress();
     /**
      * @notice Emergency withdrawal of ERC-20 tokens NOT related to open positions.
      * @dev Only for tokens that are NOT the position collateral/debt currencies.
+     *      [AUDIT F-04] Also bounded by the surplus above outstanding filler
+     *      principal: the owner must never be able to sweep a repayment that a
+     *      filler is still owed.
      */
     function rescueToken(address token, address to, uint256 amount) external onlyOwner {
+        uint256 owed = totalPrincipalOwed[token];
+        uint256 bal = IERC20(token).balanceOf(address(this));
+        uint256 surplus = bal > owed ? bal - owed : 0;
+        if (amount > surplus) revert RescueExceedsSurplus(amount, surplus);
         IERC20(token).safeTransfer(to, amount);
     }
 }

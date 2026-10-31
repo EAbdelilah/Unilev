@@ -43,7 +43,13 @@ contract EswapUniswapXSettlement is IValidationCallback, Ownable {
     uint256 public immutable maxFillAmount;
 
     address public operator;
+    /// @dev Global fallback recipient, used only for orders with no per-order entry.
+    ///      Kept for compatibility with existing setup scripts.
     address public pendingRecipient;
+
+    /// @dev Per-order recipient, keyed by (swapper, nonce). This is what prevents
+    ///      concurrent orders from racing over one shared `pendingRecipient`.
+    mapping(bytes32 => address) public recipientFor;
 
     mapping(bytes32 => bool) public filledOrders;
 
@@ -60,6 +66,7 @@ contract EswapUniswapXSettlement is IValidationCallback, Ownable {
 
     event OrderFilled(bytes32 indexed orderHash, address indexed recipient, uint256 inputAmount, uint256 outputAmount);
     event RecipientSet(address indexed recipient);
+    event OrderRecipientSet(bytes32 indexed orderKey, address indexed recipient);
     event OperatorSet(address indexed operator);
 
     constructor(IReactor _reactor, IERC20 _inputToken, IERC20 _outputToken, uint256 _maxFillAmount) Ownable(msg.sender) {
@@ -85,6 +92,19 @@ contract EswapUniswapXSettlement is IValidationCallback, Ownable {
         emit RecipientSet(_recipient);
     }
 
+    /// @notice Bind the recipient for one specific order, identified by its
+    ///         swapper and Permit2 nonce. Concurrent orders no longer share state.
+    function setOrderRecipient(address swapper, uint256 nonce, address _recipient) external onlyOwner {
+        if (_recipient == address(0)) revert ZeroAddress();
+        bytes32 key = orderKey(swapper, nonce);
+        recipientFor[key] = _recipient;
+        emit OrderRecipientSet(key, _recipient);
+    }
+
+    function orderKey(address swapper, uint256 nonce) public pure returns (bytes32) {
+        return keccak256(abi.encode(swapper, nonce));
+    }
+
     // ─── Security gate: called by the reactor during order resolution ─────
 
     function validate(address filler, ResolvedOrder calldata resolvedOrder) external view override {
@@ -97,7 +117,9 @@ contract EswapUniswapXSettlement is IValidationCallback, Ownable {
         OutputToken calldata output = resolvedOrder.outputs[0];
         if (output.token != address(outputToken)) revert UnsupportedOutput();
         if (output.amount > maxFillAmount) revert OutputTooLarge();
-        if (output.recipient != pendingRecipient) revert UnauthorizedRecipient();
+        address expected = recipientFor[orderKey(resolvedOrder.info.swapper, resolvedOrder.info.nonce)];
+        if (expected == address(0)) expected = pendingRecipient;
+        if (expected == address(0) || output.recipient != expected) revert UnauthorizedRecipient();
     }
 
     // ─── Fill ─────────────────────────────────────────────────────────────

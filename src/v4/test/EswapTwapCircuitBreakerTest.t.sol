@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
 import {EswapMarginHook} from "../EswapMarginHook.sol";
+import {EswapMarginHookLogic} from "../EswapMarginHookLogic.sol";
 import {EswapMarginLib} from "../EswapMarginLib.sol";
 import {PoolKey} from "../types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "../types/PoolId.sol";
@@ -80,7 +81,7 @@ contract EswapTwapCircuitBreakerTest is Test {
             tickSpacing: 60,
             hooks: address(hook)
         });
-        hook.setAuthorizedPool(key.toId(), true);
+        EswapMarginHookLogic(payable(address(hook))).setAuthorizedPool(key.toId(), true);
     }
 
     function _prankBeforeSwap() internal {
@@ -90,8 +91,8 @@ contract EswapTwapCircuitBreakerTest is Test {
     }
 
     function test_Guard_Passes_HonestOracle_WithDecimalsConfig() public {
-        hook.setTokenDecimals(address(weth), 18);
-        hook.setTokenDecimals(address(usdc), 6);
+        EswapMarginHookLogic(payable(address(hook))).setTokenDecimals(address(weth), 18);
+        EswapMarginHookLogic(payable(address(hook))).setTokenDecimals(address(usdc), 6);
         _prankBeforeSwap(); // must NOT revert
     }
 
@@ -125,8 +126,8 @@ contract EswapTwapCircuitBreakerTest is Test {
     function test_Guard_Passes_RealStandardPoolSlot0_HonestPrice() public {
         // The credit lines: WETH(18) → oracle $3000/USDC(6). Honest pool spot =
         // 3000 USDC per WETH → sqrtPriceX96 = sqrt(3e-9) * 2^96.
-        hook.setTokenDecimals(address(weth), 18);
-        hook.setTokenDecimals(address(usdc), 6);
+        EswapMarginHookLogic(payable(address(hook))).setTokenDecimals(address(weth), 18);
+        EswapMarginHookLogic(payable(address(hook))).setTokenDecimals(address(usdc), 6);
         _enableStandardPool(4339505179874780000000000);
         _prankBeforeSwap(); // honest pool tracking the oracle must NOT revert
     }
@@ -135,8 +136,8 @@ contract EswapTwapCircuitBreakerTest is Test {
         // Standard pool slot0 manipulated 50% below the oracle (≈$1500 when the
         // oracle says $3000): the fill venue is not an honest market read and the
         // trade must be blocked instead of executing at a bad price.
-        hook.setTokenDecimals(address(weth), 18);
-        hook.setTokenDecimals(address(usdc), 6);
+        EswapMarginHookLogic(payable(address(hook))).setTokenDecimals(address(weth), 18);
+        EswapMarginHookLogic(payable(address(hook))).setTokenDecimals(address(usdc), 6);
         _enableStandardPool(3068493539683600000000000);
         vm.expectRevert(EswapMarginLib.TwapManipulated.selector);
         _prankBeforeSwap();
@@ -167,9 +168,9 @@ contract EswapTwapCircuitBreakerTest is Test {
     function test_Guard_StandardPoolUninitialized_RequireTwapOracle_Reverts() public {
         // requireTwapOracle + standard pool configured but never initialized
         // (slot0 == 0): no honest spot to compare → TwapNotConfigured.
-        hook.setTokenDecimals(address(weth), 18);
-        hook.setTokenDecimals(address(usdc), 6);
-        hook.setStandardPoolKey(key.toId(), _standardKey());
+        EswapMarginHookLogic(payable(address(hook))).setTokenDecimals(address(weth), 18);
+        EswapMarginHookLogic(payable(address(hook))).setTokenDecimals(address(usdc), 6);
+        EswapMarginHookLogic(payable(address(hook))).setStandardPoolKey(key.toId(), _standardKey());
         hook.setConfig(EswapMarginHook.ConfigParams({
             treasury: address(0xBEEF),
             router: address(this),
@@ -193,7 +194,7 @@ contract EswapTwapCircuitBreakerTest is Test {
     }
 
     function _enableStandardPool(uint160 sqrtPriceX96) internal {
-        hook.setStandardPoolKey(key.toId(), _standardKey());
+        EswapMarginHookLogic(payable(address(hook))).setStandardPoolKey(key.toId(), _standardKey());
         manager.setSlot0(_standardKey().toId(), sqrtPriceX96, 0);
     }
 

@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {Test} from "forge-std/Test.sol";
 
 import {EswapMarginHook} from "../src/v4/EswapMarginHook.sol";
+import {EswapMarginHookLogic} from "../src/v4/EswapMarginHookLogic.sol";
 import {EswapRouter} from "../src/v4/EswapRouter.sol";
 import {EswapCoWSettlement, CowOrder} from "../src/v4/EswapCoWSettlement.sol";
 import {CowSigning} from "../src/v4/cow/CowSigning.sol";
@@ -197,11 +198,11 @@ contract ZeroTreasuryInvariants is Test {
         seeder.seed(realVenue, 500_000e6, 1000 ether);
 
         hook.setRouterAndMinCollateralUsd(address(router), 0);
-        hook.setAuthorizedPool(hookLocalKey.toId(), true);
-        hook.setStandardPoolKey(hookLocalKey.toId(), standardLocalKey);
-        hook.setBaseCurrency(hookLocalKey.toId(), Currency.wrap(UNICHAIN_WETH));
-        hook.setTokenDecimals(UNICHAIN_WETH, 18);
-        hook.setTokenDecimals(UNICHAIN_USDC, 6);
+        EswapMarginHookLogic(payable(address(hook))).setAuthorizedPool(hookLocalKey.toId(), true);
+        EswapMarginHookLogic(payable(address(hook))).setStandardPoolKey(hookLocalKey.toId(), standardLocalKey);
+        EswapMarginHookLogic(payable(address(hook))).setBaseCurrency(hookLocalKey.toId(), Currency.wrap(UNICHAIN_WETH));
+        EswapMarginHookLogic(payable(address(hook))).setTokenDecimals(UNICHAIN_WETH, 18);
+        EswapMarginHookLogic(payable(address(hook))).setTokenDecimals(UNICHAIN_USDC, 6);
 
         // Full solver pipeline.
         cow = new EswapCoWSettlement(router, GPV2_SETTLEMENT);
@@ -218,7 +219,7 @@ contract ZeroTreasuryInvariants is Test {
 
         // OI caps live from the first tracked dollar (floor = 1 wei). Loose enough
         // for ordinary handler opens, strict enough that oversized orders reject.
-        hook.setOpenInterestCaps(5000, 9000, 1);
+        EswapMarginHookLogic(payable(hook)).setOpenInterestCaps(5000, 9000, 1);
 
         // External funders pre-pay their own notional on the REAL tokens.
         deal(UNICHAIN_USDC, solver, 10_000_000e6);

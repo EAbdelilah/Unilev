@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {BaseV4Test, PriceFeedMock, ERC20Mock} from "./BaseV4Test.t.sol";
 import {PoolManagerCallbackMock} from "./mocks/PoolManagerMock.sol";
 import {EswapMarginHook} from "../EswapMarginHook.sol";
+import {EswapMarginHookLogic} from "../EswapMarginHookLogic.sol";
 import {EswapRouter} from "../EswapRouter.sol";
 import {EswapSettlement} from "../EswapSettlement.sol";
 import {PoolKey} from "../types/PoolKey.sol";
@@ -46,8 +47,8 @@ contract EswapSettlementTest is BaseV4Test {
             PoolKey({currency0: key.currency0, currency1: key.currency1, fee: 500, tickSpacing: 60, hooks: address(0)});
 
         hook.setRouterAndMinCollateralUsd(address(router), 0);
-        hook.setAuthorizedPool(key.toId(), true);
-        hook.setStandardPoolKey(key.toId(), standardPoolKey);
+        EswapMarginHookLogic(payable(address(hook))).setAuthorizedPool(key.toId(), true);
+        EswapMarginHookLogic(payable(address(hook))).setStandardPoolKey(key.toId(), standardPoolKey);
 
         manager.setSlot0(key.toId(), 1 << 96, 0);
         manager.setSlot0(standardPoolKey.toId(), 1 << 96, 0);
@@ -289,5 +290,39 @@ contract EswapSettlementTest is BaseV4Test {
         vm.prank(filler);
         assertEq(settlement.claimRepayment(orderA), 40 ether);
         assertEq(token0.balanceOf(filler), before + 40 ether, "A made whole");
+    }
+
+    /// @dev [LIVENESS] A trader who reopens the same pool must not lock an earlier
+    ///      order's repayment: that order's position has closed, so its claim is
+    ///      allowed. The genuinely open order keeps its own gate.
+    function test_ClaimRepayment_ReopenDoesNotBlockEarlierClaim() public {
+        bytes32 orderA = keccak256("order-a-reopen");
+        bytes32 orderB = keccak256("order-b-reopen");
+
+        vm.prank(filler);
+        settlement.fill(orderA, _originData(10 ether, 0), "");
+        vm.prank(trader);
+        router.closePosition(address(hook), key, trader, address(settlement), 0);
+        assertEq(token0.balanceOf(address(settlement)), 40 ether, "A repayment parked");
+
+        // The same trader reopens the same pool through a second order.
+        vm.prank(filler);
+        settlement.fill(orderB, _originData(10 ether, 0), "");
+
+        vm.prank(filler);
+        assertEq(settlement.claimRepayment(orderA), 40 ether, "A claim not blocked by the reopen");
+
+        vm.prank(filler);
+        vm.expectRevert(EswapSettlement.PositionStillOpen.selector);
+        settlement.claimRepayment(orderB);
+    }
+
+    /// @dev [INSURANCE POLICY] Coverage defaults to full (10000 bps) and is owner-tunable.
+    function test_InsuranceCoverageBps_DefaultsToFullAndIsOwnerAdjustable() public {
+        assertEq(hook.insuranceCoverageBps(), 10_000, "full coverage by default");
+        hook.setInsuranceCoverageBps(5_000);
+        assertEq(hook.insuranceCoverageBps(), 5_000, "lowered by owner");
+        vm.expectRevert(EswapMarginHook.BpsTooHigh.selector);
+        hook.setInsuranceCoverageBps(10_001);
     }
 }

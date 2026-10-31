@@ -18,6 +18,7 @@ import {TickMath} from "../../src/v4/libraries/TickMath.sol";
 import {EswapMarginHook, IPriceFeed} from "../../src/v4/EswapMarginHook.sol";
 import {EswapMarginHookLogic} from "../../src/v4/EswapMarginHookLogic.sol";
 import {EswapMarginHookLogic2} from "../../src/v4/EswapMarginHookLogic2.sol";
+import {EswapMarginHookLogic3} from "../../src/v4/EswapMarginHookLogic3.sol";
 import {IPriceFeedLogic} from "../../src/v4/EswapMarginHookLogicStorage.sol";
 import {EswapMarginLib} from "../../src/v4/EswapMarginLib.sol";
 import {EswapRouter} from "../../src/v4/EswapRouter.sol";
@@ -103,7 +104,9 @@ contract DeployUnichainSepolia is Script {
         // instead of `new`ing them inline (inlining produced a 68,676-byte
         // initcode vs the 49,152-byte cap). Deploy Logic2 first, then Logic.
         EswapMarginHookLogic2 logic2 = new EswapMarginHookLogic2(IPoolManager(address(pm)), IPriceFeedLogic(address(0)));
-        EswapMarginHookLogic logic1 = new EswapMarginHookLogic(IPoolManager(address(pm)), IPriceFeedLogic(address(0)), address(logic2));
+        // [EIP-170] Logic3 owns the partial-liquidation engine.
+        EswapMarginHookLogic3 logic3 = new EswapMarginHookLogic3(IPoolManager(address(pm)), IPriceFeedLogic(address(0)));
+        EswapMarginHookLogic logic1 = new EswapMarginHookLogic(IPoolManager(address(pm)), IPriceFeedLogic(address(0)), address(logic2), address(logic3));
 
         bytes memory initCode = abi.encodePacked(
             linkedCreation, abi.encode(address(pm), address(0), address(logic1), address(logic2), deployer)

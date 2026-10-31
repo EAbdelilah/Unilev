@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {BaseV4Test, PriceFeedMock, ERC20Mock} from "./BaseV4Test.t.sol";
 import {PoolManagerCallbackMock} from "./mocks/PoolManagerMock.sol";
 import {EswapMarginHook} from "../EswapMarginHook.sol";
+import {EswapMarginHookLogic} from "../EswapMarginHookLogic.sol";
 import {EswapRouter} from "../EswapRouter.sol";
 import {PoolKey} from "../types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "../types/PoolId.sol";
@@ -80,7 +81,7 @@ contract AuditSolverConsentPoC is BaseV4Test {
             PoolKey({currency0: key.currency0, currency1: key.currency1, fee: 0, tickSpacing: 60, hooks: address(0)});
 
         hook.setRouterAndMinCollateralUsd(address(router), 0);
-        hook.setAuthorizedPool(key.toId(), true);
+        EswapMarginHookLogic(payable(address(hook))).setAuthorizedPool(key.toId(), true);
         pm.setSlot0(key.toId(), 1 << 96, 0);
         pm.setSlot0(standardPoolKey.toId(), 1 << 96, 0);
 
@@ -112,8 +113,9 @@ contract AuditSolverConsentPoC is BaseV4Test {
         });
     }
 
-    /// @dev Regression for the original exploit: a 40 ether borrow against a
-    ///      solver capped at 1 ether must now revert before any solver tokens move.
+    /// @dev Regression for the original exploit: a trader naming a whitelisted solver
+    ///      with no escrow bond must be rejected before any solver tokens move. The
+    ///      solver never consented to this draw, so the consent gate fires first.
     function test_ExploitPoC() public {
         router.setSolverNotionalCap(victimSolver, 1 ether);
         pm.setFill(-50 ether, 48 ether);
@@ -121,9 +123,7 @@ contract AuditSolverConsentPoC is BaseV4Test {
         uint256 solverBefore = token0.balanceOf(victimSolver);
 
         vm.prank(attacker);
-        vm.expectRevert(
-            abi.encodeWithSelector(EswapRouter.BorrowExceedsSolverNotionalCap.selector, 40 ether, 1 ether)
-        );
+        vm.expectRevert(EswapRouter.SolverNotAuthorized.selector);
         router.swap(_params());
 
         assertEq(token0.balanceOf(victimSolver), solverBefore, "no solver funds moved");
@@ -135,6 +135,11 @@ contract AuditSolverConsentPoC is BaseV4Test {
         pm.setFill(-50 ether, 48 ether);
 
         uint256 solverBefore = token0.balanceOf(victimSolver);
+
+        // Third-party draw: the solver consents by bonding the borrow in escrow.
+        // The bond leaves the wallet here; the swap then draws it from escrow.
+        vm.prank(victimSolver);
+        router.depositBorrowEscrow(address(token0), 40 ether);
         vm.prank(attacker);
         router.swap(_params());
 
@@ -156,10 +161,14 @@ contract AuditSolverConsentPoC is BaseV4Test {
         token0.mint(solverB, 100 ether);
         vm.prank(solverB);
         token0.approve(address(router), type(uint256).max);
+        vm.prank(solverB);
+        router.depositBorrowEscrow(address(token0), 40 ether);
 
         pm.setFill(-50 ether, 48 ether);
 
-        // First open: position backed by victimSolver.
+        // First open: position backed by victimSolver (bonded in escrow).
+        vm.prank(victimSolver);
+        router.depositBorrowEscrow(address(token0), 40 ether);
         vm.prank(attacker);
         router.swap(_params());
 

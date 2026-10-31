@@ -1,0 +1,8 @@
+﻿No files changed, compilation skipped
+
+Ran 2 tests for src/v4/test/AuditThirdLiquidationPoC.t.sol:AuditThirdLiquidationPoC
+[PASS] test_F08_ClaimPayout_NoCredit_Reverts() (gas: 21498)
+[PASS] test_F08_SetPayoutRedirect() (gas: 39879)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 7.70ms (462.40┬Ás CPU time)
+
+Ran 1 test suite in 46.58ms (7.70ms CPU time): 2 tests passed, 0 failed, 0 skipped (2 total tests)

@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {BaseV4Test, PriceFeedMock, ERC20Mock} from "./BaseV4Test.t.sol";
 import {PoolManagerCallbackMock} from "./mocks/PoolManagerMock.sol";
 import {EswapMarginHook} from "../EswapMarginHook.sol";
+import {EswapMarginHookLogic} from "../EswapMarginHookLogic.sol";
 import {EswapRouter} from "../EswapRouter.sol";
 import {PoolKey} from "../types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "../types/PoolId.sol";
@@ -46,7 +47,7 @@ contract EswapLiquidatorIncentiveTest is BaseV4Test {
         });
 
         hook.setRouterAndMinCollateralUsd(address(router), 0);
-        hook.setAuthorizedPool(key.toId(), true);
+        EswapMarginHookLogic(payable(address(hook))).setAuthorizedPool(key.toId(), true);
         manager.setSlot0(key.toId(), 79228162514264337593543950336, 0);
     }
 
@@ -84,7 +85,7 @@ contract EswapLiquidatorIncentiveTest is BaseV4Test {
         manager.setNextSwapDelta(30 ether, -28 ether);
     }
 
-    function test_LiquidatorIncentive_DefaultDisabled_InsuranceOnly() public {
+    function test_LiquidatorIncentive_DefaultDisabled_PaysFlooredBounty() public {
         _openShort();
         _makeLiquidatable();
 
@@ -98,20 +99,24 @@ contract EswapLiquidatorIncentiveTest is BaseV4Test {
         assertEq(posTrader, address(0), "position should be closed");
         assertEq(lev, 0);
 
-        // Default incentive = 0: the liquidator earns nothing, the full 3% of the
-        // post-solver surplus (30 received - 20 repaid = 10 => 0.3 ether) is
-        // credited to the insurance fund, and the trader gets the remainder.
+        // [AUDIT F-07] Default incentive is 0, but the keeper bounty now has a
+        // FLOOR of LIQUIDATOR_MIN_INCENTIVE_BPS (50 bps = 0.5%). Surplus is
+        // 30 received - 20 repaid = 10 ether, so the initiator is paid 0.05.
+        // Leaving it at 0 made every liquidation strictly -EV for a third party,
+        // so insolvency (badDebt) was the rational outcome and liveness depended
+        // on a permissioned team keeper. The bounty is a share of the realised
+        // surplus, so 0% carry is preserved.
         assertEq(
-            token0.balanceOf(liquidator) - liquidatorBefore, 0, "default: no direct liquidator incentive"
+            token0.balanceOf(liquidator) - liquidatorBefore, 0.05 ether, "floor bounty paid to the initiator"
         );
         assertEq(hook.insuranceFund(key.currency0), 0.3 ether, "3% reward lands in the insurance fund");
-        // Solver repaid 20, insurance 0.3, trader 9.7 = full 30 ether unwind.
+        // Solver repaid 20, bounty 0.05, insurance 0.3, trader 9.65 = full 30 ether.
         assertEq(token0.balanceOf(solver), 20 ether, "solver principal repaid");
-        assertEq(token0.balanceOf(address(this)) - traderBefore, 9.7 ether, "trader keeps post-reward remainder");
+        assertEq(token0.balanceOf(address(this)) - traderBefore, 9.65 ether, "trader keeps post-reward remainder");
     }
 
     function test_LiquidatorIncentive_Enabled_FullLiquidation() public {
-        hook.setLiquidatorIncentiveBps(200); // 2% of the post-solver surplus
+        EswapMarginHookLogic(payable(address(hook))).setLiquidatorIncentiveBps(200); // 2% of the post-solver surplus
         _openShort();
         _makeLiquidatable();
 
@@ -135,7 +140,7 @@ contract EswapLiquidatorIncentiveTest is BaseV4Test {
     }
 
     function test_LiquidatorIncentive_PartialLiquidation_UnhealthyRemainder_Reverts() public {
-        hook.setLiquidatorIncentiveBps(200); // 2% of the post-solver surplus (partial slice too)
+        EswapMarginHookLogic(payable(address(hook))).setLiquidatorIncentiveBps(200); // 2% of the post-solver surplus (partial slice too)
         _openShort();
         _makeLiquidatable();
         (, uint256 c0, uint256 b0,,) = _readPosition();
@@ -165,15 +170,15 @@ contract EswapLiquidatorIncentiveTest is BaseV4Test {
         // Only the owner may configure the incentive.
         vm.prank(address(0xBAD));
         vm.expectRevert();
-        hook.setLiquidatorIncentiveBps(200);
+        EswapMarginHookLogic(payable(address(hook))).setLiquidatorIncentiveBps(200);
 
         // The share must be strictly below 100% of the surplus.
         vm.expectRevert();
-        hook.setLiquidatorIncentiveBps(10000);
+        EswapMarginHookLogic(payable(address(hook))).setLiquidatorIncentiveBps(10000);
 
         vm.expectEmit(true, true, true, true);
         emit EswapMarginHook.LiquidatorIncentiveSet(0, 300);
-        hook.setLiquidatorIncentiveBps(300);
+        EswapMarginHookLogic(payable(address(hook))).setLiquidatorIncentiveBps(300);
         assertEq(hook.liquidatorIncentiveBps(), 300);
     }
 

@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
 import {EswapMarginHook, IPriceFeed} from "../EswapMarginHook.sol";
+import {EswapMarginHookLogic} from "../EswapMarginHookLogic.sol";
 import {PoolKey} from "../types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "../types/PoolId.sol";
 import {Currency} from "../types/Currency.sol";
@@ -97,7 +98,7 @@ contract EswapExitOracleIndependenceTest is Test {
             tickSpacing: 60,
             hooks: address(hook)
         });
-        hook.setAuthorizedPool(key.toId(), true);
+        EswapMarginHookLogic(payable(address(hook))).setAuthorizedPool(key.toId(), true);
     }
 
     /// @dev Opens a 3x SHORT (zeroForOne=true) using the proven fixture from

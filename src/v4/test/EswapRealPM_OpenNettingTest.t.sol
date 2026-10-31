@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
 import {EswapMarginHook} from "../EswapMarginHook.sol";
+import {EswapMarginHookLogic} from "../EswapMarginHookLogic.sol";
 import {EswapRouter} from "../EswapRouter.sol";
 import {EswapMarginLib} from "../EswapMarginLib.sol";
 import {PoolKey} from "../types/PoolKey.sol";
@@ -108,7 +109,7 @@ contract EswapRealPM_OpenNettingTest is Test {
 
         realManager.initialize(hookRealKey, SQRT_PRICE_1_1);
         realManager.initialize(standardRealKey, SQRT_PRICE_1_1);
-        realHook.setAuthorizedPool(_localId(realHookAddr), true);
+        EswapMarginHookLogic(payable(address(realHook))).setAuthorizedPool(_localId(realHookAddr), true);
 
         PoolModifyLiquidityTest lq = new PoolModifyLiquidityTest(realManager);
         token0.approve(address(lq), type(uint256).max);
@@ -118,8 +119,8 @@ contract EswapRealPM_OpenNettingTest is Test {
         lq.modifyLiquidity(hookRealKey, lp, "");
         lq.modifyLiquidity(standardRealKey, lp, "");
 
-        realHook.setTokenDecimals(address(token0), 18);
-        realHook.setTokenDecimals(address(token1), 18);
+        EswapMarginHookLogic(payable(address(realHook))).setTokenDecimals(address(token0), 18);
+        EswapMarginHookLogic(payable(address(realHook))).setTokenDecimals(address(token1), 18);
         priceFeed.setPrice(address(token0), 1e18);
         priceFeed.setPrice(address(token1), 1e18);
 
@@ -129,6 +130,10 @@ contract EswapRealPM_OpenNettingTest is Test {
         token0.approve(address(router), type(uint256).max);
         vm.prank(solver);
         token0.approve(address(router), type(uint256).max);
+        // Solver consent: third-party (trader-named) borrows need the solver's
+        // borrow bonded in escrow.
+        vm.prank(solver);
+        router.depositBorrowEscrow(address(token0), 500 ether);
         // For the inline unlockCallback simulation the unlock caller is this test.
         vm.prank(trader);
         token0.approve(address(this), type(uint256).max);

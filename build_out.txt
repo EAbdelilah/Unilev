@@ -1,0 +1,1143 @@
+﻿Compiling 96 files with Solc 0.8.27
+Solc 0.8.27 finished in 1429.93s
+Compiler run successful with warnings:
+Warning (2519): This declaration shadows an existing declaration.
+   --> src/v4/EswapLeverageAdapter.sol:111:31:
+    |
+111 |     function setDefaultSolver(address _solver) external onlyOwner {
+    |                               ^^^^^^^^^^^^^^^
+Note: The shadowed declaration is here:
+   --> src/v4/EswapLeverageAdapter.sol:145:5:
+    |
+145 |     function _solver() internal view returns (address) {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2519): This declaration shadows an existing declaration.
+   --> src/v4/EswapLeverageAdapter.sol:119:30:
+    |
+119 |     function setBackupSolver(address _solver) external onlyOwner {
+    |                              ^^^^^^^^^^^^^^^
+Note: The shadowed declaration is here:
+   --> src/v4/EswapLeverageAdapter.sol:145:5:
+    |
+145 |     function _solver() internal view returns (address) {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (3628): This contract has a payable fallback function, but no receive ether function. Consider adding a receive ether function.
+  --> src/v4/EswapMarginHookLogic.sol:43:1:
+   |
+43 | contract EswapMarginHookLogic is BaseHook, EswapMarginHookLogicStorage {
+   | ^ (Relevant source part starts here and spans across multiple lines).
+Note: The payable fallback function is defined here.
+   --> src/v4/EswapMarginHookLogic.sol:718:5:
+    |
+718 |     fallback() external payable {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (6321): Unnamed return variable can remain unassigned. Add an explicit return with value to all non-reverting code paths or name the variable.
+   --> src/v4/test/EswapMainnetV4LiquidationForkTest.t.sol:269:93:
+    |
+269 |     function _slot0(RealPoolKey memory k) internal view returns (uint160 sqrtP, int24 tick, uint24, bool) {
+    |                                                                                             ^^^^^^
+
+Warning (6321): Unnamed return variable can remain unassigned. Add an explicit return with value to all non-reverting code paths or name the variable.
+   --> src/v4/test/EswapMainnetV4LiquidationForkTest.t.sol:269:101:
+    |
+269 |     function _slot0(RealPoolKey memory k) internal view returns (uint160 sqrtP, int24 tick, uint24, bool) {
+    |                                                                                                     ^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> src/v4/EswapMarginHookLogic.sol:243:36:
+    |
+243 |     function _insuranceStandardKey(PoolKey calldata hookKey, PoolId poolId) internal view returns (PoolKey memory std) {
+    |                                    ^^^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/EswapMarginHook.sol:802:16:
+    |
+802 |             (, address solver, uint256 solverOutput) = abi.decode(data, (bool, address, uint256));
+    |                ^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1204:32:
+     |
+1204 |     function rebalancePosition(PoolKey calldata key, address trader) external onlyRouter {
+     |                                ^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1204:54:
+     |
+1204 |     function rebalancePosition(PoolKey calldata key, address trader) external onlyRouter {
+     |                                                      ^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1215:33:
+     |
+1215 |     function executeLiquidation(PoolKey calldata key, address trader, uint256 minAmountOut, address liquidator)
+     |                                 ^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1215:55:
+     |
+1215 |     function executeLiquidation(PoolKey calldata key, address trader, uint256 minAmountOut, address liquidator)
+     |                                                       ^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1215:71:
+     |
+1215 |     function executeLiquidation(PoolKey calldata key, address trader, uint256 minAmountOut, address liquidator)
+     |                                                                       ^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1215:93:
+     |
+1215 |     function executeLiquidation(PoolKey calldata key, address trader, uint256 minAmountOut, address liquidator)
+     |                                                                                             ^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1225:9:
+     |
+1225 |         PoolKey calldata key,
+     |         ^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1226:9:
+     |
+1226 |         address trader,
+     |         ^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1227:9:
+     |
+1227 |         uint256 minAmountOut,
+     |         ^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1228:9:
+     |
+1228 |         address liquidator,
+     |         ^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1229:9:
+     |
+1229 |         uint256 liquidationBps
+     |         ^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1301:31:
+     |
+1301 |     function deployCollateral(PoolKey calldata key, address trader) external onlyRouterOrManager {
+     |                               ^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1301:53:
+     |
+1301 |     function deployCollateral(PoolKey calldata key, address trader) external onlyRouterOrManager {
+     |                                                     ^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1309:29:
+     |
+1309 |     function insuranceStake(PoolKey calldata standardKey, uint128 maxLiquidity) external onlyOwner {
+     |                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1309:59:
+     |
+1309 |     function insuranceStake(PoolKey calldata standardKey, uint128 maxLiquidity) external onlyOwner {
+     |                                                           ^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1313:31:
+     |
+1313 |     function insuranceUnstake(PoolKey calldata standardKey, uint128 liquidity) external onlyOwner {
+     |                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1313:61:
+     |
+1313 |     function insuranceUnstake(PoolKey calldata standardKey, uint128 liquidity) external onlyOwner {
+     |                                                             ^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1389:9:
+     |
+1389 |         PoolKey calldata key,
+     |         ^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1390:9:
+     |
+1390 |         address trader,
+     |         ^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1391:9:
+     |
+1391 |         uint8 leverage,
+     |         ^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1392:9:
+     |
+1392 |         uint256 marginAmount,
+     |         ^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1393:9:
+     |
+1393 |         uint256 borrowedAmount,
+     |         ^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1394:9:
+     |
+1394 |         Currency boughtCurrency,
+     |         ^^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1395:9:
+     |
+1395 |         uint256 boughtAmount
+     |         ^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1419:28:
+     |
+1419 |     function closePosition(PoolKey calldata key, address trader, address solver, uint256 minAmountOut)
+     |                            ^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1419:50:
+     |
+1419 |     function closePosition(PoolKey calldata key, address trader, address solver, uint256 minAmountOut)
+     |                                                  ^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1419:66:
+     |
+1419 |     function closePosition(PoolKey calldata key, address trader, address solver, uint256 minAmountOut)
+     |                                                                  ^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1419:82:
+     |
+1419 |     function closePosition(PoolKey calldata key, address trader, address solver, uint256 minAmountOut)
+     |                                                                                  ^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> src/v4/EswapOneInchFusionSettlement.sol:179:9:
+    |
+179 |         IOrderMixin.Order calldata order,
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> src/v4/EswapOneInchFusionSettlement.sol:183:9:
+    |
+183 |         uint256 makingAmount,
+    |         ^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> src/v4/EswapOneInchFusionSettlement.sol:184:9:
+    |
+184 |         uint256 takingAmount,
+    |         ^^^^^^^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapBaseEnsoFullCycleForkTest.t.sol:323:46:
+    |
+323 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                              ^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapBaseEnsoFullCycleForkTest.t.sol:323:58:
+    |
+323 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                          ^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapBaseEnsoFullCycleForkTest.t.sol:323:68:
+    |
+323 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                                    ^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapBaseEnsoFullCycleForkTest.t.sol:323:79:
+    |
+323 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                                               ^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapBaseEnsoFullCycleForkTest.t.sol:323:93:
+    |
+323 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                                                             ^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapBaseEnsoFullCycleForkTest.t.sol:323:104:
+    |
+323 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                                                                        ^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapBestRouteForkTest.t.sol:329:67:
+    |
+329 |         (address posTrader, uint256 collateral, uint256 borrowed, uint8 lev, bool isLong) = _readPosition();
+    |                                                                   ^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapHookConstructorTest.t.sol:130:25:
+    |
+130 |         (address logic, address logic2) =
+    |                         ^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapHookConstructorTest.t.sol:138:25:
+    |
+138 |         (address logic, address logic2) =
+    |                         ^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+ --> src/v4/test/EswapInsuranceTest.t.sol:9:9:
+  |
+9 |         address trader = address(0xABC);
+  |         ^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+  --> src/v4/test/EswapInsuranceTest.t.sol:12:9:
+   |
+12 |         Currency token0 = key.currency0;
+   |         ^^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapMainnet0xFullCycleForkTest.t.sol:340:46:
+    |
+340 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                              ^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapMainnet0xFullCycleForkTest.t.sol:340:58:
+    |
+340 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                          ^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapMainnet0xFullCycleForkTest.t.sol:340:68:
+    |
+340 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                                    ^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapMainnet0xFullCycleForkTest.t.sol:340:79:
+    |
+340 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                                               ^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapMainnet0xFullCycleForkTest.t.sol:340:93:
+    |
+340 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                                                             ^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapMainnet0xFullCycleForkTest.t.sol:340:104:
+    |
+340 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                                                                        ^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapMainnetEnsoFullCycleForkTest.t.sol:344:46:
+    |
+344 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                              ^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapMainnetEnsoFullCycleForkTest.t.sol:344:58:
+    |
+344 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                          ^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapMainnetEnsoFullCycleForkTest.t.sol:344:68:
+    |
+344 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                                    ^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapMainnetEnsoFullCycleForkTest.t.sol:344:79:
+    |
+344 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                                               ^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapMainnetEnsoFullCycleForkTest.t.sol:344:93:
+    |
+344 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                                                             ^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapMainnetEnsoFullCycleForkTest.t.sol:344:104:
+    |
+344 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                                                                        ^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapMainnetV4LiquidationForkTest.t.sol:387:53:
+    |
+387 |         (address owner, uint256 coll, uint256 borr, int24 lo, int24 up, uint128 lq) = _positionFields();
+    |                                                     ^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapMainnetV4LiquidationForkTest.t.sol:387:63:
+    |
+387 |         (address owner, uint256 coll, uint256 borr, int24 lo, int24 up, uint128 lq) = _positionFields();
+    |                                                               ^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapMaxLeverageForPoolTest.t.sol:104:13:
+    |
+104 |             uint160 liqSqrt,
+    |             ^^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapMaxLeverageForPoolTest.t.sol:105:13:
+    |
+105 |             int24 tickLower,
+    |             ^^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapMaxLeverageForPoolTest.t.sol:106:13:
+    |
+106 |             int24 tickUpper,
+    |             ^^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapMaxLeverageForPoolTest.t.sol:107:13:
+    |
+107 |             uint128 liquidity
+    |             ^^^^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapMaxLeverageForPoolTest.t.sol:130:13:
+    |
+130 |             uint160 liqSqrt,
+    |             ^^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapMaxLeverageForPoolTest.t.sol:131:13:
+    |
+131 |             int24 tickLower,
+    |             ^^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapMaxLeverageForPoolTest.t.sol:132:13:
+    |
+132 |             int24 tickUpper,
+    |             ^^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapMaxLeverageForPoolTest.t.sol:133:13:
+    |
+133 |             uint128 liquidity
+    |             ^^^^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapPositionLifecycleTest.t.sol:117:9:
+    |
+117 |         uint256 settleBefore = manager.settleCount();
+    |         ^^^^^^^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaEthFullCycleForkTest.t.sol:340:46:
+    |
+340 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                              ^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaEthFullCycleForkTest.t.sol:340:58:
+    |
+340 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                          ^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaEthFullCycleForkTest.t.sol:340:68:
+    |
+340 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                                    ^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaEthFullCycleForkTest.t.sol:340:79:
+    |
+340 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                                               ^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaEthFullCycleForkTest.t.sol:340:93:
+    |
+340 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                                                             ^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaEthFullCycleForkTest.t.sol:340:104:
+    |
+340 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                                                                        ^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaEthFullCycleForkTest.t.sol:396:46:
+    |
+396 |         (address cleared, uint256 collAfter, uint256 _b2, uint8 _l2, bool _lng2, uint160 _lsp2, int24 _tl2, int24 _tu2, uint128 liqAfter) =
+    |                                              ^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaEthFullCycleForkTest.t.sol:396:59:
+    |
+396 |         (address cleared, uint256 collAfter, uint256 _b2, uint8 _l2, bool _lng2, uint160 _lsp2, int24 _tl2, int24 _tu2, uint128 liqAfter) =
+    |                                                           ^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaEthFullCycleForkTest.t.sol:396:70:
+    |
+396 |         (address cleared, uint256 collAfter, uint256 _b2, uint8 _l2, bool _lng2, uint160 _lsp2, int24 _tl2, int24 _tu2, uint128 liqAfter) =
+    |                                                                      ^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaEthFullCycleForkTest.t.sol:396:82:
+    |
+396 |         (address cleared, uint256 collAfter, uint256 _b2, uint8 _l2, bool _lng2, uint160 _lsp2, int24 _tl2, int24 _tu2, uint128 liqAfter) =
+    |                                                                                  ^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaEthFullCycleForkTest.t.sol:396:97:
+    |
+396 |         (address cleared, uint256 collAfter, uint256 _b2, uint8 _l2, bool _lng2, uint160 _lsp2, int24 _tl2, int24 _tu2, uint128 liqAfter) =
+    |                                                                                                 ^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaEthFullCycleForkTest.t.sol:396:109:
+    |
+396 |         (address cleared, uint256 collAfter, uint256 _b2, uint8 _l2, bool _lng2, uint160 _lsp2, int24 _tl2, int24 _tu2, uint128 liqAfter) =
+    |                                                                                                             ^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaLiveStackReplay.t.sol:387:46:
+    |
+387 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                              ^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaLiveStackReplay.t.sol:387:58:
+    |
+387 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                          ^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaLiveStackReplay.t.sol:387:68:
+    |
+387 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                                    ^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaLiveStackReplay.t.sol:387:79:
+    |
+387 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                                               ^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaLiveStackReplay.t.sol:387:93:
+    |
+387 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                                                             ^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaLiveStackReplay.t.sol:387:104:
+    |
+387 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                                                                        ^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaLiveStackReplay.t.sol:444:46:
+    |
+444 |         (address cleared, uint256 collAfter, uint256 _b2, uint8 _l2, bool _lng2, uint160 _lsp2, int24 _tl2, int24 _tu2, uint128 liqAfter) =
+    |                                              ^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaLiveStackReplay.t.sol:444:59:
+    |
+444 |         (address cleared, uint256 collAfter, uint256 _b2, uint8 _l2, bool _lng2, uint160 _lsp2, int24 _tl2, int24 _tu2, uint128 liqAfter) =
+    |                                                           ^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaLiveStackReplay.t.sol:444:70:
+    |
+444 |         (address cleared, uint256 collAfter, uint256 _b2, uint8 _l2, bool _lng2, uint160 _lsp2, int24 _tl2, int24 _tu2, uint128 liqAfter) =
+    |                                                                      ^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaLiveStackReplay.t.sol:444:82:
+    |
+444 |         (address cleared, uint256 collAfter, uint256 _b2, uint8 _l2, bool _lng2, uint160 _lsp2, int24 _tl2, int24 _tu2, uint128 liqAfter) =
+    |                                                                                  ^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaLiveStackReplay.t.sol:444:97:
+    |
+444 |         (address cleared, uint256 collAfter, uint256 _b2, uint8 _l2, bool _lng2, uint160 _lsp2, int24 _tl2, int24 _tu2, uint128 liqAfter) =
+    |                                                                                                 ^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaLiveStackReplay.t.sol:444:109:
+    |
+444 |         (address cleared, uint256 collAfter, uint256 _b2, uint8 _l2, bool _lng2, uint160 _lsp2, int24 _tl2, int24 _tu2, uint128 liqAfter) =
+    |                                                                                                             ^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSettlementTest.t.sol:173:9:
+    |
+173 |         uint256 traderBalBefore = token1.balanceOf(trader);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSmartCollateralTest.t.sol:129:9:
+    |
+129 |         uint256 settleBefore = manager.settleCount();
+    |         ^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> src/v4/test/EswapTradingScenariosTest.t.sol:125:41:
+    |
+125 |     function _liquidate(address trader, bool isLong, int128 recoveredDelta) internal {
+    |                                         ^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapTradingScenariosTest.t.sol:205:59:
+    |
+205 |         (, uint256 collateral, uint256 borrow, uint8 lev, bool isLong,,,,) = hook.positions(key.toId(), address(this));
+    |                                                           ^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapTradingScenariosTest.t.sol:252:59:
+    |
+252 |         (, uint256 collateral, uint256 borrow, uint8 lev, bool isLong,,,,) = hook.positions(key.toId(), address(this));
+    |                                                           ^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapTradingScenariosTest.t.sol:297:59:
+    |
+297 |         (, uint256 collateral, uint256 borrow, uint8 lev, bool isLong,,,,) = hook.positions(key.toId(), address(this));
+    |                                                           ^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapTradingScenariosTest.t.sol:341:59:
+    |
+341 |         (, uint256 collateral, uint256 borrow, uint8 lev, bool isLong,,,,) = hook.positions(key.toId(), address(this));
+    |                                                           ^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapTradingScenariosTest.t.sol:386:59:
+    |
+386 |         (, uint256 collateral, uint256 borrow, uint8 lev, bool isLong,,,,) = hook.positions(key.toId(), address(this));
+    |                                                           ^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapTradingScenariosTest.t.sol:497:59:
+    |
+497 |         (, uint256 collateral, uint256 borrow, uint8 lev, bool isLong,,,,) = hook.positions(key.toId(), address(this));
+    |                                                           ^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapTradingScenariosTest.t.sol:540:59:
+    |
+540 |         (, uint256 collateral, uint256 borrow, uint8 lev, bool isLong,,,,) = hook.positions(key.toId(), address(this));
+    |                                                           ^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapTradingScenariosTest.t.sol:583:59:
+    |
+583 |         (, uint256 collateral, uint256 borrow, uint8 lev, bool isLong,,,,) = hook.positions(key.toId(), address(this));
+    |                                                           ^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapTradingScenariosTest.t.sol:626:59:
+    |
+626 |         (, uint256 collateral, uint256 borrow, uint8 lev, bool isLong,,,,) = hook.positions(key.toId(), address(this));
+    |                                                           ^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/LiveNativeShort.t.sol:199:74:
+    |
+199 |  ... t256 borr, uint8 lev, bool isLong, uint160 liqPrice, int24 tLow, int24 tUp, uint128 li ...
+    |                                         ^^^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/LiveNativeShort.t.sol:199:92:
+    |
+199 |  ... ev, bool isLong, uint160 liqPrice, int24 tLow, int24 tUp, uint128 liq) = hook.po ...
+    |                                         ^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/LiveNativeShort.t.sol:199:104:
+    |
+199 |  ... ong, uint160 liqPrice, int24 tLow, int24 tUp, uint128 liq) = hook.positions(nat ...
+    |                                         ^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/RehypothecationForkTest.t.sol:247:17:
+    |
+247 |         (,,,,,, int24 ftl, int24 ftu, uint128 fliq) = newHook.positions(hookPoolId, trader);
+    |                 ^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/RehypothecationForkTest.t.sol:247:28:
+    |
+247 |         (,,,,,, int24 ftl, int24 ftu, uint128 fliq) = newHook.positions(hookPoolId, trader);
+    |                            ^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> test/ZeroTreasuryInvariants.t.sol:273:9:
+    |
+273 |         address trader = vm.addr(pk);
+    |         ^^^^^^^^^^^^^^
+
+Warning (2018): Function state mutability can be restricted to pure
+   --> src/v4/EswapRouterExt.sol:678:5:
+    |
+678 |     function resolve(CrossChainOrder calldata order, bytes calldata)
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to pure
+   --> src/v4/test/mocks/PoolManagerMock.sol:101:5:
+    |
+101 |     function initialize(PoolKey memory, uint160) external override returns (int24) {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to pure
+   --> src/v4/test/mocks/PoolManagerMock.sol:159:5:
+    |
+159 |     function donate(PoolKey memory, uint256, uint256, bytes calldata) external override returns (BalanceDelta) {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to pure
+   --> src/v4/test/EswapBaseEnsoFullCycleForkTest.t.sol:216:5:
+    |
+216 |     function _realKey(uint24 fee, address hooks) internal view returns (RealPoolKey memory k) {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to pure
+   --> src/v4/test/EswapBestRouteForkTest.t.sol:211:5:
+    |
+211 |     function _realKey(uint24 fee, address hooks) internal view returns (RealPoolKey memory key) {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+   --> src/v4/test/EswapCoWSettlementTest.t.sol:140:5:
+    |
+140 |     function _signEip712(CowOrder.Data memory order, uint256 pk) internal returns (bytes memory sig) {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+   --> src/v4/test/EswapCoWSettlementTest.t.sol:187:5:
+    |
+187 |     function test_UidOf_MatchesPackedConcat() public {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+  --> src/v4/test/EswapHookConstructorTest.t.sol:52:5:
+   |
+52 |     function _logic2Of(address hookAddr) internal returns (address) {
+   |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to pure
+   --> src/v4/test/EswapHookConstructorTest.t.sol:186:5:
+    |
+186 |     function test_InitcodeFitsEip3860() public {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+   --> src/v4/test/EswapHookConstructorTest.t.sol:195:5:
+    |
+195 |     function test_HookRuntimeFitsEip170() public {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to pure
+   --> src/v4/test/EswapHookConstructorTest.t.sol:237:5:
+    |
+237 |     function test_CombinedDeploymentFitsEip3860() public {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to pure
+  --> src/v4/test/EswapInvariantTest.t.sol:25:5:
+   |
+25 |     function invariant_tstoreAlwaysClears() public view {
+   |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+   --> src/v4/test/EswapLiquidatorIncentiveTest.t.sol:180:5:
+    |
+180 |     function _readPosition() internal returns (address, uint256, uint256, uint8, bool) {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to pure
+   --> src/v4/test/EswapMainnet0xFullCycleForkTest.t.sol:223:5:
+    |
+223 |     function _realKey(uint24 fee, address hooks) internal view returns (RealPoolKey memory k) {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to pure
+   --> src/v4/test/EswapMainnetEnsoFullCycleForkTest.t.sol:227:5:
+    |
+227 |     function _realKey(uint24 fee, address hooks) internal view returns (RealPoolKey memory k) {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+   --> src/v4/test/EswapMainnetV4LiquidationForkTest.t.sol:373:5:
+    |
+373 |     function _assertLiquidatedCleanly(
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+   --> src/v4/test/EswapV4CoreProofTest.t.sol:102:5:
+    |
+102 |     function test_HookAddress_IsValidForRealPoolManager() public {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+   --> src/v4/test/EswapV4CoreProofTest.t.sol:119:5:
+    |
+119 |     function test_Hook_ConstructorFlagsPresent() public {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+   --> src/v4/test/EswapSepoliaDomainCompatTest.t.sol:201:5:
+    |
+201 |     function _signEip712(CowOrder.Data memory order, uint256 pk) internal returns (bytes memory sig) {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to pure
+   --> src/v4/test/EswapSepoliaEthFullCycleForkTest.t.sol:222:5:
+    |
+222 |     function _realKey(uint24 fee, address hooks) internal view returns (RealPoolKey memory k) {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to pure
+   --> src/v4/test/EswapSepoliaLiveStackReplay.t.sol:213:5:
+    |
+213 |     function _realKey(uint24 fee, address hooks) internal view returns (RealPoolKey memory k) {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to pure
+   --> src/v4/test/EswapSepoliaPipelineForkTest.t.sol:217:5:
+    |
+217 |     function _realKey(uint24 fee, address hooks) internal view returns (RealPoolKey memory k) {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+   --> src/v4/test/HookCreate2DeployTest.t.sol:158:5:
+    |
+158 |     function test_Framing_64BytePreimageIsDifferent() public {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+   --> src/v4/test/HookCreate2DeployTest.t.sol:308:5:
+    |
+308 |     function test_DeployerRuntimeIsCanonical() public {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to pure
+  --> src/v4/test/LiveShortDebug.t.sol:45:5:
+   |
+45 |     function _hookKey() internal view returns (PoolKey memory) {
+   |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to pure
+  --> src/v4/test/LiveShortDebug.t.sol:49:5:
+   |
+49 |     function _stdKey() internal view returns (PoolKey memory) {
+   |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+   --> test/ZeroTreasuryInvariants.t.sol:336:5:
+    |
+336 |     function exercise_oicapOverCapacity(uint256 seed) external {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to pure
+   --> test/v4/BaseMainnetB2BIntegrationTest.t.sol:331:5:
+    |
+331 |     function _realKey(address hooks) internal view returns (RealPoolKey memory k) {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+
+Ôò¡----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------Ôò«
+| Contract                                                                                                                         | Runtime Size (B) | Initcode Size (B) | Runtime Margin (B) | Initcode Margin (B) |
++====================================================================================================================================================================================================================+
+| AdapterHarness                                                                                                                   | 8,010            | 8,291             | 16,566             | 40,861              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| BalanceDeltaLibrary (lib/v4-core/src/types/BalanceDelta.sol)                                                                     | 111              | 139               | 24,465             | 49,013              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| BalanceDeltaLibrary (src/v4/types/BalanceDelta.sol)                                                                              | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| BaseEnsoRoute                                                                                                                    | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| BaseKyberRoute                                                                                                                   | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| BaseParaSwapRoute                                                                                                                | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| BeforeSwapDeltaLibrary (lib/v4-core/src/types/BeforeSwapDelta.sol)                                                               | 111              | 139               | 24,465             | 49,013              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| BeforeSwapDeltaLibrary (src/v4/types/BeforeSwapDelta.sol)                                                                        | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| BitMath                                                                                                                          | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| Bytes                                                                                                                            | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| ChainlinkFeedMock                                                                                                                | 732              | 777               | 23,844             | 48,375              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| CowEIP1271                                                                                                                       | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| CowOrder                                                                                                                         | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| CowSigningHarness                                                                                                                | 2,434            | 2,761             | 22,142             | 46,391              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| CurrencyDelta                                                                                                                    | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| CurrencyLibrary                                                                                                                  | 111              | 139               | 24,465             | 49,013              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| CurrencyReserves                                                                                                                 | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| CurrencySettler                                                                                                                  | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| CustomRevert                                                                                                                     | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| ECDSA                                                                                                                            | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| ERC20 (lib/chainlink-brownie-contracts/contracts/src/v0.8/vendor/openzeppelin-solidity/v4.8.3/contracts/token/ERC20/ERC20.sol)   | 2,145            | 3,052             | 22,431             | 46,100              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| ERC20Mock (lib/chainlink-brownie-contracts/contracts/src/v0.8/vendor/openzeppelin-solidity/v4.8.3/contracts/mocks/ERC20Mock.sol) | 2,759            | 3,870             | 21,817             | 45,282              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| ERC20Mock (src/v4/test/BaseV4Test.t.sol)                                                                                         | 1,697            | 2,757             | 22,879             | 46,395              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| ERC20MockDecimals                                                                                                                | 1,731            | 2,823             | 22,845             | 46,329              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| ERC20MockJIT                                                                                                                     | 1,697            | 2,757             | 22,879             | 46,395              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| ERC20MockYield                                                                                                                   | 1,697            | 2,757             | 22,879             | 46,395              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| ERC721Utils                                                                                                                      | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| Eip1271VerifierMock                                                                                                              | 179              | 203               | 24,397             | 48,949              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| EswapAtomicMarginTestManager                                                                                                     | 5,539            | 5,565             | 19,037             | 43,587              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| EswapCoWSettlement                                                                                                               | 9,043            | 9,426             | 15,533             | 39,726              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| EswapFlashVault                                                                                                                  | 2,379            | 2,685             | 22,197             | 46,467              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| EswapHookDeployLib                                                                                                               | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| EswapLeverageAdapter                                                                                                             | 7,936            | 8,217             | 16,640             | 40,935              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| EswapLeverageQuoter                                                                                                              | 2,379            | 2,610             | 22,197             | 46,542              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| EswapLiquidationKeeper                                                                                                           | 7,637            | 7,956             | 16,939             | 41,196              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| EswapMarginHook                                                                                                                  | 25,576           | 26,515            | -1,000             | 22,637              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| EswapMarginHookLogic                                                                                                             | 20,483           | 20,856            | 4,093              | 28,296              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| EswapMarginHookLogic2                                                                                                            | 22,430           | 22,742            | 2,146              | 26,410              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| EswapMarginHookLogic3                                                                                                            | 15,510           | 15,787            | 9,066              | 33,365              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| EswapMarginLib                                                                                                                   | 2,869            | 2,899             | 21,707             | 46,253              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| EswapOneInchFusionSettlement                                                                                                     | 3,526            | 3,996             | 21,050             | 45,156              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| EswapRouter                                                                                                                      | 23,073           | 23,841            | 1,503              | 25,311              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| EswapRouterExt                                                                                                                   | 17,526           | 18,165            | 7,050              | 30,987              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| EswapSettlement                                                                                                                  | 5,608            | 5,846             | 18,968             | 43,306              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| EswapSolverAdapter                                                                                                               | 1,731            | 2,092             | 22,845             | 47,060              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| EswapTimelock                                                                                                                    | 1,819            | 2,108             | 22,757             | 47,044              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| EswapUniswapXSettlement                                                                                                          | 4,125            | 4,582             | 20,451             | 44,570              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| EthTwapFeed                                                                                                                      | 2,894            | 3,521             | 21,682             | 45,631              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| FeeManager                                                                                                                       | 3,216            | 3,523             | 21,360             | 45,629              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| FeedStub                                                                                                                         | 198              | 222               | 24,378             | 48,930              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| FixedPoint128                                                                                                                    | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| FixedPoint96                                                                                                                     | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| ForkLocker                                                                                                                       | 3,722            | 3,881             | 20,854             | 45,271              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| ForkPriceFeedMock                                                                                                                | 810              | 836               | 23,766             | 48,316              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| FullMath                                                                                                                         | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| HelperConfig                                                                                                                     | 1,124            | 5,081             | 23,452             | 44,071              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| HookDrivenPoolManager                                                                                                            | 5,006            | 5,032             | 19,570             | 44,120              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| HookFlags                                                                                                                        | 257              | 287               | 24,319             | 48,865              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| Hooks                                                                                                                            | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| LPFeeLibrary                                                                                                                     | 215              | 243               | 24,361             | 48,909              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| LiquidityAmounts                                                                                                                 | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| LiquidityMath                                                                                                                    | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| LiquidityPool                                                                                                                    | 5,309            | 6,649             | 19,267             | 42,503              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| LiquidityPoolFactory                                                                                                             | 7,899            | 8,017             | 16,677             | 41,135              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| LiquidityPoolMock                                                                                                                | 192              | 216               | 24,384             | 48,936              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| Lock                                                                                                                             | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| LpSeeder                                                                                                                         | 3,778            | 3,936             | 20,798             | 45,216              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| Mainnet0xRoute                                                                                                                   | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| MainnetEnsoRoute                                                                                                                 | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| Market                                                                                                                           | 7,044            | 7,473             | 17,532             | 41,679              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| Math                                                                                                                             | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| MockAggregator                                                                                                                   | 425              | 549               | 24,151             | 48,603              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| MockAggregatorExchange                                                                                                           | 778              | 804               | 23,798             | 48,348              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| MockAggregatorV3                                                                                                                 | 784              | 902               | 23,792             | 48,250              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| MockGpv2Settlement                                                                                                               | 411              | 437               | 24,165             | 48,715              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| MockLOP                                                                                                                          | 1,398            | 1,424             | 23,178             | 47,728              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| MockReactor                                                                                                                      | 3,365            | 3,391             | 21,211             | 45,761              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| MockV3Aggregator                                                                                                                 | 891              | 1,105             | 23,685             | 48,047              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| NativeTokens                                                                                                                     | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| NonzeroDeltaCount                                                                                                                | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| Panic                                                                                                                            | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| ParseBytes                                                                                                                       | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| PermitTracker                                                                                                                    | 363              | 389               | 24,213             | 48,763              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| Pool                                                                                                                             | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| PoolIdLibrary (lib/v4-core/src/types/PoolId.sol)                                                                                 | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| PoolIdLibrary (src/v4/types/PoolId.sol)                                                                                          | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| PoolManager                                                                                                                      | 17,151           | 17,336            | 7,425              | 31,816              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| PoolManagerCallbackMock                                                                                                          | 5,136            | 5,162             | 19,440             | 43,990              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| PoolManagerMock                                                                                                                  | 4,930            | 4,956             | 19,646             | 44,196              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| PoolManagerRealTokenMock                                                                                                         | 5,629            | 5,655             | 18,947             | 43,497              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| PoolModifyLiquidityTest                                                                                                          | 4,533            | 4,684             | 20,043             | 44,468              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| PoolSwapTest                                                                                                                     | 5,035            | 5,186             | 19,541             | 43,966              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| Position                                                                                                                         | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| PositionLogic                                                                                                                    | 2,695            | 2,725             | 21,881             | 46,427              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| Positions                                                                                                                        | 19,158           | 20,501            | 5,418              | 28,651              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| PriceFeed                                                                                                                        | 3,634            | 3,678             | 20,942             | 45,474              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| PriceFeedL1                                                                                                                      | 6,126            | 6,256             | 18,450             | 42,896              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| PriceFeedMock                                                                                                                    | 491              | 517               | 24,085             | 48,635              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| PriceFeedMockJIT                                                                                                                 | 198              | 222               | 24,378             | 48,930              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| PriceFeedMockYield                                                                                                               | 198              | 222               | 24,378             | 48,930              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| ProtocolFeeLibrary                                                                                                               | 113              | 141               | 24,463             | 49,011              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| ReentrancyAttacker                                                                                                               | 1,310            | 1,715             | 23,266             | 47,437              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| RevertingPriceFeedMock                                                                                                           | 629              | 655               | 23,947             | 48,497              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| SafeCast (lib/openzeppelin-contracts/contracts/utils/math/SafeCast.sol)                                                          | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| SafeCast (lib/v4-core/src/libraries/SafeCast.sol)                                                                                | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| SafeERC20                                                                                                                        | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| SequencerFeedMock                                                                                                                | 257              | 283               | 24,319             | 48,869              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| SequencerMock                                                                                                                    | 366              | 430               | 24,210             | 48,722              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| SignatureChecker                                                                                                                 | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| SignedMath                                                                                                                       | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| Slot0Library                                                                                                                     | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| SqrtPriceMath                                                                                                                    | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| StateLibrary                                                                                                                     | 269              | 299               | 24,307             | 48,853              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| Strings                                                                                                                          | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| SwapMath                                                                                                                         | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| TakerTraitsLib                                                                                                                   | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| TestToken                                                                                                                        | 861              | 887               | 23,715             | 48,265              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| TestToken18                                                                                                                      | 1,697            | 2,487             | 22,879             | 46,665              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| TestToken6                                                                                                                       | 1,702            | 2,503             | 22,874             | 46,649              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| TickBitmap                                                                                                                       | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| TickMath (lib/v4-core/src/libraries/TickMath.sol)                                                                                | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| TickMath (src/v4/libraries/TickMath.sol)                                                                                         | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| TransientStateLibrary                                                                                                            | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| TransientStorage                                                                                                                 | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| TwapLibrary                                                                                                                      | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| UniswapV3Helper                                                                                                                  | 1,479            | 1,620             | 23,097             | 47,532              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| UnsafeMath                                                                                                                       | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| UsdcTwapFeed                                                                                                                     | 3,734            | 4,462             | 20,842             | 44,690              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| V3TwapMath                                                                                                                       | 57               | 85                | 24,519             | 49,067              |
+|----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------|
+| ValueDrainingProxy                                                                                                               | 417              | 443               | 24,159             | 48,709              |
+Ôò░----------------------------------------------------------------------------------------------------------------------------------+------------------+-------------------+--------------------+---------------------Ôò»
+
+forge : Error: some contracts exceed the runtime size limit (EIP-170: 24576 bytes)
+Au caractère Ligne:1 : 1
++ forge build --sizes 2>&1 | Out-File -FilePath build_out.txt -Encoding ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Error: some con...0: 24576 bytes):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 

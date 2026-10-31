@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {BaseV4Test, PriceFeedMock, ERC20Mock} from "./BaseV4Test.t.sol";
 import {PoolManagerCallbackMock} from "./mocks/PoolManagerMock.sol";
 import {EswapMarginHook} from "../EswapMarginHook.sol";
+import {EswapMarginHookLogic} from "../EswapMarginHookLogic.sol";
 import {EswapRouter} from "../EswapRouter.sol";
 import {PoolKey} from "../types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "../types/PoolId.sol";
@@ -46,8 +47,8 @@ contract EswapMaxLeverageForPoolTest is BaseV4Test {
         otherKey.fee = 500;
 
         hook.setRouterAndMinCollateralUsd(address(router), 0);
-        hook.setAuthorizedPool(key.toId(), true);
-        hook.setAuthorizedPool(otherKey.toId(), true);
+        EswapMarginHookLogic(payable(address(hook))).setAuthorizedPool(key.toId(), true);
+        EswapMarginHookLogic(payable(address(hook))).setAuthorizedPool(otherKey.toId(), true);
         manager.setSlot0(key.toId(), 79228162514264337593543950336, 0);
     }
 
@@ -78,7 +79,7 @@ contract EswapMaxLeverageForPoolTest is BaseV4Test {
         assertEq(hook.maxLeverageByPool(key.toId()), 0, "starts unset -> default");
         assertEq(hook.defaultMaxLeverage(), 5);
 
-        hook.setMaxLeverageForPool(key.toId(), 10);
+        EswapMarginHookLogic(payable(address(hook))).setMaxLeverageForPool(key.toId(), 10);
 
         _openShort(6); // 6x > default 5, allowed only because of the override
         (address trader, uint256 collateral, uint256 borrowed, uint8 lev, bool isLong,,,,) =
@@ -91,7 +92,7 @@ contract EswapMaxLeverageForPoolTest is BaseV4Test {
     }
 
     function test_PerPoolOverride_LowerThanDefault_RejectsHigher() public {
-        hook.setMaxLeverageForPool(key.toId(), 2);
+        EswapMarginHookLogic(payable(address(hook))).setMaxLeverageForPool(key.toId(), 2);
 
         _revertOpen(3); // 3x rejected by the override even though default is 5
         _openShort(2); // 2x still admitted
@@ -114,10 +115,10 @@ contract EswapMaxLeverageForPoolTest is BaseV4Test {
     }
 
     function test_PerPoolOverride_ClearFallsBackToDefault() public {
-        hook.setMaxLeverageForPool(key.toId(), 2);
+        EswapMarginHookLogic(payable(address(hook))).setMaxLeverageForPool(key.toId(), 2);
         _revertOpen(3);
 
-        hook.setMaxLeverageForPool(key.toId(), 0); // clear override
+        EswapMarginHookLogic(payable(address(hook))).setMaxLeverageForPool(key.toId(), 0); // clear override
         assertEq(hook.maxLeverageByPool(key.toId()), 0);
 
         _openShort(3); // default 5 applies again
@@ -140,7 +141,7 @@ contract EswapMaxLeverageForPoolTest is BaseV4Test {
     }
 
     function test_PerPoolOverride_DoesNotAffectOtherPools() public {
-        hook.setMaxLeverageForPool(key.toId(), 10);
+        EswapMarginHookLogic(payable(address(hook))).setMaxLeverageForPool(key.toId(), 10);
 
         // otherKey has no override -> default 5 still rejects a 6x open.
         bytes memory data = abi.encode(true, uint8(6), address(this));
@@ -152,16 +153,16 @@ contract EswapMaxLeverageForPoolTest is BaseV4Test {
     function test_PerPoolOverride_AccessControlAndBounds() public {
         vm.prank(address(0xBAD));
         vm.expectRevert();
-        hook.setMaxLeverageForPool(key.toId(), 10);
+        EswapMarginHookLogic(payable(address(hook))).setMaxLeverageForPool(key.toId(), 10);
 
         vm.expectRevert(EswapMarginHook.InvalidLeverageRange.selector);
-        hook.setMaxLeverageForPool(key.toId(), 1);
+        EswapMarginHookLogic(payable(address(hook))).setMaxLeverageForPool(key.toId(), 1);
         vm.expectRevert(EswapMarginHook.InvalidLeverageRange.selector);
-        hook.setMaxLeverageForPool(key.toId(), 21);
+        EswapMarginHookLogic(payable(address(hook))).setMaxLeverageForPool(key.toId(), 21);
 
         vm.expectEmit(true, true, true, true);
         emit EswapMarginHook.MaxLeverageForPoolSet(key.toId(), 12);
-        hook.setMaxLeverageForPool(key.toId(), 12);
+        EswapMarginHookLogic(payable(address(hook))).setMaxLeverageForPool(key.toId(), 12);
         assertEq(hook.maxLeverageByPool(key.toId()), 12);
     }
 

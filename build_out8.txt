@@ -1,0 +1,54 @@
+﻿Compiling 83 files with Solc 0.8.27
+Solc 0.8.27 finished in 866.33ms
+forge : Error: Compiler run failed:
+Au caractère Ligne:1 : 1
++ forge build 2>&1 | Out-File -FilePath build_out8.txt -Encoding utf8;  ...
++ ~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Error: Compiler run failed::String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Warning (2519): This declaration shadows an existing declaration.
+   --> src/v4/EswapLeverageAdapter.sol:111:31:
+    |
+111 |     function setDefaultSolver(address _solver) external onlyOwner {
+    |                               ^^^^^^^^^^^^^^^
+Note: The shadowed declaration is here:
+   --> src/v4/EswapLeverageAdapter.sol:145:5:
+    |
+145 |     function _solver() internal view returns (address) {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2519): This declaration shadows an existing declaration.
+   --> src/v4/EswapLeverageAdapter.sol:119:30:
+    |
+119 |     function setBackupSolver(address _solver) external onlyOwner {
+    |                              ^^^^^^^^^^^^^^^
+Note: The shadowed declaration is here:
+   --> src/v4/EswapLeverageAdapter.sol:145:5:
+    |
+145 |     function _solver() internal view returns (address) {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Error (7576): Undeclared identifier. Did you mean "hoax"?
+   --> src/v4/test/GasProfileOpenTest.t.sol:100:38:
+    |
+100 |         EswapMarginHookLogic(address(hook)).setAuthorizedPool(hookLocalKey.toId(), true);
+    |                                      ^^^^
+
+Error (7576): Undeclared identifier. Did you mean "hoax"?
+   --> src/v4/test/GasProfileOpenTest.t.sol:101:38:
+    |
+101 |         EswapMarginHookLogic(address(hook)).setStandardPoolKey(hookLocalKey.toId(), standardLocalKey);
+    |                                      ^^^^
+
+Error (7576): Undeclared identifier. Did you mean "hoax"?
+   --> src/v4/test/GasProfileOpenTest.t.sol:113:38:
+    |
+113 |         EswapMarginHookLogic(address(hook)).setTokenDecimals(address(token0), 18);
+    |                                      ^^^^
+
+Error (7576): Undeclared identifier. Did you mean "hoax"?
+   --> src/v4/test/GasProfileOpenTest.t.sol:114:38:
+    |
+114 |         EswapMarginHookLogic(address(hook)).setTokenDecimals(address(token1), 18);
+    |                                      ^^^^

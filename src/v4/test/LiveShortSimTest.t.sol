@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
 import {EswapMarginHook} from "../EswapMarginHook.sol";
+import {EswapMarginHookLogic} from "../EswapMarginHookLogic.sol";
 import {EswapRouter} from "../EswapRouter.sol";
 import {PoolKey} from "../types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "../types/PoolId.sol";
@@ -47,13 +48,13 @@ contract LiveShortSimTest is Test {
         // Sanity: the live 0x4bd2 hook is wired to the real live ETH/USDC oracle
         // and its current router, so any revert below is a code-version issue,
         // not a config one.
-        assertEq(address(EswapMarginHook(payable(LIVE_HOOK)).priceFeed()), LIVE_FEED, "live feed drift");
+        assertEq(address(EswapMarginHookLogic(payable(LIVE_HOOK)).priceFeed()), LIVE_FEED, "live feed drift");
         // Re-point the accounting pool to native ETH/USDC the way the dashboard
         // now sends it (the hook originally hardcoded WRAPPED WETH).
         vm.startPrank(OWNER);
-        EswapMarginHook(payable(LIVE_HOOK)).setAuthorizedPool(nativePoolId, true);
-        EswapMarginHook(payable(LIVE_HOOK)).setBaseCurrency(nativePoolId, Currency.wrap(ETH));
-        EswapMarginHook(payable(LIVE_HOOK)).setStandardPoolKey(nativePoolId, deepStdKey);
+        EswapMarginHookLogic(payable(LIVE_HOOK)).setAuthorizedPool(nativePoolId, true);
+        EswapMarginHookLogic(payable(LIVE_HOOK)).setBaseCurrency(nativePoolId, Currency.wrap(ETH));
+        EswapMarginHookLogic(payable(LIVE_HOOK)).setStandardPoolKey(nativePoolId, deepStdKey);
         vm.stopPrank();
     }
 
@@ -88,7 +89,7 @@ contract LiveShortSimTest is Test {
         }
         vm.stopPrank();
 
-        (,,, uint8 lev, bool isLong,,,,) = EswapMarginHook(payable(LIVE_HOOK)).positions(nativePoolId, trader);
+        (,,, uint8 lev, bool isLong,,,,) = EswapMarginHookLogic(payable(LIVE_HOOK)).positions(nativePoolId, trader);
         // Stale-deployment state: nothing recorded. The native ETH/USDC code path
         // is proven green on the working tree by LiveShortOpenTest.
         emit log_named_uint("live-recorded leverage (expected 0 until redeploy)", uint256(lev));

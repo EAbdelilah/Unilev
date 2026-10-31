@@ -1,0 +1,36 @@
+﻿Compiler run failed:
+Warning (2519): This declaration shadows an existing declaration.
+   --> src/v4/EswapLeverageAdapter.sol:111:31:
+    |
+111 |     function setDefaultSolver(address _solver) external onlyOwner {
+    |                               ^^^^^^^^^^^^^^^
+Note: The shadowed declaration is here:
+   --> src/v4/EswapLeverageAdapter.sol:145:5:
+    |
+145 |     function _solver() internal view returns (address) {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2519): This declaration shadows an existing declaration.
+   --> src/v4/EswapLeverageAdapter.sol:119:30:
+    |
+119 |     function setBackupSolver(address _solver) external onlyOwner {
+    |                              ^^^^^^^^^^^^^^^
+Note: The shadowed declaration is here:
+   --> src/v4/EswapLeverageAdapter.sol:145:5:
+    |
+145 |     function _solver() internal view returns (address) {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Error (7920): Identifier not found or not unique.
+  --> src/v4/test/AuditThirdLiquidationPoC.t.sol:30:28:
+   |
+30 | contract BlocklistERC20 is ERC20 {
+   |                            ^^^^^
+
+forge : Error: Compilation failed
+Au caractère Ligne:1 : 1
++ forge test --match-test "test_F03_UnwindBelowOracleFloor_Reverts" --m ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Error: Compilation failed:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 

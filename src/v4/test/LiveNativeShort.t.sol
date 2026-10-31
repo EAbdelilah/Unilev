@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
 import {EswapMarginHook} from "../EswapMarginHook.sol";
+import {EswapMarginHookLogic} from "../EswapMarginHookLogic.sol";
 import {EswapRouter} from "../EswapRouter.sol";
 import {PoolKey} from "../types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "../types/PoolId.sol";
@@ -47,9 +48,9 @@ contract LiveNativeShort is Test {
 
     function _repurposeHook() internal {
         vm.startPrank(OWNER);
-        EswapMarginHook(payable(LIVE_HOOK)).setAuthorizedPool(nativeHookKey.toId(), true);
-        EswapMarginHook(payable(LIVE_HOOK)).setStandardPoolKey(nativeHookKey.toId(), deepStdKey);
-        EswapMarginHook(payable(LIVE_HOOK)).setBaseCurrency(nativeHookKey.toId(), Currency.wrap(ETH));
+        EswapMarginHookLogic(payable(LIVE_HOOK)).setAuthorizedPool(nativeHookKey.toId(), true);
+        EswapMarginHookLogic(payable(LIVE_HOOK)).setStandardPoolKey(nativeHookKey.toId(), deepStdKey);
+        EswapMarginHookLogic(payable(LIVE_HOOK)).setBaseCurrency(nativeHookKey.toId(), Currency.wrap(ETH));
         vm.stopPrank();
     }
 

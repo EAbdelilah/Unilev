@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
 import {EswapMarginHook} from "../EswapMarginHook.sol";
+import {EswapMarginHookLogic} from "../EswapMarginHookLogic.sol";
 import {EswapRouter} from "../EswapRouter.sol";
 import {PoolKey} from "../types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "../types/PoolId.sol";
@@ -80,7 +81,7 @@ contract RehypothecationForkTest is Test {
 
         newRouter = new EswapRouter(IPoolManager(PM));
         newHook.setRouterAndMinCollateralUsd(address(newRouter), 0);
-        newHook.setTokenDecimals(USDC, 6);
+        EswapMarginHookLogic(payable(address(newHook))).setTokenDecimals(USDC, 6);
         newRouter.setSolverWhitelist(solver, true);
 
         hookKey = PoolKey({
@@ -105,8 +106,8 @@ contract RehypothecationForkTest is Test {
             stdSqrt
         );
 
-        newHook.setAuthorizedPool(hookPoolId, true);
-        newHook.setStandardPoolKey(hookPoolId, _repoStandardKey());
+        EswapMarginHookLogic(payable(address(newHook))).setAuthorizedPool(hookPoolId, true);
+        EswapMarginHookLogic(payable(address(newHook))).setStandardPoolKey(hookPoolId, _repoStandardKey());
 
         deal(USDC, trader, 100_000e6);
         deal(USDC, solver, 100_000e6);

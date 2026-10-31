@@ -61,8 +61,25 @@ library EswapMarginLib {
         pure
         returns (bool)
     {
+        return isLiquidatable(collateralValueUsd, borrowedValueUsd, leverage, 0);
+    }
+
+    /// @dev [AUDIT F-05] Circuit-breaker variant. `extraBps` is ADDED to the
+    ///      maintenance threshold, WIDENING the liquidation band. It is used only
+    ///      when the health check had to fall back to the cached (last validated)
+    ///      price because the live oracle is unhealthy: the protocol cannot
+    ///      observe the current market, so a position that is already close to
+    ///      the line on the last good price is treated as breachable rather than
+    ///      being left unliquidated through the outage (the previous behaviour,
+    ///      which converted every outage into bad debt). `extraBps == 0` is the
+    ///      ordinary threshold, bit-for-bit identical to the legacy 3-arg form.
+    function isLiquidatable(uint256 collateralValueUsd, uint256 borrowedValueUsd, uint8 leverage, uint256 extraBps)
+        public
+        pure
+        returns (bool)
+    {
         if (collateralValueUsd == 0 && borrowedValueUsd == 0) return false;
-        uint256 threshold = liquidationThresholdBps(leverage);
+        uint256 threshold = liquidationThresholdBps(leverage) + extraBps;
         return collateralValueUsd * 10000 < borrowedValueUsd * threshold;
     }
 

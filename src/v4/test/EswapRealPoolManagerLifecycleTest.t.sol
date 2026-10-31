@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {EswapV4CoreProofTest} from "./EswapV4CoreProofTest.t.sol";
 import {EswapMarginHook} from "../EswapMarginHook.sol";
+import {EswapMarginHookLogic} from "../EswapMarginHookLogic.sol";
 import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {IPoolManager as RealIPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {PoolId as RealPoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
@@ -35,13 +36,17 @@ contract EswapRealPoolManagerLifecycleTest is EswapV4CoreProofTest {
         token0.approve(address(swapper), type(uint256).max);
         token1.approve(address(swapper), type(uint256).max);
 
+        // [I6] Empty hookData is rejected for external callers; drive the real PM
+        // with a 1x margin open (zero borrow delta, so no settlement leg).
+        bytes memory hookData = abi.encode(true, uint8(1), address(this));
+
         swapper.swap(
             realKey,
             RealIPoolManager.SwapParams({
                 zeroForOne: true, amountSpecified: -1 ether, sqrtPriceLimitX96: MIN_SQRT_RATIO + 1
             }),
             PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
-            ""
+            hookData
         );
 
         // Verify slot0 is read from the real PoolManager slot0 and updated on the hook
@@ -57,8 +62,8 @@ contract EswapRealPoolManagerLifecycleTest is EswapV4CoreProofTest {
     // Confirm the TWAP breaker now behaves: with a price feed within 500bps of spot it passes
     function test_RealPM_TwapBreaker_Passes() public {
         realManager.initialize(realKey, SQRT_PRICE_1_1);
-        realHook.setTokenDecimals(address(token0), 18);
-        realHook.setTokenDecimals(address(token1), 18);
+        EswapMarginHookLogic(payable(address(realHook))).setTokenDecimals(address(token0), 18);
+        EswapMarginHookLogic(payable(address(realHook))).setTokenDecimals(address(token1), 18);
         priceFeed.setPrice(address(token0), 1e18);
         priceFeed.setPrice(address(token1), 1e18);
 
@@ -82,8 +87,8 @@ contract EswapRealPoolManagerLifecycleTest is EswapV4CoreProofTest {
     // the spot reference is the live oracle, not the (empty) hook pool's frozen slot0.
     function test_RealPM_TwapBreaker_Passes_RegardlessOfPoolInitSpot() public {
         realManager.initialize(realKey, SQRT_PRICE_1_1);
-        realHook.setTokenDecimals(address(token0), 18);
-        realHook.setTokenDecimals(address(token1), 18);
+        EswapMarginHookLogic(payable(address(realHook))).setTokenDecimals(address(token0), 18);
+        EswapMarginHookLogic(payable(address(realHook))).setTokenDecimals(address(token1), 18);
         priceFeed.setPrice(address(token0), 1.2e18); // oracle 1.2:1
         priceFeed.setPrice(address(token1), 1e18);
 

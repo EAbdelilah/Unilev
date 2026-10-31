@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {BaseV4Test, PriceFeedMock, ERC20Mock} from "./BaseV4Test.t.sol";
 import {PoolManagerCallbackMock} from "./mocks/PoolManagerMock.sol";
 import {EswapMarginHook} from "../EswapMarginHook.sol";
+import {EswapMarginHookLogic} from "../EswapMarginHookLogic.sol";
 import {EswapRouter} from "../EswapRouter.sol";
 import {PoolKey} from "../types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "../types/PoolId.sol";
@@ -55,8 +56,20 @@ contract EswapMultiPoolRouteTest is BaseV4Test {
             PoolKey({currency0: key.currency0, currency1: key.currency1, fee: 0, tickSpacing: 60, hooks: address(0)});
 
         hook.setRouterAndMinCollateralUsd(address(router), 0);
-        hook.setAuthorizedPool(key.toId(), true);
+        EswapMarginHookLogic(payable(address(hook))).setAuthorizedPool(key.toId(), true);
         router.setSolverWhitelist(address(0x123), true);
+
+        // Solver consent: a third-party (trader-named) borrow needs the solver's
+        // full borrow bonded in escrow. Bond it once here for every test.
+        address bondedSolver = address(0x123);
+        token0.mint(bondedSolver, 1000 ether);
+        token1.mint(bondedSolver, 1000 ether);
+        vm.startPrank(bondedSolver);
+        token0.approve(address(router), type(uint256).max);
+        token1.approve(address(router), type(uint256).max);
+        router.depositBorrowEscrow(address(token0), 500 ether);
+        router.depositBorrowEscrow(address(token1), 500 ether);
+        vm.stopPrank();
 
         // Both pools initialized at a 1:1 price. The hook pool is intentionally
         // UNSEEDED (no liquidity/reserves); the standard pool is seeded.

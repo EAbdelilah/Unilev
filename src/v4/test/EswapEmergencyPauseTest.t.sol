@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {BaseV4Test, PriceFeedMock, ERC20Mock} from "./BaseV4Test.t.sol";
 import {PoolManagerCallbackMock} from "./mocks/PoolManagerMock.sol";
 import {EswapMarginHook} from "../EswapMarginHook.sol";
+import {EswapMarginHookLogic} from "../EswapMarginHookLogic.sol";
 import {EswapRouter} from "../EswapRouter.sol";
 import {PoolKey} from "../types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "../types/PoolId.sol";
@@ -44,7 +45,7 @@ contract EswapEmergencyPauseTest is BaseV4Test {
             PoolKey({currency0: key.currency0, currency1: key.currency1, fee: 500, tickSpacing: 60, hooks: address(0)});
 
         hook.setRouterAndMinCollateralUsd(address(router), 0);
-        hook.setAuthorizedPool(key.toId(), true);
+        EswapMarginHookLogic(payable(address(hook))).setAuthorizedPool(key.toId(), true);
 
         manager.setSlot0(key.toId(), 1 << 96, 0);
         manager.setSlot0(standardPoolKey.toId(), 1 << 96, 0);
@@ -66,7 +67,7 @@ contract EswapEmergencyPauseTest is BaseV4Test {
     }
 
     function test_Pause_BlocksMultiPoolSwap() public {
-        hook.setEmergencyPause(true);
+        EswapMarginHookLogic(payable(address(hook))).setEmergencyPause(true);
         manager.setNextSwapDelta(-50 ether, 48 ether);
 
         vm.prank(trader);
@@ -88,27 +89,27 @@ contract EswapEmergencyPauseTest is BaseV4Test {
 
     function test_Pause_Toggle() public {
         assertFalse(hook.emergencyPaused());
-        hook.setEmergencyPause(true);
+        EswapMarginHookLogic(payable(address(hook))).setEmergencyPause(true);
         assertTrue(hook.emergencyPaused());
-        hook.setEmergencyPause(false);
+        EswapMarginHookLogic(payable(address(hook))).setEmergencyPause(false);
         assertFalse(hook.emergencyPaused());
     }
 
     function test_Pause_OnlyOwner() public {
         vm.prank(makeAddr("stranger"));
         vm.expectRevert(EswapMarginHook.NotOwner.selector);
-        hook.setEmergencyPause(true);
+        EswapMarginHookLogic(payable(address(hook))).setEmergencyPause(true);
     }
 
     /// @dev [AUDIT MED-03] Re-toggling pause while already paused must NOT reset
     ///      the 72 h expiry clock: otherwise a compromised owner extends the DoS
     ///      forever, one toggle at a time.
     function test_Pause_ReToggleDoesNotExtendExpiry() public {
-        hook.setEmergencyPause(true);
+        EswapMarginHookLogic(payable(address(hook))).setEmergencyPause(true);
         uint256 firstExpiry = hook.pauseExpiry();
 
         vm.warp(block.timestamp + 1 days);
-        hook.setEmergencyPause(true); // re-toggle attempt
+        EswapMarginHookLogic(payable(address(hook))).setEmergencyPause(true); // re-toggle attempt
 
         assertEq(hook.pauseExpiry(), firstExpiry, "re-toggle must not push back the pause expiry");
 
@@ -134,7 +135,7 @@ contract EswapEmergencyPauseTest is BaseV4Test {
     }
 
     function test_Pause_UnpauseRestoresTrading() public {
-        hook.setEmergencyPause(true);
+        EswapMarginHookLogic(payable(address(hook))).setEmergencyPause(true);
         manager.setNextSwapDelta(-50 ether, 48 ether);
         vm.prank(trader);
         vm.expectRevert(EswapMarginHook.EmergencyPaused.selector);
@@ -152,7 +153,7 @@ contract EswapEmergencyPauseTest is BaseV4Test {
             })
         );
 
-        hook.setEmergencyPause(false);
+        EswapMarginHookLogic(payable(address(hook))).setEmergencyPause(false);
         manager.setNextSwapDelta(-50 ether, 48 ether);
         vm.prank(trader);
         router.swapMultiPool(
