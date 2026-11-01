@@ -714,6 +714,7 @@ function _isLong(PoolKey calldata key, Currency boughtCurrency) internal view re
 
     event MaxLeverageForPoolSet(PoolId indexed poolId, uint8 leverage);
     event StandardPoolRequirementSet(bool required);
+    event StandardPoolKeySet(PoolId indexed poolId);
     event BandConsumptionTriggerSet(uint256 oldBps, uint256 newBps);
     event OpenInterestCapsSet(uint256 maxSingleBps, uint256 maxTotalBps, uint256 tvlFloorUsd);
     event InsuranceCoverageBpsSet(uint256 bps);
@@ -732,8 +733,15 @@ function _isLong(PoolKey calldata key, Currency boughtCurrency) internal view re
     }
 
     function setStandardPoolKey(PoolId poolId, PoolKey calldata key) external {
-        if (msg.sender != owner && msg.sender != router) revert Unauthorized();
+        // [AUDIT FIX] The unwind venue is security-critical: redirecting it lets
+        // whoever can write this mapping route close/liquidation swaps through
+        // an attacker-controlled pool. The router must not be able to rewrite it
+        // (a compromised/upgraded router would otherwise own the unwind price);
+        // only the governance owner (timelock/multisig) may change it, and any
+        // addition of a delay belongs in that timelock's proposal flow.
+        if (msg.sender != owner) revert NotOwner();
         standardPoolKeys[poolId] = key;
+        emit StandardPoolKeySet(poolId);
     }
 
     function setRequireStandardPoolKey(bool required) external {
@@ -766,19 +774,31 @@ function _isLong(PoolKey calldata key, Currency boughtCurrency) internal view re
 
     function toggleEmergencyPause() external {
         if (msg.sender != owner) revert NotOwner();
-        this.setEmergencyPause(!emergencyPaused);
+        setEmergencyPause(!emergencyPaused);
     }
 
-    function setEmergencyPause(bool paused) external {
+    function setEmergencyPause(bool paused) public {
         if (msg.sender != owner) revert NotOwner();
         if (paused) {
             emergencyPaused = true;
-            if (block.timestamp >= pauseExpiry) {
-                pauseExpiry = block.timestamp + MAX_PAUSE_DURATION;
+            // Track the first pause in this 72h window so unpause/re-pause
+            // cannot reset the expiry clock indefinitely. [HIGH-03]
+            if (firstPauseTimestamp == 0 || block.timestamp >= firstPauseTimestamp + MAX_PAUSE_DURATION) {
+                firstPauseTimestamp = block.timestamp;
+            }
+            if (pauseExpiry == 0 || block.timestamp >= pauseExpiry) {
+                uint256 proposed = block.timestamp + MAX_PAUSE_DURATION;
+                uint256 cap = firstPauseTimestamp + MAX_PAUSE_DURATION;
+                pauseExpiry = proposed < cap ? proposed : cap;
+            }
+            if (pauseExpiry > firstPauseTimestamp + MAX_PAUSE_DURATION) {
+                pauseExpiry = firstPauseTimestamp + MAX_PAUSE_DURATION;
             }
         } else {
             emergencyPaused = false;
             pauseExpiry = 0;
+            // Keep firstPauseTimestamp until the 72h window elapses so an
+            // immediate re-pause cannot extend the original deadline.
         }
         emit EmergencyPauseToggled(paused);
     }

@@ -169,9 +169,9 @@ contract EswapMarginHookLogic3 is BaseHook, EswapMarginHookLogicStorage {
         if (unwindAmount < collateralAmount) {
             uint256 remainingCollateral = collateralAmount - unwindAmount;
             uint256 remainingDebt = borrowedAmount > liqDebt ? borrowedAmount - liqDebt : 0;
-            (uint256 remCollUsd,) = _usdOrCache(Currency.unwrap(collateralCurrency), remainingCollateral);
-            (uint256 remDebtUsd,) = _usdOrCache(Currency.unwrap(debtCurrency), remainingDebt);
-            if (EswapMarginLib.isLiquidatable(remCollUsd, remDebtUsd, pos.leverage)) {
+            (uint256 remCollUsd, bool remCollCached) = _usdOrCache(Currency.unwrap(collateralCurrency), remainingCollateral);
+            (uint256 remDebtUsd, bool remDebtCached) = _usdOrCache(Currency.unwrap(debtCurrency), remainingDebt);
+            if (EswapMarginLib.isLiquidatable(remCollUsd, remDebtUsd, pos.leverage, (remCollCached || remDebtCached) ? CIRCUIT_BREAKER_BPS : 0)) {
                 revert PartialLiquidationLeavesUnhealthyPosition();
             }
         }
@@ -396,13 +396,17 @@ contract EswapMarginHookLogic3 is BaseHook, EswapMarginHookLogicStorage {
         // Values are compared in USD so the two currency legs need not share
         // decimals. `_usdOrCache` keeps an oracle outage from re-breaking
         // liquidation liveness (F-05): a stale mark is still far better than
-        // letting an adversary name the price.
+        // letting an adversary name the price. This is a HARD revert for the
+        // liquidation paths (the owner did not choose the timing); closePosition
+        // stays advisory-only.
         if (enforceFloor && availableCollateral > 0) {
             Currency debtCurrency = zeroForOne ? key.currency1 : key.currency0;
-            (uint256 outUsd,) = _usdOrCache(Currency.unwrap(debtCurrency), receivedAmount + bandProceeds);
-            (uint256 inUsd,) = _usdOrCache(Currency.unwrap(collateralCurrency), availableCollateral);
-            uint256 floorUsd = FullMath.mulDiv(inUsd, 10000 - MAX_UNWIND_SLIPPAGE_BPS, 10000);
-            if (inUsd > 0 && outUsd < floorUsd) revert UnwindBelowOracleFloor(outUsd, floorUsd);
+            if (_priceAvailable(Currency.unwrap(debtCurrency)) && _priceAvailable(Currency.unwrap(collateralCurrency))) {
+                (uint256 outUsd,) = _usdOrCache(Currency.unwrap(debtCurrency), receivedAmount + bandProceeds);
+                (uint256 inUsd,) = _usdOrCache(Currency.unwrap(collateralCurrency), availableCollateral);
+                uint256 floorUsd = FullMath.mulDiv(inUsd, 10000 - MAX_UNWIND_SLIPPAGE_BPS, 10000);
+                if (inUsd > 0 && outUsd < floorUsd) revert UnwindBelowOracleFloor(outUsd, floorUsd);
+            }
         }
 
         _settleTransientDebt(collateralCurrency, availableCollateral);
@@ -442,6 +446,19 @@ contract EswapMarginHookLogic3 is BaseHook, EswapMarginHookLogicStorage {
 
     // ─── Oracle helpers ──────────────────────────────────────────────────────
 
+    /// @dev [AUDIT F-04 liveness] True when `token` can be priced: live feed
+    ///      answer or a cached mark. Lets view/gate paths degrade to `false`.
+    function _priceAvailable(address token) internal view returns (bool) {
+        if (address(priceFeed) != address(0)) {
+            uint8 d = tokenDecimals[token];
+            if (d == 0) d = 18;
+            try priceFeed.getAmountInUsd(token, 10 ** uint256(d)) returns (uint256 value) {
+                if (value != 0) return true;
+            } catch {}
+        }
+        return cachedPriceUsd[token] != 0;
+    }
+
     /// @dev [AUDIT F-05] Live oracle value, or the last cached mark when the live
     ///      read reverts. `cached == true` tells the caller the protocol is
     ///      running on a stale price (circuit-breaker mode). Reverts
@@ -467,6 +484,10 @@ contract EswapMarginHookLogic3 is BaseHook, EswapMarginHookLogicStorage {
     ///      STATICCALL, where any delegatecall aborts.
     function _isLiquidatable(Position memory pos, PoolKey calldata key) internal view returns (bool) {
         if (pos.collateralAmount == 0) return false;
+
+        // [AUDIT F-04 liveness] Unpriced => not actionable, never revert.
+        if (!_priceAvailable(Currency.unwrap(_collateralCurrency(pos, key)))) return false;
+        if (!_priceAvailable(Currency.unwrap(_debtCurrency(pos, key)))) return false;
 
         PoolId poolId = key.toId();
         Currency collateral = _collateralCurrency(pos, key);

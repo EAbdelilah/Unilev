@@ -249,6 +249,9 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     bool public emergencyPaused;
     // Auto-unpause: emergency pause auto-expires after this timestamp (max 72h per toggle)
     uint256 public pauseExpiry;
+    // [HIGH-03] Timestamp of the first pause in the current 72h window. Retained
+    // across unpause/re-pause so the deadline cannot be reset indefinitely.
+    uint256 public firstPauseTimestamp;
     uint256 public constant MAX_PAUSE_DURATION = 72 hours;
 
     // Mutable by owner — start at 800 bps (8%) to tolerate genuine market volatility
@@ -1053,6 +1056,13 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     function isLiquidatable(Position memory pos, PoolKey calldata key) public view returns (bool) {
         if (pos.collateralAmount == 0) return false;
 
+        // [AUDIT F-04 liveness] No live price and no cached mark => not
+        // actionable, not a revert. A revert here (previously
+        // `OraclePriceUnavailable`) disabled every keeper view call for the
+        // token; returning false lets the keeper skip cleanly and alert.
+        if (!_priceAvailable(Currency.unwrap(_collateralCurrency(pos, key)))) return false;
+        if (!_priceAvailable(Currency.unwrap(_debtCurrency(pos, key)))) return false;
+
         // [AUDIT F-05/F-06] This MUST stay a real function of the hook: keepers
         // read it through a STATICCALL, and a delegatecall inside a static context
         // is an exceptional halt. So the improved formula (cached-oracle fallback
@@ -1110,6 +1120,19 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         );
     }
 
+    /// @dev [AUDIT F-04 liveness] True when `token` can be priced: either the
+    ///      live feed answers with a non-zero value, or a cached mark exists.
+    function _priceAvailable(address token) internal view returns (bool) {
+        if (address(priceFeed) != address(0)) {
+            uint8 d = tokenDecimals[token];
+            if (d == 0) d = 18;
+            try priceFeed.getAmountInUsd(token, 10 ** uint256(d)) returns (uint256 value) {
+                if (value != 0) return true;
+            } catch {}
+        }
+        return cachedPriceUsd[token] != 0;
+    }
+
     /// @dev [AUDIT F-05] Live oracle value, or the last cached mark when the live
     ///      read reverts (see EswapMarginHookLogic2._usdOrCache). `cached == true`
     ///      signals circuit-breaker mode.
@@ -1134,6 +1157,17 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     ///         distinguish "no position" from "healthy").
     function isPositionLiquidatable(PoolKey calldata key, address trader) external view returns (bool) {
         return isLiquidatable(positions[key.toId()][trader], key);
+    }
+
+    /// @notice [AUDIT F-04] Whether both legs of a live position can currently be
+    ///         priced (live feed or cached mark). A `false` result means
+    ///         liquidation views degrade to `false` non-reverting; keepers should
+    ///         surface it as an alert instead of silently skipping.
+    function isPositionPriced(PoolKey calldata key, address trader) external view returns (bool) {
+        Position memory pos = positions[key.toId()][trader];
+        if (pos.collateralAmount == 0) return true;
+        return _priceAvailable(Currency.unwrap(_collateralCurrency(pos, key)))
+            && _priceAvailable(Currency.unwrap(_debtCurrency(pos, key)));
     }
 
     function rebalancePosition(PoolKey calldata key, address trader) external onlyRouter {
@@ -1222,10 +1256,11 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
 
         quote.liveness = true;
 
-        // Leverage-adjusted output with a conservative 0.1% slippage discount so
-        // the indicative quote matches actual execution on the standard pool.
+        // Leverage-adjusted output with a conservative 1% slippage discount so
+        // the indicative quote never over-promises relative to actual execution
+        // on the standard pool (fee + price impact already cost ~0.3-0.5%).
         int128 leveragedAmount = amountSpecified * int128(uint128(lev));
-        quote.amountOut = (leveragedAmount * 9990) / 10000;
+        quote.amountOut = (leveragedAmount * 9900) / 10000;
         return quote;
     }
 
@@ -1502,6 +1537,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
                 && sig != EswapMarginHookLogic.setBandConsumptionTriggerBps.selector
                 && sig != EswapMarginHookLogic.setOpenInterestCaps.selector
                 && sig != EswapMarginHookLogic.setEmergencyPause.selector
+                && sig != EswapMarginHookLogic.toggleEmergencyPause.selector
                 && sig != EswapMarginHookLogic.setBaseCurrency.selector
                 && sig != EswapMarginHookLogic.transferOwnership.selector
                 && sig != EswapMarginHookLogic.setLiquidatorIncentiveBps.selector

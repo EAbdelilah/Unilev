@@ -143,11 +143,16 @@ contract EswapSolvencyTest is BaseV4Test {
         token0.approve(address(hook), 100 ether);
         hook.seedInsuranceFund(key.currency0, 10 ether);
 
-        // SHORT liquidation bad-debt: sell token1, receive tiny amount of token0
-        // Override delta: amount0=+0.3 ether (received), borrow=4 ether → shortfall=3.7 ether
+        // SHORT liquidation bad-debt: sell token1, receive a deliberately small
+        // amount of token0. The fill must still clear the forced-unwind oracle
+        // floor (collateral 4.8 token1 @ $0.1 = $0.48, floor = 95% = $0.4555);
+        // 0.47 USD keeps this a genuine bad debt against the 4 ether borrow
+        // while staying inside the 5% slippage allowance. A fill below the floor
+        // now correctly reverts `UnwindBelowOracleFloor` instead of silently
+        // handing the difference to whoever steers the swap.
         token0.mint(address(hook), 100 ether);
         token1.mint(address(hook), 100 ether);
-        manager.setNextSwapDelta(0.3 ether, -0.3 ether);
+        manager.setNextSwapDelta(0.47 ether, -0.3 ether);
 
         hook.executeLiquidation(key, address(this), 0, address(this));
 
@@ -165,16 +170,17 @@ contract EswapSolvencyTest is BaseV4Test {
 
         token0.mint(address(hook), 100 ether);
         token1.mint(address(hook), 100 ether);
-        // SHORT liquidation: receives token0 = 0.3 ether < borrow 4 ether → shortfall 3.7.
-        // Insurance for currency0 = 0 → the whole 3.7 ether is recorded as bad debt
-        // [FIX C-7] instead of reverting and stranding the position forever.
-        manager.setNextSwapDelta(0.3 ether, -0.3 ether);
+        // SHORT liquidation: receives token0 = 0.47 ether < borrow 4 ether → shortfall 3.53
+        // (0.47 also clears the forced-unwind oracle floor of $0.4555).
+        // Insurance for currency0 = 0 → the whole 3.53 ether is recorded as bad
+        // debt [FIX C-7] instead of reverting and stranding the position forever.
+        manager.setNextSwapDelta(0.47 ether, -0.3 ether);
 
         hook.executeLiquidation(key, address(this), 0, address(this));
 
         (address trader, uint256 collateral,,,,,,,) = hook.positions(key.toId(), address(this));
         assertEq(trader, address(0), "position cleared despite insufficient insurance");
         assertEq(collateral, 0, "position collateral cleared");
-        assertEq(hook.badDebt(key.currency0), 3.7 ether, "uncovered shortfall booked as protocol bad debt");
+        assertEq(hook.badDebt(key.currency0), 3.53 ether, "uncovered shortfall booked as protocol bad debt");
     }
 }

@@ -46,12 +46,12 @@ contract EswapHookConstructorTest is Test {
     }
 
     /// @dev `logic2` is `internal` in the shared storage contract, so there is
-    ///      no getter. Read slot 45 directly instead of adding a public accessor:
+    ///      no getter. Read slot 46 directly instead of adding a public accessor:
     ///      the hook has under 1KB of EIP-170 headroom and a test convenience is
     ///      not worth spending it on. Slot is pinned by
     ///      `forge inspect EswapMarginHookLogicStorage storage-layout`.
     function _logic2Of(address hookAddr) internal returns (address) {
-        return address(uint160(uint256(vm.load(hookAddr, bytes32(uint256(45))))));
+        return address(uint160(uint256(vm.load(hookAddr, bytes32(uint256(46))))));
     }
 
     function _deploy(address logic, address logic2, address hookOwner, address where) internal {

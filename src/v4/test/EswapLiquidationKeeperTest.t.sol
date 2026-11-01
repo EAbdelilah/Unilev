@@ -302,4 +302,45 @@ contract EswapLiquidationKeeperTest is BaseV4Test {
         assertEq(trader, address(0), "position must be liquidated");
         assertEq(collateralAfter, 0);
     }
+
+    // Re-declared so the test can match the keeper's log without emitting from it.
+    event FeesWithdrawn(address indexed token, address indexed to, uint256 amount);
+
+    /// @dev [AUDIT FIX] `withdrawFees` must be owner-only, bounded by the actual
+    ///      balance, and auditable via an event (it previously allowed the owner
+    ///      to request more than the contract held — reverting on native ETH —
+    ///      and emitted nothing).
+    function test_Keeper_WithdrawFees_BoundedByBalanceAndEvented() public {
+        vm.deal(address(keeper), 1 ether);
+
+        // Non-owner cannot drain trapped rewards.
+        vm.prank(automation);
+        vm.expectRevert();
+        keeper.withdrawFees(address(0), automation, 1);
+
+        // Requesting more than the balance is rejected with the shortfall data.
+        vm.expectRevert(
+            abi.encodeWithSelector(EswapLiquidationKeeper.InsufficientBalance.selector, 2 ether, 1 ether)
+        );
+        keeper.withdrawFees(address(0), address(0xBEEF), 2 ether);
+
+        // A bounded withdrawal pays out and emits the audit event.
+        vm.expectEmit(true, true, false, true, address(keeper));
+        emit FeesWithdrawn(address(0), address(0xBEEF), 1 ether);
+        keeper.withdrawFees(address(0), address(0xBEEF), 1 ether);
+
+        assertEq(address(0xBEEF).balance, 1 ether);
+        assertEq(address(keeper).balance, 0);
+
+        // ERC20 path is bounded by the token balance too.
+        token0.mint(address(keeper), 5 ether);
+        vm.expectRevert(
+            abi.encodeWithSelector(EswapLiquidationKeeper.InsufficientBalance.selector, 6 ether, 5 ether)
+        );
+        keeper.withdrawFees(address(token0), address(0xBEEF), 6 ether);
+
+        keeper.withdrawFees(address(token0), address(0xBEEF), 5 ether);
+        assertEq(token0.balanceOf(address(0xBEEF)), 5 ether);
+        assertEq(token0.balanceOf(address(keeper)), 0);
+    }
 }

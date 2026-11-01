@@ -8,6 +8,7 @@ import {Currency} from "./types/Currency.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {NativeTokens} from "./libraries/NativeTokens.sol";
 import {FullMath} from "@uniswap/v4-core/src/libraries/FullMath.sol";
 
@@ -42,7 +43,7 @@ interface IEswapPositionState {
  *      IDestinationSettler interface (ERC-7683):
  *        fill(bytes32 orderId, bytes calldata originData, bytes calldata fillerData)
  */
-contract EswapSettlement is Ownable {
+contract EswapSettlement is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
     using PoolIdLibrary for PoolKey;
 
@@ -104,10 +105,18 @@ error ZeroAddress();
     // being absorbed by whoever claims last. Order-independent by construction.
     mapping(address => uint256) public totalPrincipalOwed;
     // [AUDIT NF-02 follow-up] Per-token list of order ids, used to compute the
-    // claimable (closed-but-unclaimed) owed denominator without iterating an
-    // unbounded mapping. Open orders are excluded from the denominator so they
-    // cannot dilute a closed order's payout.
+    // claimable (closed-but-unclaimed) owed denominator. Open orders are
+    // excluded from the denominator so they cannot dilute a closed order's
+    // payout. Orders that never bridged principal (principal == 0) are skipped.
     mapping(address => bytes32[]) public orderIdsByToken;
+    // [AUDIT WH-01] Lifetime receipts already distributed per token, and per
+    // order. Entitlement is a share of RECEIPTS (`balance + totalRepaid`), not
+    // of the current balance, which makes the split independent of the order in
+    // which fillers claim: every order of a token is always dividing the same
+    // pot. `fillerPrincipal` keeps the ORIGINAL principal; the paid part is
+    // tracked here so an unpaid remainder survives a partial claim.
+    mapping(address => uint256) public totalRepaid;
+    mapping(bytes32 => uint256) public fillerClaimed;
 
     error RescueExceedsSurplus(uint256 requested, uint256 surplus);
 
@@ -245,47 +254,75 @@ error ZeroAddress();
      *
      *      The payout is capped PRO-RATA, not at the aggregate balance: with an
      *      uncovered liquidation shortfall the settlement holds less than it
-     *      owes, and the cap is `principal * balance / totalOwed`, so every
-     *      filler absorbs the same fraction of the loss regardless of the order
-     *      in which claims are made. [AUDIT F-04]
+     *      owes. Each order is entitled to `principal * receipts / closedOwed`
+     *      where `receipts` is everything this token has ever repaid here (the
+     *      current balance plus what was already paid out), so every filler
+     *      absorbs the same fraction of the loss regardless of the order in
+     *      which claims are made. [AUDIT F-04 / WH-01]
      */
-    function claimRepayment(bytes32 orderId) external returns (uint256 amount) {
+    function claimRepayment(bytes32 orderId) external nonReentrant returns (uint256 amount) {
         address filler = orderFiller[orderId];
         if (filler == address(0) || msg.sender != filler) revert NotFiller();
         uint256 principal = fillerPrincipal[orderId];
         if (principal == 0) revert NothingToClaim();
+        uint256 paid = fillerClaimed[orderId];
+        if (paid >= principal) revert NothingToClaim();
         if (_positionStillOpen(orderId)) revert PositionStillOpen();
 
         address token = fillerToken[orderId];
 
-        // [AUDIT F-04] Pro-rata cap across the CLOSED-but-unclaimed orders in
-        // this token. Open orders are excluded from the denominator so they
-        // cannot dilute a closed order's payout.
-        uint256 closedOwed = 0;
+        // [AUDIT F-04] Pro-rata denominator across the CLOSED orders in this
+        // token. Open orders are excluded: their bridged capital was deployed
+        // into a live position and is NOT part of this contract's balance, so
+        // including them only dilutes every filler whose position has already
+        // repaid (and may never close at all).
+        uint256 closedOwed;
         bytes32[] storage ids = orderIdsByToken[token];
-        for (uint256 i = 0; i < ids.length; i++) {
+        uint256 len = ids.length;
+        for (uint256 i = 0; i < len; i++) {
             bytes32 oid = ids[i];
             uint256 p = fillerPrincipal[oid];
             if (p == 0) continue;
-            if (_positionStillOpen(oid)) continue;
+            // The claimer's own order was proven closed above; no need to ask
+            // the hook a second time.
+            if (oid != orderId && _positionStillOpen(oid)) continue;
             closedOwed += p;
         }
         if (closedOwed == 0) revert NothingToClaim();
+
         uint256 available = NativeTokens.balanceOf(Currency.wrap(token), address(this));
-        amount = FullMath.mulDiv(principal, available, closedOwed);
-        if (amount > principal) amount = principal;
+        if (available == 0) revert NothingToClaim();
+
+        // [AUDIT WH-01] Entitlement = principal's share of the RECEIPTS the
+        // settlement has ever taken in for this token (what is still here plus
+        // what was already paid out), minus what this order already received.
+        // Dividing by receipts rather than by the shrinking balance means the
+        // split does not depend on claim order and no loss is finalised against
+        // whoever claims first; an unpaid remainder simply stays claimable if
+        // more repayments land later.
+        uint256 receipts = available + totalRepaid[token];
+        uint256 entitlement = FullMath.mulDiv(principal, receipts, closedOwed);
+        if (entitlement > principal) entitlement = principal;
+        amount = entitlement > paid ? entitlement - paid : 0;
+        // [DUST] Integer division can round a small order's whole share to zero.
+        // Pay one unit (bounded by the balance) so a first claim always makes
+        // progress while funds remain, instead of leaving it unclaimable.
+        if (amount == 0 && paid == 0) amount = 1;
+        if (amount > available) amount = available;
         if (amount == 0) revert NothingToClaim();
 
-        // [AUDIT NF-02] CEI: transfer FIRST, then mutate storage.
+        // Effects FIRST (CEI), then interactions.
+        fillerClaimed[orderId] = paid + amount;
+        totalRepaid[token] += amount;
+        totalPrincipalOwed[token] = totalPrincipalOwed[token] > amount ? totalPrincipalOwed[token] - amount : 0;
+        emit RepaymentClaimed(orderId, filler, token, amount);
+
+        // Interactions LAST.
         if (token == address(0)) {
             NativeTokens.transfer(Currency.wrap(address(0)), filler, amount);
         } else {
             IERC20(token).safeTransfer(filler, amount);
         }
-
-        fillerPrincipal[orderId] = 0;
-        totalPrincipalOwed[token] = totalPrincipalOwed[token] > principal ? totalPrincipalOwed[token] - principal : 0;
-        emit RepaymentClaimed(orderId, filler, token, amount);
     }
 
     /// @dev True while the hook still records a solver for the order's position.

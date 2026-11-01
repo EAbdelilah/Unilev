@@ -42,4 +42,46 @@ contract EswapRebalanceTest is BaseV4Test {
         assertEq(newTickLower, -420);
         assertEq(newTickUpper, 180);
     }
+
+    /// @dev [AUDIT FIX] A rebalance must not silently erase collateral the
+    ///      position still owns when the LP band returns nothing. The previous
+    ///      implementation overwrote `collateralAmount` with the recovered LP
+    ///      amount only, leaving the trader's ERC-6909 claim unbacked and
+    ///      bricking the position (`collateralAmount == 0` makes close and
+    ///      liquidation revert `NoActivePosition` forever).
+    function test_Rebalance_PreservesRetainedCollateral_NoBandProceeds() public {
+        address trader = address(0xABC);
+        bytes memory data = abi.encode(true, 5, trader);
+
+        vm.prank(address(manager));
+        hook.beforeSwap(address(0), key, IPoolManager.SwapParams(true, -1 ether, 0), data);
+
+        vm.prank(address(manager));
+        hook.afterSwap(
+            address(0),
+            key,
+            IPoolManager.SwapParams(true, -1 ether, 0),
+            BalanceDeltaLibrary.toBalanceDelta(1 ether, 1 ether),
+            data
+        );
+
+        (, uint256 collateralBefore,,,,,,,) = hook.positions(key.toId(), trader);
+        assertGt(collateralBefore, 0, "setup: position has no collateral");
+
+        // Collateral is held as a token1 ERC-6909 claim (mock returns no LP deltas).
+        uint256 claimId = uint256(uint160(address(token1)));
+        uint256 claimBefore = hook._claimBalances(trader, claimId);
+        uint256 totalBefore = hook.totalCollateral(Currency.wrap(address(token1)));
+        assertGt(claimBefore, 0, "setup: no claim backing");
+
+        // Band consumed (tick 200 is outside the deployment band) while the LP
+        // contributes zero proceeds.
+        manager.setSlot0(key.toId(), 2 << 96, 200);
+        hook.rebalancePosition(key, trader);
+
+        (, uint256 collateralAfter,,,,,,,) = hook.positions(key.toId(), trader);
+        assertEq(collateralAfter, collateralBefore, "rebalance erased retained collateral");
+        assertEq(hook._claimBalances(trader, claimId), claimBefore, "claim shrank without a realised loss");
+        assertEq(hook.totalCollateral(Currency.wrap(address(token1))), totalBefore, "totalCollateral drifted");
+    }
 }

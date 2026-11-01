@@ -52,11 +52,13 @@ contract RevertingPriceFeedMock is IPriceFeed {
  *   - CLOSE is oracle-INDEPENDENT. `closePosition` never reads the feed: the
  *     unwind swap uses a full-range `sqrtPriceLimit` and `_settle` books bad
  *     debt rather than reverting. A trader can always exit.
- *   - LIQUIDATION is oracle-GATED. `executeLiquidation` calls `isLiquidatable`,
- *     which reads the feed, so the liquidation backstop is unavailable exactly
- *     when the feed is unhealthy. This fails in the safe direction (never
- *     liquidate on an untrusted price) but must be documented, because it means
- *     bad positions cannot be cleaned up during a staleness window.
+ *   - LIQUIDATION is oracle-GATED. `executeLiquidation` checks
+ *     `isLiquidatable`, which needs a price. [AUDIT F-04] An UNPRICED leg now
+ *     degrades to "not actionable" (no revert) instead of throwing
+ *     `OraclePriceUnavailable`, so one dark token cannot brick the keeper's
+ *     view calls; a cached mark keeps the backstop live through a feed outage.
+ *     The safe direction is preserved: nothing is ever liquidated on a price
+ *     the protocol does not have.
  */
 contract EswapExitOracleIndependenceTest is Test {
     using PoolIdLibrary for PoolKey;
@@ -176,18 +178,44 @@ contract EswapExitOracleIndependenceTest is Test {
         assertEq(collateral, 0, "exit must not depend on the oracle's opinion of price");
     }
 
-    /// @dev Documented asymmetry: the liquidation backstop reads the feed, so it
-    ///      is unavailable while the feed is unhealthy. This is the safe direction
-    ///      to fail (never liquidate on an untrusted price), but it means bad
-    ///      positions cannot be reaped during a staleness window.
-    function test_Liquidation_Reverts_WhenOracleUnavailable() public {
+    /// @dev [AUDIT F-04 liveness] With a cached mark the position stays
+    ///      evaluable during a feed outage (circuit-breaker mode), so the
+    ///      liquidation path never reverts ON THE ORACLE: it either proceeds on
+    ///      the cached mark or fails closed with `PositionNotLiquidatable`.
+    function test_Liquidation_WithStaleFeed_UsesCachedMark_NeverRevertsOnOracle() public {
         _openShort();
 
         priceFeed.setFail(true);
 
+        // The open cached both legs, so the position remains priced.
+        assertTrue(hook.isPositionPriced(key, address(this)), "cached mark keeps the position priced");
+
         vm.prank(address(this));
-        vm.expectRevert(RevertingPriceFeedMock.FeedUnavailable.selector);
+        vm.expectRevert(abi.encodeWithSignature("PositionNotLiquidatable()"));
         hook.executeLiquidation(key, address(this), 0, liquidator);
+    }
+
+    /// @dev [AUDIT F-04 liveness] A leg with neither a live read nor a cached
+    ///      mark has NO price: `isLiquidatable` must answer `false` instead of
+    ///      reverting, otherwise a single unpriced token bricks every keeper
+    ///      view call (and therefore `checkUpkeep`) for that pool.
+    function test_IsLiquidatable_UnpricedLeg_ReturnsFalse_NoRevert() public {
+        // No _openShort(): neither leg has a cached mark, and the feed reverts.
+        priceFeed.setFail(true);
+
+        EswapMarginHook.Position memory pos = EswapMarginHook.Position({
+            trader: address(this),
+            collateralAmount: 100 ether,
+            borrowedAmount: 1_000 ether, // deeply underwater at any sane mark
+            leverage: 5,
+            isLong: false,
+            liquidationSqrtPrice: 0,
+            tickLower: -60,
+            tickUpper: 60,
+            liquidity: 0
+        });
+
+        assertFalse(hook.isLiquidatable(pos, key), "unpriced => not actionable");
     }
 
     /// @dev Sanity: with a healthy feed the same liquidation proceeds, so the

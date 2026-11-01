@@ -2,7 +2,9 @@
 pragma solidity ^0.8.24;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {PoolKey} from "./types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "./types/PoolId.sol";
 import {Currency} from "./types/Currency.sol";
@@ -29,6 +31,7 @@ import {EswapRouter} from "./EswapRouter.sol";
  */
 contract EswapLiquidationKeeper is Ownable {
     using PoolIdLibrary for PoolKey;
+    using SafeERC20 for IERC20;
 
     EswapMarginHook public immutable hook;
     EswapRouter public immutable router;
@@ -61,15 +64,44 @@ contract EswapLiquidationKeeper is Ownable {
     event WatchRemoved(PoolId poolId, address indexed trader);
     event Liquidated(PoolId poolId, address indexed trader, uint256 minAmountOut);
     event LiquidateFailed(PoolId poolId, address indexed trader);
+    /// @dev [AUDIT F-04] A watched position could not be priced, so it was
+    ///      skipped rather than failing the whole keeper round. Emitted from the
+    ///      non-view keeper paths; off-chain callers of the view `isPositionPriced`
+    ///      can detect the same condition during `checkUpkeep`.
+    event OracleUnavailable(PoolId poolId, address indexed trader);
+    event FeesWithdrawn(address indexed token, address indexed to, uint256 amount);
 
     error PositionNotWatched();
+    error ZeroAddress();
     error AlreadyWatched();
     error MaxWatchesReached(uint256 max);
     error NoLiquidatablePositions();
+    error InsufficientBalance(uint256 requested, uint256 available);
+    error PositionOracleUnavailable();
 
     constructor(address _hook, address _router) Ownable(msg.sender) {
         hook = EswapMarginHook(payable(_hook));
         router = EswapRouter(payable(_router));
+    }
+
+    /// @dev Accept native ETH keeper rewards.
+    receive() external payable {}
+
+    /// @notice Owner-controlled recovery of trapped keeper rewards.
+    /// @dev [AUDIT FIX] Bounded by the contract's actual balance and emits an
+    ///      audit event; the owner should be a timelock/multisig so recovery is
+    ///      subject to the same delay as every other admin action.
+    function withdrawFees(address token, address to, uint256 amount) external onlyOwner {
+        if (to == address(0)) revert ZeroAddress();
+        uint256 available = token == address(0) ? address(this).balance : IERC20(token).balanceOf(address(this));
+        if (amount > available) revert InsufficientBalance(amount, available);
+        if (token == address(0)) {
+            (bool ok,) = to.call{value: amount}("");
+            require(ok, "ETH transfer failed");
+        } else {
+            IERC20(token).safeTransfer(to, amount);
+        }
+        emit FeesWithdrawn(token, to, amount);
     }
 
     modifier validKey(PoolKey calldata key) {
@@ -209,6 +241,20 @@ contract EswapLiquidationKeeper is Ownable {
         try hook.isLiquidatable(pos, key) returns (bool liquidatable) {
             return liquidatable;
         } catch {
+            // [AUDIT F-04] The hook now degrades an unpriced position to `false`
+            // rather than reverting, so this catch only covers an unexpected
+            // failure. Never let one position abort the whole keeper round.
+            return false;
+        }
+    }
+
+    /// @notice [AUDIT F-04] Whether the position can be priced. Non-view callers
+    ///         use this to emit an alert; `checkUpkeep` callers use it off-chain
+    ///         to distinguish "healthy" from "skipped because unpriced".
+    function isPositionPriced(PoolKey memory key, address trader) public view returns (bool) {
+        try hook.isPositionPriced(key, trader) returns (bool priced) {
+            return priced;
+        } catch {
             return false;
         }
     }
@@ -295,6 +341,11 @@ contract EswapLiquidationKeeper is Ownable {
         uint256 done;
         for (uint256 i = 0; i < len; i++) {
             if (gasleft() < MIN_KEEP_GAS) break; // [AUDIT MED-13] defer tail to next round
+            EswapMarginHook.Position memory pos = _position(watches[i].key, watches[i].trader);
+            if (pos.collateralAmount > 0 && !isPositionPriced(watches[i].key, watches[i].trader)) {
+                emit OracleUnavailable(watches[i].key.toId(), watches[i].trader);
+                continue;
+            }
             if (_isLiquidatable(watches[i].key, watches[i].trader)) {
                 if (_tryLiquidate(watches[i].key, watches[i].trader)) {
                     liquidated[i] = 1;
@@ -313,6 +364,7 @@ contract EswapLiquidationKeeper is Ownable {
      * @notice Permissionless: liquidates a single position.
      */
     function liquidate(PoolKey calldata key, address trader) external returns (bool) {
+        if (!isPositionPriced(key, trader)) revert PositionOracleUnavailable();
         if (!_isLiquidatable(key, trader)) revert PositionNotLiquidatable();
         return _tryLiquidate(key, trader);
     }

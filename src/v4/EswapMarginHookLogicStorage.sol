@@ -214,6 +214,7 @@ abstract contract EswapMarginHookLogicStorage {
     bool public requireTwapOracle;
     bool public emergencyPaused;
     uint256 public pauseExpiry;
+    uint256 public firstPauseTimestamp;
     uint160 public maxPriceSwingBps;
     uint8 public defaultMaxLeverage;
     mapping(PoolId => uint8) public maxLeverageByPool;

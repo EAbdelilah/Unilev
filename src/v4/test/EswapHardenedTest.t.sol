@@ -2,6 +2,8 @@
 pragma solidity ^0.8.24;
 
 import {BaseV4Test} from "./BaseV4Test.t.sol";
+import {EswapMarginHook} from "../EswapMarginHook.sol";
+import {EswapMarginHookLogic} from "../EswapMarginHookLogic.sol";
 import {BeforeSwapDelta} from "../types/BeforeSwapDelta.sol";
 import {Currency} from "../types/Currency.sol";
 import {PoolKey} from "../types/PoolKey.sol";
@@ -62,5 +64,26 @@ contract EswapHardenedTest is BaseV4Test {
         uint256 claimId = uint256(uint160(address(token1)));
         uint256 bal = hook._claimBalances(address(this), claimId);
         assertTrue(bal > 0);
+    }
+
+    /// @dev [AUDIT FIX] The unwind venue is security-critical: redirecting
+    ///      `standardPoolKeys` lets whoever writes it route close/liquidation
+    ///      swaps through an attacker-controlled pool. It must be owner-only,
+    ///      not writable by the keeper/router path.
+    function test_SetStandardPoolKey_NotRouterWritable() public {
+        EswapMarginHookLogic logic = EswapMarginHookLogic(payable(address(hook)));
+
+        PoolKey memory ownerKey = key;
+        ownerKey.fee = 500;
+        logic.setStandardPoolKey(key.toId(), ownerKey); // owner == address(this)
+
+        PoolKey memory attackerKey = key;
+        attackerKey.fee = 10_000;
+        vm.prank(address(0xBAD));
+        vm.expectRevert(EswapMarginHook.NotOwner.selector);
+        logic.setStandardPoolKey(key.toId(), attackerKey);
+
+        (,, uint24 storedFee,,) = hook.standardPoolKeys(key.toId());
+        assertEq(storedFee, 500, "non-owner rewrote the unwind venue");
     }
 }

@@ -239,9 +239,19 @@ contract EswapMarginHookLogic2 is BaseHook, EswapMarginHookLogicStorage {
         _distributeRehypothecation(key, removeDelta, collateralCurrency, rehypPrincipal[poolId][trader], yieldRecipient);
 
         int128 recoveredCollatInt = isCurrency0 ? removeDelta.amount0() : removeDelta.amount1();
+        uint256 oldCollateral = pos.collateralAmount;
         uint256 availableCollateral = recoveredCollatInt > 0 ? uint256(uint128(recoveredCollatInt)) : 0;
-        if (availableCollateral > pos.collateralAmount) {
-            availableCollateral = pos.collateralAmount;
+
+        // [AUDIT FIX] The share of the book that was never deployed into the LP
+        // band (`oldCollateral - rehypPrincipal`) still sits in the accounting
+        // pool and stays with the position. Include it so a rebalance neither
+        // silently erases that retained collateral nor zeroes the book of a
+        // position that has no band at all (which previously left the claim
+        // unbacked and bricked the position: pos.collateralAmount == 0 means
+        // close/liquidation revert NoActivePosition forever).
+        {
+            uint256 deployed = pos.liquidity > 0 ? rehypPrincipal[poolId][trader] : 0;
+            if (oldCollateral > deployed) availableCollateral += oldCollateral - deployed;
         }
 
         int128 removedDebtInt = isCurrency0 ? removeDelta.amount1() : removeDelta.amount0();
@@ -263,13 +273,30 @@ contract EswapMarginHookLogic2 is BaseHook, EswapMarginHookLogicStorage {
                 availableCollateral += uint256(uint128(gotBackInt));
             }
         }
+        // The position can never own more than its previous book value; fees
+        // already routed to the solver by `_distributeRehypothecation` must not
+        // be double-counted as position collateral.
+        if (availableCollateral > oldCollateral) availableCollateral = oldCollateral;
 
-        // [FIX M-3] Record the ACTUAL recovered principal against the position:
-        // impermanent loss can leave the removed LP worth less than the book
-        // `collateralAmount` (recovered + swap-back of the debt leg). Keeping the
-        // old (larger) book value would settle/liquidate against collateral the
-        // vault no longer holds, creating a deficit on close. Writing the
-        // physically-recovered amount keeps ledger == vault.
+        // [AUDIT FIX] Reconcile the collateral ledgers with the PHYSICALLY
+        // recovered amount. Impermanent loss can leave the removed LP worth less
+        // than the book `collateralAmount`; rewriting the position without
+        // shrinking `_claimBalances`/`totalCollateral` left the trader with an
+        // unbacked ERC-6909 claim and kept OI/TVL views overstated. Reduce the
+        // trader claim, the aggregate ledger and the USD running total by the
+        // realised loss so `totalCollateral[c] == Σ claims` and
+        // `Σ pos.collateralAmount <= totalCollateral[c]` hold again.
+        if (availableCollateral < oldCollateral) {
+            uint256 collateralLoss = oldCollateral - availableCollateral;
+            _clearCollateralAccounting(trader, collateralCurrency, collateralLoss);
+
+            uint256 oldUsd = positionCollateralUSD[poolId][trader];
+            if (oldUsd > 0) {
+                uint256 newUsd = FullMath.mulDiv(oldUsd, availableCollateral, oldCollateral);
+                positionCollateralUSD[poolId][trader] = newUsd;
+                totalCollateralUSDRunning = EswapMarginLib.saturatingSub(totalCollateralUSDRunning, oldUsd - newUsd);
+            }
+        }
         pos.collateralAmount = availableCollateral;
 
         (int24 tickLower, int24 tickUpper) = _deploymentTicks(currentTick, key.tickSpacing, isCurrency0);
@@ -533,6 +560,15 @@ contract EswapMarginHookLogic2 is BaseHook, EswapMarginHookLogicStorage {
     function isLiquidatable(Position memory pos, PoolKey calldata key) public view returns (bool) {
         if (pos.collateralAmount == 0) return false;
 
+        // [AUDIT F-04 liveness] A token with neither a live oracle read nor a
+        // cached mark has NO price. Returning `false` keeps view callers (the
+        // keeper's `try`) from reverting/masking the condition; the position is
+        // simply not actionable until a price exists. Open paths always cache
+        // both legs, so this only affects legacy/unpriced state.
+        Currency collateralToken = _collateralCurrency(pos, key);
+        if (!_priceAvailable(Currency.unwrap(collateralToken))) return false;
+        if (!_priceAvailable(Currency.unwrap(_debtCurrency(pos, key)))) return false;
+
         // [AUDIT F-06] Value the assets the hook ACTUALLY holds, not the book.
         // `pos.collateralAmount` is only rewritten by `rebalancePosition`, which
         // nobody is obliged to call: between rebalances the LP band may already
@@ -609,6 +645,21 @@ contract EswapMarginHookLogic2 is BaseHook, EswapMarginHookLogicStorage {
             Currency debtCurrency = isCurrency0 ? key.currency1 : key.currency0;
             (debtLegUsd, cached) = _usdOrCache(Currency.unwrap(debtCurrency), debtLeg);
         }
+    }
+
+    /// @dev [AUDIT F-04 liveness] True when `token` can be priced: either the
+    ///      live feed answers with a non-zero value, or a cached mark exists.
+    ///      Used by view/gate paths that must degrade to `false` instead of
+    ///      reverting `OraclePriceUnavailable`.
+    function _priceAvailable(address token) internal view returns (bool) {
+        if (address(priceFeed) != address(0)) {
+            uint8 d = tokenDecimals[token];
+            if (d == 0) d = 18;
+            try priceFeed.getAmountInUsd(token, 10 ** uint256(d)) returns (uint256 value) {
+                if (value != 0) return true;
+            } catch {}
+        }
+        return cachedPriceUsd[token] != 0;
     }
 
     /// @dev [AUDIT F-05] Live oracle value, or the last cached mark when the live
@@ -777,13 +828,21 @@ contract EswapMarginHookLogic2 is BaseHook, EswapMarginHookLogicStorage {
         // need not share decimals) of everything recovered against the oracle
         // value of the collateral sold, with MAX_UNWIND_SLIPPAGE_BPS of slack.
         // `_usdOrCache` keeps an oracle outage from re-breaking liquidation
-        // liveness (F-05).
+        // liveness (F-05). This is a HARD revert on liquidation paths: the
+        // position owner did not choose the timing, so a materially-below-oracle
+        // fill is pure value transfer to whoever steers the swap. `closePosition`
+        // passes `enforceFloor = false` so a trader's own exit is never stranded.
         if (enforceFloor && availableCollateral > 0) {
             Currency debtCurrency = zeroForOne ? key.currency1 : key.currency0;
-            (uint256 outUsd,) = _usdOrCache(Currency.unwrap(debtCurrency), receivedAmount + bandProceeds);
-            (uint256 inUsd,) = _usdOrCache(Currency.unwrap(collateralCurrency), availableCollateral);
-            uint256 floorUsd = FullMath.mulDiv(inUsd, 10000 - MAX_UNWIND_SLIPPAGE_BPS, 10000);
-            if (inUsd > 0 && outUsd < floorUsd) revert UnwindBelowOracleFloor(outUsd, floorUsd);
+            // A fully-unpriced side cannot be floored; `isLiquidatable` already
+            // refuses to classify such a position as liquidatable (see F-04
+            // liveness fix), so this only guards the degraded path.
+            if (_priceAvailable(Currency.unwrap(debtCurrency)) && _priceAvailable(Currency.unwrap(collateralCurrency))) {
+                (uint256 outUsd,) = _usdOrCache(Currency.unwrap(debtCurrency), receivedAmount + bandProceeds);
+                (uint256 inUsd,) = _usdOrCache(Currency.unwrap(collateralCurrency), availableCollateral);
+                uint256 floorUsd = FullMath.mulDiv(inUsd, 10000 - MAX_UNWIND_SLIPPAGE_BPS, 10000);
+                if (inUsd > 0 && outUsd < floorUsd) revert UnwindBelowOracleFloor(outUsd, floorUsd);
+            }
         }
 
         _settleTransientDebt(collateralCurrency, availableCollateral);

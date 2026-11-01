@@ -175,16 +175,63 @@ contract AuditThirdAdversarialPoC is BaseV4Test {
         uint256 parked = token0.balanceOf(address(settlement));
         assertEq(parked, 55 ether, "settlement holds 40 (alice) + 15 (mallory)");
 
-        // Pro-rata: each filler gets principal * balance / totalOwed.
-        // totalOwed = 80, balance = 55.
-        // mallory: 40 * 55 / 80 = 27.5
+        // Pro-rata entitlement is a share of the RECEIPTS this settlement has
+        // ever taken in for the token (55), not of whatever balance is left, so
+        // the split cannot depend on who claims first. Only CLOSED orders form
+        // the denominator: an open order's capital sits in a live position and
+        // is not in this balance.
         vm.prank(mallory);
         uint256 malloryGot = settlement.claimRepayment(malloryOrder);
         assertEq(malloryGot, 27.5 ether, "mallory pro-rata share");
 
         vm.prank(alice);
         uint256 aliceGot = settlement.claimRepayment(aliceOrder);
-        assertEq(aliceGot, 27.5 ether, "alice pro-rata share");
+        assertEq(aliceGot, 27.5 ether, "alice pro-rata share (claim order must not matter)");
+
+        assertEq(token0.balanceOf(address(settlement)), 0, "settlement drained");
+        assertEq(malloryGot + aliceGot, parked, "nothing created, nothing stranded");
+
+        // The 12.5 ether shortfall on each order is not "forgotten": principal is
+        // kept, and the paid part is tracked so it can never be claimed twice.
+        assertEq(settlement.fillerPrincipal(malloryOrder), 40 ether, "principal retained");
+        assertEq(settlement.fillerClaimed(malloryOrder), 27.5 ether, "paid part tracked");
+        vm.prank(mallory);
+        vm.expectRevert(EswapSettlement.NothingToClaim.selector);
+        settlement.claimRepayment(malloryOrder);
+    }
+
+    /// @dev The same shortfall with the claims made in the OPPOSITE order yields
+    ///      the identical split, proving the entitlement is a share of receipts
+    ///      rather than of the shrinking balance.
+    function test_PoC_Settlement_ProRataRepayment_ReverseClaimOrder() public {
+        address alice = makeAddr("alice");
+        address mallory = makeAddr("mallory");
+
+        bytes32 aliceOrder = keccak256("alice-order-r");
+        bytes32 malloryOrder = keccak256("mallory-order-r");
+
+        manager.setNextSwapDelta(-50 ether, 48 ether);
+        _fill(aliceOrder, alice, makeAddr("aliceRecipientR"));
+        manager.setNextSwapDelta(-50 ether, 48 ether);
+        _fill(malloryOrder, mallory, makeAddr("malloryRecipientR"));
+
+        address aliceRecipient = settlement.orderRecipient(aliceOrder);
+        address malloryRecipient = settlement.orderRecipient(malloryOrder);
+
+        manager.setNextSwapDelta(48 ether, -47952000000000000000);
+        vm.prank(aliceRecipient);
+        router.closePosition(address(hook), key, aliceRecipient, address(settlement), 0);
+
+        manager.setNextSwapDelta(15 ether, -47952000000000000000);
+        vm.prank(malloryRecipient);
+        router.closePosition(address(hook), key, malloryRecipient, address(settlement), 0);
+
+        assertEq(token0.balanceOf(address(settlement)), 55 ether, "settlement holds 55");
+
+        vm.prank(alice);
+        assertEq(settlement.claimRepayment(aliceOrder), 27.5 ether, "alice first: pro-rata share");
+        vm.prank(mallory);
+        assertEq(settlement.claimRepayment(malloryOrder), 27.5 ether, "mallory second: pro-rata share");
         assertEq(token0.balanceOf(address(settlement)), 0, "settlement drained");
     }
 }
