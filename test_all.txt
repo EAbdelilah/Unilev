@@ -1,0 +1,2003 @@
+No files changed, compilation skipped
+
+Ran 3 tests for src/v4/test/AuditMarginFunderPoC.t.sol:AuditMarginFunderPoC
+[PASS] test_MarginFunderDrainReverts() (gas: 59520)
+[PASS] test_OwnMarginStillWorks() (gas: 692468)
+[PASS] test_WhitelistedExecutorCannotDrain() (gas: 66195)
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 9.28ms (1.26ms CPU time)
+
+Ran 2 tests for src/v4/test/EswapReentrancyTest.t.sol:EswapReentrancyTest
+[PASS] test_NonReentrant_BeforeSwap() (gas: 454940)
+[PASS] test_NonReentrant_ClosePosition() (gas: 661314)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 12.11ms (3.13ms CPU time)
+
+Ran 7 tests for src/v4/test/EswapSolverAdapterTest.t.sol:EswapSolverAdapterTest
+[PASS] test_ExpiredDeadline_Reverts() (gas: 16743)
+[PASS] test_InvalidNonce_Reverts() (gas: 18763)
+[PASS] test_InvalidSignature_Reverts() (gas: 18649)
+[PASS] test_MalleableSignature_Reverts() (gas: 20502)
+[PASS] test_SolverDebt_RegisteredAtomically() (gas: 708669)
+[PASS] test_SpotIntent_SubmitsSuccessfully() (gas: 44431)
+[PASS] test_ValidSignature_SubmitsSuccessfully() (gas: 44674)
+Suite result: ok. 7 passed; 0 failed; 0 skipped; finished in 16.45ms (8.30ms CPU time)
+
+Ran 4 tests for src/v4/test/EswapMultiPoolRouteTest.t.sol:EswapMultiPoolRouteTest
+[PASS] test_OpenAndClose_5xLeveragePosition_MultiPoolRoute() (gas: 1335817)
+[PASS] test_Swap_OutputBelowMinimum_Reverts() (gas: 960563)
+[PASS] test_Swap_ReverseDirection_RoutesToStandardPool() (gas: 1282002)
+[PASS] test_Swap_RoutesAccountingToHookPool_PhysicalToStandardPool() (gas: 1283077)
+Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 20.90ms (12.37ms CPU time)
+
+Ran 4 tests for src/v4/test/AuditThirdLiquidationPoC.t.sol:AuditThirdLiquidationPoC
+[PASS] test_F03_UnwindBelowOracleFloor_Reverts() (gas: 1024085)
+[PASS] test_F05_CachedOracleKeepsLiquidationLive() (gas: 14093059)
+[PASS] test_F08_ClaimPayout_NoCredit_Reverts() (gas: 21498)
+[PASS] test_F08_SetPayoutRedirect() (gas: 39879)
+Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 22.27ms (13.56ms CPU time)
+
+Ran 11 tests for src/v4/test/AuditRemediationExtra.t.sol:AuditRemediationExtra
+[PASS] test_CowSigning_PreSign_LocalLedgerStillWorks() (gas: 674505)
+[PASS] test_CowSigning_PreSign_ReadsCanonicalSettlement() (gas: 685443)
+[PASS] test_FlashVault_DebtCeiling_EnforcedAndAdjustable() (gas: 1223183)
+[PASS] test_FlashVault_Pull_RejectsArbitraryDestination() (gas: 1113127)
+[PASS] test_FlashVault_Pull_SolverAndRouterOnly() (gas: 1254592)
+[PASS] test_LeverageAdapter_Multicall_RejectsAdminSelector() (gas: 1669838)
+[PASS] test_LeverageAdapter_Multicall_SelectorPolicy() (gas: 1670145)
+[PASS] test_PriceFeed_RequireBounds_AcceptsTwoSidedConfig() (gas: 1559447)
+[PASS] test_PriceFeed_RequireBounds_RejectsSingleSidedConfig() (gas: 1539993)
+[PASS] test_PriceFeed_SetFeed_LegacyOverloadDerivesDecimals() (gas: 1484627)
+[PASS] test_PriceFeed_SetFeed_RejectsDecimalsMismatch() (gas: 1442876)
+Suite result: ok. 11 passed; 0 failed; 0 skipped; finished in 13.02ms (11.89ms CPU time)
+
+Ran 3 tests for src/v4/test/EswapResidueSweepTest.t.sol:EswapResidueSweepTest
+[PASS] test_Sweep_DonationsRecoverable_AccessControlled() (gas: 151280)
+[PASS] test_Sweep_InsuranceSeedRaisesFloor() (gas: 177942)
+[PASS] test_Sweep_OpenFeeIsExactResidue_FloorProtectsCollateral() (gas: 753373)
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 19.46ms (13.89ms CPU time)
+
+Ran 3 tests for src/v4/test/EswapSolverYieldTest.t.sol:EswapSolverYieldTest
+[PASS] test_Rebalance_NoSurplus_NoPayout() (gas: 1316580)
+[PASS] test_Rebalance_RoutesYieldSurplusToSolver() (gas: 1341168)
+[PASS] test_Rebalance_YieldFallsBackToTraderWithoutSolver() (gas: 1263075)
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 18.40ms (8.46ms CPU time)
+
+Ran 7 tests for src/v4/test/EswapAggregatorWhitelistTest.t.sol:EswapAggregatorWhitelistTest
+[PASS] test_CanBeRevoked() (gas: 57836)
+[PASS] test_NonWhitelistedAttacker_CannotRelayAggregatorPosition() (gas: 73204)
+[PASS] test_NonZeroRouteValue_CannotDrainRouterBalance() (gas: 367118)
+[PASS] test_OnlyOwnerCanRegister() (gas: 16073)
+[PASS] test_RegisteredProxy_PassesTheGate() (gas: 78892)
+[PASS] test_UnregisteredProxy_CannotRoute() (gas: 46688)
+[PASS] test_WhitelistedExecutor_CanRelayAggregatorPosition() (gas: 102294)
+Suite result: ok. 7 passed; 0 failed; 0 skipped; finished in 17.47ms (2.70ms CPU time)
+
+Ran 7 tests for src/v4/test/EswapOpenInterestCapsTest.t.sol:EswapOpenInterestCapsTest
+[PASS] test_Caps_InactiveBelowTvlFloor() (gas: 17711)
+[PASS] test_ConfigurableCaps_MultiPositionHeadroom() (gas: 890719)
+[PASS] test_Defaults_PreserveOriginalCaps() (gas: 658019)
+[PASS] test_MaxOpenBorrowRaw_Boundary() (gas: 878728)
+[PASS] test_OneX_ExemptFromCaps() (gas: 798912)
+[PASS] test_QuoteOpenFit_MirrorsValidation() (gas: 644144)
+[PASS] test_Setter_AuthAndBounds() (gas: 92709)
+Suite result: ok. 7 passed; 0 failed; 0 skipped; finished in 17.82ms (11.36ms CPU time)
+
+Ran 3 tests for src/v4/test/EswapRouterAccessTest.t.sol:EswapRouterAccessTest
+[PASS] test_Close_PropagatesHookRevert() (gas: 48303)
+[FAIL: liquidator is not paid; reward goes to insurance: 34265600000000000 != 0] test_Permissionless_Liquidation_ByKeeper() (gas: 1096607)
+[PASS] test_Permissionless_Rebalance_ByKeeper() (gas: 784270)
+Suite result: FAILED. 2 passed; 1 failed; 0 skipped; finished in 10.18ms (4.38ms CPU time)
+
+Ran 12 tests for src/v4/test/EswapTimelockTest.t.sol:EswapTimelockTest
+[PASS] test_Cancel() (gas: 35729)
+[PASS] test_Cancel_OnlyAdmin() (gas: 43331)
+[PASS] test_EmergencyPause_Instant() (gas: 72503)
+[PASS] test_EmergencyPause_OnlyAdmin() (gas: 11549)
+[PASS] test_EmergencyPause_Unpause() (gas: 62136)
+[PASS] test_Execute_ExpiredBeyondGrace_Reverts() (gas: 37587)
+[PASS] test_Execute_WithinGracePeriod_Passes() (gas: 82844)
+[PASS] test_QueueAndExecute() (gas: 88636)
+[PASS] test_Queue_DuplicateReverts() (gas: 41453)
+[PASS] test_Queue_EtaTooSoon() (gas: 17044)
+[PASS] test_Queue_OnlyAdmin() (gas: 13967)
+[PASS] test_Timelock_ProtectsSetAuthorizedPool() (gas: 65718)
+Suite result: ok. 12 passed; 0 failed; 0 skipped; finished in 8.56ms (2.41ms CPU time)
+
+Ran 3 tests for src/v4/test/AuditSolverConsentPoC.t.sol:AuditSolverConsentPoC
+[PASS] test_ExploitPoC() (gas: 109339)
+[PASS] test_SecondOpenWithDifferentSolverReverts() (gas: 1230481)
+[PASS] test_WithinCapStillFunds() (gas: 1049461)
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 20.25ms (8.19ms CPU time)
+
+Ran 12 tests for src/v4/test/EswapOracleTest.t.sol:EswapOracleTest
+[PASS] test_FutureTimestamp_Reverts() (gas: 66352)
+[PASS] test_OracleMaxAnswer_Reverts() (gas: 116544)
+[PASS] test_OracleMinAnswer_Reverts() (gas: 116487)
+[PASS] test_PerFeedMaxAge_OverridesDefault() (gas: 152157)
+[PASS] test_PerFeedMaxAge_ZeroRestoresDefault() (gas: 127731)
+[PASS] test_SequencerDown_RevertsOnOpen() (gas: 85367)
+[PASS] test_SequencerGracePeriod_RevertsOnOpen() (gas: 65183)
+[PASS] test_SequencerMalformedAnswer_Reverts() (gas: 85135)
+[PASS] test_SequencerUnstarted_Reverts() (gas: 45549)
+[PASS] test_SetMaxOracleAge_Bounds() (gas: 42453)
+[PASS] test_StalePrice_Reverts() (gas: 69151)
+[PASS] test_UncompletedRound_Reverts() (gas: 67634)
+Suite result: ok. 12 passed; 0 failed; 0 skipped; finished in 4.74ms (3.88ms CPU time)
+
+Ran 3 tests for src/v4/test/EswapSecurityTest.t.sol:EswapSecurityTest
+[PASS] test_DirectHookCall_Reverts() (gas: 16961)
+[PASS] test_ERC6909_BalanceCheck() (gas: 610739)
+[PASS] test_UnauthorizedPool_Reverts() (gas: 28381)
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 9.08ms (1.59ms CPU time)
+
+Ran 10 tests for src/v4/test/EswapPairRegistryAndFeesTest.t.sol:EswapPairRegistryAndFeesTest
+[PASS] test_ProtocolFee_DefaultForEveryone() (gas: 662556)
+[PASS] test_ProtocolFee_OnlyOwner() (gas: 11755)
+[PASS] test_ProtocolFee_ResetToZeroFallsBackToDefault() (gas: 30153)
+[PASS] test_ProtocolFee_RevertsAboveCap() (gas: 10840)
+[PASS] test_ProtocolFee_RevertsForZeroAddress() (gas: 11016)
+[PASS] test_ProtocolFee_SpecificAddressGetsSpecificFee() (gas: 687252)
+[PASS] test_RegisterTradingPair_NoRedeploy() (gas: 811793)
+[PASS] test_RegisterTradingPair_OnlyOwner() (gas: 21653)
+[PASS] test_RegisterTradingPair_RevertsForForeignHook() (gas: 21431)
+[PASS] test_RegisterTradingPair_RevertsForMismatchedStandardKey() (gas: 23775)
+Suite result: ok. 10 passed; 0 failed; 0 skipped; finished in 10.42ms (3.87ms CPU time)
+
+Ran 3 tests for src/v4/test/EswapAtomicMarginTest.t.sol:EswapAtomicMarginTest
+[PASS] test_AtomicMarginTrade_Profitable_10xLeverage() (gas: 587488)
+[PASS] test_AtomicMarginTrade_Profitable_5xLeverage() (gas: 587730)
+[PASS] test_AtomicMarginTrade_RevertsWhenUnprofitable() (gas: 552978)
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 25.03ms (5.33ms CPU time)
+
+Ran 7 tests for src/v4/test/EswapPartialLiquidationTest.t.sol:EswapPartialLiquidationTest
+[PASS] test_PartialLiquidate_CloseRemainderAfterPartial() (gas: 983496)
+[PASS] test_PartialLiquidate_HealthyPosition_Reverts() (gas: 822179)
+[PASS] test_PartialLiquidate_InvalidBps_Reverts() (gas: 827750)
+[PASS] test_PartialLiquidate_LiquidatablePosition_RequiresFullLiquidation() (gas: 1104627)
+[PASS] test_PartialLiquidate_MinAmountOut_Enforced() (gas: 957263)
+[PASS] test_PartialLiquidate_OnlyRouter() (gas: 787805)
+[PASS] test_PartialLiquidate_UnhealthyRemainder_Reverts() (gas: 981701)
+Suite result: ok. 7 passed; 0 failed; 0 skipped; finished in 21.09ms (14.33ms CPU time)
+
+Ran 2 tests for src/v4/test/AuditThirdAdversarialPoC.t.sol:AuditThirdAdversarialPoC
+[PASS] test_PoC_Adapter_ThirdPartyForcedOpen_Blocked() (gas: 1185241)
+[PASS] test_PoC_Settlement_ProRataRepayment() (gas: 2404119)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 38.86ms (22.09ms CPU time)
+
+Ran 4 tests for src/v4/test/EswapInsuranceStressTest.t.sol:EswapInsuranceStressTest
+[PASS] test_Insurance_Benign_Liquidation_Accrues() (gas: 900088)
+Logs:
+  L / crashPct / delta: 5
+  10
+  947040000000000000
+
+[PASS] test_Insurance_Grid_AccrualVersusTail() (gas: 4192899)
+Logs:
+  === fund flow by (L, crash%): positive=accrual, negative=draw ===
+  L / crashPct / delta: 2
+  10
+  2178816000000000000
+  L / crashPct / delta: 2
+  30
+  1027968000000000000
+  L / crashPct / delta: 2
+  50
+  115792089237316195423570985008687907853269984665640564039453488007913129639936
+  L / crashPct / delta: 3
+  10
+  1768224000000000000
+  L / crashPct / delta: 3
+  30
+  41952000000000000
+  L / crashPct / delta: 3
+  50
+  115792089237316195423570985008687907853269984665640564039401440007913129639936
+  L / crashPct / delta: 5
+  10
+  947040000000000000
+  L / crashPct / delta: 5
+  30
+  115792089237316195423570985008687907853269984665640564039393248007913129639936
+  L / crashPct / delta: 5
+  50
+  115792089237316195423570985008687907853269984665640564039297344007913129639936
+
+[PASS] test_Insurance_MinSeed_Cascade_Liveness() (gas: 3928962)
+Logs:
+  minSeed (5x5x@50%, margin 100e each): 801200000000000000000
+
+[PASS] test_Insurance_SeedingCoversTails() (gas: 1284628)
+Logs:
+  tailNeed(50% gap): 160240000000000000000
+  accrued from benign: 947040000000000000
+  residual seeded by governance: 159292960000000000000
+
+Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 107.90ms (99.48ms CPU time)
+
+Ran 7 tests for src/v4/test/EswapPositionLifecycleTest.t.sol:EswapPositionLifecycleTest
+[PASS] test_ClosePosition_Full_PnLToTrader() (gas: 740089)
+[PASS] test_ClosePosition_Loss_RepaysBorrowWithInsuranceFund() (gas: 784731)
+[PASS] test_ClosePosition_SlippageFloorOnNetProceeds() (gas: 879819)
+[PASS] test_ClosePosition_SlippageRevert_BelowMinOut() (gas: 762758)
+[PASS] test_InsuranceFund_MaxInt128Accepted() (gas: 84676)
+[PASS] test_InsuranceFund_OverflowReverts() (gas: 59621)
+[PASS] test_OpenPosition_SlippageRevert_BelowMinOut() (gas: 109019)
+Suite result: ok. 7 passed; 0 failed; 0 skipped; finished in 14.19ms (8.18ms CPU time)
+
+Ran 30 tests for src/v4/test/EswapTradingScenariosTest.t.sol:EswapTradingScenariosTest
+[PASS] test_Long_1x_Lose() (gas: 581120)
+[PASS] test_Long_1x_NotLiquidatable() (gas: 580522)
+[PASS] test_Long_1x_Win() (gas: 581069)
+[PASS] test_Long_2x_Liquidated() (gas: 996114)
+[PASS] test_Long_2x_Lose() (gas: 696591)
+[PASS] test_Long_2x_Win() (gas: 696317)
+[PASS] test_Long_3x_Liquidated() (gas: 996805)
+[PASS] test_Long_3x_Lose() (gas: 696270)
+[PASS] test_Long_3x_Win() (gas: 697164)
+[PASS] test_Long_4x_Liquidated() (gas: 996409)
+[PASS] test_Long_4x_Lose() (gas: 696952)
+[PASS] test_Long_4x_Win() (gas: 696943)
+[PASS] test_Long_5x_Liquidated() (gas: 996497)
+[PASS] test_Long_5x_Lose() (gas: 696336)
+[PASS] test_Long_5x_Win() (gas: 696899)
+[PASS] test_Short_1x_Lose() (gas: 581100)
+[PASS] test_Short_1x_NotLiquidatable() (gas: 580804)
+[PASS] test_Short_1x_Win() (gas: 581743)
+[PASS] test_Short_2x_Liquidated() (gas: 997903)
+[PASS] test_Short_2x_Lose() (gas: 696701)
+[PASS] test_Short_2x_Win() (gas: 697670)
+[PASS] test_Short_3x_Liquidated() (gas: 997947)
+[PASS] test_Short_3x_Lose() (gas: 696570)
+[PASS] test_Short_3x_Win() (gas: 696736)
+[PASS] test_Short_4x_Liquidated() (gas: 997001)
+[PASS] test_Short_4x_Lose() (gas: 697273)
+[PASS] test_Short_4x_Win() (gas: 697440)
+[PASS] test_Short_5x_Liquidated() (gas: 997595)
+[PASS] test_Short_5x_Lose() (gas: 696613)
+[PASS] test_Short_5x_Win() (gas: 697022)
+Suite result: ok. 30 passed; 0 failed; 0 skipped; finished in 60.44ms (52.49ms CPU time)
+
+Ran 3 tests for src/v4/test/AuditThirdAdversarialPoC.t.sol:AuditThirdJITDrainPoC
+[PASS] test_PoC_JIT_AboveCeiling_Reverts() (gas: 259512)
+[PASS] test_PoC_JIT_FairFill_Succeeds() (gas: 614705)
+[PASS] test_PoC_JIT_UnsetFeed_Reverts() (gas: 44193)
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 17.69ms (2.89ms CPU time)
+
+Ran 1 test for src/v4/test/EswapInsuranceTest.t.sol:EswapInsuranceTest
+[PASS] test_InsuranceFundBadDebtCoverage() (gas: 35021)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 4.90ms (131.00µs CPU time)
+
+Ran 4 tests for src/v4/test/EswapQuoterTest.t.sol:EswapQuoterTest
+[PASS] test_QuoteIsStaticCall_NoStateChange() (gas: 33397)
+[PASS] test_QuoteMatchesExecution_ZeroDeviation() (gas: 34354)
+[PASS] test_QuoteZeroOutput_InvalidLeverage() (gas: 14975)
+[PASS] test_QuoteZeroOutput_ZeroAmount() (gas: 13261)
+Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 6.33ms (624.80µs CPU time)
+
+Ran 3 tests for src/v4/test/EswapTransientTest.t.sol:EswapTransientTest
+[PASS] test_DeltaSettlement_ZeroBalance() (gas: 603190)
+[PASS] test_Reentrancy_BeforeSwap_Reverts() (gas: 82169)
+[PASS] test_TStore_ClearedAfterAfterSwap() (gas: 603562)
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 6.69ms (2.17ms CPU time)
+
+Ran 4 tests for src/v4/test/EswapRealPM_OpenNettingTest.t.sol:EswapRealPM_OpenNettingTest
+[PASS] test_RealPM_ExecutorSwapFor_RecordsTraderPosition() (gas: 960205)
+[PASS] test_RealPM_MultiPool_Deltas_DoNotNet() (gas: 673967)
+[PASS] test_RealPM_RouterOpen_SucceedsAfterFixes() (gas: 927851)
+[PASS] test_RealPM_SinglePool_Inline_NetsDeltas() (gas: 609726)
+Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 20.21ms (8.31ms CPU time)
+
+Ran 3 tests for src/v4/test/EswapInsuranceYieldTest.t.sol:EswapInsuranceYieldTest
+[PASS] test_FeesFromStandardPoolSwapReturnToInsurance() (gas: 1399972)
+[PASS] test_StakeUnstakeFullCycle_PreservesInsurance() (gas: 619751)
+[PASS] test_StakingIsOwnerGated() (gas: 224661)
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 21.22ms (8.68ms CPU time)
+
+Ran 10 tests for src/v4/test/EswapRealPoolManagerLifecycleTest.t.sol:EswapRealPoolManagerLifecycleTest
+[PASS] test_HookAddress_IsValidForRealPoolManager() (gas: 8012)
+[PASS] test_Hook_ConstructorFlagsPresent() (gas: 12194)
+[PASS] test_MarginPath_AfterSwap_SwapperPerspective_SignFix() (gas: 953238)
+[PASS] test_MarginPath_MatchesRealV4AbiEncoding() (gas: 87443)
+[PASS] test_RealPM_HookAddress_IsValid() (gas: 7858)
+[PASS] test_RealPM_MarginPath_MatchesRealV4AbiEncoding() (gas: 87641)
+[FAIL: assertion failed] test_RealPM_Slot0_ReadsRealPoolState() (gas: 200864)
+[FAIL: NotAuthorizedPool()] test_RealPM_TwapBreaker_Passes() (gas: 313418)
+[FAIL: NotAuthorizedPool()] test_RealPM_TwapBreaker_Passes_RegardlessOfPoolInitSpot() (gas: 313353)
+[FAIL: assertion failed] test_RealPoolManager_InitializeAndMarginOpen() (gas: 200974)
+Suite result: FAILED. 6 passed; 4 failed; 0 skipped; finished in 17.52ms (6.98ms CPU time)
+
+Ran 4 tests for src/v4/test/EswapCapStressTest.t.sol:EswapCapStressTest
+[PASS] test_Stress_2xBook_LegacyCap_DeploysOnly30pctOfTvl() (gas: 4973824)
+[PASS] test_Stress_MixedPortfolio_AnalyticHeadroomExact() (gas: 6582404)
+[PASS] test_Stress_Preset_SingleCapBoundaryExact() (gas: 882581)
+[PASS] test_Stress_RecommendedPreset_AcceptsRealisticPortfolio() (gas: 15308865)
+Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 198.49ms (187.14ms CPU time)
+
+Ran 20 tests for src/v4/test/EswapIntentSolverTest.t.sol:EswapIntentSolverTest
+[PASS] test_CowSolverFunded_EscrowIsPerFillNotReusable() (gas: 1154806)
+[PASS] test_CowSolverFunded_EscrowSolver_RespectsNotionalCap() (gas: 233369)
+[PASS] test_CowSolverFunded_Unwhitelisted_FullyCollateralised_Opens() (gas: 1128564)
+[PASS] test_CowSolverFunded_Unwhitelisted_NoEscrow_Reverts() (gas: 126996)
+[PASS] test_CowSolverFunded_Unwhitelisted_UnderCollateralised_Reverts() (gas: 205274)
+[PASS] test_CowSolverFunded_Whitelisted_StillWorksWithoutEscrow() (gas: 1138917)
+[PASS] test_Erc20BorrowEscrow_DepositWithdraw_RoundTrip() (gas: 111715)
+[PASS] test_IntentSolver_Erc20EscrowFundsBorrow() (gas: 1173909)
+[PASS] test_IntentSolver_ExpiredReverts() (gas: 41184)
+[PASS] test_IntentSolver_InvalidSignatureReverts() (gas: 49081)
+[PASS] test_IntentSolver_NotionalCap_Enforced() (gas: 101608)
+[PASS] test_IntentSolver_NotionalCap_ZeroUnlimited() (gas: 1162880)
+[PASS] test_IntentSolver_RelayerCantLoosenSignedMinAmountOut() (gas: 43216)
+[PASS] test_IntentSolver_ReplayReverts() (gas: 1190121)
+[PASS] test_IntentSolver_UnwhitelistedSolver_OpensPosition() (gas: 1163297)
+[PASS] test_IntentSolver_WhitelistedSolver_StillAuthorizesViaIntent() (gas: 1182390)
+[PASS] test_IntentSolver_WrongDirectionReverts() (gas: 43293)
+[PASS] test_IntentSolver_WrongLeverageReverts() (gas: 43705)
+[PASS] test_IntentSolver_WrongSolverReverts() (gas: 43528)
+[PASS] test_Intentsolver_Erc20Escrow_TopUpFromTransferFrom() (gas: 1168406)
+Suite result: ok. 20 passed; 0 failed; 0 skipped; finished in 42.01ms (35.53ms CPU time)
+
+Ran 18 tests for src/v4/test/EswapTriggerOrderTest.t.sol:EswapTriggerOrderTest
+[PASS] test_TriggerOrder_Arm_ExpiredReverts() (gas: 1325274)
+[PASS] test_TriggerOrder_Arm_InvalidSignatureReverts() (gas: 1330139)
+[PASS] test_TriggerOrder_Arm_OnlyTraderSignature() (gas: 1332315)
+[PASS] test_TriggerOrder_Arm_PoolMismatchReverts() (gas: 1325537)
+[PASS] test_TriggerOrder_Arm_StoresSignedOrder() (gas: 1472203)
+[PASS] test_TriggerOrder_Cancel_ByTrader() (gas: 1366982)
+[PASS] test_TriggerOrder_Cancel_UnauthorizedReverts() (gas: 1475229)
+[PASS] test_TriggerOrder_Execute_AboveTrigger() (gas: 1559070)
+[PASS] test_TriggerOrder_Execute_BelowTrigger() (gas: 1534384)
+[PASS] test_TriggerOrder_ExecutesEvenWhenLiquidatable() (gas: 1568312)
+[PASS] test_TriggerOrder_Expired_Reverts() (gas: 1524512)
+[PASS] test_TriggerOrder_Liquidatable_NotHitStillReverts() (gas: 1558772)
+[PASS] test_TriggerOrder_MinAmountOutEnforced() (gas: 1630783)
+[PASS] test_TriggerOrder_NoArmedOrder_Reverts() (gas: 1339267)
+[PASS] test_TriggerOrder_NoPosition_Reverts() (gas: 251103)
+[PASS] test_TriggerOrder_NotHit_RevertsAndStaysArmed() (gas: 1547761)
+[PASS] test_TriggerOrder_PriceFeedNotSet_Reverts() (gas: 1531109)
+[PASS] test_TriggerOrder_Replay_Reverts() (gas: 1659725)
+Suite result: ok. 18 passed; 0 failed; 0 skipped; finished in 75.78ms (64.09ms CPU time)
+
+Ran 1 test for src/v4/test/EswapRebalanceTest.t.sol:EswapRebalanceTest
+[PASS] test_AutomatedRebalancing() (gas: 765475)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 6.16ms (1.74ms CPU time)
+
+Ran 11 tests for src/v4/test/EswapTwapCircuitBreakerTest.t.sol:EswapTwapCircuitBreakerTest
+[PASS] test_Guard_AccountingOnly_RequireTwapOracle_Passes() (gas: 124478)
+[PASS] test_Guard_BlocksSwap_TamperedStandardPoolSlot0() (gas: 253780)
+[PASS] test_Guard_BlocksSwap_TamperedStandardPoolSlot0_NoDecimalsConfig() (gas: 201838)
+[PASS] test_Guard_BlocksSwap_TwapNotConfiguredDefault() (gas: 69098)
+[PASS] test_Guard_Passes_ExtremeHighPrice_6000Usd() (gas: 76827)
+[PASS] test_Guard_Passes_ExtremeLowPrice_600Usd() (gas: 77113)
+[PASS] test_Guard_Passes_HonestOracle_NoDecimalsConfig() (gas: 69208)
+[PASS] test_Guard_Passes_HonestOracle_WithDecimalsConfig() (gas: 131019)
+[PASS] test_Guard_Passes_OnChainPoolSpotManipulation() (gas: 141442)
+[PASS] test_Guard_Passes_RealStandardPoolSlot0_HonestPrice() (gas: 258932)
+[PASS] test_Guard_StandardPoolUninitialized_RequireTwapOracle_Reverts() (gas: 231087)
+Suite result: ok. 11 passed; 0 failed; 0 skipped; finished in 8.31ms (3.90ms CPU time)
+
+Ran 4 tests for src/v4/test/EswapLiquidatorIncentiveTest.t.sol:EswapLiquidatorIncentiveTest
+[PASS] test_LiquidatorIncentive_DefaultDisabled_PaysFlooredBounty() (gas: 987382)
+[PASS] test_LiquidatorIncentive_Enabled_FullLiquidation() (gas: 1007451)
+[PASS] test_LiquidatorIncentive_PartialLiquidation_UnhealthyRemainder_Reverts() (gas: 1089646)
+[PASS] test_LiquidatorIncentive_Setter_OnlyOwner_And_Cap() (gas: 67530)
+Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 9.82ms (4.39ms CPU time)
+
+Ran 3 tests for src/v4/test/EswapURCTest.t.sol:EswapURCTest
+[FAIL: expected exactly one HookSwap log: 3 != 1] test_URC2_HookSwapEvent() (gas: 607721)
+[PASS] test_URC3_TVLReporting() (gas: 608057)
+[PASS] test_URC4_IndicativeQuote() (gas: 26488)
+Suite result: FAILED. 2 passed; 1 failed; 0 skipped; finished in 6.04ms (1.70ms CPU time)
+
+Ran 2 tests for src/v4/test/EswapLogicTest.t.sol:EswapLogicTest
+[PASS] test_Trade_1x_Long() (gas: 493134)
+[PASS] test_Trade_5x_Short() (gas: 605557)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 6.06ms (1.41ms CPU time)
+
+Ran 7 tests for src/v4/test/EswapSepoliaDomainCompatTest.t.sol:EswapSepoliaDomainCompatTest
+[PASS] test_RealSepolia_CanonicalCoWDeployment_Present() (gas: 14056)
+Logs:
+  GPv2Settlement code bytes: 16165
+
+[PASS] test_RealSepolia_DomainSeparator_MatchesCanonicalVector() (gas: 17223)
+Logs:
+  Real Sepolia domain separator: 0xdaee378bd0eb30ddf479272accf91761e697bc00e067a268f95f1d2732ed230b
+
+[PASS] test_RealSepolia_Eip712Sign_RecoversOnRealDomain() (gas: 32021)
+Logs:
+  recovered owner (real Sepolia CoW domain): 0xe05fcC23807536bEe418f142D19fa0d21BB0cfF7
+
+[PASS] test_RealSepolia_LiveCowContract_DomainSeparator_Matches() (gas: 18100)
+Logs:
+  LIVE CoW domainSeparator(): 0xdaee378bd0eb30ddf479272accf91761e697bc00e067a268f95f1d2732ed230b
+
+[PASS] test_RealSepolia_OrderDigest_MatchesCanonicalVector() (gas: 17818)
+Logs:
+  Real Sepolia order digest: 0x5a5d9a273a567a00d2163070db4c06d9d82db60d370b54fc758ca9c51fd5c9a4
+
+[PASS] test_RealSepolia_Uid_MatchesCanonicalShape() (gas: 22397)
+[PASS] test_UnichainSepolia_Domain_FormulaMatchesLiveStackAnchor() (gas: 7447)
+Logs:
+  Unichain Sepolia (live stack) domain: 0xd815a6a99cfa28a883bf8ae6aaf9be04a42464a978185a0b68ebf99e9b932384
+
+Suite result: ok. 7 passed; 0 failed; 0 skipped; finished in 517.19ms (76.51ms CPU time)
+
+Ran 8 tests for src/v4/test/EswapEdgeCaseTest.t.sol:EswapEdgeCaseTest
+[PASS] test_EmptyData_ExternalCaller_Reverts() (gas: 25272)
+[PASS] test_MaxLeverage_Reverts() (gas: 33871)
+[PASS] test_MinCollateralUsdOverride_AllowsMicroMargin() (gas: 518254)
+[PASS] test_MinCollateralUsdOverride_BelowFloor_Reverts() (gas: 74733)
+[PASS] test_MinCollateralUsdOverride_ZeroRestoresLegacyFloor() (gas: 54148)
+[PASS] test_MinLeverage_Works() (gas: 492808)
+[PASS] test_ZeroCollateral_Reverts() (gas: 44546)
+[PASS] test_ZeroLeverage_Reverts() (gas: 28488)
+Suite result: ok. 8 passed; 0 failed; 0 skipped; finished in 5.82ms (1.66ms CPU time)
+
+Ran 5 tests for src/v4/test/EswapEmergencyPauseTest.t.sol:EswapEmergencyPauseTest
+[PASS] test_Pause_BlocksMultiPoolSwap() (gas: 332310)
+[PASS] test_Pause_OnlyOwner() (gas: 20592)
+[PASS] test_Pause_ReToggleDoesNotExtendExpiry() (gas: 1090111)
+[PASS] test_Pause_Toggle() (gas: 53625)
+[PASS] test_Pause_UnpauseRestoresTrading() (gas: 1282341)
+Suite result: ok. 5 passed; 0 failed; 0 skipped; finished in 11.10ms (4.85ms CPU time)
+
+Ran 5 tests for src/v4/test/EswapExitOracleIndependenceTest.t.sol:EswapExitOracleIndependenceTest
+[PASS] test_Close_Succeeds_WhenOracleReturnsManipulatedPrice() (gas: 737130)
+[PASS] test_Close_Succeeds_WhenOracleUnavailable() (gas: 757292)
+[FAIL: Error != expected error: PositionNotLiquidatable() != FeedUnavailable()] test_Liquidation_Reverts_WhenOracleUnavailable() (gas: 659682)
+[PASS] test_Liquidation_Succeeds_WhenOracleHealthy() (gas: 842725)
+[PASS] test_Open_Reverts_WhenOracleUnavailable() (gas: 72652)
+Suite result: FAILED. 4 passed; 1 failed; 0 skipped; finished in 13.34ms (9.17ms CPU time)
+
+Ran 2 tests for src/v4/test/EswapMainnet0xFullCycleForkTest.t.sol:EswapMainnet0xFullCycleForkTest
+[PASS] test_Mainnet0x_FullCycle_AggregatorOpen_ThenClose() (gas: 1125893)
+Logs:
+  forked Ethereum mainnet (1): PM 0x000000000004444c5dc75cB358380D2e3dE08A90
+  [step] hook deploy
+  [step] router deploy
+  [step] wiring
+  [step] init hook pool
+  [step] pool wiring
+  [step] seed pools
+  [step] pipeline contracts
+
+[PASS] test_Mainnet0x_RouterDeployedAtQuoteTakerAndWhitelisted() (gas: 14028)
+Logs:
+  forked Ethereum mainnet (1): PM 0x000000000004444c5dc75cB358380D2e3dE08A90
+  [step] hook deploy
+  [step] router deploy
+  [step] wiring
+  [step] init hook pool
+  [step] pool wiring
+  [step] seed pools
+  [step] pipeline contracts
+
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 425.30ms (185.93ms CPU time)
+
+Ran 4 tests for src/v4/test/EswapBaseEnsoFullCycleForkTest.t.sol:EswapBaseEnsoFullCycleForkTest
+[PASS] test_BaseEnso_FullCycle_AggregatorOpen_ThenClose() (gas: 1225397)
+Logs:
+  forked Base (8453): PM 0x498581fF718922c3f8e6A244956aF099B2652b2b
+  [step] hook deploy
+  [step] router deploy
+  [step] wiring
+  [step] init hook pool
+  [step] pool wiring
+  [step] seed pools
+  [step] pipeline contracts
+
+[PASS] test_BaseEnso_RouterDeployedAtQuoteTakerAndWhitelisted() (gas: 13869)
+Logs:
+  forked Base (8453): PM 0x498581fF718922c3f8e6A244956aF099B2652b2b
+  [step] hook deploy
+  [step] router deploy
+  [step] wiring
+  [step] init hook pool
+  [step] pool wiring
+  [step] seed pools
+  [step] pipeline contracts
+
+[PASS] test_FeeWithdrawable_AfterFullCycle() (gas: 1300746)
+Logs:
+  forked Base (8453): PM 0x498581fF718922c3f8e6A244956aF099B2652b2b
+  [step] hook deploy
+  [step] router deploy
+  [step] wiring
+  [step] init hook pool
+  [step] pool wiring
+  [step] seed pools
+  [step] pipeline contracts
+
+[PASS] test_Moat_SolverFundsBorrow_ProtocolHoldsZeroCapital() (gas: 1173647)
+Logs:
+  forked Base (8453): PM 0x498581fF718922c3f8e6A244956aF099B2652b2b
+  [step] hook deploy
+  [step] router deploy
+  [step] wiring
+  [step] init hook pool
+  [step] pool wiring
+  [step] seed pools
+  [step] pipeline contracts
+
+Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 1.10s (663.50ms CPU time)
+
+Ran 3 tests for src/v4/test/EswapMainnetEnsoFullCycleForkTest.t.sol:EswapMainnetEnsoFullCycleForkTest
+[PASS] test_MainnetEnso_FullCycle_AggregatorOpen_ThenClose() (gas: 1145853)
+Logs:
+  forked Ethereum mainnet (1): PM 0x000000000004444c5dc75cB358380D2e3dE08A90
+  [step] hook deploy
+  [step] router deploy
+  [step] wiring
+  [step] init hook pool
+  [step] pool wiring
+  [step] seed pools
+  [step] pipeline contracts
+
+[PASS] test_MainnetEnso_RouterDeployedAtQuoteTakerAndWhitelisted() (gas: 13868)
+Logs:
+  forked Ethereum mainnet (1): PM 0x000000000004444c5dc75cB358380D2e3dE08A90
+  [step] hook deploy
+  [step] router deploy
+  [step] wiring
+  [step] init hook pool
+  [step] pool wiring
+  [step] seed pools
+  [step] pipeline contracts
+
+[PASS] test_Moat_SolverFundsBorrow_ProtocolHoldsZeroCapital() (gas: 1176304)
+Logs:
+  forked Ethereum mainnet (1): PM 0x000000000004444c5dc75cB358380D2e3dE08A90
+  [step] hook deploy
+  [step] router deploy
+  [step] wiring
+  [step] init hook pool
+  [step] pool wiring
+  [step] seed pools
+  [step] pipeline contracts
+
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 478.74ms (210.49ms CPU time)
+
+Ran 8 tests for src/v4/test/EswapChainlinkForkTest.t.sol:EswapChainlinkForkTest
+[PASS] test_AddPairScript_HardcodedDecimals_CF2() (gas: 5962)
+Logs:
+  CF-2: feed already 18-dec on this chain; hazard N/A
+
+[PASS] test_AnswerBounds_CircuitBreaker() (gas: 87708)
+[PASS] test_GetAmountInUsd_CrossDecimalScale_CF1() (gas: 44988)
+Logs:
+  feed near-stale at fork block; skipping cross-decimal test
+
+[PASS] test_RealFeeds_RegistrationState() (gas: 29396)
+[PASS] test_SequencerUptime_Gating() (gas: 251323)
+[PASS] test_Staleness_1h_Reverts() (gas: 24339)
+Logs:
+  feed already near-stale at fork block; skipping staleness test
+
+[PASS] test_TwapPrices_TrackLiveMarket() (gas: 2742)
+[PASS] test_UnregisteredToken_ReturnsZero() (gas: 17762)
+Suite result: ok. 8 passed; 0 failed; 0 skipped; finished in 1.18s (253.20ms CPU time)
+
+Ran 29 tests for src/v4/test/EswapCoWSettlementTest.t.sol:EswapCoWSettlementTest
+[PASS] test_AppDataLeverageCommitment_MatchesOffchainMirror() (gas: 119975)
+[PASS] test_DomainSeparator_MatchesCoWEip712Domain() (gas: 1862683)
+[PASS] test_FillOrders_BatchIsolation_FailedOrderSkipped() (gas: 2262223)
+[PASS] test_Fill_AppDataWithoutLeverageCommitment_Reverts() (gas: 75870)
+[PASS] test_Fill_BalanceNotErc20_Reverts() (gas: 43449)
+[PASS] test_Fill_Batch_ThreeOrders() (gas: 2250481)
+[PASS] test_Fill_CommittedLeverageMismatch_Reverts() (gas: 78158)
+[PASS] test_Fill_Eip1271() (gas: 1175708)
+[PASS] test_Fill_Eip712_OpensPositionAtCommittedLeverage() (gas: 1095034)
+[PASS] test_Fill_Eip712_OpensPositionUnderOwner_SolverFundsMargin() (gas: 1105155)
+[PASS] test_Fill_EmitsOrderFilled() (gas: 1093679)
+[PASS] test_Fill_EthSign() (gas: 1091694)
+[PASS] test_Fill_Expired_Reverts() (gas: 43942)
+[PASS] test_Fill_FeeNotSupported_Reverts() (gas: 43486)
+[PASS] test_Fill_InvalidSignature_Reverts() (gas: 42984)
+[PASS] test_Fill_OwnerFundedMargin_DoesNotConsumeSolverMargin() (gas: 1144392)
+[PASS] test_Fill_PartiallyFillable_Reverts() (gas: 43783)
+[PASS] test_Fill_PreSign() (gas: 1114884)
+[PASS] test_Fill_PreSign_NotSigned_Reverts() (gas: 46687)
+[PASS] test_Fill_ReceiverMismatch_Reverts() (gas: 52361)
+[PASS] test_Fill_RejectsThirdPartyFiller() (gas: 76631)
+[PASS] test_Fill_Replay_Reverts() (gas: 1103492)
+[PASS] test_Fill_TokenMismatch_Reverts() (gas: 73661)
+[PASS] test_Fill_WrongKind_Reverts() (gas: 44061)
+[PASS] test_Fill_ZeroMargin_Reverts() (gas: 71460)
+[PASS] test_Fill_ZeroSolver_Reverts() (gas: 71840)
+[PASS] test_OrderHash_MatchesEip712Spec() (gas: 18447)
+[PASS] test_UidOf_MatchesPackedConcat() (gas: 27052)
+[PASS] test_Verify_RecoversOwner() (gas: 37059)
+Suite result: ok. 29 passed; 0 failed; 0 skipped; finished in 102.78ms (93.83ms CPU time)
+
+Ran 1 test for src/v4/test/EswapE2ETest.t.sol:EswapE2ETest
+[PASS] test_EndToEnd_MarginTrade_Success() (gas: 782502)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 9.57ms (2.91ms CPU time)
+
+Ran 3 tests for src/v4/test/EswapERC7683Test.t.sol:EswapERC7683Test
+[PASS] test_ERC7683_Initiate_SlippageRevertsZeroPosition() (gas: 257649)
+[PASS] test_ERC7683_OrderInitiation_WithSignature() (gas: 1219466)
+[PASS] test_ERC7683_OrderResolution() (gas: 34084)
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 16.71ms (8.36ms CPU time)
+
+Ran 10 tests for src/v4/test/EswapJITSpotTest.t.sol:EswapJITSpotTest
+[PASS] test_JITSpotExecution_BypassesAMM() (gas: 418902)
+[PASS] test_JITSpot_AcceptsFillAtOrAboveOracleFloor() (gas: 487734)
+[PASS] test_JITSpot_FloorArmedByDefault() (gas: 56605)
+[PASS] test_JITSpot_NativeInput_InsufficientValueReverts() (gas: 258588)
+[PASS] test_JITSpot_NativeInput_RefundsSurplus() (gas: 449914)
+[PASS] test_JITSpot_NativeInput_SettlesViaMsgValue() (gas: 446412)
+[PASS] test_JITSpot_NativeOutput_RevertsExplicitly() (gas: 70442)
+[PASS] test_JITSpot_OnlyCalledBySwapper() (gas: 23034)
+[PASS] test_JITSpot_RejectsFillBelowOracleFloor() (gas: 137480)
+[PASS] test_SetJitOracleFloorLeniencyBps_RejectsAbove1000() (gas: 11171)
+Suite result: ok. 10 passed; 0 failed; 0 skipped; finished in 15.66ms (7.16ms CPU time)
+
+Ran 20 tests for src/v4/test/EswapLeverageAdapterTest.t.sol:EswapLeverageAdapterTest
+[PASS] test_Adapter_BackupSolver_OnlyOwner_And_Zero() (gas: 20532)
+[FAIL: ExecutorNotApproved(0x6CA6d1e2D5347Bfab1d91e883F1915560e09129D, 0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496)] test_Adapter_FallsBackToBackupSolverWhenDefaultUnwhitelisted() (gas: 194996)
+[PASS] test_Adapter_GetPoolKey() (gas: 28623)
+[FAIL: ExecutorNotApproved(0x6CA6d1e2D5347Bfab1d91e883F1915560e09129D, 0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496)] test_Adapter_LeveragedSwap() (gas: 65750)
+[FAIL: ExecutorNotApproved(0x6CA6d1e2D5347Bfab1d91e883F1915560e09129D, 0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496)] test_Adapter_LeveragedSwap_2x() (gas: 65504)
+[PASS] test_Adapter_Multicall_AllowsSelfPermit() (gas: 188137)
+[FAIL: Error != expected error: ExecutorNotApproved(0x6CA6d1e2D5347Bfab1d91e883F1915560e09129D, 0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496) != PoolNotRegistered(0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9, 0xF62849F9A0B5Bf2913b396098F7c7019b51A820a, 3000)] test_Adapter_Multicall_AllowsSwapEntryPoints() (gas: 22318)
+[PASS] test_Adapter_Multicall_RejectsNonSwapSelectors() (gas: 17847)
+[PASS] test_Adapter_Multicall_RejectsOwnerActions() (gas: 32878)
+[FAIL: Error != expected error: ExecutorNotApproved(0x6CA6d1e2D5347Bfab1d91e883F1915560e09129D, 0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496) != Solver required for leverage] test_Adapter_NoSolverConfigured_RouterReverts() (gas: 84880)
+[PASS] test_Adapter_OnlyOwner_RegisterPool() (gas: 19155)
+[PASS] test_Adapter_OnlyOwner_SetDefaultSolver() (gas: 16436)
+[FAIL: Error != expected error: ExecutorNotApproved(0x6CA6d1e2D5347Bfab1d91e883F1915560e09129D, 0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496) != PoolNotRegistered(0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9, 0xF62849F9A0B5Bf2913b396098F7c7019b51A820a, 3000)] test_Adapter_PoolNotRegistered_Reverts() (gas: 18852)
+[FAIL: Error != expected error: ExecutorNotApproved(0x6CA6d1e2D5347Bfab1d91e883F1915560e09129D, 0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496) != SwapOutputBelowMinimum(48000000000000000000 [4.8e19], 49000000000000000000 [4.9e19])] test_Adapter_SlippageGuard_Reverts() (gas: 68914)
+[PASS] test_Adapter_ZeroRecipient_Reverts() (gas: 13966)
+[PASS] test_Adapter_ZeroSolver_Reverts() (gas: 11682)
+[PASS] test_Quoter_ExactInputSingleWithLeverage() (gas: 45553)
+[PASS] test_Quoter_GetPoolKey() (gas: 27893)
+[PASS] test_Quoter_OnlyOwner_RegisterPool() (gas: 32633)
+[PASS] test_Quoter_PoolNotRegistered_Reverts() (gas: 16487)
+Suite result: FAILED. 13 passed; 7 failed; 0 skipped; finished in 34.12ms (18.90ms CPU time)
+
+Ran 7 tests for src/v4/test/EswapLeverageTest.t.sol:EswapLeverageTest
+[PASS] test_ERC6909_Backing_ExactWei() (gas: 628088)
+[PASS] test_Leverage_10x_Reverts() (gas: 34418)
+[PASS] test_Leverage_1x_Succeeds() (gas: 492517)
+[PASS] test_Leverage_2x_Succeeds() (gas: 605149)
+[PASS] test_Leverage_5x_Succeeds() (gas: 605103)
+[PASS] test_Leverage_6x_BoundaryReverts() (gas: 34301)
+[PASS] test_MinCollateral_Floor_Reverts() (gas: 44457)
+Suite result: ok. 7 passed; 0 failed; 0 skipped; finished in 11.76ms (5.61ms CPU time)
+
+Ran 10 tests for src/v4/test/EswapLiquidationKeeperTest.t.sol:EswapLiquidationKeeperTest
+[PASS] test_Keeper_BandedPosition_Liquidation_PassesWithPhysicalQuote() (gas: 1380904)
+[PASS] test_Keeper_CheckData_OffChainCandidates() (gas: 867014)
+[PASS] test_Keeper_LiquidateAll_Permissionless() (gas: 1122652)
+[PASS] test_Keeper_MaxWatches_Cap() (gas: 23496429)
+[PASS] test_Keeper_NoLiquidatablePositions_Reverts() (gas: 975793)
+[PASS] test_Keeper_OnlyOwner_CanAddWatch() (gas: 160184)
+[PASS] test_Keeper_QuoteUsesPhysicalCollateralForBandedPosition() (gas: 929922)
+[PASS] test_Keeper_Race_DoubleLiquidate_SecondWins() (gas: 1127146)
+[FAIL: liquidator is not paid; reward goes to insurance: 50000000000000000 != 0] test_Keeper_WatchList_Automation() (gas: 1339963)
+[PASS] test_Keeper_Watch_Persists_After_Liquidation() (gas: 1107950)
+Suite result: FAILED. 9 passed; 1 failed; 0 skipped; finished in 72.37ms (63.43ms CPU time)
+
+Ran 1 test for src/v4/test/EswapLiquidationTest.t.sol:EswapLiquidationTest
+[PASS] test_TruncatedOracle_PriceCapping() (gas: 662875)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 11.35ms (978.80µs CPU time)
+
+Ran 14 tests for src/v4/test/EswapSettlementTest.t.sol:EswapSettlementTest
+[PASS] test_ClaimRepayment_CannotDrainAnotherOrdersRepayment() (gas: 2199699)
+[PASS] test_ClaimRepayment_FillerRecoversBorrowPrincipal() (gas: 1372579)
+[PASS] test_ClaimRepayment_OnlyFiller() (gas: 1350908)
+[PASS] test_ClaimRepayment_ReopenDoesNotBlockEarlierClaim() (gas: 2105537)
+[PASS] test_ClaimRepayment_RevertsWhilePositionOpen() (gas: 1323550)
+[PASS] test_Close_RecipientReceivesProceedsDirectly() (gas: 1365098)
+[PASS] test_Fill_EmitsEvent() (gas: 1316240)
+[PASS] test_Fill_LowLeverage() (gas: 1317450)
+[PASS] test_Fill_OpensPosition() (gas: 1318844)
+[PASS] test_Fill_SlippageRevertsAboveOutput() (gas: 304047)
+[PASS] test_Fill_UnlistedSettlementFundsBorrowFromOwnEscrow() (gas: 2603608)
+[PASS] test_InsuranceCoverageBps_DefaultsToFullAndIsOwnerAdjustable() (gas: 25223)
+[PASS] test_RescueToken() (gas: 57596)
+[PASS] test_RescueToken_OnlyOwner() (gas: 18784)
+Suite result: ok. 14 passed; 0 failed; 0 skipped; finished in 62.12ms (52.60ms CPU time)
+
+Ran 6 tests for src/v4/test/EswapSmartCollateralTest.t.sol:EswapSmartCollateralTest
+[PASS] test_ModifyLiquidityDelta_Netting_NegativeSettledOnDeploy() (gas: 902141)
+[PASS] test_ModifyLiquidityDelta_Netting_PositiveTakenOnClose() (gas: 999245)
+[PASS] test_RehypothecationYield_NoSolver_ReturnsToTrader() (gas: 915362)
+[PASS] test_RehypothecationYield_OutOfRange_NoLeakToSolver() (gas: 1050799)
+[PASS] test_RehypothecationYield_PaidToSolverOnClose() (gas: 1110552)
+[PASS] test_SmartCollateral_Rehypothecation() (gas: 806568)
+Suite result: ok. 6 passed; 0 failed; 0 skipped; finished in 26.30ms (20.19ms CPU time)
+
+Ran 5 tests for src/v4/test/EswapSolvencyTest.t.sol:EswapSolvencyTest
+[FAIL: UnwindBelowOracleFloor(300000000000000000 [3e17], 455544000000000000 [4.555e17])] test_BadDebt_CoveredByInsurance() (gas: 1004400)
+[FAIL: UnwindBelowOracleFloor(300000000000000000 [3e17], 455544000000000000 [4.555e17])] test_BadDebt_RecordedWhenInsuranceInsufficient() (gas: 941377)
+[PASS] test_HealthFactor_Above1_NotLiquidatable() (gas: 86363)
+[PASS] test_HealthFactor_Below1_Liquidatable() (gas: 86212)
+[FAIL: trader keeps 97% of the surplus; 3% goes to the insurance fund: 975000000000000000 != 970000000000000000] test_Liquidation_InsuranceSplit_ExactAmounts() (gas: 1108404)
+Suite result: FAILED. 2 passed; 3 failed; 0 skipped; finished in 13.25ms (7.63ms CPU time)
+
+Ran 1 test for src/v4/test/GasProfileOpenTest.t.sol:GasProfileOpenTest
+[PASS] test_ProfileOpen_Steps() (gas: 1407359)
+Logs:
+  open_total_without_deploy: 904459
+  open_total_with_deploy: 432510
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 25.70ms (8.97ms CPU time)
+
+Ran 2 tests for src/v4/test/EswapUnichainForkTest.t.sol:EswapUnichainForkTest
+[PASS] test_Unichain_OpenProfitableLong() (gas: 629999)
+[PASS] test_Unichain_TWAP_CircuitBreaker() (gas: 93022)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 2.07s (863.46ms CPU time)
+
+Ran 5 tests for src/v4/test/EswapV4CoreProofTest.t.sol:EswapV4CoreProofTest
+[PASS] test_HookAddress_IsValidForRealPoolManager() (gas: 7878)
+[PASS] test_Hook_ConstructorFlagsPresent() (gas: 12138)
+[PASS] test_MarginPath_AfterSwap_SwapperPerspective_SignFix() (gas: 953150)
+[PASS] test_MarginPath_MatchesRealV4AbiEncoding() (gas: 87383)
+[FAIL: assertion failed] test_RealPoolManager_InitializeAndMarginOpen() (gas: 200864)
+Suite result: FAILED. 4 passed; 1 failed; 0 skipped; finished in 11.46ms (3.08ms CPU time)
+
+Ran 25 tests for src/v4/test/EswapVenueSettlementTest.t.sol:EswapVenueSettlementTest
+[PASS] test_FI_CapsAreIndependentPerAsset() (gas: 1104236)
+[PASS] test_FI_ExtensionIsForwardedToPostInteraction() (gas: 1413367)
+[PASS] test_FI_FillHappyPathFiresPostInteraction() (gas: 1414372)
+[PASS] test_FI_FillRevertsForNonOperator() (gas: 1307542)
+[PASS] test_FI_FillRevertsIfArgsTargetFlagSet() (gas: 1305764)
+[PASS] test_FI_FillRevertsIfPostInteractionNeverFires() (gas: 1383670)
+[PASS] test_FI_FillRevertsOnAmountTooLarge() (gas: 1306011)
+[PASS] test_FI_FillRevertsOnInteractionLengthMismatch() (gas: 1305997)
+[PASS] test_FI_FillRevertsOnWrongAssetPair() (gas: 1306057)
+[PASS] test_FI_FillRevertsWhenExtensionLengthDisagreesWithTraits() (gas: 1306346)
+[PASS] test_FI_FillRevertsWhenReceiverWouldBeMisreported() (gas: 1308335)
+[PASS] test_FI_PostInteractionRevertsIfCallerNotLOP() (gas: 1262013)
+[PASS] test_FI_PostInteractionRevertsIfFillNotInitiated() (gas: 1262321)
+[PASS] test_FI_PostInteractionRevertsOnTakerNotSelf() (gas: 1262660)
+[PASS] test_UX_FillHappyPath() (gas: 2189552)
+[PASS] test_UX_FillRevertsForNonOperator() (gas: 2096789)
+[PASS] test_UX_FillRevertsOnReplay() (gas: 2188661)
+[PASS] test_UX_PerOrderRecipientOverridesGlobal() (gas: 1805395)
+[PASS] test_UX_ValidatePassesForLegitOrder() (gas: 2098182)
+[PASS] test_UX_ValidateRevertsIfCallerNotReactor() (gas: 2096884)
+[PASS] test_UX_ValidateRevertsIfFillerNotSelf() (gas: 1779932)
+[PASS] test_UX_ValidateRevertsOnOutputTooLarge() (gas: 1777805)
+[PASS] test_UX_ValidateRevertsOnUnauthorizedRecipient() (gas: 1783377)
+[PASS] test_UX_ValidateRevertsOnWrongInputToken() (gas: 1777809)
+[PASS] test_UX_ValidateUsesPerOrderRecipient() (gas: 2096619)
+Suite result: ok. 25 passed; 0 failed; 0 skipped; finished in 17.59ms (15.37ms CPU time)
+
+Ran 4 tests for src/v4/test/EswapMarginPositionTest.t.sol:EswapMarginPositionTest
+[PASS] test_EmptyData_ExternalCaller_Reverts() (gas: 25158)
+[PASS] test_EmptyData_SelfSender_ReturnsZeroDelta() (gas: 25155)
+[PASS] test_OpenLongPosition_Success() (gas: 66991)
+[PASS] test_OpenShortPosition_Success() (gas: 67165)
+Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 7.83ms (947.10µs CPU time)
+
+Ran 5 tests for src/v4/test/EswapMaxLeverageForPoolTest.t.sol:EswapMaxLeverageForPoolTest
+[PASS] test_PerPoolOverride_AccessControlAndBounds() (gas: 91223)
+[PASS] test_PerPoolOverride_ClearFallsBackToDefault() (gas: 670478)
+[PASS] test_PerPoolOverride_DoesNotAffectOtherPools() (gas: 75314)
+[PASS] test_PerPoolOverride_LowerThanDefault_RejectsHigher() (gas: 676870)
+[PASS] test_PerPoolOverride_RaisesCap_AboveDefault() (gas: 668365)
+Suite result: ok. 5 passed; 0 failed; 0 skipped; finished in 11.29ms (5.08ms CPU time)
+
+Ran 9 tests for src/v4/test/EswapMultiPoolOpenTest.t.sol:EswapMultiPoolOpenTest
+[PASS] test_MultiPoolOpen_DeploysCollateralIntoStandardPool() (gas: 934046)
+[PASS] test_MultiPoolOpen_DeploysCollateralWithGasGuardSatisfied() (gas: 918305)
+[PASS] test_MultiPoolOpen_FillsOnStandardPool_NotHookPool() (gas: 925685)
+[PASS] test_MultiPoolOpen_NetsCleanly_OnRealPM() (gas: 965384)
+[PASS] test_MultiPoolOpen_OutputBelowMinimum_Reverts() (gas: 101821)
+[PASS] test_MultiPoolOpen_RevertOnPairMismatch() (gas: 52043)
+[PASS] test_MultiPoolOpen_RevertsWhenDeployCollateralGasStarved() (gas: 3876380)
+[PASS] test_MultiPoolOpen_ThenClose_RoundTrip() (gas: 882711)
+[PASS] test_MultiPoolSwapFor_RecordsTraderPosition() (gas: 952506)
+Suite result: ok. 9 passed; 0 failed; 0 skipped; finished in 41.33ms (31.38ms CPU time)
+
+Ran 4 tests for src/v4/test/EswapMainnetOneCentMarginForkTest.t.sol:EswapMainnetOneCentMarginForkTest
+[PASS] test_OneCent_Clears_Floor_And_Opens() (gas: 509388)
+[PASS] test_OneThousandthCent_Reverts() (gas: 54540)
+[PASS] test_RawFloor_Normalizes_Decimals_And_Accepts_OneCent() (gas: 501815)
+[PASS] test_RawFloor_Scales_Usdc_By_Twelve_Decimals() (gas: 95465)
+Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 1.65s (810.45ms CPU time)
+
+Ran 5 tests for src/v4/test/EswapSepoliaLiveStackReplay.t.sol:EswapSepoliaLiveStackReplay
+[SKIP] test_Replay_AggregatorConnection_LeveragedSwap() (gas: 0)
+Logs:
+  replay on broadcast stack, hook: 0xF39bc13b11479Aef93153514DD9bB8635a5cd0C8
+  setupOnActiveFork failed: unknown revert
+
+[SKIP] test_Replay_FullCycle_Aggregator_OpenThenClose() (gas: 0)
+Logs:
+  replay on broadcast stack, hook: 0xF39bc13b11479Aef93153514DD9bB8635a5cd0C8
+  setupOnActiveFork failed: unknown revert
+
+[SKIP] test_Replay_FullCycle_CoWSolver_OpenThenClose() (gas: 0)
+Logs:
+  replay on broadcast stack, hook: 0xF39bc13b11479Aef93153514DD9bB8635a5cd0C8
+  setupOnActiveFork failed: unknown revert
+
+[SKIP] test_Replay_SolverConnection_CoWFillOrder() (gas: 0)
+Logs:
+  replay on broadcast stack, hook: 0xF39bc13b11479Aef93153514DD9bB8635a5cd0C8
+  setupOnActiveFork failed: unknown revert
+
+[SKIP] test_Replay_Stack_IsLiveBroadcast() (gas: 0)
+Logs:
+  replay on broadcast stack, hook: 0xF39bc13b11479Aef93153514DD9bB8635a5cd0C8
+  setupOnActiveFork failed: unknown revert
+
+Suite result: ok. 0 passed; 0 failed; 5 skipped; finished in 547.49ms (279.50µs CPU time)
+
+Ran 10 tests for src/v4/test/HookCreate2DeployTest.t.sol:HookCreate2DeployTest
+[PASS] test_Control_MinimalInitcodeExecutes() (gas: 42493)
+[PASS] test_Control_SmallContractViaCreate2() (gas: 134696)
+[PASS] test_DeployerPath_DeploysFullyWiredHook() (gas: 63044436)
+[PASS] test_DeployerPath_StaysWithinGasBudget() (gas: 17336444)
+Logs:
+  Arachnid deployer path gas: 5059447
+
+[PASS] test_DeployerPath_WrongSaltRejectedWithRealRevert() (gas: 12536298)
+[PASS] test_DeployerRuntimeIsCanonical() (gas: 7757)
+[PASS] test_Framing_64BytePreimageIsDifferent() (gas: 1590)
+[PASS] test_Framing_PayloadIsSaltThenInitcode() (gas: 5059187)
+[PASS] test_Framing_TypedCreate2Matches85BytePreimage() (gas: 71944078)
+[FAIL: InvalidHookAddress()] test_HookRuntimeUnderEIP170() (gas: 12494443)
+Suite result: FAILED. 9 passed; 1 failed; 0 skipped; finished in 2.23s (2.22s CPU time)
+
+Ran 3 tests for src/v4/test/EswapBestRouteForkTest.t.sol:EswapBestRouteForkTest
+[PASS] test_BestRoute_AggregatorUnderdelivers_Reverts() (gas: 346886)
+[PASS] test_BestRoute_AggregatorWins_WhenItBeatsStandardEstimate() (gas: 1137751)
+[PASS] test_BestRoute_StandardWins_AggregatorNeverTouched() (gas: 1035614)
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 12.43s (9.61s CPU time)
+
+Ran 7 tests for src/v4/test/EswapForkVerification.t.sol:EswapForkVerificationTest
+[PASS] test_Diag_DeltaAttribution() (gas: 638589)
+Logs:
+  locker delta0 (USDC): 299010565939727427
+  locker delta1 (WETH): -100000000000000000
+  hook   delta0 (USDC): 0
+  hook   delta1 (WETH): -200000000000000000
+
+[PASS] test_I1_RealPM_NoResidualTransientAfterMarginOpen() (gas: 637239)
+[PASS] test_I3_RealPM_PartialBorrowSettlement_Reverts() (gas: 634500)
+[PASS] test_I3_RealPM_SettledBorrowLeg_Succeeds() (gas: 637438)
+[PASS] test_I3_RealPM_UnsettledHookDelta_Reverts() (gas: 621903)
+[PASS] test_I6_ExternalEmptyHookDataSwap_Reverts() (gas: 41118)
+Logs:
+  empty-hookData swap succeeded: false
+  0x90bfb865000000000000000000000000c3100000000000000000000000000000000010c8575e24b400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000c000000000000000000000000000000000000000000000000000000000000000044656f6b7000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004a9e35b2f00000000000000000000000000000000000000000000000000000000
+
+[PASS] test_JIT_RealPM_Reverts() (gas: 411799)
+Logs:
+  JIT succeeded: false
+  JIT revert payload length: 4
+  0xad8c9434
+
+Suite result: ok. 7 passed; 0 failed; 0 skipped; finished in 22.76s (21.03s CPU time)
+
+Ran 3 tests for src/v4/test/EswapHardenedTest.t.sol:EswapHardenedTest
+[PASS] test_ERC6909_Transfer_Success() (gas: 606403)
+[PASS] test_LeverageCap_Reverts() (gas: 34087)
+[PASS] test_SmartCollateral_LiquidityDeployment() (gas: 776880)
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 3.48ms (956.70µs CPU time)
+
+Ran 15 tests for src/v4/test/EswapHookConstructorTest.t.sol:EswapHookConstructorTest
+[PASS] test_CombinedDeploymentFitsEip3860() (gas: 46437)
+[PASS] test_Constructor_ChildrenAreDistinctContracts() (gas: 12255775)
+[PASS] test_Constructor_RevertIdenticalLogic() (gas: 12455898)
+[PASS] test_Constructor_RevertManagerMismatchOnLogic() (gas: 13477013)
+[PASS] test_Constructor_RevertManagerMismatchOnLogic2() (gas: 25725618)
+[PASS] test_Constructor_RevertMissingHookFlags() (gas: 12502804)
+[PASS] test_Constructor_RevertUndeployedLogic() (gas: 12458750)
+[PASS] test_Constructor_RevertUndeployedLogic2() (gas: 12458640)
+[PASS] test_Constructor_RevertZeroLogic() (gas: 12456029)
+[PASS] test_Constructor_RevertZeroLogic2() (gas: 12455972)
+[PASS] test_Constructor_RevertZeroOwner() (gas: 12453550)
+[PASS] test_Constructor_StoresLogicAndOwner() (gas: 12555339)
+[PASS] test_HookRuntimeFitsEip170() (gas: 69512854)
+[PASS] test_InitcodeFitsEip3860() (gas: 6517)
+[PASS] test_LogicExposesManager() (gas: 12258150)
+Suite result: ok. 15 passed; 0 failed; 0 skipped; finished in 397.78ms (396.18ms CPU time)
+[2m2026-11-01T10:31:16.191700Z[0m [31mERROR[0m [2msharedbackend[0m[2m:[0m Failed to send/recv `storage` [3merr[0m[2m=[0mfailed to get storage for 0xC3100000000000000000000000000000000030C8 at 72410501133718931369080414223840216522424478668507184633832587880886908826596: Max retries exceeded HTTP error 429 with empty body [3maddress[0m[2m=[0m0xC3100000000000000000000000000000000030C8 [3mindex[0m[2m=[0m72410501133718931369080414223840216522424478668507184633832587880886908826596
+
+Ran 2 tests for src/v4/test/EswapMainnetV4ForkTest.t.sol:EswapMainnetV4ForkTest
+[PASS] test_Fork_DeepPool_IsLiquid() (gas: 17497)
+Logs:
+  forked chainId: 130
+  candidate fee: 500
+    ts: 60
+    liq: 0
+    tick: 115792089237316195423570985008687907853269984665640564039457584007913128752664
+  candidate fee: 3000
+    ts: 60
+    liq: 16311471826884086
+    tick: 115792089237316195423570985008687907853269984665640564039457584007913129440881
+  candidate fee: 100
+    ts: 1
+    liq: 11166060183113
+    tick: 115792089237316195423570985008687907853269984665640564039457584007913129440881
+  candidate fee: 500
+    ts: 10
+    liq: 83436534602379786
+    tick: 115792089237316195423570985008687907853269984665640564039457584007913129440891
+
+[FAIL: EVM error; database error: failed to get storage for 0xC3100000000000000000000000000000000030C8 at 72410501133718931369080414223840216522424478668507184633832587880886908826596: Max retries exceeded HTTP error 429 with empty body] test_Fork_DeepPool_Open_LP_Close_RoundTrip() (gas: 0)
+Logs:
+  forked chainId: 130
+  candidate fee: 500
+    ts: 60
+    liq: 0
+    tick: 115792089237316195423570985008687907853269984665640564039457584007913128752664
+  candidate fee: 3000
+    ts: 60
+    liq: 16311471826884086
+    tick: 115792089237316195423570985008687907853269984665640564039457584007913129440881
+  candidate fee: 100
+    ts: 1
+    liq: 11166060183113
+    tick: 115792089237316195423570985008687907853269984665640564039457584007913129440881
+  candidate fee: 500
+    ts: 10
+    liq: 83436534602379786
+    tick: 115792089237316195423570985008687907853269984665640564039457584007913129440891
+
+Suite result: FAILED. 1 passed; 1 failed; 0 skipped; finished in 31.84s (29.44s CPU time)
+
+Ran 1 test for src/v4/test/EswapMarginLibTwapTest.t.sol:EswapMarginLibTwapTest
+[PASS] test_CRIT_SYS_01_FloorIs105pct_Not100pct() (gas: 52706)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 827.50µs (517.70µs CPU time)
+
+Ran 3 tests for src/v4/test/EswapSepoliaPipelineForkTest.t.sol:EswapSepoliaPipelineForkTest
+[FAIL: ExecutorNotApproved(0x0F655AAAe7230FeBD61aA1bf763796379d89E950, 0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496)] test_Sepolia_AggregatorConnection_LeveragedSwap() (gas: 50894)
+Logs:
+  forked Unichain Sepolia, chainId: 1301
+
+[PASS] test_Sepolia_SolverConnection_CoWFillOrder() (gas: 1021018)
+Logs:
+  forked Unichain Sepolia, chainId: 1301
+
+[PASS] test_Sepolia_StandardVenue_HasLiquidity() (gas: 17629)
+Logs:
+  forked Unichain Sepolia, chainId: 1301
+
+Suite result: FAILED. 2 passed; 1 failed; 0 skipped; finished in 30.86s (2.94s CPU time)
+
+Ran 4 tests for src/v4/test/LiveShortDebug.t.sol:LiveShortDebug
+[PASS] test_Long1x() (gas: 14073)
+Logs:
+  REVERT (low-level): 0x
+
+[PASS] test_ReproduceLiveShort() (gas: 17700)
+Logs:
+  -- Deltas for hook pool: USDC/WETH 3000/60 --
+  -- Std pool: USDC/WETH 500/60 --
+  REVERT (low-level): 0x
+
+[PASS] test_Short1x() (gas: 13985)
+Logs:
+  REVERT (low-level): 0x
+
+[PASS] test_Short2x() (gas: 13941)
+Logs:
+  REVERT (low-level): 0x
+
+Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 16.57s (31.39ms CPU time)
+
+Ran 1 test for src/v4/test/LiveShortSimTest.t.sol:LiveShortSimTest
+[PASS] test_LiveShort_NativeEthUsdc_CorrectVenue_DeploymentCanary() (gas: 56183)
+Logs:
+  LIVE SHORT reverted (low-level): 0x
+  live-recorded leverage (expected 0 until redeploy): 0
+  live-recorded isLong (expected 0 until redeploy): 0
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 10.31s (1.88s CPU time)
+
+Ran 1 test for src/v4/test/ProbeIds.t.sol:ProbeIds
+[PASS] test_ProbeIds() (gas: 70670)
+Logs:
+  id1 sqrtX96: 3772889608042526467745946
+  id1 tick: -199055
+  id1 lpFee: 100
+  id1 liq: 11166060183113
+  id1 price0: 0
+  id2 sqrtX96: 3766619748014311323219391
+  id2 tick: -199089
+  id2 lpFee: 500
+  id2 liq: 149068118435
+  id2 price0: 0
+  id3 sqrtX96: 135336099075312123532665
+  id3 tick: -265615
+  id3 lpFee: 3000
+  id3 liq: 2655323388454
+  id3 price0: 0
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 9.71s (9.71s CPU time)
+
+Ran 1 test for src/v4/test/ProbePools.t.sol:ProbePools
+[PASS] test_ProbeAll() (gas: 249253)
+Logs:
+  NOHOOK F100/T60: EMPTY (not initialized)
+  NOHOOK F100/T200: EMPTY (not initialized)
+  NOHOOK F100/T10: EMPTY (not initialized)
+  NOHOOK F100/T1: EMPTY (not initialized)
+  NOHOOK F300/T60: EMPTY (not initialized)
+  NOHOOK F300/T200: EMPTY (not initialized)
+  NOHOOK F300/T10: EMPTY (not initialized)
+  NOHOOK F300/T1: EMPTY (not initialized)
+  NOHOOK F500/T60: tick=199980
+  NOHOOK F500/T60: 0
+  NOHOOK F500/T200: EMPTY (not initialized)
+  NOHOOK F500/T10: tick=887271
+  NOHOOK F500/T10: 0
+  NOHOOK F500/T1: EMPTY (not initialized)
+  NOHOOK F3000/T60: tick=198762
+  NOHOOK F3000/T60: 18000000
+  NOHOOK F3000/T200: EMPTY (not initialized)
+  NOHOOK F3000/T10: EMPTY (not initialized)
+  NOHOOK F3000/T1: EMPTY (not initialized)
+  NOHOOK F10000/T60: EMPTY (not initialized)
+  NOHOOK F10000/T200: EMPTY (not initialized)
+  NOHOOK F10000/T10: EMPTY (not initialized)
+  NOHOOK F10000/T1: EMPTY (not initialized)
+  NOHOOK F2500/T60: EMPTY (not initialized)
+  NOHOOK F2500/T200: EMPTY (not initialized)
+  NOHOOK F2500/T10: EMPTY (not initialized)
+  NOHOOK F2500/T1: EMPTY (not initialized)
+  OUR-HOOK 3000/60: tick=200759
+  OUR-HOOK 3000/60: 0
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 31.86s (31.07s CPU time)
+
+Ran 9 tests for src/v4/test/TwapFeedForkTest.t.sol:TwapFeedForkTest
+[PASS] test_BothFeedsShareIdenticalWethUsdcLeg() (gas: 130476)
+[PASS] test_ConstantsAndDecimals() (gas: 15243)
+[PASS] test_EthUsd_TwapTracksChainlink() (gas: 62312)
+Logs:
+  ETH/USD twap     : 2267
+  ETH/USD chainlink: 2274
+
+[PASS] test_GetRoundDataUnsupported() (gas: 8959)
+[PASS] test_LatestRoundDataIsFreshByConstruction() (gas: 42259)
+[PASS] test_ObserveReturnsTickCumulativesNotPrices() (gas: 19860)
+[PASS] test_RejectsNonUsdcWethPool() (gas: 79781)
+[PASS] test_RejectsZeroWindowAndZeroPool() (gas: 70984)
+[PASS] test_UsdcUsd_TwapIsPeggedToDollar() (gas: 64140)
+Suite result: ok. 9 passed; 0 failed; 0 skipped; finished in 32.69s (8.68s CPU time)
+
+Ran 2 tests for src/v4/test/LiveShortOpenTest.t.sol:LiveShortOpenTest
+[PASS] test_ShortEth_5x_OnRealPM_Opens_ThroughNativeEthUsdcVenue() (gas: 1045479)
+Logs:
+  collateral currency is USDC: 1
+  rehypPrincipal (wei USDC): 1019705356
+  band tickLower: -199680
+  band tickUpper: -199080
+  band liquidity: 725477763758641
+
+[PASS] test_ShortWrappedWethVenue_IsRejectedByTwapGuard() (gas: 1086302)
+Logs:
+  WETH-token venue rejected (low-level): 0x896ea3d7
+
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 64.57s (65.17s CPU time)
+
+Ran 4 tests for src/v4/test/EswapMainnetV4LiquidationForkTest.t.sol:EswapMainnetV4LiquidationForkTest
+[PASS] test_Fork_DeepPool_IsLiquid() (gas: 17535)
+Logs:
+  candidate fee/ts/liq/tick: 500
+     60
+     0
+     115792089237316195423570985008687907853269984665640564039457584007913128752664
+  candidate fee/ts/liq/tick: 3000
+     60
+     16311445824814962
+     115792089237316195423570985008687907853269984665640564039457584007913129440881
+  candidate fee/ts/liq/tick: 100
+     1
+     11166060183113
+     115792089237316195423570985008687907853269984665640564039457584007913129440881
+  candidate fee/ts/liq/tick: 500
+     10
+     83436534602379786
+     115792089237316195423570985008687907853269984665640564039457584007913129440891
+
+[FAIL: liquidator is not paid; 3% carves to insurance: 249000 != 0] test_Fork_Liquidation_OracleCrash_UnwindsBand() (gas: 1503695)
+Logs:
+  candidate fee/ts/liq/tick: 500
+     60
+     0
+     115792089237316195423570985008687907853269984665640564039457584007913128752664
+  candidate fee/ts/liq/tick: 3000
+     60
+     16311445824814962
+     115792089237316195423570985008687907853269984665640564039457584007913129440881
+  candidate fee/ts/liq/tick: 100
+     1
+     11166060183113
+     115792089237316195423570985008687907853269984665640564039457584007913129440881
+  candidate fee/ts/liq/tick: 500
+     10
+     83436534602379786
+     115792089237316195423570985008687907853269984665640564039457584007913129440891
+
+[FAIL: liquidator is not paid; 3% carves to insurance: 246960 != 0] test_Fork_Liquidation_RealAdverseMove_UnwindsBand() (gas: 1434124)
+Logs:
+  candidate fee/ts/liq/tick: 500
+     60
+     0
+     115792089237316195423570985008687907853269984665640564039457584007913128752664
+  candidate fee/ts/liq/tick: 3000
+     60
+     16311445824814962
+     115792089237316195423570985008687907853269984665640564039457584007913129440881
+  candidate fee/ts/liq/tick: 100
+     1
+     11166060183113
+     115792089237316195423570985008687907853269984665640564039457584007913129440881
+  candidate fee/ts/liq/tick: 500
+     10
+     83436534602379786
+     115792089237316195423570985008687907853269984665640564039457584007913129440891
+  scenario B adverse ticks moved: 41
+
+[FAIL: liquidator is not paid; 3% carves to insurance: 201436 != 0] test_Fork_Rebalance_RecentersPartiallyConsumedBand() (gas: 2300458)
+Logs:
+  candidate fee/ts/liq/tick: 500
+     60
+     0
+     115792089237316195423570985008687907853269984665640564039457584007913128752664
+  candidate fee/ts/liq/tick: 3000
+     60
+     16311445824814962
+     115792089237316195423570985008687907853269984665640564039457584007913129440881
+  candidate fee/ts/liq/tick: 100
+     1
+     11166060183113
+     115792089237316195423570985008687907853269984665640564039457584007913129440881
+  candidate fee/ts/liq/tick: 500
+     10
+     83436534602379786
+     115792089237316195423570985008687907853269984665640564039457584007913129440891
+
+Suite result: FAILED. 1 passed; 3 failed; 0 skipped; finished in 34.59s (6.85s CPU time)
+
+Ran 2 tests for src/v4/test/LiveDeployCollateralReproTest.t.sol:LiveDeployCollateralReproTest
+[PASS] test_DeployCollateral_OutOfUnlock_AlreadyBanded_IsIdempotent() (gas: 1006858)
+[PASS] test_DeployCollateral_OutOfUnlock_SelfWrap_RedeploysBand_OnRealPM() (gas: 1114915)
+Logs:
+  open collateral (wei ETH): 87966765358616044
+  open liquidity: 127794180669510
+  redeployed tickLower: -199020
+  redeployed tickUpper: -198420
+  redeployed liquidity: 127794180669510
+  redeployed principal (wei ETH): 79170088822752837
+
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 63.32s (42.76s CPU time)
+
+Ran 1 test for src/v4/test/RehypothecationForkTest.t.sol:RehypothecationForkTest
+[PASS] test_RhypoOpensBand_AccruesFees_AndPaysSolver() (gas: 5249670)
+Logs:
+  collateral ETH wei: 87966765358616044
+  pos.liquidity: 127794180669510
+  band tickLower: -199020
+  band tickUpper: -198420
+  rehypPrincipal(ETH wei): 79170088822752837
+  std tick at open: -199044
+  std tick after push: -198300
+  std tick after cycles: -198300
+  after cycles pliq: 127794180669510
+  after cycles feeOwed0(ETH wei): 158419387339175
+  after cycles feeOwed1(USDC raw): 464354
+  std tick at close: -199261
+  solver ETH before: 1972888562372
+  solver ETH after: 199997122736340
+  final liq: 0
+  solver ETH yield (wei): 198024234173968
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 40.93s (9.05s CPU time)
+
+Ran 6 tests for src/v4/test/LiveNativeShort.t.sol:LiveNativeShort
+[PASS] test_NativeLong5x() (gas: 426688)
+Logs:
+  LONG REVERT: 0x
+  traderNativeBalanceTotal: 0
+  posTrader: 0x0000000000000000000000000000000000000000
+  collateralRaw: 0
+  borrowedRaw: 0
+  leverage: 0
+  isLong: false
+  positionLiquidity: 0
+  hookEthBalance: 1152188286787
+  routerEthBalance: 0
+
+[PASS] test_NativeLong5x_Close() (gas: 425066)
+Logs:
+  LONG REVERT: 0x
+  LONG CLOSE REVERT: 0x33cbf2bc
+  traderUsdcRefund: 0
+  traderUsdcNetPnlBps: 0
+
+[PASS] test_NativeShort1x() (gas: 88709)
+Logs:
+  nativePoolId: 56452807859327191873292880894651225269583725773633384098548666208353233189375
+  REVERT (low-level): 0x
+  posTrader: 0x0000000000000000000000000000000000000000
+  collateralRaw: 0
+  borrowedRaw: 0
+  leverage: 0
+  isLong: false
+  positionLiquidity: 0
+
+[PASS] test_NativeShort2x() (gas: 86563)
+Logs:
+  REVERT (low-level): 0x
+  posTrader: 0x0000000000000000000000000000000000000000
+  collateralRaw: 0
+  borrowedRaw: 0
+  leverage: 0
+  isLong: false
+  positionLiquidity: 0
+
+[PASS] test_NativeShort2x_Close() (gas: 115759)
+Logs:
+  REVERT (low-level): 0x
+  CLOSE REVERT: 0x33cbf2bc
+  traderEthAfter: 10000000000000000000
+  traderEthDelta: 0
+  posTrader: 0x0000000000000000000000000000000000000000
+  collateralRaw: 0
+  borrowedRaw: 0
+  leverage: 0
+  isLong: false
+  positionLiquidity: 0
+
+[PASS] test_NativeShort5x() (gas: 86489)
+Logs:
+  REVERT (low-level): 0x
+  posTrader: 0x0000000000000000000000000000000000000000
+  collateralRaw: 0
+  borrowedRaw: 0
+  leverage: 0
+  isLong: false
+  positionLiquidity: 0
+
+Suite result: ok. 6 passed; 0 failed; 0 skipped; finished in 60.66s (39.16s CPU time)
+
+Ran 3 tests for src/v4/test/EswapSepoliaEthFullCycleForkTest.t.sol:EswapSepoliaEthFullCycleForkTest
+[PASS] test_EthSepolia_FullCycle_Aggregator_OpenThenClose() (gas: 958427)
+Logs:
+  forked Ethereum Sepolia (11155111): PM 0xE03A1074c86CFeDd5C142C4F04F1a1536e203543
+
+[PASS] test_EthSepolia_FullCycle_CoWSolver_OpenThenClose() (gas: 1024252)
+Logs:
+  forked Ethereum Sepolia (11155111): PM 0xE03A1074c86CFeDd5C142C4F04F1a1536e203543
+
+[PASS] test_EthSepolia_StackWiresAgainstReal11155111Singletons() (gas: 53418)
+Logs:
+  forked Ethereum Sepolia (11155111): PM 0xE03A1074c86CFeDd5C142C4F04F1a1536e203543
+
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 74.19s (17.07s CPU time)
+
+Ran 3 tests for src/v4/test/EswapInvariantTest.t.sol:EswapInvariantTest
+[PASS] invariant_erc6909MatchesInternalMapping() (runs: 256, calls: 128000, reverts: 40848)
+
+╭-----------------------+------------------------------+-------+---------+----------╮
+| Contract              | Selector                     | Calls | Reverts | Discards |
++===================================================================================+
+| EswapMarginHook       | afterAddLiquidity            | 4     | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | afterDonate                  | 2     | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | afterInitialize              | 4     | 4       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | afterRemoveLiquidity         | 4     | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | afterSwap                    | 2     | 2       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | approve                      | 3     | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | beforeAddLiquidity           | 4     | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | beforeDonate                 | 3     | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | beforeInitialize             | 3     | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | beforeRemoveLiquidity        | 2     | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | beforeSwap                   | 4     | 4       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | clearJITDelta                | 5     | 5       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | deployCollateral             | 3     | 3       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | executeLiquidation           | 5     | 5       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | insuranceStake               | 1     | 1       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | insuranceUnstake             | 3     | 3       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | partialLiquidation           | 5     | 5       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | rebalancePosition            | 5     | 5       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | registerMarginOpen           | 4     | 4       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | registerSolverDebt           | 6     | 6       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | registerTradingPair          | 3     | 3       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | seedInsuranceFund            | 3     | 3       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | setAddressProtocolFee        | 9     | 9       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | setConfig                    | 6     | 6       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | setInsuranceCoverageBps      | 3     | 3       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | setOperator                  | 4     | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | setRouterAndMinCollateralUsd | 5     | 5       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | sweepResidue                 | 2     | 2       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | transfer                     | 8     | 8       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | transferFrom                 | 7     | 7       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | unlockCallback               | 5     | 5       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | withdrawInsuranceFund        | 8     | 8       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | withdrawProtocolFee          | 6     | 6       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | afterAddLiquidity            | 1610  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | afterDonate                  | 1647  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | afterInitialize              | 1562  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | afterRemoveLiquidity         | 1588  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | afterSwap                    | 1628  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | beforeAddLiquidity           | 1604  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | beforeDonate                 | 1619  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | beforeInitialize             | 1663  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | beforeRemoveLiquidity        | 1613  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | beforeSwap                   | 1578  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | claimPayout                  | 1655  | 1655    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | deployCollateral             | 1669  | 1669    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | insuranceStake               | 1611  | 1611    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | insuranceUnstake             | 1629  | 1629    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | registerMarginOpen           | 1586  | 1586    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | setAuthorizedPool            | 1710  | 1710    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | setBandConsumptionTriggerBps | 1570  | 1570    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | setBaseCurrency              | 1635  | 1635    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | setEmergencyPause            | 1600  | 1600    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | setLiquidatorIncentiveBps    | 1596  | 1596    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | setMaxLeverageForPool        | 1548  | 1548    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | setOpenInterestCaps          | 1531  | 1531    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | setPayoutRedirect            | 1633  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | setRequireStandardPoolKey    | 1597  | 1597    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | setStandardPoolKey           | 1613  | 1613    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | setTokenDecimals             | 1592  | 1592    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | transferOwnership            | 1661  | 1661    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic2 | afterAddLiquidity            | 1591  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic2 | afterDonate                  | 1712  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic2 | afterInitialize              | 1635  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic2 | afterRemoveLiquidity         | 1630  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic2 | afterSwap                    | 1611  | 1611    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic2 | beforeAddLiquidity           | 1583  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic2 | beforeDonate                 | 1620  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic2 | beforeInitialize             | 1585  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic2 | beforeRemoveLiquidity        | 1567  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic2 | beforeSwap                   | 1583  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic2 | closePosition                | 1627  | 1627    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic2 | executeLiquidation           | 1602  | 1602    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic2 | rebalancePosition            | 1683  | 1683    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic3 | afterAddLiquidity            | 1590  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic3 | afterDonate                  | 1620  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic3 | afterInitialize              | 1616  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic3 | afterRemoveLiquidity         | 1660  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic3 | afterSwap                    | 1580  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic3 | beforeAddLiquidity           | 1621  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic3 | beforeDonate                 | 1631  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic3 | beforeInitialize             | 1596  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic3 | beforeRemoveLiquidity        | 1637  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic3 | beforeSwap                   | 1673  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic3 | partialLiquidation           | 1620  | 1620    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| ERC20Mock             | approve                      | 3294  | 3       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| ERC20Mock             | mint                         | 3182  | 102     | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| ERC20Mock             | transfer                     | 3290  | 3245    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| ERC20Mock             | transferFrom                 | 3408  | 3363    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PriceFeedMock         | setPrice                     | 1555  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| LiquidityPoolMock     | lend                         | 1597  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| LiquidityPoolMock     | repay                        | 1657  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | burn                         | 1658  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | clear                        | 1589  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | donate                       | 1600  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | initialize                   | 1666  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | mint                         | 1600  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | modifyLiquidity              | 1576  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | setCurrencyDelta             | 1588  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | setNextModifyLiquidityDelta  | 1622  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | setNextSwapDelta             | 1549  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | setSlot0                     | 1598  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | settle                       | 1608  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | settleFor                    | 1658  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | swap                         | 1683  | 77      | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | sync                         | 1640  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | take                         | 1620  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | unlock                       | 1598  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | updateDynamicLPFee           | 1602  | 0       | 0        |
+╰-----------------------+------------------------------+-------+---------+----------╯
+
+[PASS] invariant_protocolNeverInBadDebt() (runs: 256, calls: 128000, reverts: 40383)
+
+╭-----------------------+------------------------------+-------+---------+----------╮
+| Contract              | Selector                     | Calls | Reverts | Discards |
++===================================================================================+
+| EswapMarginHook       | afterAddLiquidity            | 13    | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | afterDonate                  | 13    | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | afterInitialize              | 10    | 10      | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | afterRemoveLiquidity         | 15    | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | afterSwap                    | 11    | 11      | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | approve                      | 7     | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | beforeAddLiquidity           | 9     | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | beforeDonate                 | 11    | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | beforeInitialize             | 11    | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | beforeRemoveLiquidity        | 12    | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | beforeSwap                   | 16    | 16      | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | clearJITDelta                | 17    | 17      | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | closePosition                | 9     | 9       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | deployCollateral             | 13    | 13      | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | executeLiquidation           | 16    | 16      | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | insuranceStake               | 20    | 20      | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | insuranceUnstake             | 15    | 15      | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | partialLiquidation           | 11    | 11      | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | rebalancePosition            | 5     | 5       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | registerMarginOpen           | 18    | 18      | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | registerSolverDebt           | 9     | 9       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | registerTradingPair          | 18    | 18      | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | seedInsuranceFund            | 8     | 8       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | setAddressProtocolFee        | 7     | 7       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | setConfig                    | 11    | 11      | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | setInsuranceCoverageBps      | 11    | 11      | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | setOperator                  | 11    | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | setRouterAndMinCollateralUsd | 11    | 11      | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | sweepResidue                 | 18    | 18      | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | transfer                     | 13    | 13      | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | transferFrom                 | 7     | 7       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | unlockCallback               | 17    | 17      | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | withdrawInsuranceFund        | 15    | 15      | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | withdrawProtocolFee          | 14    | 14      | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | afterAddLiquidity            | 1681  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | afterDonate                  | 1651  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | afterInitialize              | 1666  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | afterRemoveLiquidity         | 1649  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | afterSwap                    | 1631  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | beforeAddLiquidity           | 1699  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | beforeDonate                 | 1679  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | beforeInitialize             | 1682  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | beforeRemoveLiquidity        | 1702  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | beforeSwap                   | 1655  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | claimPayout                  | 1610  | 1610    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | deployCollateral             | 1590  | 1590    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | insuranceStake               | 1602  | 1602    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | insuranceUnstake             | 1591  | 1591    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | registerMarginOpen           | 1563  | 1563    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | setAuthorizedPool            | 1567  | 1567    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | setBandConsumptionTriggerBps | 1633  | 1633    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | setBaseCurrency              | 1561  | 1561    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | setEmergencyPause            | 1642  | 1642    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | setLiquidatorIncentiveBps    | 1656  | 1656    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | setMaxLeverageForPool        | 1627  | 1627    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | setOpenInterestCaps          | 1605  | 1605    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | setPayoutRedirect            | 1636  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | setRequireStandardPoolKey    | 1566  | 1566    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | setStandardPoolKey           | 1560  | 1560    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | setTokenDecimals             | 1617  | 1617    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | transferOwnership            | 1612  | 1612    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic2 | afterAddLiquidity            | 1617  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic2 | afterDonate                  | 1592  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic2 | afterInitialize              | 1611  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic2 | afterRemoveLiquidity         | 1671  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic2 | afterSwap                    | 1589  | 1589    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic2 | beforeAddLiquidity           | 1613  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic2 | beforeDonate                 | 1635  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic2 | beforeInitialize             | 1582  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic2 | beforeRemoveLiquidity        | 1578  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic2 | beforeSwap                   | 1597  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic2 | closePosition                | 1638  | 1638    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic2 | executeLiquidation           | 1699  | 1699    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic2 | rebalancePosition            | 1572  | 1572    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic3 | afterAddLiquidity            | 1714  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic3 | afterDonate                  | 1605  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic3 | afterInitialize              | 1625  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic3 | afterRemoveLiquidity         | 1631  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic3 | afterSwap                    | 1535  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic3 | beforeAddLiquidity           | 1633  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic3 | beforeDonate                 | 1637  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic3 | beforeInitialize             | 1621  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic3 | beforeRemoveLiquidity        | 1601  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic3 | beforeSwap                   | 1641  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic3 | partialLiquidation           | 1509  | 1509    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| ERC20Mock             | approve                      | 3156  | 1       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| ERC20Mock             | mint                         | 3068  | 98      | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| ERC20Mock             | transfer                     | 3194  | 3163    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| ERC20Mock             | transferFrom                 | 3166  | 3133    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PriceFeedMock         | setPrice                     | 1614  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| LiquidityPoolMock     | lend                         | 1646  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| LiquidityPoolMock     | repay                        | 1629  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | burn                         | 1559  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | clear                        | 1615  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | donate                       | 1627  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | initialize                   | 1560  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | mint                         | 1606  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | modifyLiquidity              | 1619  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | setCurrencyDelta             | 1603  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | setNextModifyLiquidityDelta  | 1552  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | setNextSwapDelta             | 1629  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | setSlot0                     | 1636  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | settle                       | 1664  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | settleFor                    | 1644  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | swap                         | 1640  | 59      | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | sync                         | 1696  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | take                         | 1623  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | unlock                       | 1634  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | updateDynamicLPFee           | 1519  | 0       | 0        |
+╰-----------------------+------------------------------+-------+---------+----------╯
+
+[PASS] invariant_tstoreAlwaysClears() (runs: 256, calls: 128000, reverts: 40630)
+
+╭-----------------------+------------------------------+-------+---------+----------╮
+| Contract              | Selector                     | Calls | Reverts | Discards |
++===================================================================================+
+| EswapMarginHook       | afterAddLiquidity            | 14    | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | afterDonate                  | 10    | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | afterInitialize              | 11    | 11      | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | afterRemoveLiquidity         | 16    | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | afterSwap                    | 12    | 12      | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | approve                      | 10    | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | beforeAddLiquidity           | 11    | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | beforeDonate                 | 13    | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | beforeInitialize             | 9     | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | beforeRemoveLiquidity        | 20    | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | beforeSwap                   | 7     | 7       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | clearJITDelta                | 14    | 14      | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | closePosition                | 21    | 21      | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | deployCollateral             | 14    | 14      | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | executeLiquidation           | 13    | 13      | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | insuranceStake               | 14    | 14      | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | insuranceUnstake             | 6     | 6       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | partialLiquidation           | 18    | 18      | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | rebalancePosition            | 13    | 13      | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | registerMarginOpen           | 7     | 7       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | registerSolverDebt           | 12    | 12      | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | registerTradingPair          | 15    | 15      | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | seedInsuranceFund            | 13    | 13      | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | setAddressProtocolFee        | 8     | 8       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | setConfig                    | 16    | 16      | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | setInsuranceCoverageBps      | 15    | 15      | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | setOperator                  | 14    | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | setRouterAndMinCollateralUsd | 13    | 13      | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | sweepResidue                 | 4     | 4       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | transfer                     | 11    | 10      | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | transferFrom                 | 17    | 17      | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | unlockCallback               | 16    | 16      | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | withdrawInsuranceFund        | 15    | 15      | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHook       | withdrawProtocolFee          | 8     | 8       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | afterAddLiquidity            | 1590  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | afterDonate                  | 1639  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | afterInitialize              | 1613  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | afterRemoveLiquidity         | 1512  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | afterSwap                    | 1576  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | beforeAddLiquidity           | 1628  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | beforeDonate                 | 1657  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | beforeInitialize             | 1653  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | beforeRemoveLiquidity        | 1665  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | beforeSwap                   | 1623  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | claimPayout                  | 1627  | 1627    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | deployCollateral             | 1612  | 1612    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | insuranceStake               | 1586  | 1586    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | insuranceUnstake             | 1656  | 1656    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | registerMarginOpen           | 1609  | 1609    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | setAuthorizedPool            | 1569  | 1569    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | setBandConsumptionTriggerBps | 1565  | 1565    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | setBaseCurrency              | 1628  | 1628    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | setEmergencyPause            | 1627  | 1627    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | setLiquidatorIncentiveBps    | 1661  | 1661    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | setMaxLeverageForPool        | 1591  | 1591    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | setOpenInterestCaps          | 1602  | 1602    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | setPayoutRedirect            | 1561  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | setRequireStandardPoolKey    | 1583  | 1583    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | setStandardPoolKey           | 1617  | 1617    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | setTokenDecimals             | 1688  | 1688    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic  | transferOwnership            | 1577  | 1577    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic2 | afterAddLiquidity            | 1608  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic2 | afterDonate                  | 1740  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic2 | afterInitialize              | 1582  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic2 | afterRemoveLiquidity         | 1602  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic2 | afterSwap                    | 1530  | 1530    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic2 | beforeAddLiquidity           | 1680  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic2 | beforeDonate                 | 1609  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic2 | beforeInitialize             | 1590  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic2 | beforeRemoveLiquidity        | 1569  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic2 | beforeSwap                   | 1626  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic2 | closePosition                | 1672  | 1672    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic2 | executeLiquidation           | 1574  | 1574    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic2 | rebalancePosition            | 1672  | 1672    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic3 | afterAddLiquidity            | 1604  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic3 | afterDonate                  | 1600  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic3 | afterInitialize              | 1587  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic3 | afterRemoveLiquidity         | 1586  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic3 | afterSwap                    | 1630  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic3 | beforeAddLiquidity           | 1597  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic3 | beforeDonate                 | 1621  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic3 | beforeInitialize             | 1664  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic3 | beforeRemoveLiquidity        | 1588  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic3 | beforeSwap                   | 1597  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| EswapMarginHookLogic3 | partialLiquidation           | 1557  | 1557    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| ERC20Mock             | approve                      | 3245  | 1       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| ERC20Mock             | mint                         | 3164  | 114     | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| ERC20Mock             | transfer                     | 3209  | 3171    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| ERC20Mock             | transferFrom                 | 3206  | 3169    | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PriceFeedMock         | setPrice                     | 1638  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| LiquidityPoolMock     | lend                         | 1674  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| LiquidityPoolMock     | repay                        | 1673  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | burn                         | 1612  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | clear                        | 1620  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | donate                       | 1627  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | initialize                   | 1606  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | mint                         | 1659  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | modifyLiquidity              | 1617  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | setCurrencyDelta             | 1610  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | setNextModifyLiquidityDelta  | 1586  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | setNextSwapDelta             | 1576  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | setSlot0                     | 1620  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | settle                       | 1655  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | settleFor                    | 1655  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | swap                         | 1629  | 60      | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | sync                         | 1623  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | take                         | 1605  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | unlock                       | 1601  | 0       | 0        |
+|-----------------------+------------------------------+-------+---------+----------|
+| PoolManagerMock       | updateDynamicLPFee           | 1660  | 0       | 0        |
+╰-----------------------+------------------------------+-------+---------+----------╯
+
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 111.88s (218.59s CPU time)
+
+Ran 85 test suites in 112.19s (661.22s CPU time): 497 tests passed, 25 failed, 5 skipped (527 total tests)
+
+Failing tests:
+Encountered 1 failing test in src/v4/test/EswapExitOracleIndependenceTest.t.sol:EswapExitOracleIndependenceTest
+[FAIL: Error != expected error: PositionNotLiquidatable() != FeedUnavailable()] test_Liquidation_Reverts_WhenOracleUnavailable() (gas: 659682)
+
+Encountered 7 failing tests in src/v4/test/EswapLeverageAdapterTest.t.sol:EswapLeverageAdapterTest
+[FAIL: ExecutorNotApproved(0x6CA6d1e2D5347Bfab1d91e883F1915560e09129D, 0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496)] test_Adapter_FallsBackToBackupSolverWhenDefaultUnwhitelisted() (gas: 194996)
+[FAIL: ExecutorNotApproved(0x6CA6d1e2D5347Bfab1d91e883F1915560e09129D, 0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496)] test_Adapter_LeveragedSwap() (gas: 65750)
+[FAIL: ExecutorNotApproved(0x6CA6d1e2D5347Bfab1d91e883F1915560e09129D, 0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496)] test_Adapter_LeveragedSwap_2x() (gas: 65504)
+[FAIL: Error != expected error: ExecutorNotApproved(0x6CA6d1e2D5347Bfab1d91e883F1915560e09129D, 0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496) != PoolNotRegistered(0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9, 0xF62849F9A0B5Bf2913b396098F7c7019b51A820a, 3000)] test_Adapter_Multicall_AllowsSwapEntryPoints() (gas: 22318)
+[FAIL: Error != expected error: ExecutorNotApproved(0x6CA6d1e2D5347Bfab1d91e883F1915560e09129D, 0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496) != Solver required for leverage] test_Adapter_NoSolverConfigured_RouterReverts() (gas: 84880)
+[FAIL: Error != expected error: ExecutorNotApproved(0x6CA6d1e2D5347Bfab1d91e883F1915560e09129D, 0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496) != PoolNotRegistered(0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9, 0xF62849F9A0B5Bf2913b396098F7c7019b51A820a, 3000)] test_Adapter_PoolNotRegistered_Reverts() (gas: 18852)
+[FAIL: Error != expected error: ExecutorNotApproved(0x6CA6d1e2D5347Bfab1d91e883F1915560e09129D, 0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496) != SwapOutputBelowMinimum(48000000000000000000 [4.8e19], 49000000000000000000 [4.9e19])] test_Adapter_SlippageGuard_Reverts() (gas: 68914)
+
+Encountered 1 failing test in src/v4/test/EswapLiquidationKeeperTest.t.sol:EswapLiquidationKeeperTest
+[FAIL: liquidator is not paid; reward goes to insurance: 50000000000000000 != 0] test_Keeper_WatchList_Automation() (gas: 1339963)
+
+Encountered 1 failing test in src/v4/test/EswapMainnetV4ForkTest.t.sol:EswapMainnetV4ForkTest
+[FAIL: EVM error; database error: failed to get storage for 0xC3100000000000000000000000000000000030C8 at 72410501133718931369080414223840216522424478668507184633832587880886908826596: Max retries exceeded HTTP error 429 with empty body] test_Fork_DeepPool_Open_LP_Close_RoundTrip() (gas: 0)
+
+Encountered 3 failing tests in src/v4/test/EswapMainnetV4LiquidationForkTest.t.sol:EswapMainnetV4LiquidationForkTest
+[FAIL: liquidator is not paid; 3% carves to insurance: 249000 != 0] test_Fork_Liquidation_OracleCrash_UnwindsBand() (gas: 1503695)
+[FAIL: liquidator is not paid; 3% carves to insurance: 246960 != 0] test_Fork_Liquidation_RealAdverseMove_UnwindsBand() (gas: 1434124)
+[FAIL: liquidator is not paid; 3% carves to insurance: 201436 != 0] test_Fork_Rebalance_RecentersPartiallyConsumedBand() (gas: 2300458)
+
+Encountered 4 failing tests in src/v4/test/EswapRealPoolManagerLifecycleTest.t.sol:EswapRealPoolManagerLifecycleTest
+[FAIL: assertion failed] test_RealPM_Slot0_ReadsRealPoolState() (gas: 200864)
+[FAIL: NotAuthorizedPool()] test_RealPM_TwapBreaker_Passes() (gas: 313418)
+[FAIL: NotAuthorizedPool()] test_RealPM_TwapBreaker_Passes_RegardlessOfPoolInitSpot() (gas: 313353)
+[FAIL: assertion failed] test_RealPoolManager_InitializeAndMarginOpen() (gas: 200974)
+
+Encountered 1 failing test in src/v4/test/EswapRouterAccessTest.t.sol:EswapRouterAccessTest
+[FAIL: liquidator is not paid; reward goes to insurance: 34265600000000000 != 0] test_Permissionless_Liquidation_ByKeeper() (gas: 1096607)
+
+Encountered 1 failing test in src/v4/test/EswapSepoliaPipelineForkTest.t.sol:EswapSepoliaPipelineForkTest
+[FAIL: ExecutorNotApproved(0x0F655AAAe7230FeBD61aA1bf763796379d89E950, 0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496)] test_Sepolia_AggregatorConnection_LeveragedSwap() (gas: 50894)
+
+Encountered 3 failing tests in src/v4/test/EswapSolvencyTest.t.sol:EswapSolvencyTest
+[FAIL: UnwindBelowOracleFloor(300000000000000000 [3e17], 455544000000000000 [4.555e17])] test_BadDebt_CoveredByInsurance() (gas: 1004400)
+[FAIL: UnwindBelowOracleFloor(300000000000000000 [3e17], 455544000000000000 [4.555e17])] test_BadDebt_RecordedWhenInsuranceInsufficient() (gas: 941377)
+[FAIL: trader keeps 97% of the surplus; 3% goes to the insurance fund: 975000000000000000 != 970000000000000000] test_Liquidation_InsuranceSplit_ExactAmounts() (gas: 1108404)
+
+Encountered 1 failing test in src/v4/test/EswapURCTest.t.sol:EswapURCTest
+[FAIL: expected exactly one HookSwap log: 3 != 1] test_URC2_HookSwapEvent() (gas: 607721)
+
+Encountered 1 failing test in src/v4/test/EswapV4CoreProofTest.t.sol:EswapV4CoreProofTest
+[FAIL: assertion failed] test_RealPoolManager_InitializeAndMarginOpen() (gas: 200864)
+
+Encountered 1 failing test in src/v4/test/HookCreate2DeployTest.t.sol:HookCreate2DeployTest
+[FAIL: InvalidHookAddress()] test_HookRuntimeUnderEIP170() (gas: 12494443)
+
+Encountered a total of 25 failing tests, 497 tests succeeded
+
+Tip: Run `forge test --rerun` to retry only the 25 failed tests

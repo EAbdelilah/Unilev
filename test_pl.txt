@@ -1,0 +1,13 @@
+No files changed, compilation skipped
+
+Ran 7 tests for src/v4/test/EswapPartialLiquidationTest.t.sol:EswapPartialLiquidationTest
+[PASS] test_PartialLiquidate_CloseRemainderAfterPartial() (gas: 983496)
+[PASS] test_PartialLiquidate_HealthyPosition_Reverts() (gas: 822179)
+[PASS] test_PartialLiquidate_InvalidBps_Reverts() (gas: 827750)
+[PASS] test_PartialLiquidate_LiquidatablePosition_RequiresFullLiquidation() (gas: 1104627)
+[PASS] test_PartialLiquidate_MinAmountOut_Enforced() (gas: 957263)
+[PASS] test_PartialLiquidate_OnlyRouter() (gas: 787805)
+[PASS] test_PartialLiquidate_UnhealthyRemainder_Reverts() (gas: 981701)
+Suite result: ok. 7 passed; 0 failed; 0 skipped; finished in 12.57ms (19.05ms CPU time)
+
+Ran 1 test suite in 96.63ms (12.57ms CPU time): 7 tests passed, 0 failed, 0 skipped (7 total tests)

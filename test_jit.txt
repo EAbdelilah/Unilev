@@ -1,0 +1,16 @@
+No files changed, compilation skipped
+
+Ran 10 tests for src/v4/test/EswapJITSpotTest.t.sol:EswapJITSpotTest
+[PASS] test_JITSpotExecution_BypassesAMM() (gas: 418902)
+[PASS] test_JITSpot_AcceptsFillAtOrAboveOracleFloor() (gas: 487734)
+[PASS] test_JITSpot_FloorArmedByDefault() (gas: 56605)
+[PASS] test_JITSpot_NativeInput_InsufficientValueReverts() (gas: 258588)
+[PASS] test_JITSpot_NativeInput_RefundsSurplus() (gas: 449914)
+[PASS] test_JITSpot_NativeInput_SettlesViaMsgValue() (gas: 446412)
+[PASS] test_JITSpot_NativeOutput_RevertsExplicitly() (gas: 70442)
+[PASS] test_JITSpot_OnlyCalledBySwapper() (gas: 23034)
+[PASS] test_JITSpot_RejectsFillBelowOracleFloor() (gas: 137480)
+[PASS] test_SetJitOracleFloorLeniencyBps_RejectsAbove1000() (gas: 11171)
+Suite result: ok. 10 passed; 0 failed; 0 skipped; finished in 10.32ms (15.71ms CPU time)
+
+Ran 1 test suite in 100.54ms (10.32ms CPU time): 10 tests passed, 0 failed, 0 skipped (10 total tests)

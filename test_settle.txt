@@ -1,0 +1,20 @@
+No files changed, compilation skipped
+
+Ran 14 tests for src/v4/test/EswapSettlementTest.t.sol:EswapSettlementTest
+[PASS] test_ClaimRepayment_CannotDrainAnotherOrdersRepayment() (gas: 2199699)
+[PASS] test_ClaimRepayment_FillerRecoversBorrowPrincipal() (gas: 1372579)
+[PASS] test_ClaimRepayment_OnlyFiller() (gas: 1350908)
+[PASS] test_ClaimRepayment_ReopenDoesNotBlockEarlierClaim() (gas: 2105537)
+[PASS] test_ClaimRepayment_RevertsWhilePositionOpen() (gas: 1323550)
+[PASS] test_Close_RecipientReceivesProceedsDirectly() (gas: 1365098)
+[PASS] test_Fill_EmitsEvent() (gas: 1316240)
+[PASS] test_Fill_LowLeverage() (gas: 1317450)
+[PASS] test_Fill_OpensPosition() (gas: 1318844)
+[PASS] test_Fill_SlippageRevertsAboveOutput() (gas: 304047)
+[PASS] test_Fill_UnlistedSettlementFundsBorrowFromOwnEscrow() (gas: 2603608)
+[PASS] test_InsuranceCoverageBps_DefaultsToFullAndIsOwnerAdjustable() (gas: 25223)
+[PASS] test_RescueToken() (gas: 57596)
+[PASS] test_RescueToken_OnlyOwner() (gas: 18784)
+Suite result: ok. 14 passed; 0 failed; 0 skipped; finished in 23.98ms (59.80ms CPU time)
+
+Ran 1 test suite in 52.33ms (23.98ms CPU time): 14 tests passed, 0 failed, 0 skipped (14 total tests)

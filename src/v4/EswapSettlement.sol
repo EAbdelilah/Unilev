@@ -103,6 +103,11 @@ error ZeroAddress();
     // `principal * balance / totalOwed`, and the shortfall is shared instead of
     // being absorbed by whoever claims last. Order-independent by construction.
     mapping(address => uint256) public totalPrincipalOwed;
+    // [AUDIT NF-02 follow-up] Per-token list of order ids, used to compute the
+    // claimable (closed-but-unclaimed) owed denominator without iterating an
+    // unbounded mapping. Open orders are excluded from the denominator so they
+    // cannot dilute a closed order's payout.
+    mapping(address => bytes32[]) public orderIdsByToken;
 
     error RescueExceedsSurplus(uint256 requested, uint256 surplus);
 
@@ -218,6 +223,7 @@ error ZeroAddress();
         // [AUDIT F-04] Track the aggregate claimable principal for this token so
         // claims can be proportionally capped against what has actually arrived.
         totalPrincipalOwed[inputToken] += borrowAmount;
+        orderIdsByToken[inputToken].push(orderId);
         emit PositionFilled(orderId, recipient, inputToken, marginAmount);
     }
 
@@ -250,25 +256,35 @@ error ZeroAddress();
         if (principal == 0) revert NothingToClaim();
         if (_positionStillOpen(orderId)) revert PositionStillOpen();
 
-        fillerPrincipal[orderId] = 0;
         address token = fillerToken[orderId];
 
-        // [AUDIT F-04] Pro-rata cap across every still-unclaimed order in this
-        // token. In the healthy case `available >= owed`, the pro-rata share is
-        // >= principal and the claim is paid in full.
-        uint256 owed = totalPrincipalOwed[token];
-        if (owed == 0) revert NothingToClaim();
+        // [AUDIT F-04] Pro-rata cap across the CLOSED-but-unclaimed orders in
+        // this token. Open orders are excluded from the denominator so they
+        // cannot dilute a closed order's payout.
+        uint256 closedOwed = 0;
+        bytes32[] storage ids = orderIdsByToken[token];
+        for (uint256 i = 0; i < ids.length; i++) {
+            bytes32 oid = ids[i];
+            uint256 p = fillerPrincipal[oid];
+            if (p == 0) continue;
+            if (_positionStillOpen(oid)) continue;
+            closedOwed += p;
+        }
+        if (closedOwed == 0) revert NothingToClaim();
         uint256 available = NativeTokens.balanceOf(Currency.wrap(token), address(this));
-        amount = FullMath.mulDiv(principal, available, owed);
+        amount = FullMath.mulDiv(principal, available, closedOwed);
         if (amount > principal) amount = principal;
         if (amount == 0) revert NothingToClaim();
-        totalPrincipalOwed[token] = owed - principal;
 
+        // [AUDIT NF-02] CEI: transfer FIRST, then mutate storage.
         if (token == address(0)) {
             NativeTokens.transfer(Currency.wrap(address(0)), filler, amount);
         } else {
             IERC20(token).safeTransfer(filler, amount);
         }
+
+        fillerPrincipal[orderId] = 0;
+        totalPrincipalOwed[token] = totalPrincipalOwed[token] > principal ? totalPrincipalOwed[token] - principal : 0;
         emit RepaymentClaimed(orderId, filler, token, amount);
     }
 

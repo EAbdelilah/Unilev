@@ -1,0 +1,843 @@
+Compiling 85 files with Solc 0.8.27
+Solc 0.8.27 finished in 55245.95s
+Compiler run successful with warnings:
+Warning (2519): This declaration shadows an existing declaration.
+   --> src/v4/EswapLeverageAdapter.sol:111:31:
+    |
+111 |     function setDefaultSolver(address _solver) external onlyOwner {
+    |                               ^^^^^^^^^^^^^^^
+Note: The shadowed declaration is here:
+   --> src/v4/EswapLeverageAdapter.sol:145:5:
+    |
+145 |     function _solver() internal view returns (address) {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2519): This declaration shadows an existing declaration.
+   --> src/v4/EswapLeverageAdapter.sol:119:30:
+    |
+119 |     function setBackupSolver(address _solver) external onlyOwner {
+    |                              ^^^^^^^^^^^^^^^
+Note: The shadowed declaration is here:
+   --> src/v4/EswapLeverageAdapter.sol:145:5:
+    |
+145 |     function _solver() internal view returns (address) {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (3628): This contract has a payable fallback function, but no receive ether function. Consider adding a receive ether function.
+  --> src/v4/EswapMarginHookLogic.sol:43:1:
+   |
+43 | contract EswapMarginHookLogic is BaseHook, EswapMarginHookLogicStorage {
+   | ^ (Relevant source part starts here and spans across multiple lines).
+Note: The payable fallback function is defined here.
+   --> src/v4/EswapMarginHookLogic.sol:806:5:
+    |
+806 |     fallback() external payable {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (6321): Unnamed return variable can remain unassigned. Add an explicit return with value to all non-reverting code paths or name the variable.
+   --> src/v4/test/EswapMainnetV4LiquidationForkTest.t.sol:270:93:
+    |
+270 |     function _slot0(RealPoolKey memory k) internal view returns (uint160 sqrtP, int24 tick, uint24, bool) {
+    |                                                                                             ^^^^^^
+
+Warning (6321): Unnamed return variable can remain unassigned. Add an explicit return with value to all non-reverting code paths or name the variable.
+   --> src/v4/test/EswapMainnetV4LiquidationForkTest.t.sol:270:101:
+    |
+270 |     function _slot0(RealPoolKey memory k) internal view returns (uint160 sqrtP, int24 tick, uint24, bool) {
+    |                                                                                                     ^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> src/v4/EswapMarginHookLogic.sol:243:36:
+    |
+243 |     function _insuranceStandardKey(PoolKey calldata hookKey, PoolId poolId) internal view returns (PoolKey memory std) {
+    |                                    ^^^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/EswapMarginHook.sol:737:16:
+    |
+737 |             (, address solver, uint256 solverOutput) = abi.decode(data, (bool, address, uint256));
+    |                ^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1139:32:
+     |
+1139 |     function rebalancePosition(PoolKey calldata key, address trader) external onlyRouter {
+     |                                ^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1139:54:
+     |
+1139 |     function rebalancePosition(PoolKey calldata key, address trader) external onlyRouter {
+     |                                                      ^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1150:33:
+     |
+1150 |     function executeLiquidation(PoolKey calldata key, address trader, uint256 minAmountOut, address liquidator)
+     |                                 ^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1150:55:
+     |
+1150 |     function executeLiquidation(PoolKey calldata key, address trader, uint256 minAmountOut, address liquidator)
+     |                                                       ^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1150:71:
+     |
+1150 |     function executeLiquidation(PoolKey calldata key, address trader, uint256 minAmountOut, address liquidator)
+     |                                                                       ^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1150:93:
+     |
+1150 |     function executeLiquidation(PoolKey calldata key, address trader, uint256 minAmountOut, address liquidator)
+     |                                                                                             ^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1160:9:
+     |
+1160 |         PoolKey calldata key,
+     |         ^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1161:9:
+     |
+1161 |         address trader,
+     |         ^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1162:9:
+     |
+1162 |         uint256 minAmountOut,
+     |         ^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1163:9:
+     |
+1163 |         address liquidator,
+     |         ^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1164:9:
+     |
+1164 |         uint256 liquidationBps
+     |         ^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1236:31:
+     |
+1236 |     function deployCollateral(PoolKey calldata key, address trader) external onlyRouterOrManager {
+     |                               ^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1236:53:
+     |
+1236 |     function deployCollateral(PoolKey calldata key, address trader) external onlyRouterOrManager {
+     |                                                     ^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1244:29:
+     |
+1244 |     function insuranceStake(PoolKey calldata standardKey, uint128 maxLiquidity) external onlyOwner {
+     |                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1244:59:
+     |
+1244 |     function insuranceStake(PoolKey calldata standardKey, uint128 maxLiquidity) external onlyOwner {
+     |                                                           ^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1248:31:
+     |
+1248 |     function insuranceUnstake(PoolKey calldata standardKey, uint128 liquidity) external onlyOwner {
+     |                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1248:61:
+     |
+1248 |     function insuranceUnstake(PoolKey calldata standardKey, uint128 liquidity) external onlyOwner {
+     |                                                             ^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1324:9:
+     |
+1324 |         PoolKey calldata key,
+     |         ^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1325:9:
+     |
+1325 |         address trader,
+     |         ^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1326:9:
+     |
+1326 |         uint8 leverage,
+     |         ^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1327:9:
+     |
+1327 |         uint256 marginAmount,
+     |         ^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1328:9:
+     |
+1328 |         uint256 borrowedAmount,
+     |         ^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1329:9:
+     |
+1329 |         Currency boughtCurrency,
+     |         ^^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1330:9:
+     |
+1330 |         uint256 boughtAmount
+     |         ^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1354:28:
+     |
+1354 |     function closePosition(PoolKey calldata key, address trader, address solver, uint256 minAmountOut)
+     |                            ^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1354:50:
+     |
+1354 |     function closePosition(PoolKey calldata key, address trader, address solver, uint256 minAmountOut)
+     |                                                  ^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1354:66:
+     |
+1354 |     function closePosition(PoolKey calldata key, address trader, address solver, uint256 minAmountOut)
+     |                                                                  ^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+    --> src/v4/EswapMarginHook.sol:1354:82:
+     |
+1354 |     function closePosition(PoolKey calldata key, address trader, address solver, uint256 minAmountOut)
+     |                                                                                  ^^^^^^^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapBaseEnsoFullCycleForkTest.t.sol:324:46:
+    |
+324 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                              ^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapBaseEnsoFullCycleForkTest.t.sol:324:58:
+    |
+324 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                          ^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapBaseEnsoFullCycleForkTest.t.sol:324:68:
+    |
+324 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                                    ^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapBaseEnsoFullCycleForkTest.t.sol:324:79:
+    |
+324 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                                               ^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapBaseEnsoFullCycleForkTest.t.sol:324:93:
+    |
+324 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                                                             ^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapBaseEnsoFullCycleForkTest.t.sol:324:104:
+    |
+324 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                                                                        ^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapBestRouteForkTest.t.sol:330:67:
+    |
+330 |         (address posTrader, uint256 collateral, uint256 borrowed, uint8 lev, bool isLong) = _readPosition();
+    |                                                                   ^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapHookConstructorTest.t.sol:131:25:
+    |
+131 |         (address logic, address logic2) =
+    |                         ^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapHookConstructorTest.t.sol:139:25:
+    |
+139 |         (address logic, address logic2) =
+    |                         ^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+ --> src/v4/test/EswapInsuranceTest.t.sol:9:9:
+  |
+9 |         address trader = address(0xABC);
+  |         ^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+  --> src/v4/test/EswapInsuranceTest.t.sol:12:9:
+   |
+12 |         Currency token0 = key.currency0;
+   |         ^^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapMainnet0xFullCycleForkTest.t.sol:341:46:
+    |
+341 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                              ^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapMainnet0xFullCycleForkTest.t.sol:341:58:
+    |
+341 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                          ^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapMainnet0xFullCycleForkTest.t.sol:341:68:
+    |
+341 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                                    ^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapMainnet0xFullCycleForkTest.t.sol:341:79:
+    |
+341 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                                               ^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapMainnet0xFullCycleForkTest.t.sol:341:93:
+    |
+341 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                                                             ^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapMainnet0xFullCycleForkTest.t.sol:341:104:
+    |
+341 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                                                                        ^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapMainnetEnsoFullCycleForkTest.t.sol:345:46:
+    |
+345 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                              ^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapMainnetEnsoFullCycleForkTest.t.sol:345:58:
+    |
+345 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                          ^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapMainnetEnsoFullCycleForkTest.t.sol:345:68:
+    |
+345 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                                    ^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapMainnetEnsoFullCycleForkTest.t.sol:345:79:
+    |
+345 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                                               ^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapMainnetEnsoFullCycleForkTest.t.sol:345:93:
+    |
+345 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                                                             ^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapMainnetEnsoFullCycleForkTest.t.sol:345:104:
+    |
+345 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                                                                        ^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapMainnetV4LiquidationForkTest.t.sol:388:53:
+    |
+388 |         (address owner, uint256 coll, uint256 borr, int24 lo, int24 up, uint128 lq) = _positionFields();
+    |                                                     ^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapMainnetV4LiquidationForkTest.t.sol:388:63:
+    |
+388 |         (address owner, uint256 coll, uint256 borr, int24 lo, int24 up, uint128 lq) = _positionFields();
+    |                                                               ^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapMaxLeverageForPoolTest.t.sol:105:13:
+    |
+105 |             uint160 liqSqrt,
+    |             ^^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapMaxLeverageForPoolTest.t.sol:106:13:
+    |
+106 |             int24 tickLower,
+    |             ^^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapMaxLeverageForPoolTest.t.sol:107:13:
+    |
+107 |             int24 tickUpper,
+    |             ^^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapMaxLeverageForPoolTest.t.sol:108:13:
+    |
+108 |             uint128 liquidity
+    |             ^^^^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapMaxLeverageForPoolTest.t.sol:131:13:
+    |
+131 |             uint160 liqSqrt,
+    |             ^^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapMaxLeverageForPoolTest.t.sol:132:13:
+    |
+132 |             int24 tickLower,
+    |             ^^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapMaxLeverageForPoolTest.t.sol:133:13:
+    |
+133 |             int24 tickUpper,
+    |             ^^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapMaxLeverageForPoolTest.t.sol:134:13:
+    |
+134 |             uint128 liquidity
+    |             ^^^^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapPositionLifecycleTest.t.sol:117:9:
+    |
+117 |         uint256 settleBefore = manager.settleCount();
+    |         ^^^^^^^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaEthFullCycleForkTest.t.sol:341:46:
+    |
+341 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                              ^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaEthFullCycleForkTest.t.sol:341:58:
+    |
+341 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                          ^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaEthFullCycleForkTest.t.sol:341:68:
+    |
+341 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                                    ^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaEthFullCycleForkTest.t.sol:341:79:
+    |
+341 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                                               ^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaEthFullCycleForkTest.t.sol:341:93:
+    |
+341 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                                                             ^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaEthFullCycleForkTest.t.sol:341:104:
+    |
+341 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                                                                        ^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaEthFullCycleForkTest.t.sol:397:46:
+    |
+397 |         (address cleared, uint256 collAfter, uint256 _b2, uint8 _l2, bool _lng2, uint160 _lsp2, int24 _tl2, int24 _tu2, uint128 liqAfter) =
+    |                                              ^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaEthFullCycleForkTest.t.sol:397:59:
+    |
+397 |         (address cleared, uint256 collAfter, uint256 _b2, uint8 _l2, bool _lng2, uint160 _lsp2, int24 _tl2, int24 _tu2, uint128 liqAfter) =
+    |                                                           ^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaEthFullCycleForkTest.t.sol:397:70:
+    |
+397 |         (address cleared, uint256 collAfter, uint256 _b2, uint8 _l2, bool _lng2, uint160 _lsp2, int24 _tl2, int24 _tu2, uint128 liqAfter) =
+    |                                                                      ^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaEthFullCycleForkTest.t.sol:397:82:
+    |
+397 |         (address cleared, uint256 collAfter, uint256 _b2, uint8 _l2, bool _lng2, uint160 _lsp2, int24 _tl2, int24 _tu2, uint128 liqAfter) =
+    |                                                                                  ^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaEthFullCycleForkTest.t.sol:397:97:
+    |
+397 |         (address cleared, uint256 collAfter, uint256 _b2, uint8 _l2, bool _lng2, uint160 _lsp2, int24 _tl2, int24 _tu2, uint128 liqAfter) =
+    |                                                                                                 ^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaEthFullCycleForkTest.t.sol:397:109:
+    |
+397 |         (address cleared, uint256 collAfter, uint256 _b2, uint8 _l2, bool _lng2, uint160 _lsp2, int24 _tl2, int24 _tu2, uint128 liqAfter) =
+    |                                                                                                             ^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaLiveStackReplay.t.sol:387:46:
+    |
+387 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                              ^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaLiveStackReplay.t.sol:387:58:
+    |
+387 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                          ^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaLiveStackReplay.t.sol:387:68:
+    |
+387 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                                    ^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaLiveStackReplay.t.sol:387:79:
+    |
+387 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                                               ^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaLiveStackReplay.t.sol:387:93:
+    |
+387 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                                                             ^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaLiveStackReplay.t.sol:387:104:
+    |
+387 |         (address cleared, uint256 collAfter, uint256 _b, uint8 _l, bool _lng, uint160 _lsp, int24 _tl, int24 _tu, uint128 liqAfter) =
+    |                                                                                                        ^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaLiveStackReplay.t.sol:444:46:
+    |
+444 |         (address cleared, uint256 collAfter, uint256 _b2, uint8 _l2, bool _lng2, uint160 _lsp2, int24 _tl2, int24 _tu2, uint128 liqAfter) =
+    |                                              ^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaLiveStackReplay.t.sol:444:59:
+    |
+444 |         (address cleared, uint256 collAfter, uint256 _b2, uint8 _l2, bool _lng2, uint160 _lsp2, int24 _tl2, int24 _tu2, uint128 liqAfter) =
+    |                                                           ^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaLiveStackReplay.t.sol:444:70:
+    |
+444 |         (address cleared, uint256 collAfter, uint256 _b2, uint8 _l2, bool _lng2, uint160 _lsp2, int24 _tl2, int24 _tu2, uint128 liqAfter) =
+    |                                                                      ^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaLiveStackReplay.t.sol:444:82:
+    |
+444 |         (address cleared, uint256 collAfter, uint256 _b2, uint8 _l2, bool _lng2, uint160 _lsp2, int24 _tl2, int24 _tu2, uint128 liqAfter) =
+    |                                                                                  ^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaLiveStackReplay.t.sol:444:97:
+    |
+444 |         (address cleared, uint256 collAfter, uint256 _b2, uint8 _l2, bool _lng2, uint160 _lsp2, int24 _tl2, int24 _tu2, uint128 liqAfter) =
+    |                                                                                                 ^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSepoliaLiveStackReplay.t.sol:444:109:
+    |
+444 |         (address cleared, uint256 collAfter, uint256 _b2, uint8 _l2, bool _lng2, uint160 _lsp2, int24 _tl2, int24 _tu2, uint128 liqAfter) =
+    |                                                                                                             ^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSettlementTest.t.sol:174:9:
+    |
+174 |         uint256 traderBalBefore = token1.balanceOf(trader);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapSmartCollateralTest.t.sol:129:9:
+    |
+129 |         uint256 settleBefore = manager.settleCount();
+    |         ^^^^^^^^^^^^^^^^^^^^
+
+Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+   --> src/v4/test/EswapTradingScenariosTest.t.sol:125:41:
+    |
+125 |     function _liquidate(address trader, bool isLong, int128 recoveredDelta) internal {
+    |                                         ^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapTradingScenariosTest.t.sol:205:59:
+    |
+205 |         (, uint256 collateral, uint256 borrow, uint8 lev, bool isLong,,,,) = hook.positions(key.toId(), address(this));
+    |                                                           ^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapTradingScenariosTest.t.sol:252:59:
+    |
+252 |         (, uint256 collateral, uint256 borrow, uint8 lev, bool isLong,,,,) = hook.positions(key.toId(), address(this));
+    |                                                           ^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapTradingScenariosTest.t.sol:297:59:
+    |
+297 |         (, uint256 collateral, uint256 borrow, uint8 lev, bool isLong,,,,) = hook.positions(key.toId(), address(this));
+    |                                                           ^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapTradingScenariosTest.t.sol:341:59:
+    |
+341 |         (, uint256 collateral, uint256 borrow, uint8 lev, bool isLong,,,,) = hook.positions(key.toId(), address(this));
+    |                                                           ^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapTradingScenariosTest.t.sol:386:59:
+    |
+386 |         (, uint256 collateral, uint256 borrow, uint8 lev, bool isLong,,,,) = hook.positions(key.toId(), address(this));
+    |                                                           ^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapTradingScenariosTest.t.sol:497:59:
+    |
+497 |         (, uint256 collateral, uint256 borrow, uint8 lev, bool isLong,,,,) = hook.positions(key.toId(), address(this));
+    |                                                           ^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapTradingScenariosTest.t.sol:540:59:
+    |
+540 |         (, uint256 collateral, uint256 borrow, uint8 lev, bool isLong,,,,) = hook.positions(key.toId(), address(this));
+    |                                                           ^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapTradingScenariosTest.t.sol:583:59:
+    |
+583 |         (, uint256 collateral, uint256 borrow, uint8 lev, bool isLong,,,,) = hook.positions(key.toId(), address(this));
+    |                                                           ^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/EswapTradingScenariosTest.t.sol:626:59:
+    |
+626 |         (, uint256 collateral, uint256 borrow, uint8 lev, bool isLong,,,,) = hook.positions(key.toId(), address(this));
+    |                                                           ^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/LiveNativeShort.t.sol:200:74:
+    |
+200 |  ... t256 borr, uint8 lev, bool isLong, uint160 liqPrice, int24 tLow, int24 tUp, uint128 li ...
+    |                                         ^^^^^^^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/LiveNativeShort.t.sol:200:92:
+    |
+200 |  ... ev, bool isLong, uint160 liqPrice, int24 tLow, int24 tUp, uint128 liq) = hook.po ...
+    |                                         ^^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/LiveNativeShort.t.sol:200:104:
+    |
+200 |  ... ong, uint160 liqPrice, int24 tLow, int24 tUp, uint128 liq) = hook.positions(nat ...
+    |                                         ^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/RehypothecationForkTest.t.sol:248:17:
+    |
+248 |         (,,,,,, int24 ftl, int24 ftu, uint128 fliq) = newHook.positions(hookPoolId, trader);
+    |                 ^^^^^^^^^
+
+Warning (2072): Unused local variable.
+   --> src/v4/test/RehypothecationForkTest.t.sol:248:28:
+    |
+248 |         (,,,,,, int24 ftl, int24 ftu, uint128 fliq) = newHook.positions(hookPoolId, trader);
+    |                            ^^^^^^^^^
+
+Warning (2018): Function state mutability can be restricted to pure
+   --> src/v4/EswapRouterExt.sol:678:5:
+    |
+678 |     function resolve(CrossChainOrder calldata order, bytes calldata)
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to pure
+   --> src/v4/test/mocks/PoolManagerMock.sol:101:5:
+    |
+101 |     function initialize(PoolKey memory, uint160) external override returns (int24) {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to pure
+   --> src/v4/test/mocks/PoolManagerMock.sol:159:5:
+    |
+159 |     function donate(PoolKey memory, uint256, uint256, bytes calldata) external override returns (BalanceDelta) {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to pure
+   --> src/v4/test/EswapBaseEnsoFullCycleForkTest.t.sol:217:5:
+    |
+217 |     function _realKey(uint24 fee, address hooks) internal view returns (RealPoolKey memory k) {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to pure
+   --> src/v4/test/EswapBestRouteForkTest.t.sol:212:5:
+    |
+212 |     function _realKey(uint24 fee, address hooks) internal view returns (RealPoolKey memory key) {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+   --> src/v4/test/EswapCoWSettlementTest.t.sol:141:5:
+    |
+141 |     function _signEip712(CowOrder.Data memory order, uint256 pk) internal returns (bytes memory sig) {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+   --> src/v4/test/EswapCoWSettlementTest.t.sol:188:5:
+    |
+188 |     function test_UidOf_MatchesPackedConcat() public {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+  --> src/v4/test/EswapHookConstructorTest.t.sol:53:5:
+   |
+53 |     function _logic2Of(address hookAddr) internal returns (address) {
+   |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to pure
+   --> src/v4/test/EswapHookConstructorTest.t.sol:187:5:
+    |
+187 |     function test_InitcodeFitsEip3860() public {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+   --> src/v4/test/EswapHookConstructorTest.t.sol:196:5:
+    |
+196 |     function test_HookRuntimeFitsEip170() public {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to pure
+   --> src/v4/test/EswapHookConstructorTest.t.sol:238:5:
+    |
+238 |     function test_CombinedDeploymentFitsEip3860() public {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to pure
+  --> src/v4/test/EswapInvariantTest.t.sol:25:5:
+   |
+25 |     function invariant_tstoreAlwaysClears() public view {
+   |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+   --> src/v4/test/EswapLiquidatorIncentiveTest.t.sol:185:5:
+    |
+185 |     function _readPosition() internal returns (address, uint256, uint256, uint8, bool) {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to pure
+   --> src/v4/test/EswapMainnet0xFullCycleForkTest.t.sol:224:5:
+    |
+224 |     function _realKey(uint24 fee, address hooks) internal view returns (RealPoolKey memory k) {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to pure
+   --> src/v4/test/EswapMainnetEnsoFullCycleForkTest.t.sol:228:5:
+    |
+228 |     function _realKey(uint24 fee, address hooks) internal view returns (RealPoolKey memory k) {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+   --> src/v4/test/EswapMainnetV4LiquidationForkTest.t.sol:374:5:
+    |
+374 |     function _assertLiquidatedCleanly(
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+   --> src/v4/test/EswapV4CoreProofTest.t.sol:103:5:
+    |
+103 |     function test_HookAddress_IsValidForRealPoolManager() public {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+   --> src/v4/test/EswapV4CoreProofTest.t.sol:120:5:
+    |
+120 |     function test_Hook_ConstructorFlagsPresent() public {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to pure
+   --> src/v4/test/EswapSepoliaEthFullCycleForkTest.t.sol:223:5:
+    |
+223 |     function _realKey(uint24 fee, address hooks) internal view returns (RealPoolKey memory k) {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to pure
+   --> src/v4/test/EswapSepoliaLiveStackReplay.t.sol:213:5:
+    |
+213 |     function _realKey(uint24 fee, address hooks) internal view returns (RealPoolKey memory k) {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to pure
+   --> src/v4/test/EswapSepoliaPipelineForkTest.t.sol:218:5:
+    |
+218 |     function _realKey(uint24 fee, address hooks) internal view returns (RealPoolKey memory k) {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+   --> src/v4/test/HookCreate2DeployTest.t.sol:158:5:
+    |
+158 |     function test_Framing_64BytePreimageIsDifferent() public {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to view
+   --> src/v4/test/HookCreate2DeployTest.t.sol:308:5:
+    |
+308 |     function test_DeployerRuntimeIsCanonical() public {
+    |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to pure
+  --> src/v4/test/LiveShortDebug.t.sol:45:5:
+   |
+45 |     function _hookKey() internal view returns (PoolKey memory) {
+   |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (2018): Function state mutability can be restricted to pure
+  --> src/v4/test/LiveShortDebug.t.sol:49:5:
+   |
+49 |     function _stdKey() internal view returns (PoolKey memory) {
+   |     ^ (Relevant source part starts here and spans across multiple lines).
+
+Warning (4591): There are more than 256 warnings. Ignoring the rest.
+
+Ran 1 test for src/v4/test/EswapSettlementTest.t.sol:EswapSettlementTest
+[FAIL: assertion failed: 20000000000000000000 != 40000000000000000000] test_ClaimRepayment_CannotDrainAnotherOrdersRepayment() (gas: 2599084)
+Suite result: FAILED. 0 passed; 1 failed; 0 skipped; finished in 12.02ms (4.71ms CPU time)
+
+Ran 1 test suite in 61.49ms (12.02ms CPU time): 0 tests passed, 1 failed, 0 skipped (1 total tests)
+
+Failing tests:
+Encountered 1 failing test in src/v4/test/EswapSettlementTest.t.sol:EswapSettlementTest
+[FAIL: assertion failed: 20000000000000000000 != 40000000000000000000] test_ClaimRepayment_CannotDrainAnotherOrdersRepayment() (gas: 2599084)
+
+Encountered a total of 1 failing tests, 0 tests succeeded
+
+Tip: Run `forge test --rerun` to retry only the 1 failed test

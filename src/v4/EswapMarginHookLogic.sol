@@ -764,6 +764,11 @@ function _isLong(PoolKey calldata key, Currency boughtCurrency) internal view re
         oiCapTvlFloorUsd = _tvlFloorUsd;
     }
 
+    function toggleEmergencyPause() external {
+        if (msg.sender != owner) revert NotOwner();
+        this.setEmergencyPause(!emergencyPaused);
+    }
+
     function setEmergencyPause(bool paused) external {
         if (msg.sender != owner) revert NotOwner();
         if (paused) {
