@@ -55,6 +55,9 @@ contract EswapSettlementTest is BaseV4Test {
 
         settlement = new EswapSettlement(router);
         router.setSolverWhitelist(address(settlement), true);
+        // [AUDIT N-05] `fill` credits the order recipient, not the margin
+        // funder, so the settler must be on the settlement whitelist too.
+        router.setSettlementWhitelist(address(settlement), true);
 
         trader = makeAddr("trader");
         filler = makeAddr("filler");
@@ -116,13 +119,16 @@ contract EswapSettlementTest is BaseV4Test {
         assertGt(collateral, 0, "position not opened");
     }
 
-    function test_Fill_UnlistedSettlementFundsBorrowFromOwnEscrow() public {
-        // An unregistered settlement is authorised by its own borrow escrow: fill()
-        // deposits the bridged borrow leg into erc20BorrowEscrow[settlement] before
-        // the router call, so the router's solver check passes and the borrow is
-        // drawn from that escrow (no per-address governance entry needed).
+    function test_Fill_SettlementWhitelisted_FundsBorrowFromOwnEscrow() public {
+        // A settlement that is NOT on the solver whitelist is still authorised by
+        // its own borrow escrow: fill() deposits the bridged borrow leg into
+        // erc20BorrowEscrow[settlement] before the router call, so the router's
+        // solver check passes and the borrow is drawn from that escrow (no
+        // per-address solver entry needed). [AUDIT N-05] It DOES need the
+        // settlement whitelist entry because it credits `trader`, not itself.
         EswapSettlement unlisted = new EswapSettlement(router);
         assertFalse(router.registeredSolvers(address(unlisted)), "fresh settler must start unregistered");
+        router.setSettlementWhitelist(address(unlisted), true);
 
         token0.mint(filler, 10 ether);
         vm.startPrank(filler);
@@ -133,6 +139,20 @@ contract EswapSettlementTest is BaseV4Test {
         (, uint256 collateral,,,,,,,) = hook.positions(key.toId(), trader);
         assertGt(collateral, 0, "position must open via the settler's own escrow");
         assertEq(router.erc20BorrowEscrow(address(unlisted), address(token0)), 0, "borrow escrow fully consumed");
+    }
+
+    /// @dev [AUDIT N-05] A settler that is neither the margin funder nor on the
+    ///      settlement whitelist cannot credit an arbitrary trader.
+    function test_Fill_UnwhitelistedSettlement_Reverts() public {
+        EswapSettlement unlisted = new EswapSettlement(router);
+        assertFalse(router.settlementWhitelist(address(unlisted)), "fresh settler must start unwhitelisted");
+
+        token0.mint(filler, 10 ether);
+        vm.startPrank(filler);
+        token0.approve(address(unlisted), type(uint256).max);
+        vm.expectRevert(EswapRouter.ExecutorUnauthorized.selector);
+        unlisted.fill(keccak256("unwhitelisted-order"), _originData(10 ether, 0), "");
+        vm.stopPrank();
     }
 
     function test_RescueToken() public {

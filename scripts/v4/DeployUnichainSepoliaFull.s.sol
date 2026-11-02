@@ -317,6 +317,11 @@ contract DeployUnichainSepoliaFull is Script {
         address gpv2 = vm.envOr("COW_GPv2_SETTLEMENT", COW_GPv2_SETTLEMENT);
 
         EswapCoWSettlement settlement = new EswapCoWSettlement(router, gpv2);
+        // [AUDIT N-05] The CoW settler opens for the order owner, not for the
+        // margin funder, so register it on the settlement whitelist.
+        if (!router.settlementWhitelist(address(settlement))) {
+            router.setSettlementWhitelist(address(settlement), true);
+        }
         console.log(string.concat("CoWSettlement: ", vm.toString(address(settlement))));
         console.log(string.concat("  gpv2Settlement: ", vm.toString(address(settlement.gpv2Settlement()))));
 
@@ -375,9 +380,15 @@ contract DeployUnichainSepoliaFull is Script {
         }
         // The generic settlement opens positions as its own solver, so it needs
         // the same whitelist entry. CoWSettlement forwards to the router as the
-        // order's designated solver and is gated by that order instead.
+        // order's designated solver and is gated by that order instead (plus its
+        // own settlement-whitelist entry above).
         if (!router.registeredSolvers(address(genericSettlement))) {
             router.setSolverWhitelist(address(genericSettlement), true);
+        }
+        // [AUDIT N-05] It opens positions for the order recipient, not for
+        // itself, so it also needs the settlement whitelist entry.
+        if (!router.settlementWhitelist(address(genericSettlement))) {
+            router.setSettlementWhitelist(address(genericSettlement), true);
         }
 
         // ------ Venue settlers with non-uniform settlement models (OPT-IN) ---

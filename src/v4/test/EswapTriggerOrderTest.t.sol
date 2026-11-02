@@ -71,6 +71,8 @@ contract EswapTriggerOrderTest is BaseV4Test {
 
         settlement = new EswapSettlement(router);
         router.setSolverWhitelist(address(settlement), true);
+        // [AUDIT N-05] `fill` credits the order recipient, not the funder.
+        router.setSettlementWhitelist(address(settlement), true);
         ext.setTriggerPriceFeed(IPriceFeedForTrigger(address(priceFeed)));
 
         trader = vm.addr(TRADER_PK);

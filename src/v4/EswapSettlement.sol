@@ -304,10 +304,11 @@ error ZeroAddress();
         uint256 entitlement = FullMath.mulDiv(principal, receipts, closedOwed);
         if (entitlement > principal) entitlement = principal;
         amount = entitlement > paid ? entitlement - paid : 0;
-        // [DUST] Integer division can round a small order's whole share to zero.
-        // Pay one unit (bounded by the balance) so a first claim always makes
-        // progress while funds remain, instead of leaving it unclaimable.
-        if (amount == 0 && paid == 0) amount = 1;
+        // [AUDIT N-04] NO dust minimum. The old `if (amount == 0 && paid == 0)
+        // amount = 1;` let a filler whose pro-rata share rounded to zero siphon
+        // one unit per order from the shared pot, diluting honest fillers (and
+        // making dust orders profitable to spam). A zero share simply means the
+        // order's claim is dust; it stays claimable if more receipts arrive.
         if (amount > available) amount = available;
         if (amount == 0) revert NothingToClaim();
 

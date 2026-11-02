@@ -23,13 +23,12 @@ interface IEswapSettlementOps {
 ///         (e.g. Base mainnet, where the hook/router/pricefeed are live but no
 ///         venue settler has been deployed).
 ///
-///         CoW is the rail that needs no router configuration at all:
-///         {EswapCoWSettlement.fillOrder} forwards to
-///         {EswapRouter.swapMultiPoolForSolverFunded} as the order's designated
-///         solver (`params.solver`). The solver — not the settler — is what the
-///         router authorizes (governance whitelist, the trader's signed
-///         LendingIntent, or a pre-funded `erc20BorrowEscrow` bond), so the
-///         settler itself is never whitelisted. See EswapRouter.sol:876-880.
+///         CoW is the rail that needs no solver-whitelist entry: the SOLVER is
+///         what the router authorizes (governance whitelist, the trader's signed
+///         LendingIntent, or a pre-funded `erc20BorrowEscrow` bond). The settler
+///         is still registered on the router's SEPARATE settlement whitelist
+///         ([AUDIT N-05]) because it opens the position for the order owner
+///         rather than for the margin funder. See EswapRouter.sol.
 ///
 ///         UniswapX and 1inch Fusion are inventory-based fill sources: the
 ///         protocol requires the filler to deliver output tokens to the order
@@ -84,6 +83,12 @@ contract DeploySettlements is Script {
         EswapCoWSettlement cow = new EswapCoWSettlement(router, gpv2);
         require(address(cow.router()) == routerAddr, "cow.router mismatch");
         require(cow.gpv2Settlement() == gpv2, "cow.gpv2 mismatch");
+        // [AUDIT N-05] The settler opens a position for a trader OTHER than the
+        // margin funder, so it must be whitelisted as a settlement. The order
+        // signature is what binds `trader` to this fill.
+        if (!router.settlementWhitelist(address(cow))) {
+            router.setSettlementWhitelist(address(cow), true);
+        }
         console.log(string.concat("CoWSettlement:    ", vm.toString(address(cow))));
         console.log(string.concat("  router:         ", vm.toString(address(cow.router()))));
         console.log(string.concat("  gpv2Settlement: ", vm.toString(cow.gpv2Settlement())));
@@ -101,6 +106,11 @@ contract DeploySettlements is Script {
         require(address(generic.router()) == routerAddr, "generic.router mismatch");
         if (!router.registeredSolvers(address(generic))) {
             router.setSolverWhitelist(address(generic), true);
+        }
+        // [AUDIT N-05] It opens positions for the order recipient, not for
+        // itself, so it also needs the settlement whitelist entry.
+        if (!router.settlementWhitelist(address(generic))) {
+            router.setSettlementWhitelist(address(generic), true);
         }
         console.log(string.concat("EswapSettlement:  ", vm.toString(address(generic))));
         console.log(string.concat("  whitelisted:    ", vm.toString(router.registeredSolvers(address(generic)))));

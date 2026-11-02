@@ -137,4 +137,32 @@ contract AuditMarginFunderPoC is BaseV4Test {
 
         assertEq(token0.balanceOf(victim), victimBefore, "victim margin untouched");
     }
+
+    /// @dev [AUDIT N-05] Only a settlement-whitelisted funder may credit a
+    ///      DIFFERENT trader. The whitelist is the governance moat; it is also
+    ///      revocable, restoring the strict msg.sender == marginFunder rule.
+    function test_SettlementWhitelist_GatesThirdPartyTrader() public {
+        address relay = address(0x5E771E);
+        token0.mint(relay, 100 ether);
+        vm.prank(relay);
+        token0.approve(address(router), type(uint256).max);
+
+        // Not whitelisted: crediting the attacker is rejected.
+        vm.prank(relay);
+        vm.expectRevert(EswapRouter.ExecutorUnauthorized.selector);
+        router.swapMultiPoolForSolverFunded(_attackParams(), attacker, relay);
+
+        // Whitelisted: the relay may open for the trader it settled for.
+        router.setSettlementWhitelist(relay, true);
+        vm.prank(relay);
+        router.swapMultiPoolForSolverFunded(_attackParams(), attacker, relay);
+        (address posTrader,,,,,,,,) = hook.positions(key.toId(), attacker);
+        assertEq(posTrader, attacker, "whitelisted settlement credits the bound trader");
+
+        // Revoked: the gate is restored.
+        router.setSettlementWhitelist(relay, false);
+        vm.prank(relay);
+        vm.expectRevert(EswapRouter.ExecutorUnauthorized.selector);
+        router.swapMultiPoolForSolverFunded(_attackParams(), victim, relay);
+    }
 }

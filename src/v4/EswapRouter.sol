@@ -130,6 +130,18 @@ contract EswapRouter is
     // behalf of someone else.
     mapping(address => bool) public executorWhitelist;
 
+    // [AUDIT N-05] Settlement / relay whitelist for the solver-funded open.
+    // `swapMultiPoolForSolverFunded` credits the position to a CALLER-SUPPLIED
+    // `trader` while pulling the margin from `marginFunder`. The marginFunder
+    // check alone only proves who pays; it does not prove the recipient agreed
+    // to receive the position. A direct funder could therefore open an
+    // at-the-money (or better) position in an arbitrary victim's name — a
+    // griefing / free-option vector — and any relay wrapping this entrypoint
+    // would become a confused deputy. Only a governance-whitelisted settlement
+    // (CoW / ERC-7683) that has ALREADY bound `trader` to the fill through the
+    // order it settles may open for a different address.
+    mapping(address => bool) public settlementWhitelist;
+
     bytes32 public immutable DOMAIN_SEPARATOR;
 
     enum CallType {
@@ -263,8 +275,17 @@ contract EswapRouter is
         executorWhitelist[executor] = approved;
     }
 
+    /// @notice [AUDIT N-05] Governance gates who may open a solver-funded
+    ///         position for a DIFFERENT `trader` (settlement / relay contracts).
+    ///         Everything else must name itself as the trader.
+    function setSettlementWhitelist(address settlement, bool approved) external onlyOwner {
+        settlementWhitelist[settlement] = approved;
+        emit SettlementWhitelistUpdated(settlement, approved);
+    }
+
     event AggregatorWhitelistUpdated(address indexed exchangeProxy, bool allowed);
     event ExecutorWhitelistUpdated(address indexed executor, bool approved);
+    event SettlementWhitelistUpdated(address indexed settlement, bool approved);
 
     // --- EswapRouterExt passthroughs --------------------------------
     //
@@ -458,7 +479,14 @@ contract EswapRouter is
         // party's behalf (bridge/CoW settlements) must pull the margin
         // themselves and pass THEMSELVES as `marginFunder` — see
         // EswapSettlement.fill and EswapCoWSettlement._fillOrder.
-        if (msg.sender != marginFunder) revert ExecutorUnauthorized();
+        //
+        // [AUDIT N-05] Paying is not consent: a funder could otherwise credit an
+        // arbitrary `trader` with a free position (griefing / free option), and
+        // any whitelisted relay wrapping this call would be a confused deputy.
+        // A trader other than the funder is therefore only accepted from a
+        // governance-whitelisted settlement, which has already bound the trader
+        // to the order it is settling.
+        if (msg.sender != marginFunder && !settlementWhitelist[msg.sender]) revert ExecutorUnauthorized();
         return manager.unlock(
             abi.encode(CallType.MULTI_POOL_SOLVER_FUNDED, params, trader, marginFunder, msg.value, msg.sender)
         );

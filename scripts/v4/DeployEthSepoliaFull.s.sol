@@ -277,6 +277,11 @@ contract DeployEthSepoliaFull is Script {
         require(gpv2.code.length > 0, "CoW GPv2Settlement has no code on 11155111");
 
         EswapCoWSettlement settlement = new EswapCoWSettlement(router, gpv2);
+        // [AUDIT N-05] The CoW settler opens for the order owner, not for the
+        // margin funder, so register it on the settlement whitelist.
+        if (!router.settlementWhitelist(address(settlement))) {
+            router.setSettlementWhitelist(address(settlement), true);
+        }
         console.log(string.concat("CoWSettlement: ", vm.toString(address(settlement))));
         console.log(string.concat("  gpv2Settlement: ", vm.toString(address(settlement.gpv2Settlement()))));
 

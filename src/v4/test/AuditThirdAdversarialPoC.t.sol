@@ -68,6 +68,9 @@ contract AuditThirdAdversarialPoC is BaseV4Test {
 
         router.setExecutorWhitelist(address(adapter), true);
         router.setSolverWhitelist(address(settlement), true);
+        // [AUDIT N-05] `settlement.fill` credits the order recipient, not the
+        // margin funder, so it needs the settlement whitelist entry.
+        router.setSettlementWhitelist(address(settlement), true);
 
         solver = makeAddr("solver");
         router.setSolverWhitelist(solver, true);

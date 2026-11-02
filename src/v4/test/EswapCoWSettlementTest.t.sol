@@ -85,6 +85,9 @@ contract EswapCoWSettlementTest is BaseV4Test {
 
         gpv2Settlement = makeAddr("gpv2Settlement");
         settlement = new EswapCoWSettlement(router, gpv2Settlement);
+        // [AUDIT N-05] The CoW settler credits the order owner, not the margin
+        // funder, so it must be on the settlement whitelist.
+        router.setSettlementWhitelist(address(settlement), true);
 
         solver = makeAddr("solver");
         router.setSolverWhitelist(solver, true);

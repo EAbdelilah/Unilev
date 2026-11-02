@@ -505,7 +505,7 @@ contract EswapMarginHookLogic2 is BaseHook, EswapMarginHookLogicStorage {
             if (NativeTokens.isNative(collateralCurrency)) {
                 (bool success,) = recipient.call{value: uint256(yieldAmount)}("");
                 if (!success) {
-                    insuranceFund[collateralCurrency] += uint256(yieldAmount);
+                    _creditStrandedYield(collateralCurrency, uint256(yieldAmount));
                 }
             } else {
                 // [AUDIT HIGH-3] Raw IERC20.transfer + abi.decode(bool) misrouted
@@ -518,10 +518,33 @@ contract EswapMarginHookLogic2 is BaseHook, EswapMarginHookLogicStorage {
                     abi.encodeCall(IERC20.transfer, (recipient, uint256(yieldAmount)))
                 );
                 if (!ok || (ret.length != 0 && !abi.decode(ret, (bool)))) {
-                    insuranceFund[collateralCurrency] += uint256(yieldAmount);
+                    // [AUDIT N-01] Book the failed push as CLAIM-BACKED insurance:
+                    // settle the tokens still held by the hook into the
+                    // PoolManager and mint the matching ERC-6909 claim. The old
+                    // bare `insuranceFund +=` left the ledger claiming coverage
+                    // the fund could not burn (`_burnableClaims` reads the PM
+                    // balance), so shortfalls booked bad debt and the residue
+                    // sweep over-reserved stranded raw tokens.
+                    _creditStrandedYield(collateralCurrency, uint256(yieldAmount));
                 }
             }
         }
+    }
+
+    /// @dev [AUDIT N-01] Converts a yield amount that could not be pushed to its
+    ///      recipient into claim-backed insurance. The raw tokens are still in
+    ///      the hook's wallet, so they are settled back into the PoolManager and
+    ///      the equivalent ERC-6909 claim is minted to the hook BEFORE the ledger
+    ///      is credited — exactly like the liquidation-reward path in `_settle`
+    ///      and `seedInsuranceFund`. This keeps
+    ///      `insuranceFund <= manager.balanceOf(hook, claimId)` (minus the fee
+    ///      reservation) so coverage can actually be burned and
+    ///      `sweepableResidue` never treats the stranded amount as free residue.
+    function _creditStrandedYield(Currency currency, uint256 amount) internal {
+        if (amount == 0) return;
+        insuranceFund[currency] += amount;
+        _settleToManager(currency, amount);
+        manager.mint(address(this), uint256(uint160(Currency.unwrap(currency))), amount);
     }
 
     function _clearCollateralAccounting(address trader, Currency currency, uint256 amount) internal {

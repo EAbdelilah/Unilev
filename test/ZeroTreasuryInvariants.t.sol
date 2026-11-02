@@ -207,6 +207,9 @@ contract ZeroTreasuryInvariants is Test {
         // Full solver pipeline.
         cow = new EswapCoWSettlement(router, GPV2_SETTLEMENT);
         settlement = new EswapSettlement(router);
+        // [AUDIT N-05] Both settlers credit the order recipient, not the funder.
+        router.setSettlementWhitelist(address(cow), true);
+        router.setSettlementWhitelist(address(settlement), true);
         quoter = new EswapLeverageQuoter(router);
         adapter = new EswapLeverageAdapter(router);
         quoter.registerPool(UNICHAIN_USDC, UNICHAIN_WETH, 3000, hookLocalKey, standardLocalKey);

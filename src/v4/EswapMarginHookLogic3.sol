@@ -143,6 +143,24 @@ contract EswapMarginHookLogic3 is BaseHook, EswapMarginHookLogicStorage {
         if (totalSource == 0) revert SlippageExceeded(0, minAmountOut);
         if (totalSource < minAmountOut) revert SlippageExceeded(totalSource, minAmountOut);
 
+        // [AUDIT N-02] What the surviving position ACTUALLY holds after the
+        // unwind, in the collateral currency: the band's collateral-currency
+        // return plus the share that never left the accounting pool, minus the
+        // slice just sold. This is NOT `collateralAmount - unwindAmount`: when
+        // the band had already converted collateral into the debt currency
+        // (F-06), the book overstates the physical backing, so the old gate
+        // could pass a genuinely underwater survivor and leave a ledger that no
+        // longer matches the hook's holdings.
+        uint256 remainingCollateral = _survivingCollateral(
+            key,
+            removeDelta,
+            collateralCurrency,
+            collateralAmount,
+            rehypPrincipal[poolId][trader],
+            hadBand,
+            unwindAmount
+        );
+
         // Repay the proportional share of the solver claim first.
         address solver = positionSolver[poolId][trader];
         SolverDebt storage debt = solverDebts[poolId][trader][solver];
@@ -166,12 +184,21 @@ contract EswapMarginHookLogic3 is BaseHook, EswapMarginHookLogicStorage {
         // `_isLiquidatable` (which tolerates a feed outage by using the cached
         // mark), so a fresh live read here must not be able to re-break
         // liquidation liveness.
+        //
+        // [AUDIT N-02] Value the survivor's REAL holdings (`remainingCollateral`,
+        // computed above), not the stale book. The band has already been fully
+        // removed and its proceeds distributed, so the surviving position holds
+        // only the remaining collateral currency.
         if (unwindAmount < collateralAmount) {
-            uint256 remainingCollateral = collateralAmount - unwindAmount;
             uint256 remainingDebt = borrowedAmount > liqDebt ? borrowedAmount - liqDebt : 0;
-            (uint256 remCollUsd, bool remCollCached) = _usdOrCache(Currency.unwrap(collateralCurrency), remainingCollateral);
+            (uint256 remCollUsd, bool remCollCached) =
+                _usdOrCache(Currency.unwrap(collateralCurrency), remainingCollateral);
             (uint256 remDebtUsd, bool remDebtCached) = _usdOrCache(Currency.unwrap(debtCurrency), remainingDebt);
-            if (EswapMarginLib.isLiquidatable(remCollUsd, remDebtUsd, pos.leverage, (remCollCached || remDebtCached) ? CIRCUIT_BREAKER_BPS : 0)) {
+            if (
+                EswapMarginLib.isLiquidatable(
+                    remCollUsd, remDebtUsd, pos.leverage, (remCollCached || remDebtCached) ? CIRCUIT_BREAKER_BPS : 0
+                )
+            ) {
                 revert PartialLiquidationLeavesUnhealthyPosition();
             }
         }
@@ -190,7 +217,8 @@ contract EswapMarginHookLogic3 is BaseHook, EswapMarginHookLogicStorage {
             afterSolver - liqReward,
             liqDebt,
             bandProceeds,
-            collateralAmount
+            collateralAmount,
+            remainingCollateral
         );
     }
 
@@ -223,7 +251,8 @@ contract EswapMarginHookLogic3 is BaseHook, EswapMarginHookLogicStorage {
         uint256 traderPayout,
         uint256 liqDebt,
         uint256 extraProceeds,
-        uint256 collateralAmount
+        uint256 collateralAmount,
+        uint256 remainingCollateral
     ) internal {
         if (receivedAmount > 0) {
             manager.take(debtCurrency, address(this), receivedAmount);
@@ -296,12 +325,17 @@ contract EswapMarginHookLogic3 is BaseHook, EswapMarginHookLogicStorage {
                 _payOrCredit(debtCurrency, trader, finalTraderPayout);
             }
         }
-        // Clear the trader's accounting claim on the LIQUIDATED collateral slice
-        // only; the remainder stays backing the surviving position.
-        if (unwindAmount > 0) {
-            _clearCollateralAccounting(trader, collateralCurrency, unwindAmount);
+        // [AUDIT N-02] Reconcile the trader's ledger with what the survivor
+        // ACTUALLY holds. `collateralAmount - remainingCollateral` is the slice
+        // sold plus any collateral the band had already converted into the debt
+        // currency (whose proceeds were paid out above). Keeping the old
+        // `collateralAmount - unwindAmount` book would over-credit the survivor
+        // and later burn claims that are no longer backed by hook holdings.
+        uint256 ledgerReduction = collateralAmount > remainingCollateral ? collateralAmount - remainingCollateral : 0;
+        if (ledgerReduction > 0) {
+            _clearCollateralAccounting(trader, collateralCurrency, ledgerReduction);
         }
-        pos.collateralAmount = pos.collateralAmount > unwindAmount ? pos.collateralAmount - unwindAmount : 0;
+        pos.collateralAmount = remainingCollateral;
         pos.borrowedAmount = pos.borrowedAmount > liqDebt ? pos.borrowedAmount - liqDebt : 0;
 
         if (liqDebt > 0) {
@@ -311,9 +345,9 @@ contract EswapMarginHookLogic3 is BaseHook, EswapMarginHookLogicStorage {
             _releaseOpenInterest(Currency.unwrap(debtCurrency), liqDebt);
             totalBorrowedByToken[debtCurrency] = EswapMarginLib.saturatingSub(totalBorrowedByToken[debtCurrency], liqDebt);
         }
-        if (unwindAmount > 0 && collateralAmount > 0) {
+        if (ledgerReduction > 0 && collateralAmount > 0) {
             uint256 removedCollateralUsd =
-                FullMath.mulDiv(positionCollateralUSD[poolId][trader], unwindAmount, collateralAmount);
+                FullMath.mulDiv(positionCollateralUSD[poolId][trader], ledgerReduction, collateralAmount);
             uint256 pc = positionCollateralUSD[poolId][trader];
             positionCollateralUSD[poolId][trader] = pc > removedCollateralUsd ? pc - removedCollateralUsd : 0;
             totalCollateralUSDRunning = EswapMarginLib.saturatingSub(totalCollateralUSDRunning, removedCollateralUsd);
@@ -334,6 +368,34 @@ contract EswapMarginHookLogic3 is BaseHook, EswapMarginHookLogicStorage {
     function liquidationBpsOf(uint256 part, uint256 whole) internal pure returns (uint256) {
         if (whole == 0) return 0;
         return (part * 10000) / whole;
+    }
+
+    /// @dev [AUDIT N-02] Collateral-currency backing a position still owns after
+    ///      its LP band was removed and `unwindAmount` was sold. `recovered` is
+    ///      the band's collateral-currency return; `retained` is the share that
+    ///      never left the accounting pool. Capped at the book so a yield
+    ///      distribution cannot inflate the survivor's value, and clamped at zero
+    ///      so a fully-drained position cannot underflow.
+    function _survivingCollateral(
+        PoolKey calldata key,
+        BalanceDelta removeDelta,
+        Currency collateralCurrency,
+        uint256 collateralAmount,
+        uint256 deployedPrincipal,
+        bool hadBand,
+        uint256 unwindAmount
+    ) internal pure returns (uint256) {
+        uint256 backing = collateralAmount;
+        if (hadBand) {
+            int128 recoveredInt = Currency.unwrap(collateralCurrency) == Currency.unwrap(key.currency0)
+                ? removeDelta.amount0()
+                : removeDelta.amount1();
+            uint256 recovered = recoveredInt > 0 ? uint256(uint128(recoveredInt)) : 0;
+            uint256 retained = collateralAmount > deployedPrincipal ? collateralAmount - deployedPrincipal : 0;
+            backing = recovered + retained;
+            if (backing > collateralAmount) backing = collateralAmount;
+        }
+        return backing > unwindAmount ? backing - unwindAmount : 0;
     }
 
     // ─── Unwind engine (duplicated from Logic2 — see contract notice) ─────────
@@ -565,7 +627,7 @@ contract EswapMarginHookLogic3 is BaseHook, EswapMarginHookLogicStorage {
             if (NativeTokens.isNative(collateralCurrency)) {
                 (bool success,) = recipient.call{value: uint256(yieldAmount)}("");
                 if (!success) {
-                    insuranceFund[collateralCurrency] += uint256(yieldAmount);
+                    _creditStrandedYield(collateralCurrency, uint256(yieldAmount));
                 }
             } else {
                 // [AUDIT HIGH-3] Mirror SafeERC20 semantics: empty return is a
@@ -575,10 +637,24 @@ contract EswapMarginHookLogic3 is BaseHook, EswapMarginHookLogicStorage {
                     abi.encodeCall(IERC20.transfer, (recipient, uint256(yieldAmount)))
                 );
                 if (!ok || (ret.length != 0 && !abi.decode(ret, (bool)))) {
-                    insuranceFund[collateralCurrency] += uint256(yieldAmount);
+                    // [AUDIT N-01] Credit CLAIM-BACKED insurance (settle + mint),
+                    // never a bare ledger increment: see
+                    // EswapMarginHookLogic2._creditStrandedYield.
+                    _creditStrandedYield(collateralCurrency, uint256(yieldAmount));
                 }
             }
         }
+    }
+
+    /// @dev [AUDIT N-01] Duplicate of Logic2's helper: convert a failed yield
+    ///      push into claim-backed insurance by settling the stranded tokens
+    ///      into the PoolManager and minting the matching ERC-6909 claim before
+    ///      crediting the ledger.
+    function _creditStrandedYield(Currency currency, uint256 amount) internal {
+        if (amount == 0) return;
+        insuranceFund[currency] += amount;
+        _settleToManager(currency, amount);
+        manager.mint(address(this), uint256(uint160(Currency.unwrap(currency))), amount);
     }
 
     function _clearCollateralAccounting(address trader, Currency currency, uint256 amount) internal {

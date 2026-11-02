@@ -195,6 +195,8 @@ contract EswapSepoliaEthFullCycleForkTest is Test, IUnlockCallback {
 
         // Pipeline contracts (same wiring the Phase-B deployer performs).
         settlement = new EswapCoWSettlement(router, GPV2_SETTLEMENT);
+        // [AUDIT N-05] The CoW settler credits the order owner, not the funder.
+        router.setSettlementWhitelist(address(settlement), true);
         adapter = new EswapLeverageAdapter(router);
         quoter = new EswapLeverageQuoter(router);
         // [AUDIT CRIT-4] The adapter relays swapMultiPoolFor for its recipient.

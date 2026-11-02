@@ -340,8 +340,11 @@ contract EswapIntentSolverTest is BaseV4Test {
 
     function test_CowSolverFunded_Unwhitelisted_FullyCollateralised_Opens() public {
         // The new leg: an unwhitelisted, non-intent solver whose bond covers the
-        // whole notional opens the position. No per-address governance entry.
+        // whole notional opens the position. No per-address SOLVER governance
+        // entry. [AUDIT N-05] It still needs the settlement whitelist entry,
+        // because it credits the order owner (`trader`) rather than itself.
         assertFalse(router.registeredSolvers(solver), "solver must NOT be whitelisted");
+        router.setSettlementWhitelist(solver, true);
 
         // Bond EXACTLY the borrow leg (40 ether). The margin leg is a separate
         // direct `transferFrom` from `marginFunder`, so it must NOT be bonded.
@@ -418,6 +421,9 @@ contract EswapIntentSolverTest is BaseV4Test {
         // The bond is SPENT per fill, so cumulative exposure can never exceed
         // cumulative deposits. One 40 ether bond funds exactly one 40 ether
         // borrow; a second fill without a fresh deposit is rejected.
+        // [AUDIT N-05] The solver credits the order owner, so it is registered
+        // as a settlement for this test.
+        router.setSettlementWhitelist(solver, true);
         vm.startPrank(solver);
         token0.approve(address(router), type(uint256).max);
         router.depositBorrowEscrow(address(token0), 40 ether);

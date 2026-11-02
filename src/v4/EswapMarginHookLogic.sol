@@ -406,7 +406,13 @@ contract EswapMarginHookLogic is BaseHook, EswapMarginHookLogicStorage {
         amount = payoutCredits[msg.sender][currency];
         if (amount == 0) revert NoPayoutCredit();
         payoutCredits[msg.sender][currency] = 0;
-        NativeTokens.transfer(currency, msg.sender, amount);
+        // [AUDIT N-03] Honour the configured redirect for ALREADY-CREDITED
+        // balances, exactly as `_payOrCredit` does for fresh payouts and as
+        // `setPayoutRedirect` documents. Otherwise a blacklisted account could
+        // never pull its credit to the clean address it designated.
+        address dest = payoutRedirect[msg.sender];
+        if (dest == address(0)) dest = msg.sender;
+        NativeTokens.transfer(currency, dest, amount);
         emit PayoutClaimed(msg.sender, currency, amount);
     }
 
