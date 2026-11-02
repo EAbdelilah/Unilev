@@ -27,6 +27,7 @@ contract EswapSolverAdapter {
     );
 
     mapping(address => uint256) public nonces;
+    mapping(address => uint256) public spotNonces;
     address public immutable hook;
 
     error InvalidSignature();
@@ -85,7 +86,7 @@ contract EswapSolverAdapter {
 
     function verifySpotIntent(SpotIntent calldata intent, bytes calldata signature) public view returns (bool) {
         if (block.timestamp > intent.deadline) revert DeadlineExpired();
-        if (intent.nonce != nonces[intent.swapper]) revert NonceInvalid();
+        if (intent.nonce != spotNonces[intent.swapper]) revert NonceInvalid();
 
         bytes32 structHash = keccak256(
             abi.encode(
@@ -107,7 +108,7 @@ contract EswapSolverAdapter {
 
     function submitSpotIntent(SpotIntent calldata intent, bytes calldata signature) external returns (bool) {
         verifySpotIntent(intent, signature);
-        nonces[intent.swapper]++;
+        spotNonces[intent.swapper]++;
         return true;
     }
 

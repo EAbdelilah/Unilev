@@ -8,6 +8,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {PoolKey} from "./types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "./types/PoolId.sol";
 import {Currency} from "./types/Currency.sol";
+import {FullMath} from "@uniswap/v4-core/src/libraries/FullMath.sol";
 import {EswapMarginHook} from "./EswapMarginHook.sol";
 import {EswapRouter} from "./EswapRouter.sol";
 
@@ -222,7 +223,7 @@ contract EswapLiquidationKeeper is Ownable {
         uint256 receivedUsdPerUnit = hook.priceFeed().getAmountInUsd(receivedToken, receivedUnit);
         if (receivedUsdPerUnit == 0) return 0;
 
-        uint256 expectedOut = (collateralUsd * receivedUnit) / receivedUsdPerUnit;
+        uint256 expectedOut = FullMath.mulDiv(collateralUsd, receivedUnit, receivedUsdPerUnit);
         return (expectedOut * (10000 - slippageBps)) / 10000;
     }
 

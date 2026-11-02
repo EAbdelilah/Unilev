@@ -75,6 +75,7 @@ contract EswapOneInchFusionSettlement is IPostInteraction, Ownable {
     error UnexpectedArgsTarget();
     error ExtensionLengthMismatch();
     error InteractionLengthMismatch();
+    error InsufficientSurplus();
 
     event OrderFilled(bytes32 indexed orderHash, address indexed recipient, uint256 makingAmount, uint256 takingAmount);
     event OperatorSet(address indexed operator);
@@ -198,6 +199,12 @@ contract EswapOneInchFusionSettlement is IPostInteraction, Ownable {
     }
 
     function rescueToken(address token, address to, uint256 amount) external onlyOwner {
+        if (to == address(0)) revert ZeroAddress();
+        if (token == address(takerAsset)) {
+            uint256 bal = takerAsset.balanceOf(address(this));
+            uint256 surplus = bal > maxTakingAmount ? bal - maxTakingAmount : 0;
+            if (amount > surplus) revert InsufficientSurplus();
+        }
         IERC20(token).safeTransfer(to, amount);
     }
 }

@@ -64,6 +64,8 @@ contract EswapUniswapXSettlement is IValidationCallback, Ownable {
     error OrderAlreadyFilled();
     error ZeroAddress();
 
+    error InsufficientSurplus();
+
     event OrderFilled(bytes32 indexed orderHash, address indexed recipient, uint256 inputAmount, uint256 outputAmount);
     event RecipientSet(address indexed recipient);
     event OrderRecipientSet(bytes32 indexed orderKey, address indexed recipient);
@@ -136,7 +138,7 @@ contract EswapUniswapXSettlement is IValidationCallback, Ownable {
      *      replayed under a fresh key. A caller-chosen hash would allow exactly
      *      that, re-filling one signed order indefinitely.
      */
-    function fill(SignedOrder calldata order) external payable {
+    function fill(SignedOrder calldata order, address recipient) public payable {
         if (msg.sender != operator) revert NotAuthorizedFiller();
 
         bytes32 orderHash = keccak256(abi.encodePacked(order.order, order.sig));
@@ -157,10 +159,21 @@ contract EswapUniswapXSettlement is IValidationCallback, Ownable {
         uint256 received = inputToken.balanceOf(address(this)) - inputBefore;
         uint256 sent = outputBefore - outputToken.balanceOf(address(this));
 
-        emit OrderFilled(orderHash, pendingRecipient, received, sent);
+        address actualRecipient = recipient != address(0) ? recipient : pendingRecipient;
+        emit OrderFilled(orderHash, actualRecipient, received, sent);
+    }
+
+    function fill(SignedOrder calldata order) external payable {
+        fill(order, address(0));
     }
 
     function rescueToken(address token, address to, uint256 amount) external onlyOwner {
+        if (to == address(0)) revert ZeroAddress();
+        if (token == address(outputToken)) {
+            uint256 bal = outputToken.balanceOf(address(this));
+            uint256 surplus = bal > maxFillAmount ? bal - maxFillAmount : 0;
+            if (amount > surplus) revert InsufficientSurplus();
+        }
         IERC20(token).safeTransfer(to, amount);
     }
 }

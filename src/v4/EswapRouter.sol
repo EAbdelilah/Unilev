@@ -394,6 +394,7 @@ contract EswapRouter is
     error ExecutorUnauthorized();
     event NativeBorrowDeposited(address indexed solver, uint256 amount);
     event NativeBorrowWithdrawn(address indexed solver, uint256 amount);
+    event ETHRefundFailed(address indexed recipient, uint256 amount);
     uint256 public constant DEFAULT_DEADLINE_SLACK = 15 minutes;
 
     struct SwapParams {
@@ -829,7 +830,7 @@ contract EswapRouter is
                 manager.settle{value: marginAmount}();
             }
             if (ethAttached > marginAmount) {
-                _safeTransferETH(refundRecipient, ethAttached - marginAmount);
+                _safeRefundETH(refundRecipient, ethAttached - marginAmount);
             }
         } else {
             // Settle the trader's margin (router's -margin delta from the swap)
@@ -1081,7 +1082,7 @@ contract EswapRouter is
         //    margin is returned. Uses a safe call so a contract recipient cannot
         //    DoS the refund with the 2300-gas transfer() stipend.
         if (inputNative && ethAttached > marginAmount) {
-            _safeTransferETH(refundRecipient, ethAttached - marginAmount);
+            _safeRefundETH(refundRecipient, ethAttached - marginAmount);
         }
 
         if (params.hookData.length > 0) {
@@ -1300,7 +1301,7 @@ contract EswapRouter is
         //    the aggregator path this is always 0 (ERC20-only route); guard
         //    defensively and return it to the funder.
         if (ethAttached > 0) {
-            _safeTransferETH(refundRecipient, ethAttached);
+            _safeRefundETH(refundRecipient, ethAttached);
         }
 
         if (params.hookData.length > 0) {
@@ -1421,7 +1422,7 @@ contract EswapRouter is
     {
         if (leverage == 0 || leverage > 20 || amountSpecified == 0) return 0; // [FIX L-3] Raised cap from 5 to 20 to match protocol max
         int128 absAmount = amountSpecified < 0 ? -amountSpecified : amountSpecified;
-        uint128 leveragedAmount = uint128(absAmount) * uint128(leverage);
+        uint256 leveragedAmount = uint256(uint128(absAmount)) * uint256(leverage);
 
         // Prefer the standard (deep-fill) pool's price: in multi-pool mode that is
         // where the physical swap executes, so quoting it keeps parity.
@@ -1475,6 +1476,15 @@ contract EswapRouter is
         // unreachable (and therefore enforced nothing) with reachable ones.
         output = (output * (10_000 - QUOTE_EXECUTION_DISCOUNT_BPS)) / 10_000;
         return int128(uint128(output));
+    }
+
+    /// @dev Safe ETH refund that does not revert if recipient contract fails to accept ETH.
+    function _safeRefundETH(address to, uint256 amount) internal {
+        if (amount == 0) return;
+        (bool ok, ) = payable(to).call{value: amount}("");
+        if (!ok) {
+            emit ETHRefundFailed(to, amount);
+        }
     }
 
     /// @dev [FIX M-4] Safe ETH transfer without a hard 2300-gas stipend so

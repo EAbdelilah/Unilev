@@ -299,10 +299,19 @@ contract EswapCoWSettlement is CowSigning {
         // approved this settlement — that is the GPv2-batch case, where the
         // canonical settlement has already moved the sell amount to the solver.
         address marginSource = params.solver;
+        bool pulledFromOwner = false;
         if (IERC20(order.sellToken).allowance(owner, address(this)) >= margin) {
-            marginSource = owner;
+            (bool ok, bytes memory ret) = order.sellToken.call(
+                abi.encodeCall(IERC20.transferFrom, (owner, address(this), margin))
+            );
+            if (ok && (ret.length == 0 || abi.decode(ret, (bool)))) {
+                pulledFromOwner = true;
+                marginSource = owner;
+            }
         }
-        IERC20(order.sellToken).safeTransferFrom(marginSource, address(this), margin);
+        if (!pulledFromOwner) {
+            IERC20(order.sellToken).safeTransferFrom(params.solver, address(this), margin);
+        }
         IERC20(order.sellToken).forceApprove(address(router), margin);
 
         router.swapMultiPoolForSolverFunded(swapParams, owner, address(this));

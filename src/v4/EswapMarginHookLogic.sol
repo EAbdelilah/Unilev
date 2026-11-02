@@ -120,6 +120,10 @@ contract EswapMarginHookLogic is BaseHook, EswapMarginHookLogicStorage {
         }
         uint128 liquidity = capped > uint256(type(uint128).max) ? type(uint128).max : uint128(capped);
 
+        pos.tickLower = tickLower;
+        pos.tickUpper = tickUpper;
+        pos.liquidity = liquidity; // Set before modifyLiquidity to prevent re-entry double-deploy
+
         (BalanceDelta addDelta,) = manager.modifyLiquidity(
             lpPool, IPoolManager.ModifyLiquidityParams(tickLower, tickUpper, int128(liquidity), 0), ""
         );
@@ -127,10 +131,6 @@ contract EswapMarginHookLogic is BaseHook, EswapMarginHookLogicStorage {
 
         int128 principalInt = isCurrency0 ? addDelta.amount0() : addDelta.amount1();
         rehypPrincipal[key.toId()][trader] = principalInt < 0 ? uint256(int256(-principalInt)) : 0;
-
-        pos.tickLower = tickLower;
-        pos.tickUpper = tickUpper;
-        pos.liquidity = liquidity;
     }
 
     // ─── [P1#6] Yield-bearing insurance fund (LP staking) ─────────────────────
@@ -402,9 +402,17 @@ contract EswapMarginHookLogic is BaseHook, EswapMarginHookLogicStorage {
      *      pull step: the claim itself may revert for a blacklisted claimant
      *      without affecting anybody else's settlement.
      */
+    bytes32 private constant _HOOK_ENTERED_SLOT = keccak256("EswapMarginHook.reentrancy.guard");
+
     function claimPayout(Currency currency) external returns (uint256 amount) {
+        if (_HOOK_ENTERED_SLOT.tload() != bytes32(0)) revert UnsupportedFeature();
+        _HOOK_ENTERED_SLOT.tstore(bytes32(uint256(1)));
+
         amount = payoutCredits[msg.sender][currency];
-        if (amount == 0) revert NoPayoutCredit();
+        if (amount == 0) {
+            _HOOK_ENTERED_SLOT.tstore(bytes32(0));
+            revert NoPayoutCredit();
+        }
         payoutCredits[msg.sender][currency] = 0;
         // [AUDIT N-03] Honour the configured redirect for ALREADY-CREDITED
         // balances, exactly as `_payOrCredit` does for fresh payouts and as
@@ -414,6 +422,8 @@ contract EswapMarginHookLogic is BaseHook, EswapMarginHookLogicStorage {
         if (dest == address(0)) dest = msg.sender;
         NativeTokens.transfer(currency, dest, amount);
         emit PayoutClaimed(msg.sender, currency, amount);
+
+        _HOOK_ENTERED_SLOT.tstore(bytes32(0));
     }
 
     /**
@@ -464,15 +474,6 @@ contract EswapMarginHookLogic is BaseHook, EswapMarginHookLogicStorage {
             return (ceilGrid, ceilGrid + spacing * 10);
         }
         return (floorGrid - spacing * 10, floorGrid);
-    }
-
-    function isLiquidatable(Position memory pos, PoolKey calldata key) public view returns (bool) {
-        if (pos.collateralAmount == 0) return false;
-        uint256 collateralValueUsd =
-            priceFeed.getAmountInUsd(Currency.unwrap(_collateralCurrency(pos, key)), pos.collateralAmount);
-        uint256 borrowedValueUsd =
-            priceFeed.getAmountInUsd(Currency.unwrap(_debtCurrency(pos, key)), pos.borrowedAmount);
-        return EswapMarginLib.isLiquidatable(collateralValueUsd, borrowedValueUsd, pos.leverage);
     }
 
     function _rehypothecationPool(PoolId poolId, PoolKey calldata key) internal view returns (PoolKey memory) {
@@ -847,6 +848,7 @@ function _isLong(PoolKey calldata key, Currency boughtCurrency) internal view re
             sig == EswapMarginHookLogic2.closePosition.selector
                 || sig == EswapMarginHookLogic2.executeLiquidation.selector
                 || sig == EswapMarginHookLogic2.rebalancePosition.selector
+                || sig == EswapMarginHookLogic2.isLiquidatable.selector
         ) {
             target = logic2;
         } else {

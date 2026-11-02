@@ -413,10 +413,10 @@ error NativePayoutFailed();
         router.extTriggerClose(hook, key, trader, order.minAmountOut);
     }
 
-    /// @notice [P0#2] Trader (or governance) disarms a conditional close.
+    /// @notice [P0#2] Trader disarms a conditional close.
     function cancelTriggerOrder(address trader, PoolKey calldata key) external {
         bytes32 poolId = PoolId.unwrap(key.toId());
-        if (msg.sender != trader && msg.sender != owner()) revert NotOwner();
+        if (msg.sender != trader) revert NotOwner();
         if (armedTriggerOrders[trader][poolId].closeDeadline == 0) revert NoArmedTriggerOrder();
         delete armedTriggerOrders[trader][poolId];
         emit TriggerOrderCancelled(trader, poolId);
@@ -705,6 +705,7 @@ error NativePayoutFailed();
     // ─── Atomic margin ───────────────────────────────────────────────────────
 
     function atomicMarginTrade(AtomicMarginParams calldata params) external returns (uint256 profit) {
+        if (msg.sender != owner() && !router.executorWhitelist(msg.sender)) revert NotOwner();
         bytes memory result = manager.unlock(abi.encode(CallType.ATOMIC_MARGIN, params, msg.sender));
         profit = abi.decode(result, (uint256));
     }

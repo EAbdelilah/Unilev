@@ -77,7 +77,7 @@ contract EswapTimelock {
     }
 
     /// @notice Execute a queued transaction after its eta has passed.
-    function execute(address target, bytes calldata data, uint256 eta) external {
+    function execute(address target, bytes calldata data, uint256 eta) external onlyAdmin {
         bytes32 txHash = keccak256(abi.encode(target, data, eta));
         if (!queued[txHash]) revert TransactionNotQueued();
         if (block.timestamp < eta) revert NotReady();

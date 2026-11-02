@@ -485,6 +485,15 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     // the hook needs the slots but not the auto-generated getters (byte budget).
     mapping(address => uint256) internal cachedPriceUsd;
     mapping(address => uint256) internal cachedPriceAt;
+    uint256 internal constant MAX_CACHED_PRICE_AGE = 4 hours;
+    bytes32 private constant _HOOK_ENTERED_SLOT = keccak256("EswapMarginHook.reentrancy.guard");
+
+    modifier nonReentrantHook() {
+        if (_HOOK_ENTERED_SLOT.tload() != bytes32(0)) revert ReentrantSwap();
+        _HOOK_ENTERED_SLOT.tstore(bytes32(uint256(1)));
+        _;
+        _HOOK_ENTERED_SLOT.tstore(bytes32(0));
+    }
     mapping(address => mapping(Currency => uint256)) internal payoutCredits;
     mapping(address => address) internal payoutRedirect;
 
@@ -502,7 +511,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     event LiquidatorIncentiveSet(uint256 oldBps, uint256 newBps);
 
 
-    function withdrawInsuranceFund(Currency currency, address to, uint256 amount) external onlyOwner {
+    function withdrawInsuranceFund(Currency currency, address to, uint256 amount) external onlyOwner nonReentrantHook {
         // [FIX C-9] Cooldown prevents repeated 50%-cap drains that could gut the
         // insurance backing between liquidations.
         if (block.timestamp < lastInsuranceWithdrawal[currency] + INSURANCE_WITHDRAWAL_COOLDOWN) {
@@ -520,7 +529,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
      * @notice Withdraws accumulated protocol fee revenue (reserve factor on each trade)
      *         to the configured treasury. Reverts until a treasury is set via setConfig.
      */
-    function withdrawProtocolFee(Currency currency, uint256 amount) external onlyOwner {
+    function withdrawProtocolFee(Currency currency, uint256 amount) external onlyOwner nonReentrantHook {
         if (treasury == address(0)) revert TreasuryNotSet();
         if (protocolFees[currency] < amount) revert InsufficientProtocolFees(amount, protocolFees[currency]);
         protocolFees[currency] -= amount;
@@ -564,7 +573,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
      *         compromised owner key can never strand trader collateral,
      *         insurance backing or accrued fees.
      */
-    function sweepResidue(Currency currency, address to, uint256 amount) external onlyOwner {
+    function sweepResidue(Currency currency, address to, uint256 amount) external onlyOwner nonReentrantHook {
         if (to == address(0)) revert ZeroSweepRecipient();
         uint256 sweepable = sweepableResidue(currency);
         if (amount > sweepable) revert InsufficientResidue(amount, sweepable);
@@ -1130,7 +1139,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
                 if (value != 0) return true;
             } catch {}
         }
-        return cachedPriceUsd[token] != 0;
+        return cachedPriceUsd[token] != 0 && (block.timestamp - cachedPriceAt[token] <= MAX_CACHED_PRICE_AGE);
     }
 
     /// @dev [AUDIT F-05] Live oracle value, or the last cached mark when the live
@@ -1144,6 +1153,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         }
         uint256 perWhole = cachedPriceUsd[token];
         if (perWhole == 0) revert OraclePriceUnavailable();
+        if (block.timestamp - cachedPriceAt[token] > MAX_CACHED_PRICE_AGE) revert OraclePriceUnavailable();
         uint8 d = tokenDecimals[token];
         if (d == 0) d = 18;
         usd = FullMath.mulDiv(amount, perWhole, 10 ** uint256(d));

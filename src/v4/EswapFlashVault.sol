@@ -126,7 +126,9 @@ contract EswapFlashVault is Ownable {
     function repay(uint256 amount) external {
         if (amount == 0) revert ZeroAmount();
         uint256 owed = outstanding[msg.sender];
-        outstanding[msg.sender] = owed > amount ? owed - amount : 0;
+        uint256 repaid = owed > amount ? amount : owed;
+        outstanding[msg.sender] = owed - repaid;
+        totalPulled = totalPulled > repaid ? totalPulled - repaid : 0;
         asset.safeTransferFrom(msg.sender, address(this), amount);
         emit Repaid(msg.sender, amount);
     }

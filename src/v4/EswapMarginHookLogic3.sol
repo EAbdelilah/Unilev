@@ -391,6 +391,9 @@ contract EswapMarginHookLogic3 is BaseHook, EswapMarginHookLogicStorage {
                 ? removeDelta.amount0()
                 : removeDelta.amount1();
             uint256 recovered = recoveredInt > 0 ? uint256(uint128(recoveredInt)) : 0;
+            if (recovered > deployedPrincipal) {
+                recovered = deployedPrincipal;
+            }
             uint256 retained = collateralAmount > deployedPrincipal ? collateralAmount - deployedPrincipal : 0;
             backing = recovered + retained;
             if (backing > collateralAmount) backing = collateralAmount;
@@ -426,6 +429,9 @@ contract EswapMarginHookLogic3 is BaseHook, EswapMarginHookLogicStorage {
         if (hadBand) {
             int128 recoveredCollatInt = zeroForOne ? removeDelta.amount0() : removeDelta.amount1();
             uint256 recovered = recoveredCollatInt > 0 ? uint256(uint128(recoveredCollatInt)) : 0;
+            if (recovered > deployedPrincipal) {
+                recovered = deployedPrincipal;
+            }
             uint256 retained = collateralAmount > deployedPrincipal ? collateralAmount - deployedPrincipal : 0;
             availableCollateral = recovered + retained;
             if (availableCollateral > collateralAmount) availableCollateral = collateralAmount;
@@ -518,7 +524,7 @@ contract EswapMarginHookLogic3 is BaseHook, EswapMarginHookLogicStorage {
                 if (value != 0) return true;
             } catch {}
         }
-        return cachedPriceUsd[token] != 0;
+        return cachedPriceUsd[token] != 0 && (block.timestamp - cachedPriceAt[token] <= MAX_CACHED_PRICE_AGE);
     }
 
     /// @dev [AUDIT F-05] Live oracle value, or the last cached mark when the live
@@ -533,6 +539,7 @@ contract EswapMarginHookLogic3 is BaseHook, EswapMarginHookLogicStorage {
         }
         uint256 perWhole = cachedPriceUsd[token];
         if (perWhole == 0) revert OraclePriceUnavailable();
+        if (block.timestamp - cachedPriceAt[token] > MAX_CACHED_PRICE_AGE) revert OraclePriceUnavailable();
         uint8 d = tokenDecimals[token];
         if (d == 0) d = 18;
         usd = FullMath.mulDiv(amount, perWhole, 10 ** uint256(d));

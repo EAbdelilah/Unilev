@@ -285,6 +285,7 @@ abstract contract EswapMarginHookLogicStorage {
     ///      Observability only: the circuit-breaker mode does not gate on age,
     ///      because staleness alone must never re-disable liquidations.
     mapping(address => uint256) internal cachedPriceAt;
+    uint256 internal constant MAX_CACHED_PRICE_AGE = 4 hours;
 
     /// @dev [AUDIT F-08] Payouts that could not be delivered (blacklisted token
     ///      recipient, reverting `receive()`) are credited here instead of
