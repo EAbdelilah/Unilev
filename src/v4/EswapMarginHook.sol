@@ -697,6 +697,18 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         insuranceFund[currency] += amount;
     }
 
+    /**
+     * @notice [A7-LOW-06] Repays outstanding bad debt for a currency using available insurance fund.
+     */
+    function repayBadDebt(Currency currency, uint256 amount) external onlyOwner {
+        if (amount == 0 || badDebt[currency] == 0) return;
+        uint256 repayAmount = amount > badDebt[currency] ? badDebt[currency] : amount;
+        if (insuranceFund[currency] < repayAmount) revert UnsupportedFeature();
+        insuranceFund[currency] -= repayAmount;
+        badDebt[currency] -= repayAmount;
+        emit BadDebtRepaid(currency, repayAmount);
+    }
+
     function getHookFlags() public pure returns (uint160) {
         return HookFlags.AFTER_INITIALIZE_FLAG | HookFlags.BEFORE_SWAP_FLAG | HookFlags.AFTER_SWAP_FLAG
             | HookFlags.BEFORE_SWAP_RETURNS_DELTA_FLAG;
@@ -763,6 +775,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
         }
 
         // Margin Mode
+        if (sender != router) revert Unauthorized();
         (, uint8 leverage, address trader) = abi.decode(data, (bool, uint8, address));
         // [I1] Trader zero would make the TRADER guard inert and skip afterSwap's record.
         if (trader == address(0)) revert ZeroAddress();

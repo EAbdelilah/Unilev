@@ -97,13 +97,18 @@ contract EswapMarginHookLogic3 is BaseHook, EswapMarginHookLogicStorage {
 
         bool hadBand = pos.liquidity > 0;
         BalanceDelta removeDelta;
+        uint256 unwoundPrincipal = 0;
         if (hadBand) {
-            PoolKey memory lpPool = _rehypothecationPool(poolId, key);
-            (removeDelta,) = manager.modifyLiquidity(
-                lpPool, IPoolManager.ModifyLiquidityParams(pos.tickLower, pos.tickUpper, -int128(pos.liquidity), 0), ""
-            );
-            _netLiquidityDelta(lpPool, removeDelta);
-            pos.liquidity = 0;
+            uint128 liqLiquidity = uint128(FullMath.mulDiv(pos.liquidity, liquidationBps, 10000));
+            if (liqLiquidity > 0) {
+                PoolKey memory lpPool = _rehypothecationPool(poolId, key);
+                (removeDelta,) = manager.modifyLiquidity(
+                    lpPool, IPoolManager.ModifyLiquidityParams(pos.tickLower, pos.tickUpper, -int128(liqLiquidity), 0), ""
+                );
+                _netLiquidityDelta(lpPool, removeDelta);
+                pos.liquidity -= liqLiquidity;
+                unwoundPrincipal = FullMath.mulDiv(rehypPrincipal[poolId][trader], liquidationBps, 10000);
+            }
         }
 
         Currency collateralCurrency = _collateralCurrency(pos, key);
@@ -113,12 +118,17 @@ contract EswapMarginHookLogic3 is BaseHook, EswapMarginHookLogicStorage {
 
         address yieldRecipient = positionSolver[poolId][trader];
         if (yieldRecipient == address(0)) yieldRecipient = trader;
-        _distributeRehypothecation(key, removeDelta, collateralCurrency, rehypPrincipal[poolId][trader], yieldRecipient);
+        _distributeRehypothecation(key, removeDelta, collateralCurrency, unwoundPrincipal, yieldRecipient);
+        if (unwoundPrincipal > 0) {
+            rehypPrincipal[poolId][trader] = EswapMarginLib.saturatingSub(rehypPrincipal[poolId][trader], unwoundPrincipal);
+        }
 
-        // [P1#3] Collateral to seize: proportional slice plus the cover bonus
-        // (thinner collateral than debt ⇒ the surviving position's health rises).
+        // [P1#3] Collateral to seize: proportional slice of the position's collateral.
+        // [A7-MED-04 FIX] We do not inflate collateral seized by LIQUIDATION_COVER_BPS.
+        // Seizing extra collateral reduces the survivor's collateral ratio (C/D drops),
+        // mathematically guaranteeing that isLiquidatable on the survivor returns true
+        // and triggering a 100% revert rate at PartialLiquidationLeavesUnhealthyPosition.
         uint256 liqCollateral = FullMath.mulDiv(collateralAmount, liquidationBps, 10000);
-        liqCollateral = FullMath.mulDiv(liqCollateral, 10000 + LIQUIDATION_COVER_BPS, 10000);
         if (liqCollateral > collateralAmount) liqCollateral = collateralAmount;
 
         // The remainder of the collateral that never left the accounting pool stays
@@ -133,7 +143,7 @@ contract EswapMarginHookLogic3 is BaseHook, EswapMarginHookLogicStorage {
             removeDelta,
             collateralCurrency,
             collateralAmount,
-            rehypPrincipal[poolId][trader],
+            unwoundPrincipal,
             hadBand,
             liqCollateral,
             true
@@ -359,9 +369,11 @@ contract EswapMarginHookLogic3 is BaseHook, EswapMarginHookLogicStorage {
         if (payYield > 0) {
             debt.accumulatedYield = debt.accumulatedYield > payYield ? debt.accumulatedYield - payYield : 0;
         }
-        // Band fully removed; clear stale deployed-principal bookkeeping so a
-        // future deploy starts clean.
-        rehypPrincipal[poolId][trader] = 0;
+        // If the band was fully removed, clear stale deployed-principal bookkeeping;
+        // otherwise the surviving band's principal is preserved.
+        if (pos.liquidity == 0) {
+            rehypPrincipal[poolId][trader] = 0;
+        }
     }
 
     /// @dev Recover the bps share of a partial liquidation for the event.

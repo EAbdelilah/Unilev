@@ -1230,6 +1230,12 @@ contract EswapRouter is
         //    the router (via allowance) and sends the output ERC20 back to it.
         IERC20(Currency.unwrap(input)).forceApprove(route.exchangeProxy, notional);
         uint256 outBefore = IERC20(Currency.unwrap(output)).balanceOf(address(this));
+        // [A7-MED-03] Snapshot input balance BEFORE the fill so we can verify the
+        // proxy consumed EXACTLY `notional` input tokens (no more, no less). A
+        // proxy that drains more than the sell amount (e.g. through a multi-hop
+        // that retains intermediate tokens) would pass the output-only check and
+        // silently steal from the router's collateral balance.
+        uint256 inBefore = IERC20(Currency.unwrap(input)).balanceOf(address(this));
 
         // Execute the real aggregator fill; check success and decode the revert reason.
 (bool ok, bytes memory ret) = route.exchangeProxy.call{value: route.value}(route.callData);
@@ -1253,6 +1259,12 @@ contract EswapRouter is
         // attacker could route a later victim's tokens through that leftover
         // allowance. Reset to 0 unconditionally so every fill re-authorizes fresh.
         IERC20(Currency.unwrap(input)).forceApprove(route.exchangeProxy, 0);
+        // [A7-MED-03] Verify the proxy consumed exactly `notional` input tokens.
+        // A proxy that consumed less retains a live allowance it can drain later;
+        // a proxy that consumed MORE stole from the router's own balance (e.g.
+        // previously received collateral from another fill). Both are critical.
+        uint256 inputConsumed = inBefore - IERC20(Currency.unwrap(input)).balanceOf(address(this));
+        if (inputConsumed != notional) revert AggregatorRouteMismatch();
         // [FIX C-4] Enforce the caller's slippage floor on the executed output.
         if (outputAmount < params.minAmountOut) revert SwapOutputBelowMinimum(outputAmount, params.minAmountOut);
     }

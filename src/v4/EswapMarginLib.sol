@@ -104,7 +104,17 @@ library EswapMarginLib {
 
         // Oracle convention: getTwapPrice returns USD_18dec per WHOLE token
         // (getAmountInUsd normalizes RAW amounts by the token's decimals).
-        uint256 twapRatio18 = (twap0 * 1e18) / twap1;
+        // [A7-HIGH-02] Use FullMath.mulDiv instead of raw division to prevent:
+        //   (a) intermediate overflow on high-value tokens (twap0 * 1e18 overflows),
+        //   (b) integer truncation to zero for dust-token twap0 values, which would
+        //       cause a panic 0x12 division-by-zero at the deviation formula below.
+        uint256 twapRatio18 = FullMath.mulDiv(twap0, 1e18, twap1);
+        // Guard: a zero oracle ratio means the token pair is unpriced or degenerate.
+        // Treat as unconfigured (same as twap0==0) rather than panicking downstream.
+        if (twapRatio18 == 0) {
+            if (requireTwapOracle) revert TwapNotConfigured();
+            return;
+        }
 
         if (sqrtPriceX96 == 0) revert TwapManipulated();
 

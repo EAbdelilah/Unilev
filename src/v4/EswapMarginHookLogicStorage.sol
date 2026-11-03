@@ -155,6 +155,7 @@ abstract contract EswapMarginHookLogicStorage {
     event ResidueSwept(Currency indexed currency, address indexed to, uint256 amount);
     event EmergencyPauseToggled(bool indexed paused);
     event BadDebtRecorded(Currency indexed currency, uint256 amount);
+    event BadDebtRepaid(Currency indexed currency, uint256 amount);
     event PositionPartiallyLiquidated(
         PoolId indexed poolId,
         address indexed trader,

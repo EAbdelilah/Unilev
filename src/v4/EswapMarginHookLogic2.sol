@@ -243,6 +243,12 @@ contract EswapMarginHookLogic2 is BaseHook, EswapMarginHookLogicStorage {
         uint256 bandCollateral = recoveredCollatInt > 0 ? uint256(uint128(recoveredCollatInt)) : 0;
         uint256 deployed = pos.liquidity > 0 ? rehypPrincipal[poolId][trader] : 0;
         // Yield beyond deployed principal was distributed to solver above; cap bandCollateral
+        // [A7-MED-05] Track how much yield was physically sent out of the hook so
+        // we can deduct it from availableCollateral before re-deploying. Without
+        // this deduction the new band's `modifyLiquidity` add may attempt to supply
+        // collateral tokens the hook no longer holds (they were sent to the solver
+        // as yield), causing _settleToManager to revert with insufficient balance.
+        uint256 yieldDistributed = bandCollateral > deployed ? bandCollateral - deployed : 0;
         if (bandCollateral > deployed) {
             bandCollateral = deployed;
         }
@@ -282,6 +288,13 @@ contract EswapMarginHookLogic2 is BaseHook, EswapMarginHookLogicStorage {
         // already routed to the solver by `_distributeRehypothecation` must not
         // be double-counted as position collateral.
         if (availableCollateral > oldCollateral) availableCollateral = oldCollateral;
+        // [A7-MED-05] Deduct yield already physically distributed so the new-band
+        // deployment is backed by tokens the hook actually holds. The yield left
+        // the hook's balance during _distributeRehypothecation above; including it
+        // in availableCollateral would over-provision the LP add and cause
+        // _settleToManager to revert on insufficient token balance.
+        if (availableCollateral > yieldDistributed) availableCollateral -= yieldDistributed;
+        else availableCollateral = 0;
 
         // [AUDIT FIX] Reconcile the collateral ledgers with the PHYSICALLY
         // recovered amount. Impermanent loss can leave the removed LP worth less
