@@ -1,0 +1,1 @@
+{"version":3,"file":"errors.d.ts","sourceRoot":"","sources":["../../../src/action-providers/eswap/errors.ts"],"names":[],"mappings":"AAAA,uFAAuF;AACvF,qBAAa,kBAAmB,SAAQ,KAAK;IAC3C,SAAgB,IAAI,EAAE,MAAM,CAAC;gBAEjB,IAAI,EAAE,MAAM,EAAE,OAAO,EAAE,MAAM,EAAE,OAAO,CAAC,EAAE;QAAE,KAAK,CAAC,EAAE,OAAO,CAAA;KAAE;CAKzE"}

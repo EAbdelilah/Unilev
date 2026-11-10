@@ -660,9 +660,9 @@ contract BaseMainnetB2BIntegrationTest is Test, IUnlockCallback {
         if (!ready) return;
         bytes[] memory calls = new bytes[](1);
         calls[0] = abi.encodeWithSelector(
-            adapter.exactInputSingleWithLeverage.selector, BASE_USDC, BASE_WETH, uint24(3000), uint8(2), uint256(10e6), uint256(0), trader
+            adapter.registerPool.selector, BASE_USDC, BASE_WETH, uint24(3000), PoolKey({currency0: Currency.wrap(BASE_USDC), currency1: Currency.wrap(BASE_WETH), fee: 3000, tickSpacing: 60, hooks: address(0)}), PoolKey({currency0: Currency.wrap(BASE_USDC), currency1: Currency.wrap(BASE_WETH), fee: 3000, tickSpacing: 60, hooks: address(0)})
         );
-        vm.expectRevert(bytes("unauthorized delegatecall"));
+        vm.expectRevert(abi.encodeWithSelector(EswapLeverageAdapter.UnauthorizedDelegatecall.selector, adapter.registerPool.selector));
         adapter.multicall(calls);
     }
 

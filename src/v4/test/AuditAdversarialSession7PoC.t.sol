@@ -13,6 +13,7 @@ import {EswapRouter} from "../EswapRouter.sol";
 import {PoolKey} from "../types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "../types/PoolId.sol";
 import {Currency} from "../types/Currency.sol";
+import {IPoolManager} from "../interfaces/IPoolManager.sol";
 import {EswapHookDeployLib} from "./EswapHookDeployLib.sol";
 import {FullMath} from "@uniswap/v4-core/src/libraries/FullMath.sol";
 

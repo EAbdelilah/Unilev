@@ -142,6 +142,7 @@ contract EswapMarginHook is BaseHook, IURC2, IURC3, IURC4, IERC6909 {
     event ResidueSwept(Currency indexed currency, address indexed to, uint256 amount);
     event EmergencyPauseToggled(bool indexed paused);
     event BadDebtRecorded(Currency indexed currency, uint256 amount);
+    event BadDebtRepaid(Currency indexed currency, uint256 amount);
     // [AUDIT HIGH-14] Emitted (via the delegatecall'd settlement logic) when a
     // close/liquidation settles with no solver-debt ledger but an outstanding
     // `pos.borrowedAmount`. Mirrored here so the hook's ABI exposes it.

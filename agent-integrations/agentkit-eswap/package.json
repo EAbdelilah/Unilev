@@ -1,0 +1,36 @@
+{
+  "name": "@eswap/agentkit-action-provider",
+  "version": "1.0.0",
+  "description": "Coinbase AgentKit action provider for Eswap — 5x spot margin with 0% daily borrow carry, on Base mainnet (Uniswap v4 hooks)",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "viem": "^2.37.8",
+    "zod": "^3.25.76"
+  },
+  "peerDependencies": {
+    "@coinbase/agentkit": ">=0.10.0"
+  },
+  "devDependencies": {
+    "@coinbase/agentkit": "^0.10.4",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "name": "@eswap/plugin-margin",
+  "version": "1.0.0",
+  "description": "ElizaOS plugin for Eswap — 0% interest 5x spot leverage via Uniswap v4 hooks on Base",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./openMargin": {
+      "types": "./dist/actions/openMargin.d.ts",
+      "import": "./dist/actions/openMargin.js"
+    },
+    "./quoteProvider": {
+      "types": "./dist/providers/quoteProvider.d.ts",
+      "import": "./dist/providers/quoteProvider.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "viem": "^2.37.8",
+    "zod": "^3.25.76"
+  },
+  "peerDependencies": {
+    "@elizaos/core": ">=1.0.0"
+  },
+  "devDependencies": {
+    "@elizaos/core": "^1.0.0",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

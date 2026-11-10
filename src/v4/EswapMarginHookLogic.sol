@@ -405,12 +405,12 @@ contract EswapMarginHookLogic is BaseHook, EswapMarginHookLogicStorage {
     bytes32 private constant _HOOK_ENTERED_SLOT = keccak256("EswapMarginHook.reentrancy.guard");
 
     function claimPayout(Currency currency) external returns (uint256 amount) {
-        if (_HOOK_ENTERED_SLOT.tload() != bytes32(0)) revert UnsupportedFeature();
-        _HOOK_ENTERED_SLOT.tstore(bytes32(uint256(1)));
+        if (TransientStorage.tload(_HOOK_ENTERED_SLOT) != bytes32(0)) revert UnsupportedFeature();
+        TransientStorage.tstore(_HOOK_ENTERED_SLOT, bytes32(uint256(1)));
 
         amount = payoutCredits[msg.sender][currency];
         if (amount == 0) {
-            _HOOK_ENTERED_SLOT.tstore(bytes32(0));
+            TransientStorage.tstore(_HOOK_ENTERED_SLOT, bytes32(0));
             revert NoPayoutCredit();
         }
         payoutCredits[msg.sender][currency] = 0;
@@ -423,7 +423,7 @@ contract EswapMarginHookLogic is BaseHook, EswapMarginHookLogicStorage {
         NativeTokens.transfer(currency, dest, amount);
         emit PayoutClaimed(msg.sender, currency, amount);
 
-        _HOOK_ENTERED_SLOT.tstore(bytes32(0));
+        TransientStorage.tstore(_HOOK_ENTERED_SLOT, bytes32(0));
     }
 
     /**
