@@ -1,7 +1,7 @@
 {
   "chainId": 8453,
   "rpc": "https://mainnet.base.org",
-  "verifiedAt": "2026-10-25T20:20:37.193Z",
+  "verifiedAt": "2026-11-10T19:17:34.987Z",
   "router": "0xD3360D67E366Cac21a1c18fC9100B93be79e1437",
   "hook": "0xe33A630503c640143126BBF222a82689D49b50c8",
   "poolManager": "0x498581fF718922c3f8e6A244956aF099B2652b2b",

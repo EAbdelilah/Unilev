@@ -2,7 +2,7 @@
   "venue": "1inch Fusion / Limit Order Protocol v4",
   "chainId": 8453,
   "rpc": "https://mainnet.base.org",
-  "verifiedAt": "2026-10-25T13:14:19.407Z",
+  "verifiedAt": "2026-11-10T19:24:50.835Z",
   "settler": "0xD0F10948E5E987d9A04aDf4014178D65042f672c",
   "lop": "0x111111125421cA6dc452d289314280a0f8842A65",
   "tx": {
@@ -233,7 +233,7 @@
       "ok": true
     },
     {
-      "label": "WETH approval to the LOP was scoped to maxFillAmount",
+      "label": "WETH approval to the LOP was scoped to the settler taking cap",
       "ok": true
     }
   ],

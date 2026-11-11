@@ -1,5 +1,5 @@
 {
-  "verifiedAt": "2026-10-25T21:52:51.319Z",
+  "verifiedAt": "2026-11-10T19:23:42.978Z",
   "rpc": "https://mainnet.base.org",
   "chainId": 8453,
   "proofs": [
@@ -64,7 +64,7 @@
           "leverage": 2,
           "isLong": true
         },
-        "hookErc6909WethClaims": "18787046202113",
+        "hookErc6909WethClaims": "15366846679122",
         "escrowUsdcAfter": "0"
       },
       "escrowDepositTx": "0xf0360c78b4cb4e594f9e2cec5b39dc507e86b4aeb59f6fc34efbc963e8958bc3",

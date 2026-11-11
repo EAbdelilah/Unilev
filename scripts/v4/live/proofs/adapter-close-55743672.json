@@ -1,0 +1,26 @@
+{
+  "chainId": 8453,
+  "kind": "adapter-front-door-close",
+  "router": "0xD3360D67E366Cac21a1c18fC9100B93be79e1437",
+  "hook": "0xe33A630503c640143126BBF222a82689D49b50c8",
+  "hookPoolId": "0xdd4958586bcbc340177b3b18ecbf31cfa277e5a8a78735deee01218f54a1d512",
+  "trader": "0x8480b9349d6E1e143bBAC87d9812319B86877BA0",
+  "solver": "0x3fc88b834aC96Fa4c65913a6D3d5523418f7F037",
+  "positionBefore": {
+    "trader": "0x8480b9349d6E1e143bBAC87d9812319B86877BA0",
+    "collateral": "2018849316539",
+    "borrowed": "2000"
+  },
+  "solverPrincipalBefore": "2000",
+  "solverUsdcRepaid": "2000",
+  "solverWethRepaid": "0",
+  "traderUsdcDelta": "2115",
+  "traderWethDelta": "0",
+  "feesBefore": "25163900376",
+  "feesAfter": "25163900376",
+  "positionCleared": true,
+  "txHash": "0x8d1f3ed0d22f7143db1d76282d4ffbf3ad17a74ee1a7282c0b28ac81deed089a",
+  "blockNumber": 55743672,
+  "gasUsed": "417366",
+  "createdAt": "2026-11-10T19:31:53.026Z"
+}

@@ -64,6 +64,14 @@ async function main() {
   const p = new ethers.JsonRpcProvider(RPC);
   const env = loadEnv();
   const fusion = new ethers.Contract(FUSION, abiOf('out/EswapOneInchFusionSettlement.sol/EswapOneInchFusionSettlement.json'), p);
+  // The build ABI only exposes the surface of the source it was compiled from.
+  // The live settler may be the older single-cap build, so probe caps through a
+  // superset ABI instead of assuming the compiled getters exist on-chain.
+  const capReader = new ethers.Contract(FUSION, [
+    'function maxFillAmount() view returns (uint256)',
+    'function maxMakingAmount() view returns (uint256)',
+    'function maxTakingAmount() view returns (uint256)',
+  ], p);
   const lop = new ethers.Contract(LOP, [
     'function hashOrder((uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256)) view returns (bytes32)',
     // The deployed Base LOP reverts on remainingInvalidatorForOrder(); the raw
@@ -140,7 +148,9 @@ async function main() {
   const pending = await fusion.pendingFills(orderHash);
   const operator = await fusion.operator();
   const remaining = await lop.rawRemainingInvalidatorForOrder(orderFields.maker, orderHash);
-  const [, ethAnswer] = await feed.latestRoundData();
+  // Price the fill with the Chainlink round active at the fill block, not the
+  // latest round (which drifts and would invalidate a historical proof).
+  const [, ethAnswer] = await feed.latestRoundData({ blockTag: rc.blockNumber });
   const p8 = BigInt(ethAnswer);
   // Sizing rule used by the broadcaster: making = floor(taking * ETH/USD / 1e20).
   const fairMaking = (BigInt(order.takingAmount) * p8) / 10n ** 20n;
@@ -182,7 +192,7 @@ async function main() {
     lopEvents,
   };
 
-  const caps = await readCaps(fusion);
+  const caps = await readCaps(capReader);
   const checks = [
     ['tx mined with status 1', rc.status === 1],
     ['tx sent to EswapOneInchFusionSettlement', tx.to.toLowerCase() === FUSION.toLowerCase()],
@@ -209,8 +219,8 @@ async function main() {
     ['WETH moved settler -> maker (takingAmount)', transfers.some((t) => t.token.toLowerCase() === WETH.toLowerCase() && t.from.toLowerCase() === FUSION.toLowerCase() && t.to.toLowerCase() === orderFields.maker.toLowerCase() && t.amount === orderFields.takingAmount)],
     ['no other token movements', transfers.length === 2],
     ['order makingAmount == floor(takingAmount at Chainlink ETH/USD)', BigInt(orderFields.makingAmount) === fairMaking],
-    ['settler holds the bought USDC afterwards', (await erc20.balanceOf(FUSION)) >= BigInt(orderFields.makingAmount)],
-    ['maker received the WETH', (await weth.balanceOf(orderFields.maker)) >= BigInt(orderFields.takingAmount)],
+    ['settler holds the bought USDC afterwards', (await erc20.balanceOf(FUSION, { blockTag: rc.blockNumber })) >= BigInt(orderFields.makingAmount)],
+    ['maker received the WETH', (await weth.balanceOf(orderFields.maker, { blockTag: rc.blockNumber })) >= BigInt(orderFields.takingAmount)],
     ['WETH approval to the LOP was scoped to the settler taking cap', rc.logs.some((l) => l.address.toLowerCase() === WETH.toLowerCase() && l.topics[0] === APPROVAL_TOPIC && topicAddr(l.topics[1]).toLowerCase() === FUSION.toLowerCase() && topicAddr(l.topics[2]).toLowerCase() === LOP.toLowerCase() && BigInt(l.data) === caps.taking)],
   ];
 

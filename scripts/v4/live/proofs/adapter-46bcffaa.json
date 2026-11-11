@@ -1,7 +1,7 @@
 {
   "chainId": 8453,
   "rpc": "https://mainnet.base.org",
-  "verifiedAt": "2026-10-26T22:10:59.205Z",
+  "verifiedAt": "2026-11-10T19:18:22.613Z",
   "tx": {
     "hash": "0x46bcffaabce3cb5b75bda465b0b4d32b2b8c3ff99b2b0259764b1c99770b3861",
     "block": 53131549,

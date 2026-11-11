@@ -54,10 +54,10 @@ contract EswapLiquidationKeeperTest is BaseV4Test {
         // Open a 3x SHORT (zeroForOne=true): margin 10 ether, borrow 20 ether.
         bytes memory data = abi.encode(true, uint8(3), address(this));
         vm.prank(address(manager));
-        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -10 ether, 0), data);
+        hook.beforeSwap(address(router), key, IPoolManager.SwapParams(true, -10 ether, 0), data);
         vm.prank(address(manager));
         hook.afterSwap(
-            address(this),
+            address(router),
             key,
             IPoolManager.SwapParams(true, -30 ether, 0),
             BalanceDeltaLibrary.toBalanceDelta(-30 ether, 28 ether),
@@ -98,11 +98,12 @@ contract EswapLiquidationKeeperTest is BaseV4Test {
         (address trader, uint256 collateral,,,,,,,) = hook.positions(key.toId(), address(this));
         assertEq(trader, address(0), "position should be liquidated");
         assertEq(collateral, 0);
-        // [FIX H-5b] The 3% liquidation reward is routed EXCLUSIVELY to the
-        // insurance fund, whoever triggers the liquidation. Surplus =
-        // 30 received − 20 repaid = 10, reward = 3% = 0.3 ether lands in
-        // the insurance fund; the executing keeper is not paid.
-        assertEq(token0.balanceOf(address(keeper)), 0, "liquidator is not paid; reward goes to insurance");
+        // The 3% liquidation reward is credited to the insurance fund, but the
+        // executing keeper is paid the `LIQUIDATOR_MIN_INCENTIVE_BPS = 50` floor
+        // out of the trader payout so liquidation stays economically viable.
+        // Surplus = 30 received - 20 repaid = 10 → keeper = 10 × 50/10,000 =
+        // 0.05, insurance credit = 3% × 10 = 0.3, trader keeps 9.95.
+        assertEq(token0.balanceOf(address(keeper)), 0.05 ether, "keeper earns the 50 bps incentive floor");
         assertEq(token0.balanceOf(address(automation)), 0, "automation (trigger) writes nothing");
         assertEq(hook.insuranceFund(key.currency0), 0.3 ether, "3% liquidation reward lands in the insurance fund");
     }

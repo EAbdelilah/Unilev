@@ -92,14 +92,16 @@ contract EswapSolverYieldTest is Test {
     /// @dev Direct open through beforeSwap + afterSwap: sells `margin` token0,
     ///      buys exactly margin*leverage token1. The 50bps protocol fee shaves
     ///      the recorded collateral to 99.5% of boughtAmount.
+    ///      The hook only accepts margin-mode swaps whose `sender` is its router;
+    ///      this harness makes the test contract the router (see setUp).
     function _open(address trader_, uint256 margin, uint8 leverage) internal {
         manager.setSlot0(key.toId(), 1 << 96, 0); // price 1.0, tick 0 (mock slot0 defaults to 0 otherwise)
         bytes memory data = abi.encode(true, leverage, trader_);
         vm.prank(address(manager));
-        hook.beforeSwap(trader_, key, IPoolManager.SwapParams(true, -int256(margin), 0), data);
+        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -int256(margin), 0), data);
         vm.prank(address(manager));
         hook.afterSwap(
-            trader_,
+            address(this),
             key,
             IPoolManager.SwapParams(true, -int256(margin * leverage), 0),
             BalanceDeltaLibrary.toBalanceDelta(int128(-int256(margin * leverage)), int128(int256(margin * leverage))),

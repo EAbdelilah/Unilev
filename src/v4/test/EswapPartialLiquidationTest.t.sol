@@ -50,12 +50,13 @@ contract EswapPartialLiquidationTest is BaseV4Test {
 
     function _openShort() internal {
         // Open a 3x SHORT (zeroForOne=true): margin 10 ether, borrow 20 ether.
+        // The hook only accepts margin-mode swaps whose `sender` is its router.
         bytes memory data = abi.encode(true, uint8(3), address(this));
         vm.prank(address(manager));
-        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -10 ether, 0), data);
+        hook.beforeSwap(address(router), key, IPoolManager.SwapParams(true, -10 ether, 0), data);
         vm.prank(address(manager));
         hook.afterSwap(
-            address(this),
+            address(router),
             key,
             IPoolManager.SwapParams(true, -30 ether, 0),
             BalanceDeltaLibrary.toBalanceDelta(-30 ether, 28 ether),

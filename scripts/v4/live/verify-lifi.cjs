@@ -88,7 +88,9 @@ const sqrtAtTick = (t) => Math.sqrt(Math.pow(1.0001, t));
   const usdc = new ethers.Contract(USDC, ERC20_ABI, p);
   const weth = new ethers.Contract(WETH, ERC20_ABI, p);
   const allowanceAfter = await usdc.allowance(ROUTER, LIFI);
-  const routerWethAfter = await weth.balanceOf(ROUTER);
+  // Compare the fill's own block against the block before it. Reading the
+  // *latest* balance would fail forever after any later router activity.
+  const routerWethAfter = await weth.balanceOf(ROUTER, { blockTag: rc.blockNumber });
   const routerWethBefore = await weth.balanceOf(ROUTER, { blockTag: rc.blockNumber - 1 });
 
   const received = sum(wethToRouter);

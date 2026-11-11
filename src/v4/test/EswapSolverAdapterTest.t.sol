@@ -105,10 +105,10 @@ contract EswapSolverAdapterTest is BaseV4Test {
         // Must open a position first so borrowedAmount > 0 (M-7 fix requires principal <= borrowedAmount)
         bytes memory data = abi.encode(true, uint8(3), traderAddress);
         vm.prank(address(manager));
-        hook.beforeSwap(traderAddress, key, IPoolManager.SwapParams(true, -1 ether, 0), data);
+        hook.beforeSwap(address(adapter), key, IPoolManager.SwapParams(true, -1 ether, 0), data);
         vm.prank(address(manager));
         hook.afterSwap(
-            traderAddress,
+            address(adapter),
             key,
             IPoolManager.SwapParams(true, -3 ether, 0),
             BalanceDeltaLibrary.toBalanceDelta(-3 ether, 2.88 ether),
@@ -156,6 +156,6 @@ contract EswapSolverAdapterTest is BaseV4Test {
         bytes memory sig = _signSpotIntent(intent);
         bool success = adapter.submitSpotIntent(intent, sig);
         assertTrue(success);
-        assertEq(adapter.nonces(traderAddress), 1);
+        assertEq(adapter.spotNonces(traderAddress), 1);
     }
 }

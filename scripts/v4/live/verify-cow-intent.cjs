@@ -79,7 +79,9 @@ async function main() {
   const uid = ethers.keccak256(ethers.hexlify(orderFilled.args.orderUid));
   const filled = await waitFor('filledOrders', () => cow.filledOrders(uid), (v) => v === true);
 
-  const cowPos = await waitFor('cow position', () => hook.positions(poolIdOf(HOOK_KEY), orderFilled.args.owner), (v) => v[1] > 0n);
+  // Read at the fill's own block: a later close/new open for the same trader
+  // legitimately clears the live slot, so "latest" is not the proof state.
+  const cowPos = await hook.positions(poolIdOf(HOOK_KEY), orderFilled.args.owner, { blockTag: cowRc.blockNumber });
   const claimId = BigInt(WETH);
   const claims = await pm.balanceOf(HOOK, claimId);
 
@@ -145,7 +147,7 @@ async function main() {
         isLong: cowPos[4],
       },
       hookErc6909WethClaims: claims.toString(),
-      escrowUsdcAfter: (await router.erc20BorrowEscrow(orderFilled.args.solver, USDC)).toString(),
+      escrowUsdcAfter: (await router.erc20BorrowEscrow(orderFilled.args.solver, USDC, { blockTag: cowRc.blockNumber })).toString(),
     },
     escrowDepositTx: TX.escrowA,
     escrowDepositUrl: `https://basescan.org/tx/${TX.escrowA}`,
@@ -157,7 +159,8 @@ async function main() {
   const [swapParams, trader, intent] = router.interface.decodeFunctionData('swapWithIntent', inTx.data);
   const fillId = ethers.keccak256(coder.encode(['address', 'uint256'], [trader, intent.nonce]));
   const filledIntent = await waitFor('filledIntents', () => router.filledIntents(fillId), (v) => v === true);
-  const inPos = await waitFor('intent position', () => hook.positions(poolIdOf(HOOK_KEY), trader), (v) => v[1] > 0n);
+  // Same as the CoW leg: verify the position as of the intent fill block.
+  const inPos = await hook.positions(poolIdOf(HOOK_KEY), trader, { blockTag: inRc.blockNumber });
 
   out.proofs.push({
     id: 'direct-solver-intent',
@@ -193,7 +196,7 @@ async function main() {
         isLong: inPos[4],
       },
       solverNotionalCap: (await router.solverNotionalCap(intent.solver)).toString(),
-      escrowUsdcAfter: (await router.erc20BorrowEscrow(intent.solver, USDC)).toString(),
+      escrowUsdcAfter: (await router.erc20BorrowEscrow(intent.solver, USDC, { blockTag: inRc.blockNumber })).toString(),
     },
     escrowDepositTx: TX.escrowB,
     escrowDepositUrl: `https://basescan.org/tx/${TX.escrowB}`,

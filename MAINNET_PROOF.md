@@ -1288,3 +1288,101 @@ node scripts/v4/live/verify-adapter.cjs 0x46bcffaabce3cb5b75bda465b0b4d32b2b8c3f
   against `gasLimit * maxFeePerGas` before any send.
 - `proofs/new-aggregators-sim-1793048*.json` are rate-limit dumps from the
   blocked window, not proofs.
+
+## 18. Fresh live re-run, scaled to available balances (2026-11-10)
+
+The §1-§17 proof was re-executed end-to-end on Base Mainnet on 2026-11-10 with
+the same deployed stack (adapter, router, hook, EnsoRouter V2, solver). The only
+change is size: the wallets held `3,094` USDC-units (owner) and `4,000`
+(solver), so the §6 `ADAPTER_MARGIN=20000` command was scaled to
+`ADAPTER_MARGIN=2000`. Every code path is identical.
+
+### 18.1 Broadcasts
+
+| Step | Tx | Block | Gas |
+|---|---|---|---|
+| `adapter.registerPool(USDC,WETH,3000,...)` | `0x9bfd4bdb36a6eb6bc68da3a1dc60df0429b4a147b289c3d58bece18fea79d7ee` | — | 43,798 |
+| `adapter.setDefaultSolver(solver)` | `0xff45d9f67b4a11236a3463efc2fb2b1fe1e0d456ea699e62805c916581cc0258` | — | 27,292 |
+| Fund recipient USDC (`3000`) | `0x60f921958f6557e99b4fe6877ddecf1e7b7ea733e9e95b5b4b37de9ed74d95e2` | — | 62,147 |
+| Fund recipient ETH (gas) | `0x2083cb5c5ffc511c29b49fe5fdf52681f0dcf3341d936ce0f795c57fdc69c024` | — | 21,000 |
+| Recipient `approve(router)` | `0xe65a924d07b68af67add2f453223d5bd1b86162a0d0b6576935b9f3387bf3e81` | — | 55,773 |
+| **OPEN** `exactInputSingleWithLeverageAggregator` | `0x3d70597d2b592ca8210238b1ef4a4b08306466627c3b8e4d292e7a56be3225e9` | 55,743,572 | 1,599,873 |
+| **CLOSE** `router.closePosition` | `0x8d1f3ed0d22f7143db1d76282d4ffbf3ad17a74ee1a7282c0b28ac81deed089a` | 55,743,672 | 417,366 |
+
+Both fills: status `1`, effective gas price `6,000,000` wei.
+
+- Adapter: `0x14FBAF1858d37BF994BDAF9ab4b31A664D4663aD`
+- Router: `0xD3360D67E366Cac21a1c18fC9100B93be79e1437`
+- Hook / pool id: `0xe33A630503c640143126BBF222a82689D49b50c8` /
+  `0xdd4958586bcbc340177b3b18ecbf31cfa277e5a8a78735deee01218f54a1d512`
+- Aggregator: EnsoRouter V2 `0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf`
+- Solver: `0x3fc88b834aC96Fa4c65913a6D3d5523418f7F037`
+- Trader / recipient: `0x8480b9349d6E1e143bBAC87d9812319B86877BA0`
+- Margin / leverage / borrow: `2000` / `2x` / `2000` USDC-units
+- Notional: `4000` USDC-units (0.004 USDC)
+
+### 18.2 On-chain verification
+
+From the OPEN receipt + storage at its own block:
+
+```
+fn            exactInputSingleWithLeverageAggregator (0xe73f28fe)
+margin        2000      leverage 2      recipient 0x8480...7BA0
+route.proxy   0xF75584eF...22Cf (Enso)  sellAmount 4000
+router USDC -> venue        4000
+solver USDC -> router       2000
+WETH into router            2019859246162
+WETH router -> PoolManager  2019859246162   (whole output)
+position      trader 0x8480...7BA0, collateral 2018849316539,
+              borrowed 2000, leverage 2, isLong true
+solverDebt    principal 2000
+```
+
+From the CLOSE receipt + storage at its own block:
+
+```
+position.trader after   0x0000000000000000000000000000000000000000 (cleared)
+position.collateral     0
+solver USDC repaid      2000  (principal returned exactly)
+trader USDC delta       +2115 (residual)
+protocolFees(WETH)      25,163,900,376 before and after (close accrues none)
+```
+
+### 18.3 Size compliance
+
+Same caveat as §10.3, §11.1, §12.4 and §17.3: this is **0.002 USDC** of margin,
+not 5 USDC. The mechanism (fresh Enso route, solver-funded borrow, pool
+settlement, hook accounting, exact repayment) is size-independent. What is
+proven is the live connection, not depth.
+
+### 18.4 Reproduce
+
+```bash
+# scaled to what the wallets actually hold; no WETH wrap needed (borrow is USDC)
+BROADCAST=1 ADAPTER_MARGIN=2000 ADAPTER_LEVERAGE=2 \
+  node scripts/v4/live-base-adapter-open.cjs
+BROADCAST=1 node scripts/v4/live-base-adapter-close.cjs
+```
+
+Artifacts: `scripts/v4/live/proofs/adapter-open-55743572.json`,
+`scripts/v4/live/proofs/adapter-close-55743672.json`. The root
+`adapter-open.json` / `adapter-close.json` now describe this latest run.
+
+### 18.5 Verifier fixes applied during this re-run
+
+Four verifiers compared against **latest** chain state, so they failed once
+later activity touched the same accounts. They now read the fill's own block,
+which is what the proof claims:
+
+- `verify-aggregator.cjs` and `verify-adapter.cjs` / `verify-lifi.cjs`: router
+  WETH "no stranded value" check now uses block `N-1` vs `N`, not `latest`.
+- `verify-cow-intent.cjs`: positions and escrow are read at each fill's block
+  (the direct-intent position was later legitimately cleared by a subsequent
+  open/close on the same hook pool).
+- `verify-fusion.cjs`: Chainlink ETH/USD is read at the fill block, and the cap
+  probe uses a superset ABI so it works against the older single-cap live
+  settler (§16.3 still not redeployed).
+
+After the fixes, the full suite is green again:
+`135/135` aggregator, `24/24` LI.FI, `27/27` each adapter venue, `14/14`
+CoW+intent, `28/28` Fusion, `14/14` UniswapX.

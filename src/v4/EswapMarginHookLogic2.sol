@@ -242,13 +242,19 @@ contract EswapMarginHookLogic2 is BaseHook, EswapMarginHookLogicStorage {
         uint256 oldCollateral = pos.collateralAmount;
         uint256 bandCollateral = recoveredCollatInt > 0 ? uint256(uint128(recoveredCollatInt)) : 0;
         uint256 deployed = pos.liquidity > 0 ? rehypPrincipal[poolId][trader] : 0;
-        // Yield beyond deployed principal was distributed to solver above; cap bandCollateral
-        // [A7-MED-05] Track how much yield was physically sent out of the hook so
-        // we can deduct it from availableCollateral before re-deploying. Without
-        // this deduction the new band's `modifyLiquidity` add may attempt to supply
-        // collateral tokens the hook no longer holds (they were sent to the solver
-        // as yield), causing _settleToManager to revert with insufficient balance.
-        uint256 yieldDistributed = bandCollateral > deployed ? bandCollateral - deployed : 0;
+        // Yield beyond deployed principal was distributed to the solver above
+        // (`_distributeRehypothecation` paid `bandCollateral - deployed`). The cap
+        // below is the ONLY place that removal has to happen: after it,
+        // `bandCollateral` already excludes the fees that left the hook, so the
+        // position keeps exactly its deployed principal and the re-deploy is
+        // backed by tokens the hook still holds.
+        //
+        // [CERT F-7] Do NOT also subtract the distributed yield from
+        // `availableCollateral`. A previous revision did both (cap AND subtract),
+        // which wrote the trader's book down by the LP fees the solver had just
+        // earned, re-deployed a smaller band and stranded the difference as raw
+        // hook balance (sweepable residue). `test_Rebalance_RoutesYieldSurplusToSolver`
+        // pins the correct behaviour.
         if (bandCollateral > deployed) {
             bandCollateral = deployed;
         }
@@ -288,13 +294,6 @@ contract EswapMarginHookLogic2 is BaseHook, EswapMarginHookLogicStorage {
         // already routed to the solver by `_distributeRehypothecation` must not
         // be double-counted as position collateral.
         if (availableCollateral > oldCollateral) availableCollateral = oldCollateral;
-        // [A7-MED-05] Deduct yield already physically distributed so the new-band
-        // deployment is backed by tokens the hook actually holds. The yield left
-        // the hook's balance during _distributeRehypothecation above; including it
-        // in availableCollateral would over-provision the LP add and cause
-        // _settleToManager to revert on insufficient token balance.
-        if (availableCollateral > yieldDistributed) availableCollateral -= yieldDistributed;
-        else availableCollateral = 0;
 
         // [AUDIT FIX] Reconcile the collateral ledgers with the PHYSICALLY
         // recovered amount. Impermanent loss can leave the removed LP worth less

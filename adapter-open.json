@@ -21,29 +21,29 @@
   ],
   "aggregator": {
     "exchangeProxy": "0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf",
-    "expectedBuy": "16847384355582",
-    "minBuy": "16796842202515"
+    "expectedBuy": "2019859246162",
+    "minBuy": "2013799668423"
   },
   "solver": "0x3fc88b834aC96Fa4c65913a6D3d5523418f7F037",
-  "recipient": "0x9F3CA377F06c709080b4c11c73832FD16a74c48a",
-  "margin": "20000",
+  "recipient": "0x8480b9349d6E1e143bBAC87d9812319B86877BA0",
+  "margin": "2000",
   "leverage": 2,
-  "notional": "40000",
-  "borrow": "20000",
-  "txHash": "0xcc9b42f881a1e1e812ccf01f94bd4697f7b51baa25455b9ddddc1a0a10ad2281",
-  "blockNumber": 52956808,
-  "gasUsed": "1493057",
+  "notional": "4000",
+  "borrow": "2000",
+  "txHash": "0x3d70597d2b592ca8210238b1ef4a4b08306466627c3b8e4d292e7a56be3225e9",
+  "blockNumber": 55743572,
+  "gasUsed": "1599873",
   "position": {
-    "trader": "0x9F3CA377F06c709080b4c11c73832FD16a74c48a",
-    "collateral": "16838960663405",
-    "borrowed": "20000",
+    "trader": "0x8480b9349d6E1e143bBAC87d9812319B86877BA0",
+    "collateral": "2018849316539",
+    "borrowed": "2000",
     "leverage": 2,
     "isLong": true
   },
   "solverDebt": {
     "solver": "0x3fc88b834aC96Fa4c65913a6D3d5523418f7F037",
-    "principal": "20000"
+    "principal": "2000"
   },
   "positionSolver": "0x3fc88b834aC96Fa4c65913a6D3d5523418f7F037",
-  "createdAt": "2026-10-22T21:02:44.811Z"
+  "createdAt": "2026-11-10T19:31:33.340Z"
 }

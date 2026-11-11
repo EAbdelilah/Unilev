@@ -85,10 +85,10 @@ contract AuditThirdLiquidationPoC is BaseV4Test {
     function _openShort() internal {
         bytes memory data = abi.encode(true, uint8(3), address(this));
         vm.prank(address(manager));
-        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -10 ether, 0), data);
+        hook.beforeSwap(address(router), key, IPoolManager.SwapParams(true, -10 ether, 0), data);
         vm.prank(address(manager));
         hook.afterSwap(
-            address(this),
+            address(router),
             key,
             IPoolManager.SwapParams(true, -30 ether, 0),
             BalanceDeltaLibrary.toBalanceDelta(-30 ether, 28 ether),
@@ -153,10 +153,10 @@ contract AuditThirdLiquidationPoC is BaseV4Test {
 
         bytes memory data = abi.encode(true, uint8(3), address(this));
         vm.prank(address(manager));
-        hook2.beforeSwap(address(this), key2, IPoolManager.SwapParams(true, -10 ether, 0), data);
+        hook2.beforeSwap(address(router), key2, IPoolManager.SwapParams(true, -10 ether, 0), data);
         vm.prank(address(manager));
         hook2.afterSwap(
-            address(this), key2, IPoolManager.SwapParams(true, -30 ether, 0),
+            address(router), key2, IPoolManager.SwapParams(true, -30 ether, 0),
             BalanceDeltaLibrary.toBalanceDelta(-30 ether, 28 ether), data
         );
         manager.mint(address(hook2), uint256(uint160(address(token1))), 28 ether * 2);
@@ -171,10 +171,10 @@ contract AuditThirdLiquidationPoC is BaseV4Test {
         address t2 = makeAddr("trader2");
         bytes memory data2 = abi.encode(true, uint8(3), t2);
         vm.prank(address(manager));
-        hook2.beforeSwap(t2, key2, IPoolManager.SwapParams(false, -10 ether, 0), data2);
+        hook2.beforeSwap(address(router), key2, IPoolManager.SwapParams(false, -10 ether, 0), data2);
         vm.prank(address(manager));
         hook2.afterSwap(
-            t2, key2, IPoolManager.SwapParams(false, -20 ether, 0),
+            address(router), key2, IPoolManager.SwapParams(false, -20 ether, 0),
             BalanceDeltaLibrary.toBalanceDelta(20 ether, -20 ether), data2
         );
 

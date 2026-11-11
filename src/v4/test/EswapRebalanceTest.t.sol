@@ -19,11 +19,11 @@ contract EswapRebalanceTest is BaseV4Test {
         manager.setSlot0(key.toId(), 1 << 96, 0); // Price 1.0, Tick 0
 
         vm.prank(address(manager));
-        hook.beforeSwap(address(0), key, IPoolManager.SwapParams(true, -1 ether, 0), data);
+        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -1 ether, 0), data);
 
         vm.prank(address(manager));
         hook.afterSwap(
-            address(0),
+            address(this),
             key,
             IPoolManager.SwapParams(true, -1 ether, 0),
             BalanceDeltaLibrary.toBalanceDelta(1 ether, 1 ether),
@@ -54,11 +54,11 @@ contract EswapRebalanceTest is BaseV4Test {
         bytes memory data = abi.encode(true, 5, trader);
 
         vm.prank(address(manager));
-        hook.beforeSwap(address(0), key, IPoolManager.SwapParams(true, -1 ether, 0), data);
+        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -1 ether, 0), data);
 
         vm.prank(address(manager));
         hook.afterSwap(
-            address(0),
+            address(this),
             key,
             IPoolManager.SwapParams(true, -1 ether, 0),
             BalanceDeltaLibrary.toBalanceDelta(1 ether, 1 ether),

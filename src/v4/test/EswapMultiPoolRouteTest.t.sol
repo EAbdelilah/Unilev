@@ -88,13 +88,13 @@ contract EswapMultiPoolRouteTest is BaseV4Test {
     {
         bytes memory data = abi.encode(true, leverage, trader);
         vm.prank(address(manager));
-        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(zeroForOne, -int128(uint128(margin)), 0), data);
+        hook.beforeSwap(address(router), key, IPoolManager.SwapParams(zeroForOne, -int128(uint128(margin)), 0), data);
         // Swapper-perspective delta: input leg negative, output leg positive.
         int128 inputDelta = -int128(uint128(margin * leverage));
         vm.prank(address(manager));
         if (zeroForOne) {
             hook.afterSwap(
-                address(this),
+                address(router),
                 key,
                 IPoolManager.SwapParams(true, -int128(uint128(margin * leverage)), 0),
                 BalanceDeltaLibrary.toBalanceDelta(inputDelta, output),
@@ -102,7 +102,7 @@ contract EswapMultiPoolRouteTest is BaseV4Test {
             );
         } else {
             hook.afterSwap(
-                address(this),
+                address(router),
                 key,
                 IPoolManager.SwapParams(false, -int128(uint128(margin * leverage)), 0),
                 BalanceDeltaLibrary.toBalanceDelta(output, inputDelta),

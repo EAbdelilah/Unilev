@@ -1,7 +1,7 @@
 {
   "chainId": 8453,
   "rpc": "https://mainnet.base.org",
-  "verifiedAt": "2026-10-25T21:50:42.155Z",
+  "verifiedAt": "2026-11-10T19:18:18.832Z",
   "tx": {
     "hash": "0xd012925560da8e9c0c8adbdc53eae29729c05a9c9240fd22b68025937a10c502",
     "block": 53087817,
@@ -83,6 +83,18 @@
       "ok": true
     },
     {
+      "label": "[socket] calldata is AllowanceHolder.exec(...) with arg0/arg3 == Open Router",
+      "ok": true
+    },
+    {
+      "label": "[socket] exec amount == notional, token == USDC",
+      "ok": true
+    },
+    {
+      "label": "[socket] holder pulled the notional from the router into the Open Router",
+      "ok": true
+    },
+    {
       "label": "solver funded the borrow leg (margin) to the router",
       "ok": true
     },
@@ -103,7 +115,7 @@
       "ok": true
     },
     {
-      "label": "allowance router -> LI.FI reset to 0 (AUDIT CRIT-5)",
+      "label": "allowance router -> venue reset to 0 (AUDIT CRIT-5)",
       "ok": true
     },
     {
@@ -119,7 +131,7 @@
       "ok": true
     },
     {
-      "label": "position: trader == recipient, borrowed 4000, 2x, long",
+      "label": "position: trader == recipient, borrowed == margin, 2x, long",
       "ok": true
     },
     {

@@ -1,0 +1,117 @@
+{
+  "chainId": 8453,
+  "block": 55913228,
+  "priceFeed": "0xE6E7229f878fB2d7dAbAcD2873A9ea4A3c04aFf8",
+  "tokens": {
+    "WETH": {
+      "token": "0x4200000000000000000000000000000000000006",
+      "feed": "0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70",
+      "feedDecimals": 8,
+      "perFeedStalenessSec": 0,
+      "minAnswerRaw": "0",
+      "maxAnswerRaw": "0",
+      "usdPer1e18Token": "2060754400000000000000",
+      "twapPrice18": "2060754400000000000000",
+      "aggregator": {
+        "decimals": 8,
+        "description": "ETH / USD",
+        "roundId": "55340232221128667968",
+        "answer": "206075440000",
+        "updatedAt": 1794372948,
+        "ageSecAtQuery": 74
+      }
+    },
+    "USDC": {
+      "token": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "feed": "0x879F65DfCF6C0758E1a1a028a6D21bF3DA55cBd9",
+      "feedDecimals": 18,
+      "perFeedStalenessSec": 0,
+      "minAnswerRaw": "0",
+      "maxAnswerRaw": "0",
+      "usdPer1e18Token": "997709042323940346000000000000",
+      "twapPrice18": "997709042323940346",
+      "aggregator": {
+        "decimals": 18,
+        "description": "USDC/USD (Uniswap V3 TWAP x Chainlink ETH/USD)",
+        "roundId": "55913241",
+        "answer": "997709042323940346",
+        "updatedAt": 1794373023,
+        "ageSecAtQuery": 0
+      }
+    }
+  },
+  "sequencerUptimeFeed": "0xBCF85224fc0756B9Fa45aA7892530B47e10b6433",
+  "sequencer": {
+    "description": "L2 Sequencer Uptime Status Feed",
+    "answer": "0",
+    "startedAt": 1794331564,
+    "updatedAt": 1782491507
+  },
+  "maxOracleAgeSecGlobal": 3600,
+  "requireBounds": false,
+  "priceFeedOwner": "0x518634753C61342298c3E04326056b3Ce596a566",
+  "router": {
+    "address": "0xD3360D67E366Cac21a1c18fC9100B93be79e1437",
+    "owner": "0x518634753C61342298c3E04326056b3Ce596a566",
+    "domainSeparator": "0xe8bf8da662251efb307ab5c73f2962edb6bd630848d0381c76bf2bac835cdfbf",
+    "aggregators": {
+      "ZeroX_AllowanceHolder": {
+        "address": "0x0000000000001fF3684f28c67538d4D072C22734",
+        "allowed": true
+      },
+      "ZeroX_ExchangeProxy": {
+        "address": "0xDef1C0ded9bec7F1a1670819833240f027b25EfF",
+        "allowed": false
+      },
+      "Enso": {
+        "address": "0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf",
+        "allowed": true
+      },
+      "ParaSwap_AugustusV6_2": {
+        "address": "0x6A000F20005980200259B80c5102003040001068",
+        "allowed": true
+      },
+      "ParaSwap_V5": {
+        "address": "0x59C7C832e96D2568bea6db468C1aAdcbbDa08A52",
+        "allowed": true
+      },
+      "KyberSwap_MetaAggRouterV2": {
+        "address": "0x6131B5fae19EA4f9D964eAc0408E4408b66337b5",
+        "allowed": true
+      },
+      "OneInch_V6": {
+        "address": "0x111111125421cA6dc452d289314280a0f8842A65",
+        "allowed": true
+      },
+      "LI_FI": {
+        "address": "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE",
+        "allowed": true
+      }
+    }
+  },
+  "hook": {
+    "address": "0xe33A630503c640143126BBF222a82689D49b50c8",
+    "owner": "0x518634753C61342298c3E04326056b3Ce596a566",
+    "reserveFactor": "5",
+    "defaultMaxLeverage": "5",
+    "maxPriceSwingBps": "800",
+    "liquidatorIncentiveBps": "50",
+    "insuranceCoverageBps": "UNAVAILABLE (insuranceCoverageBps: execution reverted (unknown custom error))"
+  },
+  "pool": {
+    "currency0": "0x4200000000000000000000000000000000000006",
+    "currency1": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "fee": 3000,
+    "tickSpacing": 60,
+    "hooks": "0xe33A630503c640143126BBF222a82689D49b50c8",
+    "poolId": "0xdd4958586bcbc340177b3b18ecbf31cfa277e5a8a78735deee01218f54a1d512",
+    "authorized": true,
+    "standardPoolKey": {
+      "currency0": "0x4200000000000000000000000000000000000006",
+      "currency1": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "fee": 500,
+      "tickSpacing": 10,
+      "hooks": "0x0000000000000000000000000000000000000000"
+    }
+  }
+}

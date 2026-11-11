@@ -129,7 +129,10 @@ async function verifyVenue(p, router, hook, venue, txHash) {
   const erc20abi = ['function allowance(address,address) view returns (uint256)', 'function balanceOf(address) view returns (uint256)'];
   const allowance = await new ethers.Contract(USDC, erc20abi, p).allowance(ROUTER, route.exchangeProxy);
   const wethAt = new ethers.Contract(WETH, erc20abi, p);
-  const routerWethBal = await wethAt.balanceOf(ROUTER);
+  // Compare the fill's own block against the block before it. Reading the
+  // *latest* balance would make this check fail forever after any later
+  // router activity, even though the fill left nothing stranded.
+  const routerWethBal = await wethAt.balanceOf(ROUTER, { blockTag: rc.blockNumber });
   const routerWethBefore = await wethAt.balanceOf(ROUTER, { blockTag: rc.blockNumber - 1 });
 
   const received = sum(routerWethIn);

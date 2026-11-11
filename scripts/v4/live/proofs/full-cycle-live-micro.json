@@ -1,0 +1,36 @@
+{
+  "chainId": 8453,
+  "network": "Base Mainnet",
+  "kind": "full-cycle-live-micro",
+  "marginToken": "WETH",
+  "borrowToken": "WETH",
+  "outputToken": "USDC",
+  "leverage": 2,
+  "margin": "10000000000000",
+  "borrowed": "10000000000000",
+  "collateral": "40810",
+  "transactions": {
+    "registerPool": "0x0644d369404b02a0f5b7239f230f618f4911cfd2901d7c948fd76ade339019bd",
+    "open": "0x05c843120aa01b51d10667cc84f8f774f6c78ecb7336569852a5abd73ba76d3a",
+    "close": "0x6e0d18b0a0fa14af32bcbe10689bf1cc98f1428e08ea50b941af954ca6b25b5f"
+  },
+  "openState": {
+    "trader": "0x518634753C61342298c3E04326056b3Ce596a566",
+    "collateral": "40810",
+    "borrowed": "10000000000000",
+    "leverage": 2,
+    "solver": "0x3fc88b834aC96Fa4c65913a6D3d5523418f7F037",
+    "solverPrincipal": "10000000000000"
+  },
+  "closeState": {
+    "trader": "0x0000000000000000000000000000000000000000",
+    "collateral": "0",
+    "liquidity": "0",
+    "positionCleared": true
+  },
+  "explorer": {
+    "open": "https://basescan.org/tx/0x05c843120aa01b51d10667cc84f8f774f6c78ecb7336569852a5abd73ba76d3a",
+    "close": "https://basescan.org/tx/0x6e0d18b0a0fa14af32bcbe10689bf1cc98f1428e08ea50b941af954ca6b25b5f"
+  }
+}
+EOF

@@ -1,7 +1,7 @@
 {
   "chainId": 8453,
   "rpc": "https://mainnet.base.org",
-  "verifiedAt": "2026-10-25T21:51:04.647Z",
+  "verifiedAt": "2026-11-10T19:18:20.429Z",
   "tx": {
     "hash": "0x972f11c04a0e0e5eea6bf7b71305fe86462d9cb48bcdda0cb187bd030276ef5a",
     "block": 53087825,
@@ -80,6 +80,18 @@
     },
     {
       "label": "router pushed the full notional to the venue",
+      "ok": true
+    },
+    {
+      "label": "[socket] calldata is AllowanceHolder.exec(...) with arg0/arg3 == Open Router",
+      "ok": true
+    },
+    {
+      "label": "[socket] exec amount == notional, token == USDC",
+      "ok": true
+    },
+    {
+      "label": "[socket] holder pulled the notional from the router into the Open Router",
       "ok": true
     },
     {
