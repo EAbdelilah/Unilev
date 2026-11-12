@@ -1,3 +1,4 @@
+const ADDR = require('./common.cjs');
 /**
  * Independent verifier for the live 1inch Fusion fill.
  *
@@ -17,7 +18,7 @@ const CHAIN_ID = 8453;
 const USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 const WETH = '0x4200000000000000000000000000000000000006';
 const LOP = '0x111111125421cA6dc452d289314280a0f8842A65';
-const FUSION = '0xD0F10948E5E987d9A04aDf4014178D65042f672c';
+const FUSION = ADDR.FI_SETT;
 const CHAINLINK_ETH_USD = '0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70';
 const DEFAULT_TX = '0x2242c346f57e0fe7fbbf7df945c74c4b3e53b007f841f5f7db9f9e16aa875681';
 // Pre-funding txs that had to happen before the fill.

@@ -4,27 +4,29 @@
 CoW / UniswapX / 1inch-Fusion settlement, direct solver intents and external
 solver economics on **Base mainnet (chainId 8453)**.
 
-**Verdict: GO with 2 blocking release actions and 8 tracked findings.**
+**Verdict: GO. Both blockers are closed on chain.**
 Every pillar was re-verified against the code at `HEAD`, against the *deployed*
 bytecode on Base, and against live fills. No allowance leak, no fund-siphoning
 path, no solver-seniority inversion, and no MEV-to-bad-debt path was found.
-Two items must be closed before the partner package is sent out:
 
-| # | Blocking action | Why |
+The 2026-11-11 full-stack redeploy (§4.2, `MAINNET_PROOF.md` §19) replaced every
+production contract, so the deployed stack now *is* `HEAD`:
+
+| # | Was blocking | Closed by |
 |---|---|---|
-| **B1** | Deploy with `FOUNDRY_PROFILE=deploy` (or apply the size restriction in §4.1). The default profile now produces a **25,056-byte** `EswapMarginHook`, i.e. **480 bytes over EIP-170**. The live artifact is **23,595 bytes** and is legal. | A `forge build` + naive deploy from the default profile reverts at the EIP-170 check. |
-| **B2** | Redeploy `UsdcTwapFeed` (`0x879F65Df…5cBd9`) from current source: the live runtime is missing the `maxEthFeedAge()` guard (`0x065dcecf` absent from bytecode). | The deployed USDC/USD adapter is an older build than the audited source. |
+| **B1** | Default build produced a **25,056-byte** `EswapMarginHook` (480 B over EIP-170); only the `deploy` profile was legal | Deploy profile ships **24,423 B live — 153 B of headroom**. A plain `forge build` still needs the profile; see §4.1 |
+| **B2** | Live `UsdcTwapFeed` was missing the `maxEthFeedAge()` guard (`0x065dcecf` absent) | New feed `0xFCaBcc24bB71b42F8ACa94d187174bcfc05c5792` has the selector **and** returns `86400`; §4.3 |
 
 Tracked findings (non-blocking, documented in §6): `accumulatedYield` is dead
 storage (F-1), `partialLiquidation`'s success path is mathematically unreachable
-(F-2), `insuranceCoverageBps` has no public getter in the split-logic build
-(F-3), fee-on-transfer *output* tokens leave an unbacked claim (F-4), the 1inch
-Fusion settler still runs the single-cap build (F-5), the historical
-`< 350k gas` target is not met by the current open path (F-6), rebalance
-double-deducted solver yield and wrote the trader's book down by the LP fees
-(**F-7 — found by this certification and fixed in the working tree**), and eleven
-pre-existing suites were red at `HEAD` — ten from the `sender == router`
+(F-2), fee-on-transfer *output* tokens leave an unbacked claim (F-4), the
+historical `< 350k gas` target is not met by the current open path (F-6), and
+eleven pre-existing suites were red at `HEAD` — ten from the `sender == router`
 hardening plus one stale keeper-payout expectation (F-8, test-only fix applied).
+F-3 (`insuranceCoverageBps` had no getter) and F-5 (Fusion single cap) are also
+closed by the redeploy; **F-7** — rebalance double-deducted the solver's LP yield,
+writing the trader's book down by the fee — was found by this certification and
+is fixed **and now deployed**.
 
 ---
 
@@ -62,6 +64,13 @@ node scripts/v4/live/partner-config.cjs
 # ── Deployed-bytecode size + selector probe (proves B1/B2) ──────────────────
 node scripts/v4/live/_sizes.cjs
 node scripts/v4/live/_usdcfeed.cjs
+
+# ── Post-deploy wiring verification (proves §5.1: 40/40) ────────────────────
+node scripts/v4/live/verify-deploy.cjs
+
+# ── Sync .env from the broadcast record, then the dashboard ─────────────────
+node scripts/v4/live/apply-env.cjs phase3-broadcast.log
+node javascript/update-dashboard.js
 
 # ── Re-verify the live fills (§5) ───────────────────────────────────────────
 node scripts/v4/live/verify-aggregator.cjs      # 135/135
@@ -433,21 +442,41 @@ Certified:
 
 ### 4.1 EIP-170 bytecode
 
-| Contract | default profile (`optimizer_runs=200`) | `deploy` profile / **live on Base** | Limit | Status |
-|---|---|---|---|---|
-| `EswapMarginHook` | **25,056** ❌ | **23,595** (deployed) | 24,576 | **B1** |
-| `EswapRouter` | 23,515 | 21,701 (deployed) | 24,576 | OK, 1,061 B headroom at runs=200 |
-| `EswapRouterExt` | 17,688 | — | 24,576 | OK |
-| `EswapMarginHookLogic` | 22,245 | — | 24,576 | OK |
-| `EswapMarginHookLogic2` | 23,541 | — | 24,576 | OK, 1,035 B headroom (F-7 fix removed 60 B) |
-| `EswapMarginHookLogic3` | 16,813 | — | 24,576 | OK |
+Measured on this working tree at `HEAD` after the F-7 fix
+(`forge build --sizes`, and `forge build --sizes` with `FOUNDRY_PROFILE=deploy`
+for the live column). The live column is the **on-chain** runtime size, read back
+from Base by `node scripts/v4/live/_sizes.cjs` — not a local artifact.
+
+| Contract | default runtime | default initcode | **`deploy` runtime (live on Base)** | deploy margin | Limit | Status |
+|---|---|---|---|---|---|---|
+| `EswapMarginHook` | **25,056** | 26,002 | **24,423** | **+153** | 24,576 | **B1 — deploy profile required** |
+| `EswapRouter` | 23,515 | 24,283 | 23,017 | +1,559 | 24,576 | OK (default +1,061) |
+| `EswapRouterExt` | 17,688 | 18,334 | 17,441 | +7,135 | 24,576 | OK |
+| `EswapMarginHookLogic` | 22,245 | 22,611 | 21,634 | +2,942 | 24,576 | OK |
+| `EswapMarginHookLogic2` | 23,541 | 23,867 | 23,277 | +1,299 | 24,576 | OK (F-7 fix, +1,035 at default) |
+| `EswapMarginHookLogic3` | 16,813 | 17,090 | 16,466 | +8,110 | 24,576 | OK |
+| `EswapMarginLib` | 3,003 | 3,033 | 3,016 | +21,560 | 24,576 | OK |
+| `EswapLeverageAdapter` | 7,936 | 8,217 | 7,724 | +16,852 | 24,576 | OK |
+| `EswapLeverageQuoter` | 2,379 | 2,610 | 2,352 | +22,224 | 24,576 | OK |
+| `EswapLiquidationKeeper` | 8,698 | 9,025 | 8,627 | +15,949 | 24,576 | OK |
+| `EswapCoWSettlement` | 9,229 | 9,612 | 9,115 | +15,461 | 24,576 | OK |
+| `EswapSettlement` | 6,304 | 6,547 | 6,292 | +18,284 | 24,576 | OK |
+| `EswapUniswapXSettlement` | 5,505 | 6,004 | 5,495 | +19,081 | 24,576 | OK |
+| `EswapOneInchFusionSettlement` | 3,766 | 4,250 | 3,723 | +20,853 | 24,576 | OK |
+| `PriceFeed` | 3,634 | 3,678 | 3,622 | +20,954 | 24,576 | OK |
+| `UsdcTwapFeed` | 3,734 | 4,462 | 3,705 | +20,871 | 24,576 | OK |
 
 `EswapMarginHook` initcode is also over the **EIP-3860** 49,152-byte limit if the
 children are deployed inline — which is exactly why `EswapHookDeployLib` wires
 `Logic2`/`Logic3`/`Logic` in as constructor arguments (`EswapHookDeployLib.sol`
-header). Deployment order is `Logic2`, `Logic3`, `Logic`, then `Hook`.
+header). Even in the default profile the initcode is 26,002 B, comfortably inside
+EIP-3860. Deployment order is `Logic2`, `Logic3`, `Logic`, then `Hook`.
 
-**B1 fix (one of):**
+**B1 — resolved for release, still open for `forge build` without a profile.**
+The hook is legal and live at 24,423 B (153 B of headroom) when built with the
+`deploy` profile, which is what `make build` / the redeploy script use. A plain
+`forge build --sizes` still fails on the hook (25,056 B, −480). Either keep using
+the profile, or make the default build legal:
 
 ```toml
 # foundry.toml — make the default build legal without changing anything else
@@ -456,28 +485,35 @@ compilation_restrictions = [
 ]
 ```
 
-or simply build/deploy with `FOUNDRY_PROFILE=deploy` (already in the repo, and
-what produced the 23,595-byte live artifact).
+Note the margin is thin: **any** new hook-level state or function needs a size
+check before it ships. Logic additions belong in `EswapMarginHookLogic2`
+(1,299 B of deploy-profile headroom), not in the hook.
 
-### 4.2 Partner integration parameters — **live-read on Base, block 55,912,228**
+### 4.2 Partner integration parameters — **live-read on Base, block 56,075,733**
 
 Source: `node scripts/v4/live/partner-config.cjs` →
-`scripts/v4/live/proofs/partner-config-55913228.json`.
+`scripts/v4/live/proofs/partner-config-56075733.json`.
 
 **Contracts**
 
 | Role | Address |
 |---|---|
 | V4 PoolManager (canonical) | `0x498581fF718922c3f8e6A244956aF099B2652b2b` |
-| Router | `0xD3360D67E366Cac21a1c18fC9100B93be79e1437` |
-| Hook | `0xe33A630503c640143126BBF222a82689D49b50c8` |
-| Leverage adapter | `0x14FBAF1858d37BF994BDAF9ab4b31A664D4663aD` |
-| Price feed registry | `0xE6E7229f878fB2d7dAbAcD2873A9ea4A3c04aFf8` |
-| CoW settlement | `0xA9b26F6884526E822190204fe7279ee1db34Abd6` |
-| UniswapX settlement | `0xEA8fE55Ae47f334c6594a3fd57Dc6952b7F8cC33` |
-| 1inch Fusion settlement | `0xD0F10948E5E987d9A04aDf4014178D65042f672c` |
+| Router | `0x5b226aE5158de86f1E616875dBab886870B9aAd9` |
+| RouterExt | `0x907CdA8c588c9C859A6fB4F105593a64599741CB` |
+| Hook | `0x7b3F232BB5a0346fADb8B92B31B3e7bC60bD90c8` |
+| Hook logic 1 / 2 / 3 | `0xDc005F5baAd9e1Ea4E9d8FD1dacfeEA20fcbbce4` / `0x3813583344BA7FFa07FBaC53A9232276e5c52a7D` / `0x4B400Dc2cC807Df4abF98C021d758c02A43b79a3` |
+| `EswapMarginLib` (linked) | `0x3A6F97E9ec31f83Da800c6617695C62aD89656c7` |
+| Leverage adapter | `0xC622558e9145dbe0Bc37Db5311e70f3F9Fa8cc48` |
+| Leverage quoter | `0xb1228De759119088D9aCEf20b80dD4ED93Dd2ba5` |
+| Liquidation keeper | `0xe755c37CFC66873f563128DC4aF1D5f27Aa90B2F` |
+| Price feed registry | `0x91d75C7f750510C04516fC4dcEB5737E5B170c02` |
+| USDC TWAP feed | `0xFCaBcc24bB71b42F8ACa94d187174bcfc05c5792` |
+| CoW settlement | `0x7341859C0D7e039118b3f85F341583EBCDB8c960` |
+| UniswapX settlement | `0x8cB966a5102444BbeD5A222AcE1b88d0421b0cB2` |
+| 1inch Fusion settlement | `0x587f01dE3c42eB5E6a9DBA7a3026719F6F95FBbb` |
 | Owner (all) | `0x518634753C61342298c3E04326056b3Ce596a566` |
-| Router EIP-712 domain separator | `0xe8bf8da662251efb307ab5c73f2962edb6bd630848d0381c76bf2bac835cdfbf` |
+| Router EIP-712 domain separator | `0xac9a788e073fbd82817aaece33cefeccece79df35ef1d53516505f87a93d70f1` |
 
 **PoolKeys**
 
@@ -487,8 +523,8 @@ Source: `node scripts/v4/live/partner-config.cjs` →
 | `currency1` | `0x8335…2913` USDC | `0x8335…2913` USDC |
 | `fee` | **3000** | **500** |
 | `tickSpacing` | **60** | **10** |
-| `hooks` | `0xe33A…50c8` | `0x0` |
-| `PoolId` | `0xdd4958586bcbc340177b3b18ecbf31cfa277e5a8a78735deee01218f54a1d512` | — |
+| `hooks` | `0x7b3F…90c8` | `0x0` |
+| `PoolId` | `0x48ccea22cd56a363882769b3f3b8f056a91df05c17cd96c4429b62767ff8ade3` | — |
 | `isAuthorizedPool` | `true` | — |
 
 **Oracles**
@@ -496,7 +532,7 @@ Source: `node scripts/v4/live/partner-config.cjs` →
 | Asset | Feed | Decimals | Description | Per-feed staleness | Effective ceiling |
 |---|---|---|---|---|---|
 | WETH | `0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70` | 8 | `ETH / USD` (Chainlink) | `0` (unset) | global `MAX_ORACLE_AGE = 3600 s` |
-| USDC | `0x879F65DfCF6C0758E1a1a028a6D21bF3DA55cBd9` | 18 | `USDC/USD (Uniswap V3 TWAP x Chainlink ETH/USD)` | `0` (unset) | 3600 s |
+| USDC | `0xFCaBcc24bB71b42F8ACa94d187174bcfc05c5792` | 18 | `USDC/USD (Uniswap V3 TWAP x Chainlink ETH/USD)` | `0` (unset) | 3600 s |
 
 USDC is **not** a raw Chainlink USD feed. `UsdcTwapFeed` composes
 `USDC/USD = V3(USDC/WETH) TWAP × Chainlink ETH/USD`:
@@ -504,12 +540,13 @@ USDC is **not** a raw Chainlink USD feed. `UsdcTwapFeed` composes
 * V3 pool `0xd0b53D9277642d899DF5C87A3966A349A798F224` (Base USDC/WETH 0.05%)
 * TWAP window **1800 s**
 * ETH/USD anchor `0x71041d…Bb70`
+* ETH/USD anchor staleness bound **`maxEthFeedAge = 86400 s`** (fail-closed)
 
 This is deliberate: a raw Chainlink USDC/USD has a ~24 h heartbeat and can never
 satisfy the 1 h `MAX_ORACLE_AGE`, which would brick every USDC pair. Integration
 consequence for partners: **heartbeat = 3600 s** for both assets, plus the L2
-sequencer guard below. Live check at block 55,912,004: WETH answer
-`2065.63694577`, age 1,120 s; USDC answer `1.000473003711281243`, age 0 s.
+sequencer guard below. Live check at block 56,075,683: WETH answer
+`2054.41279096`, age 259 s; USDC answer `1.001324887246002592`, age 0 s.
 
 **L2 sequencer guard**
 
@@ -521,10 +558,17 @@ sequencer guard below. Live check at block 55,912,004: WETH answer
 
 | Parameter | Value |
 |---|---|
-| `reserveFactor` (protocol fee) | **5** bps (0.05%) |
+| `reserveFactor` (protocol fee) | **10** bps (0.10%) |
 | `defaultMaxLeverage` | **5** |
 | `maxPriceSwingBps` (V4 spot vs V3-TWAP breaker) | **800** (8%) |
 | `liquidatorIncentiveBps` | **50** (0.5%) |
+| `insuranceCoverageBps` | **10000** |
+| `bandConsumptionTriggerBps` | **2500** |
+| `maxSingleOIBps` / `maxTotalOIBps` | **200** / **1500** |
+| `oiCapTvlFloorUsd` | `100000 ether` |
+| `minCollateralUsd` | `1000000000000` |
+| `requireTwapOracle` | `true` |
+| `requireStandardPoolKey` | `false` |
 | `LIQUIDATION_REWARD_BPS` | 300 (3%, to insurance) |
 | `LIQUIDATION_COVER_BPS` | 500 (partial-liquidation cap only, see F-2) |
 | `LIQUIDATOR_MIN_INCENTIVE_BPS` | 50 |
@@ -555,21 +599,79 @@ sequencer guard below. Live check at block 55,912,004: WETH answer
 `EswapMarginHook` (`positions`, `solverDebts`, `positionSolver`,
 `rehypPrincipal`, `insuranceFund`, `badDebt`), plus the venue settler ABIs.
 
-### 4.3 Deployed-vs-source drift — **B2**
+### 4.3 Deployed-vs-source drift — **B2 RESOLVED**
 
-`UsdcTwapFeed` at `0x879F65Df…5cBd9` (runtime 3,519 bytes) exposes
+The 2026-10-20 `UsdcTwapFeed` (`0x879F65Df…5cBd9`, runtime 3,519 bytes) exposed
 `pool()`, `ethUsdFeed()`, `window()`, `usdc()`, `weth()`, `decimals()`,
 `description()`, `latestRoundData()` — but **not** `maxEthFeedAge()`
-(`0x065dcecf` is absent from the runtime bytecode). The audited source
-(`src/v4/UsdcTwapFeed.sol:61`) declares that immutable and uses it as the
-ETH/USD staleness bound. The deployed adapter therefore runs without that guard.
-**Action:** redeploy the adapter from `HEAD` and re-point
-`PriceFeed.setPriceFeed(USDC, newAdapter, 18)` (owner tx), then re-run
-`EswapChainlinkForkTest` / `TwapFeedForkTest`.
+(`0x065dcecf` was absent from the runtime bytecode), so the deployed adapter ran
+without the ETH/USD staleness bound the audited source declares
+(`src/v4/UsdcTwapFeed.sol:61`).
+
+Closed by the 2026-11-11 redeploy. `UsdcTwapFeed`
+`0xFCaBcc24bB71b42F8ACa94d187174bcfc05c5792` (runtime **3,705** bytes) has the
+selector **present** and returns the immutable:
+
+```
+maxEthFeedAge   0x065dcecf PRESENT   -> 86400
+window          0x461645bf PRESENT   -> 1800
+pool            0x16f0115b PRESENT   -> 0xd0b53D9277642d899DF5C87A3966A349A798F224
+ethUsdFeed      0x8009b7bd PRESENT   -> 0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70
+decimals        0x313ce567 PRESENT   -> 18
+```
+
+`PriceFeed` `0x91d75C7f750510C04516fC4dcEB5737E5B170c02` registers it via
+`feedDecimals(USDC) = 18`; no separate owner re-point tx was required because the
+registry and the adapter were deployed together in the same run.
 
 ---
 
-## 5. Live mainnet evidence (re-verified this cycle)
+## 5. Live mainnet evidence
+
+> **Status after the 2026-11-11 redeploy.** The evidence in this section was
+> mined against the **retired** 2026-10-20 stack (hook `0xe33A…50c8`, router
+> `0xD336…1437`). It is retained because it is what the verifier suites were
+> hardened against, but it no longer certifies the contracts listed in §4.2.
+> Re-running the five fills against the new stack is **blocked on USDC capital**,
+> not on gas: the maker wallets hold `0`–`94` USDC-units and a cap-sized Fusion
+> order needs `4,800` USDC. The verifiers themselves are already re-pointed at
+> the new addresses (all `scripts/v4/live/*.cjs` now resolve them from `.env`
+> via `common.cjs`); they need fresh tx hashes to consume.
+
+### 5.1 New-stack deployment verification (2026-11-11) — **40/40 PASS**
+
+The redeploy itself is live evidence: `forge script … --broadcast --slow
+--with-gas-price 6000000` landed **44/44 transactions with zero reverts**
+(nonce 294 → 338), and every CREATE address matched the dry run exactly.
+
+| | |
+|---|---|
+| Gas used | **40,153,500** (simulator estimated 52,591,515) |
+| L2 fee @ 0.006 gwei | 0.00024092 ETH |
+| L1 data fee (measured) | 0.00000119 ETH |
+| **Total spent** | **0.00024211 ETH** |
+| Broadcast record | `broadcast/RedeployBaseFull.s.sol/8453/run-latest.json` (gitignored — committed snapshot at `scripts/v4/live/proofs/redeploy-8453-2026-11-11.json`) |
+| Log | `phase3-broadcast.log` |
+
+`node scripts/v4/live/verify-deploy.cjs` re-reads all of it from chain —
+**40/40 checks pass** (41 assertions once the ctor-args record is found):
+
+* **16/16** contracts have runtime code at the expected size (§4.1);
+* hook `owner`, `router`, `priceFeed`, `hookLogic`, `treasury`,
+  `requireTwapOracle = true`, `emergencyPaused = false`;
+* `manager() == 0x4985…2b2b` on **both** logic contracts (read from the logic
+  contracts, because the hook's fallback delegates only an allow-list of
+  selectors — `EswapMarginHook.sol:1541`);
+* hook ctor args from the broadcast record match the deployed wiring, and the
+  CREATE2 address matches the mined salt
+  `0x…01cc03`;
+* router `routerExt`, `executorWhitelist` = {adapter, RouterExt} only,
+  `allowedAggregators` = all **8** venue proxies, `settlementWhitelist` = CoW,
+  `registeredSolvers` = solver;
+* partner selectors `swapFor` `0x1eb622d2` and `swapMultiPoolFor` `0xc4f6bf3d`
+  present in the deployed router bytecode (selectors derived from the compiled
+  ABI, not from a hand-written signature);
+* `feedDecimals(WETH) = 8`, `feedDecimals(USDC) = 18`.
 
 All `MAINNET_PROOF.md` claims were re-checked from the mined transactions at
 their **own** block (four verifiers were fixed to stop reading `latest`):
@@ -583,7 +685,7 @@ their **own** block (four verifiers were fixed to stop reading `latest`):
 | `verify-fusion.cjs` (1inch Fusion) | **28/28** |
 | `verify-uniswapx.cjs` | **14/14** |
 
-Fresh end-to-end cycle (2026-11-10, `MAINNET_PROOF.md` §18):
+Retired-stack end-to-end cycle (2026-11-10, `MAINNET_PROOF.md` §18):
 
 * **OPEN** `0x3d70597d2b592ca8210238b1ef4a4b08306466627c3b8e4d292e7a56be3225e9` — block 55,743,572, gas **1,599,873**
 * **CLOSE** `0x8d1f3ed0d22f7143db1d76282d4ffbf3ad17a74ee1a7282c0b28ac81deed089a` — block 55,743,672, gas **417,366**
@@ -604,13 +706,13 @@ Artifacts: `scripts/v4/live/proofs/adapter-open-55743572.json`,
 
 | ID | Severity | Title | Status |
 |---|---|---|---|
-| **B1** | **Blocker (release process)** | Default build produces a 25,056-byte `EswapMarginHook` (EIP-170 +480 B); only the `deploy` profile is legal | Fix in §4.1 |
-| **B2** | **Blocker (artifact drift)** | Live `UsdcTwapFeed` lacks the `maxEthFeedAge()` guard present in source | Redeploy adapter |
+| **B1** | **Blocker (release process)** | Default build produces a 25,056-byte `EswapMarginHook` (EIP-170 +480 B); only the `deploy` profile is legal | **RESOLVED for release** — deploy profile ships **24,423 B live** (+153 B). A plain `forge build` still fails; fix or keep the profile (§4.1) |
+| **B2** | **Blocker (artifact drift)** | Live `UsdcTwapFeed` lacked the `maxEthFeedAge()` guard present in source | **RESOLVED 2026-11-11** — new feed `0xFCaB…5792` has `maxEthFeedAge()` (`0x065dcecf`) → `86400` (§4.3) |
 | **F-1** | Info | `SolverDebt.accumulatedYield` is never incremented; seniority is principal-only | Document / or change design |
 | **F-2** | Low (fail-safe) | `partialLiquidation` success path is unreachable — proportional slice preserves C/D, so the survivor is always still liquidatable | Document or rework |
-| **F-3** | Info | `insuranceCoverageBps` is `internal` in the split-logic storage → no public getter on the deployed hook (observability gap) | Add a view |
+| **F-3** | Info | `insuranceCoverageBps` was `internal` in the split-logic storage → no public getter on the deployed hook (observability gap) | **RESOLVED 2026-11-11** — `insuranceCoverageBps()` now public on the hook, live `10000` |
 | **F-4** | Low (fail-closed) | Fee-on-transfer **output** tokens leave an unbacked ERC-6909 claim (real PM `settle()` reverts) | Keep off the asset list |
-| **F-5** | Info | 1inch Fusion settler still on the single-cap build (`MAINNET_PROOF.md` §16.3); needs a `maxTakingAmount` WETH cap decision before redeploy | Pending decision |
+| **F-5** | Info | 1inch Fusion settler was on the single-cap build (`MAINNET_PROOF.md` §16.3) | **RESOLVED 2026-11-11** — split caps live: `maxMakingAmount 5000e6` (USDC), `maxTakingAmount 5e18` (WETH), `caps = split` |
 | **F-6** | Info (target refuted) | The historical `< 350k gas` target for `swapMultiPoolForAggregator` is not achievable: measured **925,069** (mock) / **1,599,873** (live Base). Quote ~1.6M for opens, 417k for closes | Correct the partner-facing number (§1.5) |
 | **F-7** | **Medium (fixed in tree)** | `rebalancePosition` subtracted the solver's LP yield from the trader's collateral twice (cap + explicit deduction), writing the book down by the fee, under-collateralising the position and stranding tokens as sweepable residue | Fix applied (`Logic2` cap only) — needs the B2 redeploy |
 | **F-8** | Low (test hygiene) | **Eleven** pre-existing suites were **red at `HEAD`**: ten passed the trader as `sender` after the hook began requiring `sender == router` in margin mode (`EswapMarginHook.sol:779`), and `EswapLiquidationKeeperTest` still asserted the pre-`LIQUIDATOR_MIN_INCENTIVE_BPS` "keeper is not paid" behaviour | Test-only fixes applied; all 11 suites green (§7.3) |
@@ -686,14 +788,17 @@ that touches it was re-run after the fix:
 
 ### 7.5 EIP-170 at `HEAD` (default profile, after the F-7 fix)
 
-| Contract | Runtime size | Margin | Status |
-|---|---|---|---|
-| `EswapMarginHook` | 25,056 | **−480** | **B1** |
-| `EswapRouter` | 23,515 | 1,061 | OK |
-| `EswapRouterExt` | 17,688 | 6,888 | OK |
-| `EswapMarginHookLogic` | 22,245 | 2,331 | OK |
-| `EswapMarginHookLogic2` | 23,541 | 1,035 | OK |
-| `EswapMarginHookLogic3` | 16,813 | 7,763 | OK |
+Reproduced with `forge build --sizes` on this tree; full table with the live
+`deploy`-profile sizes in §4.1.
+
+| Contract | Runtime | Initcode | Margin | Status |
+|---|---|---|---|---|
+| `EswapMarginHook` | 25,056 | 26,002 | **−480** | **B1** (default build only) |
+| `EswapRouter` | 23,515 | 24,283 | 1,061 | OK |
+| `EswapRouterExt` | 17,688 | 18,334 | 6,888 | OK |
+| `EswapMarginHookLogic` | 22,245 | 22,611 | 2,331 | OK |
+| `EswapMarginHookLogic2` | 23,541 | 23,867 | 1,035 | OK |
+| `EswapMarginHookLogic3` | 16,813 | 17,090 | 7,763 | OK |
 
 ### 7.6 Amendments made to this report during certification
 
@@ -743,11 +848,15 @@ that touches it was re-run after the fix:
   both liquidation paths and blocks sandwich-to-bad-debt at the wei; partial
   liquidation preserves the survivor's band principal and reverts atomically
   whenever the survivor would remain unhealthy.
-* **Phase 4 — Production artifacts: CONDITIONAL GO.** Five of six contracts are
-  comfortably under EIP-170 and the sixth is legal *when built with the
-  deployment profile* (B1). The partner parameter sheet is complete and read from
-  chain (§4.2). One deployed artifact is stale (B2) and must be redeployed.
+* **Phase 4 — Production artifacts: GO.** All sixteen HEAD contracts are live on
+  Base mainnet under EIP-170 (§4.2), with the hook at **24,423 B — 153 B of
+  headroom** in the `deploy` profile (B1). The partner parameter sheet is complete
+  and read from chain at block 56,075,733 (§4.2). The USDC feed drift is closed on
+  chain, not just in source (§4.3), and the Fusion settler now carries independent
+  USDC/WETH caps (F-5).
 
-Ship after closing **B1** and **B2**. The B2 redeploy must include the F-7
-`rebalancePosition` fix, otherwise rebalances keep writing the trader's book down
-by the solver's LP fees.
+**B1 and B2 are closed.** The 2026-11-11 redeploy shipped the F-7
+`rebalancePosition` fix, the `maxEthFeedAge` guard and the split-cap Fusion
+settler. Residual items are non-blocking: the default (non-deploy) profile still
+needs `FOUNDRY_PROFILE=deploy` to fit the hook (§4.1), and live fill evidence must
+be re-mined against the new stack once USDC capital is available (§5).

@@ -4,13 +4,10 @@
 const { ethers } = require('ethers');
 const fs = require('fs');
 const path = require('path');
-
-const RPC = process.env.BASE_RPC_URL || 'https://mainnet.base.org';
-const PRICE_FEED = '0xE6E7229f878fB2d7dAbAcD2873A9ea4A3c04aFf8';
-const HOOK = '0xe33A630503c640143126BBF222a82689D49b50c8';
-const ROUTER = '0xD3360D67E366Cac21a1c18fC9100B93be79e1437';
-const USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
-const WETH = '0x4200000000000000000000000000000000000006';
+// Addresses come from `.env` via common.cjs so a redeploy only requires editing
+// `.env`; hardcoding them here is how this probe kept reporting the retired
+// 2026-10-20 stack after the Base redeploy.
+const { RPC, PRICE_FEED, HOOK, ROUTER, USDC, WETH } = require('./common.cjs');
 
 const PF_ABI = [
   'function priceFeeds(address) view returns (address)',

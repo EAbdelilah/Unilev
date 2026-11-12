@@ -1,3 +1,4 @@
+const ADDR = require('./common.cjs');
 /**
  * 1inch Fusion / Limit-Order-Protocol live fill (Base 8453).
  *
@@ -40,7 +41,7 @@ const CHAIN_ID = 8453;
 const USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 const WETH = '0x4200000000000000000000000000000000000006';
 const LOP = '0x111111125421cA6dc452d289314280a0f8842A65';
-const FUSION = '0xD0F10948E5E987d9A04aDf4014178D65042f672c';
+const FUSION = ADDR.FI_SETT;
 const CHAINLINK_ETH_USD = '0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70';
 
 const ERC20_ABI = [

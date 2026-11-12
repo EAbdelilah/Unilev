@@ -1,3 +1,4 @@
+const ADDR = require('./common.cjs');
 /**
  * Debug helper: trace the Fusion fill eth_call on a local anvil fork so the
  * revert selector can be attributed to a frame.
@@ -8,7 +9,7 @@ const { ethers } = require('ethers');
 const fs = require('fs');
 
 const RPC = process.env.BASE_RPC_URL || 'http://127.0.0.1:8545';
-const FUSION = '0xD0F10948E5E987d9A04aDf4014178D65042f672c';
+const FUSION = ADDR.FI_SETT;
 
 function abiOf(file) {
   const j = JSON.parse(fs.readFileSync(file, 'utf8'));

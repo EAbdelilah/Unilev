@@ -1,7 +1,8 @@
+const ADDR = require('./common.cjs');
 ﻿const { ethers } = require('ethers');
 (async () => {
   const p = new ethers.JsonRpcProvider('https://mainnet.base.org', 8453, { staticNetwork: true });
-  const code = await p.getCode('0x879F65DfCF6C0758E1a1a028a6D21bF3DA55cBd9');
+  const code = await p.getCode(ADDR.USDC_FEED);
   const iface = new ethers.Interface([
     'function pool() view returns (address)',
     'function ethUsdFeed() view returns (address)',

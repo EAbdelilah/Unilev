@@ -1,3 +1,4 @@
+const ADDR = require('./common.cjs');
 /**
  * Independent verifier for the live B2B aggregator-route fills on Base.
  *
@@ -17,11 +18,11 @@ const RPC = process.env.BASE_RPC_URL || 'https://mainnet.base.org';
 const CHAIN_ID = 8453;
 const USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 const WETH = '0x4200000000000000000000000000000000000006';
-const ROUTER = '0xD3360D67E366Cac21a1c18fC9100B93be79e1437';
-const HOOK = '0xe33A630503c640143126BBF222a82689D49b50c8';
+const ROUTER = ADDR.ROUTER;
+const HOOK = ADDR.HOOK;
 const POOL_MGR = '0x498581fF718922c3f8e6A244956aF099B2652b2b';
 const SOLVER = '0x3fc88b834aC96Fa4c65913a6D3d5523418f7F037';
-const HOOK_POOL_ID = '0xdd4958586bcbc340177b3b18ecbf31cfa277e5a8a78735deee01218f54a1d512';
+const HOOK_POOL_ID = ADDR.POOL_ID;
 
 const MARGIN = 4000n;
 const NOTIONAL = 8000n;

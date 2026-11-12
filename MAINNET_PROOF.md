@@ -234,9 +234,9 @@ solver's `erc20BorrowEscrow` for the borrow leg.
 | Order owner / receiver | `0xd9Aba9723d14b36588bcF9D47c2FF355EEC47F3c` (receiver == swapper) |
 | Solver | `0x3fc88b834aC96Fa4c65913a6D3d5523418f7F037` |
 | Order UID | `0x89cbdce119419fc200193971e779d092cbb2a645eb27e4b9cf3465195e960f7dd9aba9723d14b36588bcf9d47c2ff355eec47f3c6addff1d` |
-| GPv2 domain separator | `0xd72ffa789b6fae41254d0b5a13e6e1e92ed947ec6a251edf1cf0b6c02c257b4b` (binds canonical `0x9008D19f�ab41`) |
+| GPv2 domain separator | `0xd72ffa789b6fae41254d0b5a13e6e1e92ed947ec6a251edf1cf0b6c02c257b4b` (binds canonical `0x9008D19f…ab41`) |
 | sell / buy | USDC -> WETH, `kind="sell"`, `partiallyFillable=false`, `feeAmount=0` |
-| appData | `0xe41487c9�291bfb` == `keccak256(appDataJson(2))` == `leverageCommitment(2)` |
+| appData | `0xe41487c9…291bfb` == `keccak256(appDataJson(2))` == `leverageCommitment(2)` |
 | Margin / leverage / borrow | `7000` / `2x` / `7000` USDC-units (0.007 / 0.007) |
 | Position after | collateral `5,986,499,540,201` wei WETH, borrowed `7000`, lev `2`, long |
 | Replay lock | `filledOrders[keccak256(orderUid)] == true` |
@@ -276,13 +276,13 @@ physically unbroadcastable with the current funded wallets:
 
 | Wallet | USDC | ETH |
 |---|---|---|
-| owner / relayer `0x5186�a566` | `0.029644` | `0.000328` |
-| solver `0x3fc8�F037` | `0.030000` | `0.000030` |
-| trader `0xd9Ab�F3c` | `0.013383` | `0.000055` |
+| owner / relayer `0x5186…a566` | `0.029644` | `0.000328` |
+| solver `0x3fc8…F037` | `0.030000` | `0.000030` |
+| trader `0xd9Ab…F3c` | `0.013383` | `0.000055` |
 
-The CoW leg alone pulls `2 � margin` of USDC (margin from the solver wallet plus
+The CoW leg alone pulls `2 × margin` of USDC (margin from the solver wallet plus
 borrow from the solver escrow), so 5 USDC would need >5 USDC of solver USDC plus
-a 10 USDC escrow � roughly 300� the available balance. The fills above were
+a 10 USDC escrow — roughly 300× the available balance. The fills above were
 therefore **sized from live balances** (0.007 USDC and 0.004 USDC at 2x) and are
 real, unmocked transactions. The exact same code path (nothing changes but the
 amounts) executes at 5 USDC / 10 USDC as soon as the wallets are funded; the
@@ -1055,7 +1055,7 @@ The broadcaster also gained an optional `AGG_TRADER_SALT`. It only changes the
 deterministic trader key when set, so default runs are unchanged. It exists so a
 rehearsal can use a fresh trader on the fork.
 
-### 16.3 Fusion settler: split caps (code and tests done; not redeployed)
+### 16.3 Fusion settler: split caps — **closed 2026-11-11 (§19)**
 
 `EswapOneInchFusionSettlement` replaces the single `maxFillAmount` with
 `maxMakingAmount` (USDC-side) and `maxTakingAmount` (WETH-side). The LOP
@@ -1068,10 +1068,20 @@ check uses `maxMakingAmount`. The constructor takes both.
   taking cap falls back to `ONEINCH_FUSION_MAX_FILL`, so existing deploy
   behaviour is unchanged.
 
-**Not done:** the live settler still has the old single cap. Redeploying it is a
-mainnet action, and it needs a chosen WETH cap. The value is your decision.
-After redeploy, `fusion-fill.cjs`, `fusion-probe.cjs`, and `verify-fusion.cjs`
-still read `maxFillAmount()` and must be updated to the new getters.
+**Done 2026-11-11.** The settler was redeployed at
+`0x587f01dE3c42eB5E6a9DBA7a3026719F6F95FBbb` with
+`maxMakingAmount = 5000e6` (USDC) and `maxTakingAmount = 5e18` (WETH). Live probe:
+
+```
+maxMakingAmount = 5000000000
+maxTakingAmount = 5000000000000000000
+maxFillAmount   -> absent (selector not in runtime)
+operator        = 0x3fc88b834aC96Fa4c65913a6D3d5523418f7F037
+```
+
+`fusion-fill.cjs` / `fusion-probe.cjs` / `verify-fusion.cjs` were updated to read
+both getters and fall back to `maxFillAmount()` only for the legacy build
+(`readCaps()` in `fusion-fill.cjs`).
 
 ### 16.4 Socket: closed in §17
 
@@ -1291,6 +1301,10 @@ node scripts/v4/live/verify-adapter.cjs 0x46bcffaabce3cb5b75bda465b0b4d32b2b8c3f
 
 ## 18. Fresh live re-run, scaled to available balances (2026-11-10)
 
+> **Superseded stack.** The addresses in this section were replaced on 2026-11-11
+> (§19). The mechanism evidence still stands; the addresses and hashes do not
+> carry over.
+
 The §1-§17 proof was re-executed end-to-end on Base Mainnet on 2026-11-10 with
 the same deployed stack (adapter, router, hook, EnsoRouter V2, solver). The only
 change is size: the wallets held `3,094` USDC-units (owner) and `4,000`
@@ -1381,8 +1395,84 @@ which is what the proof claims:
   open/close on the same hook pool).
 - `verify-fusion.cjs`: Chainlink ETH/USD is read at the fill block, and the cap
   probe uses a superset ABI so it works against the older single-cap live
-  settler (§16.3 still not redeployed).
+  settler (since closed by §19).
 
 After the fixes, the full suite is green again:
 `135/135` aggregator, `24/24` LI.FI, `27/27` each adapter venue, `14/14`
 CoW+intent, `28/28` Fusion, `14/14` UniswapX.
+
+---
+
+## 19. Full-stack redeploy to `HEAD` (2026-11-11)
+
+> **Read this before citing §1–§18.** Every fill tx in this document was mined
+> against the **retired** 2026-10-20 stack. The stack below replaced it; the
+> mechanisms are unchanged but the addresses and the mined hashes are not
+> interchangeable.
+
+Every production contract had changed since 2026-10-20 (including the F-7
+`rebalancePosition` fix and the `maxEthFeedAge` guard), and `HEAD`'s router adds
+`_requireKeyHook`, so a hook-only swap would have left the old router forwarding
+privileged calls across two hooks. The whole stack was therefore redeployed in
+three phases by `scripts/v4/RedeployBaseFull.s.sol`.
+
+### 19.1 Deployed addresses
+
+| Contract | Address | Runtime |
+|---|---|---|
+| `PriceFeed` | `0x91d75C7f750510C04516fC4dcEB5737E5B170c02` | 3,622 B |
+| `UsdcTwapFeed` | `0xFCaBcc24bB71b42F8ACa94d187174bcfc05c5792` | 3,705 B |
+| `EswapMarginLib` (linked) | `0x3A6F97E9ec31f83Da800c6617695C62aD89656c7` | 3,016 B |
+| `EswapMarginHookLogic` | `0xDc005F5baAd9e1Ea4E9d8FD1dacfeEA20fcbbce4` | 21,634 B |
+| `EswapMarginHookLogic2` | `0x3813583344BA7FFa07FBaC53A9232276e5c52a7D` | 23,277 B |
+| `EswapMarginHookLogic3` | `0x4B400Dc2cC807Df4abF98C021d758c02A43b79a3` | 16,466 B |
+| `EswapMarginHook` | `0x7b3F232BB5a0346fADb8B92B31B3e7bC60bD90c8` | **24,423 B** |
+| `EswapRouter` | `0x5b226aE5158de86f1E616875dBab886870B9aAd9` | 23,017 B |
+| `EswapRouterExt` | `0x907CdA8c588c9C859A6fB4F105593a64599741CB` | 17,441 B |
+| `EswapLiquidationKeeper` | `0xe755c37CFC66873f563128DC4aF1D5f27Aa90B2F` | 8,627 B |
+| `EswapLeverageAdapter` | `0xC622558e9145dbe0Bc37Db5311e70f3F9Fa8cc48` | 7,724 B |
+| `EswapLeverageQuoter` | `0xb1228De759119088D9aCEf20b80dD4ED93Dd2ba5` | 2,352 B |
+| `EswapCoWSettlement` | `0x7341859C0D7e039118b3f85F341583EBCDB8c960` | 9,115 B |
+| `EswapSettlement` | `0x6F347acB3bD901731e192d482b7a40c50f30FCa1` | 6,292 B |
+| `EswapUniswapXSettlement` | `0x8cB966a5102444BbeD5A222AcE1b88d0421b0cB2` | 5,495 B |
+| `EswapOneInchFusionSettlement` | `0x587f01dE3c42eB5E6a9DBA7a3026719F6F95FBbb` | 3,723 B |
+
+Hook pool id `0x48ccea22cd56a363882769b3f3b8f056a91df05c17cd96c4429b62767ff8ade3`
+(WETH/USDC, fee 3000, tickSpacing 60, hooks = the new hook). CREATE2 salt
+`0x…01cc03`. `manager()` on both logic contracts is
+`0x498581fF718922c3f8e6A244956aF099B2652b2b`.
+
+### 19.2 Cost and outcome
+
+44/44 transactions succeeded, nonce 294 → 338, zero reverts, every address
+identical to the dry run.
+
+| | |
+|---|---|
+| gasUsed | **40,153,500** (estimate 52,591,515) |
+| effective gas price | 0.006 gwei pinned (`--with-gas-price 6000000`) |
+| L2 fee | 0.00024092 ETH |
+| L1 data fee | 0.00000119 ETH |
+| **total** | **0.00024211 ETH** |
+
+### 19.3 Verification
+
+`node scripts/v4/live/verify-deploy.cjs` → **40/40**, covering code presence,
+hook wiring, logic `manager()`, hook ctor args, router executors/aggregators/
+settlements/solvers, partner selectors and feed decimals. See
+`AGGREGATOR_SOLVER_READINESS.md` §5.1.
+
+### 19.4 What is *not* yet re-proven
+
+No fill has been mined against this stack. All four fill drivers are blocked on
+**USDC capital**, not gas:
+
+| Driver | Blocker |
+|---|---|
+| `agg-fill.cjs setup` | needs 5 traders × 4,000 USDC-units; all keys hold 4,094 units total |
+| `cow-intent.cjs sim` | `insufficient USDC to open even a dust position` |
+| `fusion-fill.cjs plan` | maker (`TINY_TRADER`) holds 0 USDC vs a 4,800-USDC cap-sized order |
+| `ux-fill.cjs` | same dust-balance constraint |
+
+The verifier suites are already re-pointed at the new addresses through
+`scripts/v4/live/common.cjs` (env-driven); they need fresh hashes to consume.

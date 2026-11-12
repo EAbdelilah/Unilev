@@ -1,3 +1,4 @@
+const ADDR = require('./common.cjs');
 /**
  * Independent verifier for a live adapter-path aggregator canary
  * (EswapLeverageAdapter.exactInputSingleWithLeverageAggregator, Base 8453).
@@ -16,9 +17,9 @@ const path = require('path');
 const RPC = process.env.BASE_RPC_URL || 'https://mainnet.base.org';
 const USDC = ethers.getAddress('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913');
 const WETH = ethers.getAddress('0x4200000000000000000000000000000000000006');
-const ROUTER = ethers.getAddress('0xD3360D67E366Cac21a1c18fC9100B93be79e1437');
-const ADAPTER = ethers.getAddress('0x14FBAF1858d37BF994BDAF9ab4b31A664D4663aD');
-const HOOK = ethers.getAddress('0xe33A630503c640143126BBF222a82689D49b50c8');
+const ROUTER = ADDR.ROUTER;
+const ADAPTER = ADDR.ADAPTER;
+const HOOK = ADDR.HOOK;
 const POOL_MGR = ethers.getAddress('0x498581fF718922c3f8e6A244956aF099B2652b2b');
 const SOLVER = ethers.getAddress('0x3fc88b834aC96Fa4c65913a6D3d5523418f7F037');
 const SOCKET_HOLDER = ethers.getAddress('0x50c4E75a512F2A14A7b304787Adf79C4531A5909');

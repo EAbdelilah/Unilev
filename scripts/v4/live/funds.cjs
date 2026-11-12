@@ -1,3 +1,4 @@
+const ADDR = require('./common.cjs');
 const { ethers } = require('ethers');
 const fs = require('fs');
 
@@ -23,12 +24,12 @@ const WETH = '0x4200000000000000000000000000000000000006';
     console.log(name.padEnd(24), a, 'ETH', ethers.formatEther(e), 'USDC', ethers.formatUnits(u, 6), 'WETH', ethers.formatEther(w));
   }
   for (const [n, a] of Object.entries({
-    HOOK: '0xe33A630503c640143126BBF222a82689D49b50c8',
-    ROUTER: '0xD3360D67E366Cac21a1c18fC9100B93be79e1437',
-    COW: '0xA9b26F6884526E822190204fe7279ee1db34Abd6',
-    UX: '0xEA8fE55Ae47f334c6594a3fd57Dc6952b7F8cC33',
-    FI: '0xD0F10948E5E987d9A04aDf4014178D65042f672c',
-    ADAPTER: '0x14FBAF1858d37BF994BDAF9ab4b31A664D4663aD',
+    HOOK: ADDR.HOOK,
+    ROUTER: ADDR.ROUTER,
+    COW: ADDR.COW_SETT,
+    UX: ADDR.UX_SETT,
+    FI: ADDR.FI_SETT,
+    ADAPTER: ADDR.ADAPTER,
   })) {
     console.log(n.padEnd(24), a, 'ETH', ethers.formatEther(await p.getBalance(a)), 'USDC', ethers.formatUnits(await usdc.balanceOf(a), 6), 'WETH', ethers.formatEther(await weth.balanceOf(a)));
   }

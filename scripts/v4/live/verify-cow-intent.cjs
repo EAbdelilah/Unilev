@@ -1,3 +1,4 @@
+const ADDR = require('./common.cjs');
 /**
  * Independent on-chain verification of the two live Base mainnet B2B proofs:
  *
@@ -16,9 +17,9 @@ const path = require('path');
 const RPC = process.env.BASE_RPC_URL || 'https://mainnet.base.org';
 const USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 const WETH = '0x4200000000000000000000000000000000000006';
-const HOOK = '0xe33A630503c640143126BBF222a82689D49b50c8';
-const ROUTER = '0xD3360D67E366Cac21a1c18fC9100B93be79e1437';
-const COW_SETT = '0xA9b26F6884526E822190204fe7279ee1db34Abd6';
+const HOOK = ADDR.HOOK;
+const ROUTER = ADDR.ROUTER;
+const COW_SETT = ADDR.COW_SETT;
 const PM = '0x498581fF718922c3f8e6A244956aF099B2652b2b';
 
 const TX = {

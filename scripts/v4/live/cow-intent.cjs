@@ -1,3 +1,4 @@
+const ADDR = require('./common.cjs');
 /**
  * CoW GPv2 + Direct LendingIntent live broadcaster (Base 8453).
  *
@@ -26,9 +27,9 @@ const RPC = process.env.BASE_RPC_URL || 'https://mainnet.base.org';
 const CHAIN_ID = 8453;
 const USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 const WETH = '0x4200000000000000000000000000000000000006';
-const HOOK = '0xe33A630503c640143126BBF222a82689D49b50c8';
-const ROUTER = '0xD3360D67E366Cac21a1c18fC9100B93be79e1437';
-const COW_SETT = '0xA9b26F6884526E822190204fe7279ee1db34Abd6';
+const HOOK = ADDR.HOOK;
+const ROUTER = ADDR.ROUTER;
+const COW_SETT = ADDR.COW_SETT;
 const GPV2 = '0x9008D19f58AAbD9eD0D60971565AA8510560ab41';
 
 const HOOK_KEY = { currency0: WETH, currency1: USDC, fee: 3000, tickSpacing: 60, hooks: HOOK };

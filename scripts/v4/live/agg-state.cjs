@@ -1,3 +1,4 @@
+const ADDR = require('./common.cjs');
 const { ethers } = require('ethers');
 const { loadEnv, getProvider, loadABIs, USDC, WETH, ROUTER, HOOK, ZEROX, ENSO, KYBER, PARASWAP } = require('./common.cjs');
 
@@ -30,7 +31,7 @@ const env = loadEnv();
   console.log('registeredSolvers(solver)', await router.registeredSolvers(wallets.solver));
   console.log('solverNotionalCap(solver)', (await router.solverNotionalCap(wallets.solver)).toString());
 
-  const poolId = '0xdd4958586bcbc340177b3b18ecbf31cfa277e5a8a78735deee01218f54a1d512';
+  const poolId = ADDR.POOL_ID;
   for (const [k, a] of Object.entries(wallets)) {
     const pos = await hook.positions(poolId, a);
     console.log('position', k, a, JSON.stringify({

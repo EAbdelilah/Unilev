@@ -1068,6 +1068,19 @@
     },
     {
       "type": "function",
+      "name": "firstPauseTimestamp",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
       "name": "insuranceFund",
       "inputs": [
         {
@@ -1494,66 +1507,6 @@
         }
       ],
       "stateMutability": "view"
-    },
-    {
-      "type": "function",
-      "name": "partialLiquidation",
-      "inputs": [
-        {
-          "name": "key",
-          "type": "tuple",
-          "internalType": "struct PoolKey",
-          "components": [
-            {
-              "name": "currency0",
-              "type": "address",
-              "internalType": "Currency"
-            },
-            {
-              "name": "currency1",
-              "type": "address",
-              "internalType": "Currency"
-            },
-            {
-              "name": "fee",
-              "type": "uint24",
-              "internalType": "uint24"
-            },
-            {
-              "name": "tickSpacing",
-              "type": "int24",
-              "internalType": "int24"
-            },
-            {
-              "name": "hooks",
-              "type": "address",
-              "internalType": "address"
-            }
-          ]
-        },
-        {
-          "name": "trader",
-          "type": "address",
-          "internalType": "address"
-        },
-        {
-          "name": "minAmountOut",
-          "type": "uint256",
-          "internalType": "uint256"
-        },
-        {
-          "name": "liquidator",
-          "type": "address",
-          "internalType": "address"
-        },
-        {
-          "name": "liquidationBps",
-          "type": "uint256",
-          "internalType": "uint256"
-        }
-      ],
-      "outputs": [],
-      "stateMutability": "nonpayable"
     },
     {
       "type": "function",
@@ -2047,6 +2000,25 @@
     },
     {
       "type": "event",
+      "name": "BadDebtRepaid",
+      "inputs": [
+        {
+          "name": "currency",
+          "type": "address",
+          "indexed": true,
+          "internalType": "Currency"
+        },
+        {
+          "name": "amount",
+          "type": "uint256",
+          "indexed": false,
+          "internalType": "uint256"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
       "name": "BaseCurrencySet",
       "inputs": [
         {
@@ -2239,6 +2211,75 @@
     },
     {
       "type": "event",
+      "name": "PayoutClaimed",
+      "inputs": [
+        {
+          "name": "recipient",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "currency",
+          "type": "address",
+          "indexed": true,
+          "internalType": "Currency"
+        },
+        {
+          "name": "amount",
+          "type": "uint256",
+          "indexed": false,
+          "internalType": "uint256"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "PayoutDeferred",
+      "inputs": [
+        {
+          "name": "recipient",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "currency",
+          "type": "address",
+          "indexed": true,
+          "internalType": "Currency"
+        },
+        {
+          "name": "amount",
+          "type": "uint256",
+          "indexed": false,
+          "internalType": "uint256"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "PayoutRedirectSet",
+      "inputs": [
+        {
+          "name": "account",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "redirect",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
       "name": "PositionPartiallyLiquidated",
       "inputs": [
         {
@@ -2273,6 +2314,25 @@
         },
         {
           "name": "receivedAmount",
+          "type": "uint256",
+          "indexed": false,
+          "internalType": "uint256"
+        }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "PriceCached",
+      "inputs": [
+        {
+          "name": "token",
+          "type": "address",
+          "indexed": true,
+          "internalType": "address"
+        },
+        {
+          "name": "usdPerWholeToken",
           "type": "uint256",
           "indexed": false,
           "internalType": "uint256"
@@ -2497,18 +2557,12 @@
     },
     {
       "type": "error",
-      "name": "NativeTransferFailed",
-      "inputs": [
-        {
-          "name": "to",
-          "type": "address",
-          "internalType": "address"
-        }
-      ]
+      "name": "NoActivePosition",
+      "inputs": []
     },
     {
       "type": "error",
-      "name": "NoActivePosition",
+      "name": "NoPayoutCredit",
       "inputs": []
     },
     {
@@ -2554,8 +2608,24 @@
     },
     {
       "type": "error",
+      "name": "OraclePriceUnavailable",
+      "inputs": []
+    },
+    {
+      "type": "error",
       "name": "PartialLiquidationLeavesUnhealthyPosition",
       "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "PositionAlreadyHasSolver",
+      "inputs": [
+        {
+          "name": "existing",
+          "type": "address",
+          "internalType": "address"
+        }
+      ]
     },
     {
       "type": "error",
@@ -2665,6 +2735,22 @@
       "type": "error",
       "name": "UnsupportedFeature",
       "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "UnwindBelowOracleFloor",
+      "inputs": [
+        {
+          "name": "receivedUsd",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "floorUsd",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ]
     },
     {
       "type": "error",

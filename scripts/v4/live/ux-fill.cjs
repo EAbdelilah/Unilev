@@ -1,3 +1,4 @@
+const ADDR = require('./common.cjs');
 /*
  * Live UniswapX fill through EswapUniswapXSettlement on Base mainnet.
  *
@@ -22,7 +23,7 @@ const { loadEnv } = require('./env.cjs');
 const RPC = process.env.BASE_RPC_URL || 'https://mainnet.base.org';
 const USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 const WETH = '0x4200000000000000000000000000000000000006';
-const UX = '0xEA8fE55Ae47f334c6594a3fd57Dc6952b7F8cC33';
+const UX = ADDR.UX_SETT;
 const REACTOR = '0x000000001Ec5656dcdB24D90DFa42742738De729';
 const PERMIT2 = '0x000000000022D473030F116dDEE9F6B43aC78BA3';
 const CHAIN_ID = 8453n;

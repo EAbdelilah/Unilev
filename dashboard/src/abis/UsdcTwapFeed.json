@@ -27,6 +27,11 @@
           "name": "weth_",
           "type": "address",
           "internalType": "address"
+        },
+        {
+          "name": "maxEthFeedAge_",
+          "type": "uint256",
+          "internalType": "uint256"
         }
       ],
       "stateMutability": "nonpayable"
@@ -138,6 +143,19 @@
           "name": "answeredInRound",
           "type": "uint80",
           "internalType": "uint80"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "maxEthFeedAge",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "",
+          "type": "uint256",
+          "internalType": "uint256"
         }
       ],
       "stateMutability": "view"

@@ -1,3 +1,4 @@
+const ADDR = require('./common.cjs');
 /**
  * Independent, read-only verifier for the live UniswapX PriorityOrder fill
  * through EswapUniswapXSettlement (Base 8453).
@@ -17,7 +18,7 @@ const RPC = process.env.BASE_RPC_URL || 'https://mainnet.base.org';
 const CHAIN_ID = 8453n;
 const USDC = ethers.getAddress('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913');
 const WETH = ethers.getAddress('0x4200000000000000000000000000000000000006');
-const UX = ethers.getAddress('0xEA8fE55Ae47f334c6594a3fd57Dc6952b7F8cC33');
+const UX = ADDR.UX_SETT;
 const REACTOR = ethers.getAddress('0x000000001Ec5656dcdB24D90DFa42742738De729');
 const PERMIT2 = ethers.getAddress('0x000000000022D473030F116dDEE9F6B43aC78BA3');
 const TX = process.argv[2] || '0x649d1c9977f14578ddc4319b72e04b6e339b74e3967d3d19c962473921447506';

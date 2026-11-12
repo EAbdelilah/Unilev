@@ -45,6 +45,17 @@ import {HookFlags} from "../../src/v4/libraries/HookFlags.sol";
 
 /// @notice Base mainnet (chain 8453) deployment of the Eswap margin stack.
 ///
+/// @dev SUPERSEDED (2026-11-11) by {RedeployBaseFull}. This script is the
+///      historical record of the 2026-10-20 deployment and NO LONGER COMPILES
+///      against HEAD: the [EIP-170] relocation moved `setTokenDecimals`,
+///      `setAuthorizedPool`, `setStandardPoolKey`, `setBaseCurrency`,
+///      `setOpenInterestCaps`, `setBandConsumptionTriggerBps` and
+///      `setLiquidatorIncentiveBps` out of `EswapMarginHook` and into
+///      `EswapMarginHookLogic` (reachable only through the hook's fallback), and
+///      the hook's v1 CREATE2 salts are already occupied by the Oct-20 build.
+///      Use {RedeployBaseFull}, which deploys the whole stack at HEAD with fresh
+///      salts and calls those setters through `EswapMarginHookLogic`'s ABI.
+///
 ///         Topology (the WETH/USDC variant of {DeployUnichain}):
 ///           - hook (accounting) pool : WETH / USDC, fee-3000 / tick-60
 ///           - standard (physical) pool: WETH / USDC, fee-500  / tick-10  (deep, hookless)

@@ -1,0 +1,66 @@
+No files changed, compilation skipped
+Script ran successfully.
+
+== Logs ==
+  EswapMarginLib: 0x3A6F97E9ec31f83Da800c6617695C62aD89656c7
+  HookLogic2: 0x3813583344BA7FFa07FBaC53A9232276e5c52a7D
+  HookLogic3: 0x4B400Dc2cC807Df4abF98C021d758c02A43b79a3
+  HookLogic: 0xDc005F5baAd9e1Ea4E9d8FD1dacfeEA20fcbbce4
+  Hook: 0x7b3F232BB5a0346fADb8B92B31B3e7bC60bD90c8
+  Router: 0x5b226aE5158de86f1E616875dBab886870B9aAd9
+  RouterExt: 0x907CdA8c588c9C859A6fB4F105593a64599741CB
+  LiquidationKeeper: 0xe755c37CFC66873f563128DC4aF1D5f27Aa90B2F
+  LeverageAdapter: 0xC622558e9145dbe0Bc37Db5311e70f3F9Fa8cc48
+  LeverageQuoter: 0xb1228De759119088D9aCEf20b80dD4ED93Dd2ba5
+  PoolId: 0x48ccea22cd56a363882769b3f3b8f056a91df05c17cd96c4429b62767ff8ade3
+  CoWSettlement: 0x7341859C0D7e039118b3f85F341583EBCDB8c960
+  Settlement: 0x6F347acB3bD901731e192d482b7a40c50f30FCa1
+  UniswapXSettlement: 0x8cB966a5102444BbeD5A222AcE1b88d0421b0cB2
+  OneInchFusionSettlement: 0x587f01dE3c42eB5E6a9DBA7a3026719F6F95FBbb
+    maxMakingAmount: 5000000000
+    maxTakingAmount: 5000000000000000000
+    [ROUTABLE] 0x AllowanceHolder 0x0000000000001fF3684f28c67538d4D072C22734
+    [ROUTABLE] Enso 0xF75584eF6673aD213a685a1B58Cc0330B8eA22Cf
+    [ROUTABLE] ParaSwap V6.2 0x6A000F20005980200259B80c5102003040001068
+    [ROUTABLE] ParaSwap V5 0x59C7C832e96D2568bea6db468C1aAdcbbDa08A52
+    [ROUTABLE] Kyber MetaAggRouterV2 0x6131B5fae19EA4f9D964eAc0408E4408b66337b5
+    [ROUTABLE] 1inch V6 0x111111125421cA6dc452d289314280a0f8842A65
+    [ROUTABLE] LI.FI 0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE
+    [ROUTABLE] Socket/Bungee AllowanceHolder 0x50c4E75a512F2A14A7b304787Adf79C4531A5909
+    [PENDING] Odos (AGG_ODOS_PROXY_ADDRESS unset)
+    [PENDING] Jumper (AGG_JUMPER_PROXY_ADDRESS unset)
+  
+  === Base full-stack redeploy (HEAD) ===
+  V4_HOOK_ADDRESS=0x7b3F232BB5a0346fADb8B92B31B3e7bC60bD90c8
+  V4_ROUTER_ADDRESS=0x5b226aE5158de86f1E616875dBab886870B9aAd9
+  V4_ADAPTER_ADDRESS=0xC622558e9145dbe0Bc37Db5311e70f3F9Fa8cc48
+  V4_QUOTER_ADDRESS=0xb1228De759119088D9aCEf20b80dD4ED93Dd2ba5
+  V4_KEEPER_ADDRESS=0xe755c37CFC66873f563128DC4aF1D5f27Aa90B2F
+  V4_COW_SETTLEMENT_ADDRESS=0x7341859C0D7e039118b3f85F341583EBCDB8c960
+  V4_SETTLEMENT_ADDRESS=0x6F347acB3bD901731e192d482b7a40c50f30FCa1
+  POOL_ID=0x48ccea22cd56a363882769b3f3b8f056a91df05c17cd96c4429b62767ff8ade3
+  DefaultSolver: 0x3fc88b834aC96Fa4c65913a6D3d5523418f7F037
+  SolverWhitelisted: true
+  
+  Next: node javascript/update-dashboard.js && node scripts/v4/live/partner-config.cjs
+
+## Setting up 1 EVM.
+
+==========================
+
+Chain 8453
+
+Estimated gas price: 0.006 gwei
+
+Estimated total gas used for script: 52591515
+
+Estimated amount required: 0.00031554909 ETH
+
+==========================
+
+SIMULATION COMPLETE. To broadcast these transactions, add --broadcast and wallet configuration(s) to the previous command. See forge script --help for more.
+
+Transactions saved to: C:/Users/faar_/OneDrive/Documents/Default Project/broadcast\RedeployBaseFull.s.sol\8453\dry-run\run-latest.json
+
+Sensitive values saved to: C:/Users/faar_/OneDrive/Documents/Default Project/cache\RedeployBaseFull.s.sol\8453\dry-run\run-latest.json
+

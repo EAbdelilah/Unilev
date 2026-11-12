@@ -48,6 +48,19 @@
     },
     {
       "type": "function",
+      "name": "JIT_ORACLE_CEILING_PREMIUM_BPS",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
       "name": "TRIGGER_ORDER_TYPEHASH",
       "inputs": [],
       "outputs": [
@@ -1339,6 +1352,22 @@
       "type": "error",
       "name": "InvalidTriggerOrderSignature",
       "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "JitFillAboveOracleCeiling",
+      "inputs": [
+        {
+          "name": "solverOutput",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "oracleMaxOutput",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ]
     },
     {
       "type": "error",

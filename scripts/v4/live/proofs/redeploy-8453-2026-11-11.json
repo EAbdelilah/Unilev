@@ -1,0 +1,185 @@
+{
+ "note": "Committed snapshot of the gitignored Foundry broadcast records, so scripts/v4/live/{apply-env,verify-deploy}.cjs remain reproducible from a clone.",
+ "phase1": {
+  "script": "RedeployBaseFull",
+  "timestamp": 1794403268168,
+  "commit": "3ae4ef7",
+  "transactions": [
+   {
+    "contractName": "EswapMarginLib",
+    "contractAddress": "0x3a6f97e9ec31f83da800c6617695c62ad89656c7",
+    "transactionType": "CREATE2",
+    "hash": "0x15c3db29858f6a546e9c847057c7d0f82c70ed4ec052e944735746769363486b",
+    "arguments": null
+   },
+   {
+    "contractName": "PriceFeed",
+    "contractAddress": "0x91d75c7f750510c04516fc4dceb5737e5b170c02",
+    "transactionType": "CREATE",
+    "hash": "0x2ea6490983853ed469861aeb726f22860f5f2cc3bf45a66d49733160657ad804",
+    "arguments": null
+   },
+   {
+    "contractName": "UsdcTwapFeed",
+    "contractAddress": "0xfcabcc24bb71b42f8aca94d187174bcfc05c5792",
+    "transactionType": "CREATE",
+    "hash": "0xfece18cd9cec4c046fa6485bee4b1cf5e68875edc10f86c41183ea1e989b7279",
+    "arguments": [
+     "0xd0b53D9277642d899DF5C87A3966A349A798F224",
+     "0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70",
+     "1800",
+     "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+     "0x4200000000000000000000000000000000000006",
+     "86400"
+    ]
+   }
+  ],
+  "totalTransactions": 6,
+  "totalReceipts": 6
+ },
+ "phase3": {
+  "script": "RedeployBaseFull",
+  "timestamp": 1794404979040,
+  "commit": "3ae4ef7",
+  "transactions": [
+   {
+    "contractName": "EswapMarginHookLogic2",
+    "contractAddress": "0x3813583344ba7ffa07fbac53a9232276e5c52a7d",
+    "transactionType": "CREATE2",
+    "hash": "0xe63a8e0bdf35e15f798922e0cc6932aeceafc52da072ea30abdcf7422b7bc766",
+    "arguments": [
+     "0x498581fF718922c3f8e6A244956aF099B2652b2b",
+     "0x91d75C7f750510C04516fC4dcEB5737E5B170c02"
+    ]
+   },
+   {
+    "contractName": "EswapMarginHookLogic3",
+    "contractAddress": "0x4b400dc2cc807df4abf98c021d758c02a43b79a3",
+    "transactionType": "CREATE2",
+    "hash": "0x75ca5d21d763d333f35dc9f0cb236cf13c01d759941d3f4ba6b8ae0b58aaad3c",
+    "arguments": [
+     "0x498581fF718922c3f8e6A244956aF099B2652b2b",
+     "0x91d75C7f750510C04516fC4dcEB5737E5B170c02"
+    ]
+   },
+   {
+    "contractName": "EswapMarginHookLogic",
+    "contractAddress": "0xdc005f5baad9e1ea4e9d8fd1dacfeea20fcbbce4",
+    "transactionType": "CREATE2",
+    "hash": "0xe2158c960b7638a9b54f0bfc5710a1aab14005ebde79b3043321c88870032860",
+    "arguments": [
+     "0x498581fF718922c3f8e6A244956aF099B2652b2b",
+     "0x91d75C7f750510C04516fC4dcEB5737E5B170c02",
+     "0x3813583344BA7FFa07FBaC53A9232276e5c52a7D",
+     "0x4B400Dc2cC807Df4abF98C021d758c02A43b79a3"
+    ]
+   },
+   {
+    "contractName": "EswapMarginHook",
+    "contractAddress": "0x7b3f232bb5a0346fadb8b92b31b3e7bc60bd90c8",
+    "transactionType": "CREATE2",
+    "hash": "0xb113e284d6fa0f796e466f97787181ba619ffe8fd567548357fef4981ee87d61",
+    "arguments": [
+     "0x498581fF718922c3f8e6A244956aF099B2652b2b",
+     "0x91d75C7f750510C04516fC4dcEB5737E5B170c02",
+     "0xDc005F5baAd9e1Ea4E9d8FD1dacfeEA20fcbbce4",
+     "0x3813583344BA7FFa07FBaC53A9232276e5c52a7D",
+     "0x518634753C61342298c3E04326056b3Ce596a566"
+    ]
+   },
+   {
+    "contractName": "EswapRouter",
+    "contractAddress": "0x5b226ae5158de86f1e616875dbab886870b9aad9",
+    "transactionType": "CREATE",
+    "hash": "0x330f881ea89d4566a63022c717f5060316ba1c4b14aba0359c6bc912d35526b0",
+    "arguments": [
+     "0x498581fF718922c3f8e6A244956aF099B2652b2b"
+    ]
+   },
+   {
+    "contractName": "EswapRouterExt",
+    "contractAddress": "0x907cda8c588c9c859a6fb4f105593a64599741cb",
+    "transactionType": "CREATE",
+    "hash": "0xdf58f6ff7682c263ba71e67abfa628eb8dbb6adf3aaa60721ac37f4130f7d9ec",
+    "arguments": [
+     "0x498581fF718922c3f8e6A244956aF099B2652b2b",
+     "0x5b226aE5158de86f1E616875dBab886870B9aAd9"
+    ]
+   },
+   {
+    "contractName": "EswapLiquidationKeeper",
+    "contractAddress": "0xe755c37cfc66873f563128dc4af1d5f27aa90b2f",
+    "transactionType": "CREATE",
+    "hash": "0x1af599c9586e2225a07681504da2ad8ec2b00c9e14d61e5694d95b3ee9981ef4",
+    "arguments": [
+     "0x7b3F232BB5a0346fADb8B92B31B3e7bC60bD90c8",
+     "0x5b226aE5158de86f1E616875dBab886870B9aAd9"
+    ]
+   },
+   {
+    "contractName": "EswapLeverageAdapter",
+    "contractAddress": "0xc622558e9145dbe0bc37db5311e70f3f9fa8cc48",
+    "transactionType": "CREATE",
+    "hash": "0x07f39cd5b2a7afb7ed1d27dcc60965be9ec562d9634fb85895ec80fa1af2251f",
+    "arguments": [
+     "0x5b226aE5158de86f1E616875dBab886870B9aAd9"
+    ]
+   },
+   {
+    "contractName": "EswapLeverageQuoter",
+    "contractAddress": "0xb1228de759119088d9acef20b80dd4ed93dd2ba5",
+    "transactionType": "CREATE",
+    "hash": "0xd5d680fa2c9358526e5c3218f596fa31f438990d056ad18353e14465e6382a98",
+    "arguments": [
+     "0x5b226aE5158de86f1E616875dBab886870B9aAd9"
+    ]
+   },
+   {
+    "contractName": "EswapCoWSettlement",
+    "contractAddress": "0x7341859c0d7e039118b3f85f341583ebcdb8c960",
+    "transactionType": "CREATE",
+    "hash": "0xdc147f5ae325fab40d64fd957b65ebbaaa5a85e74c89fcd69f41f51bd9081182",
+    "arguments": [
+     "0x5b226aE5158de86f1E616875dBab886870B9aAd9",
+     "0x9008D19f58AAbD9eD0D60971565AA8510560ab41"
+    ]
+   },
+   {
+    "contractName": "EswapSettlement",
+    "contractAddress": "0x6f347acb3bd901731e192d482b7a40c50f30fca1",
+    "transactionType": "CREATE",
+    "hash": "0x17f047537464c1d117415514414db606161036128727fa10046dfdb562ac3038",
+    "arguments": [
+     "0x5b226aE5158de86f1E616875dBab886870B9aAd9"
+    ]
+   },
+   {
+    "contractName": "EswapUniswapXSettlement",
+    "contractAddress": "0x8cb966a5102444bbed5a222ace1b88d0421b0cb2",
+    "transactionType": "CREATE",
+    "hash": "0xfe6d3e041555dc4e01a604ac8cda97ca9022292c7cdacb3f288b74473bcd9318",
+    "arguments": [
+     "0x000000001Ec5656dcdB24D90DFa42742738De729",
+     "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+     "0x4200000000000000000000000000000000000006",
+     "5000000000"
+    ]
+   },
+   {
+    "contractName": "EswapOneInchFusionSettlement",
+    "contractAddress": "0x587f01de3c42eb5e6a9dba7a3026719f6f95fbbb",
+    "transactionType": "CREATE",
+    "hash": "0x9227fe4d98bd0b01735242664ddb8ba335807a013a122a73e525582f99cab9fe",
+    "arguments": [
+     "0x111111125421cA6dc452d289314280a0f8842A65",
+     "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+     "0x4200000000000000000000000000000000000006",
+     "5000000000",
+     "5000000000000000000"
+    ]
+   }
+  ],
+  "totalTransactions": 44,
+  "totalReceipts": 44
+ }
+}

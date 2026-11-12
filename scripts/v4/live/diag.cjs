@@ -1,3 +1,4 @@
+const ADDR = require('./common.cjs');
 const { ethers } = require('ethers');
 const fs = require('fs');
 const path = require('path');
@@ -5,9 +6,9 @@ const path = require('path');
 const RPC = process.env.BASE_RPC_URL || 'https://mainnet.base.org';
 const USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 const WETH = '0x4200000000000000000000000000000000000006';
-const HOOK = '0xe33A630503c640143126BBF222a82689D49b50c8';
-const ROUTER = '0xD3360D67E366Cac21a1c18fC9100B93be79e1437';
-const COW_SETT = '0xA9b26F6884526E822190204fe7279ee1db34Abd6';
+const HOOK = ADDR.HOOK;
+const ROUTER = ADDR.ROUTER;
+const COW_SETT = ADDR.COW_SETT;
 const SOLVER = '0x3fc88b834aC96Fa4c65913a6D3d5523418f7F037';
 const TRADER = '0xd9Aba9723d14b36588bcF9D47c2FF355EEC47F3c';
 
