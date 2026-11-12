@@ -1440,6 +1440,16 @@ three phases by `scripts/v4/RedeployBaseFull.s.sol`.
 | `EswapLeverageAdapter` | `0xC622558e9145dbe0Bc37Db5311e70f3F9Fa8cc48` | 7,724 B |
 | `EswapLeverageQuoter` | `0xb1228De759119088D9aCEf20b80dD4ED93Dd2ba5` | 2,352 B |
 | `EswapCoWSettlement` | `0x7341859C0D7e039118b3f85F341583EBCDB8c960` | 9,115 B |
+| `EswapTimelock` (hook) | `0x9aA2e9e2FB4cfC71a89F03b88Abf6116d8B1138e` | 1,865 B — deploy tx `0xa95659aa…66b54` |
+| `EswapTimelock` (router) | `0x6793667010815D83C0a60D3F6b7E6f7FEdC7f541` | 1,865 B — deploy tx `0x33261b03…ebd9cd` |
+
+Governance (added 2026-11-12, `scripts/v4/DeployTimelock.s.sol`): both timelocks
+have `admin` = the deployer EOA, `delay` = 48 h, `GRACE_PERIOD` = 14 d. The hook
+handover is a single transaction and is complete (`hook.owner()` = hook timelock).
+The router is `Ownable2Step`, so its accept is queued and executes at
+`ROUTER_ACCEPT_ETA = 1794697115`. Until it runs, `router.owner()` is still the EOA
+and `router.pendingOwner()` is the router timelock. Check with
+`node scripts/v4/live/verify-timelock.cjs`.
 | `EswapSettlement` | `0x6F347acB3bD901731e192d482b7a40c50f30FCa1` | 6,292 B |
 | `EswapUniswapXSettlement` | `0x8cB966a5102444BbeD5A222AcE1b88d0421b0cB2` | 5,495 B |
 | `EswapOneInchFusionSettlement` | `0x587f01dE3c42eB5E6a9DBA7a3026719F6F95FBbb` | 3,723 B |

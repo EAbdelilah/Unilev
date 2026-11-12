@@ -905,23 +905,23 @@ Two different questions hide behind "are we ready":
 |---|---|---|---|
 | Contract correctness & coverage | 20 % | **95 %** | 187/187 forge, 323/323 live assertions, 40/40 deploy checks, 3 adversarial passes with every finding remediated. Deducted for zero fills on *this* bytecode |
 | Deployment & reproducibility | 15 % | **90 %** | 16/16 live and verified, `.env` synced from artifacts, redeploy script + committed snapshot, 0.00024 ETH to re-run |
-| Trust & governance | 20 % | **35 %** | **F-9**: EOA owner, no timelock/multisig, unilateral access to protocol fees and insurance fund. No external-firm audit attestation in the repo |
-| Distribution | 20 % | **15 %** | `dashboard/src/utils/wagmi.js` supports unichain/polygon/unichainSepolia — **Base is absent**, so no user-facing path to the live protocol |
+| Trust & governance | 20 % | **60 %** | **F-9 partly closed.** The hook is owned by `EswapTimelock` `0x9aA2…138e` (48 h delay, single-step, verified on chain). The router is `Ownable2Step`: its timelock `0x6793…f541` is `pendingOwner` with the accept queued for `ROUTER_ACCEPT_ETA`. Still open: the timelocks' `admin` is the same EOA, so there is no multisig and no independent canceller. No external-firm audit attestation in the repo |
+| Distribution | 20 % | **55 %** | Base (8453) is wired into `wagmi.js`, `ConnectButton.jsx`, `supported_tokens.json`, `rpc.js` and every RPC/token path, and the dashboard production build compiles. Not yet proven end-to-end in a browser against live funds, and no hosted deploy |
 | Liquidity / capital | 15 % | **5 %** | V4 has no ERC-4626 vault; every borrow leg is solver escrow. Solver holds `0.004` USDC + `0.000097` WETH ≈ **$0.20**, i.e. ~$0.40 of servable notional at 2× |
 | Revenue capture | 10 % | **70 %** | Switch is armed: `reserveFactor = 10` bps of collateral on open, `treasury` set, `withdrawProtocolFee` works, gas ≈ $0.02/open on Base. Never collected a cent on this stack |
-| **Weighted total** | | **≈ 50 %** | |
+| **Weighted total** | | **≈ 63 %** | |
 
-Read the two halves separately: **submission readiness ≈ 80 %** (correctness,
-deployment and packaging are done), **revenue readiness ≈ 15 %** (trust,
-distribution, capital).
+Read the two halves separately: **submission readiness ≈ 85 %** (correctness,
+deployment, packaging and Base distribution are done), **revenue readiness ≈ 25 %**
+(trust is part-way, distribution is unproven live, capital is still ~zero).
 
 ### 9.1 The four things standing between here and revenue
 
 | # | Action | Effort | Owner |
 |---|---|---|---|
 | 1 | Fund **~0.06 USDC + 0.0003 ETH**, run the four fill drivers and six verifiers against the new stack (§5) | hours | eng |
-| 2 | Deploy `EswapTimelock`, hand `owner` to a multisig, then re-point treasury (F-9) | days | eng + ops |
-| 3 | Add Base to the dashboard (`wagmi.js`, `ConnectButton.jsx`, `supported_tokens.json`) — today there is no way to trade | days | frontend |
+| 2 | **Done for the hook; router accept pending.** Execute `executeRouterAccept(ROUTER_ACCEPT_ETA)` after the eta, then move timelock `admin` from the EOA to a multisig (F-9) | hours + 48 h | eng + ops |
+| 3 | **Done in code (Base wired).** Still to do: a browser smoke test on Base and a hosted deploy | hours | frontend |
 | 4 | External audit attestation and a solver/LP capital commitment — the two long poles | weeks | business |
 
 Only item 4 is on the critical path to *revenue*; items 1–3 are on the critical
