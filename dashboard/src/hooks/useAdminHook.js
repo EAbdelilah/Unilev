@@ -4,10 +4,12 @@ import { useAccount, useWalletClient } from "wagmi"
 import EswapMarginHookABI from "../abis/EswapMarginHook.json"
 import EswapTimelockABI from "../abis/EswapTimelock.json"
 import ERC20ABI from "../abis/ERC20.json"
+import { rpcUrlForChain } from "../utils/rpc"
 
 const V4_HOOK = process.env.NEXT_PUBLIC_V4_HOOK_ADDRESS || ""
 const V4_TIMELOCK = process.env.NEXT_PUBLIC_V4_TIMELOCK_ADDRESS || ""
-const RPC_URL = process.env.NEXT_PUBLIC_UNICHAIN_RPC_URL || process.env.NEXT_PUBLIC_RPC_URL
+// Defaults to Base, where the live hook is deployed.
+const RPC_URL = rpcUrlForChain()
 
 function getReadProvider() {
     if (RPC_URL) return new ethers.JsonRpcProvider(RPC_URL)

@@ -10,6 +10,7 @@ jest.mock("wagmi", () => ({
 }))
 
 jest.mock("wagmi/chains", () => ({
+    base: { id: 8453, name: "Base" },
     polygon: { id: 137, name: "Polygon" },
     unichain: { id: 130, name: "Unichain" },
     unichainSepolia: { id: 1301, name: "Unichain Sepolia" },

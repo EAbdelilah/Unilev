@@ -12,7 +12,8 @@ import LiquidityPoolABI from "../abis/LiquidityPool.json"
 import FeeManagerABI from "../abis/FeeManager.json"
 import supportedTokensByChain from "../config/supported_tokens.json"
 import { useV4Position } from "./useV4Position"
-import { isPolygonChain } from "../utils/chains"
+import { BASE_CHAIN_ID, isBaseChain, isPolygonChain } from "../utils/chains"
+import { rpcUrlForChain } from "../utils/rpc"
 
 // Polygon (V3) token list — used by V3-only protocol views (pools/admin) and
 // the module-level default. The runtime SUPPORTED_TOKENS_LIST (returned by the
@@ -46,15 +47,20 @@ export function useDeFi() {
 
     const isPolygon = isPolygonChain(chainId)
     const isV4 = !isPolygon
-    const chainKey = String(chainId || "1301")
+    // Base is the live V4 chain, so it is the default before a wallet connects.
+    const effectiveChainId = chainId || BASE_CHAIN_ID
+    const chainKey = String(effectiveChainId)
     const chainTokens = useMemo(() => {
         if (isPolygon) return polygonTokens
-        // Unichain V4 trades native ETH against USDC only; the wrapped WETH and
-        // any WBTC entries are redundant with the native base (address 0x0).
-        const all = supportedTokensByChain[chainKey] || supportedTokensByChain["1301"] || {}
+        const all = supportedTokensByChain[chainKey] || supportedTokensByChain[String(BASE_CHAIN_ID)] || {}
+        // Unichain V4 trades native ETH against USDC only, so the wrapped WETH
+        // and WBTC entries are redundant with the native base (address 0x0).
+        // Base V4 trades WETH (an ERC-20) against USDC, so WETH must stay —
+        // dropping it would leave USDC alone and no pool to trade.
+        if (isBaseChain(effectiveChainId)) return all
         const { WETH, WBTC, ...rest } = all
         return rest
-    }, [isPolygon, chainKey])
+    }, [isPolygon, effectiveChainId, chainKey])
     const ADDRESSES = useMemo(() => ({ ...chainTokens, ...ENV_ADDRESSES }), [chainTokens])
     const SUPPORTED_TOKENS_LIST = useMemo(
         () =>
@@ -73,9 +79,7 @@ export function useDeFi() {
             const hasMetaMask = typeof window !== "undefined" && !!window.ethereum
             setIsMetaMaskInstalled(hasMetaMask)
 
-            const rpc = !isPolygon
-                ? process.env.NEXT_PUBLIC_UNICHAIN_RPC_URL || process.env.NEXT_PUBLIC_RPC_URL
-                : process.env.NEXT_PUBLIC_RPC_URL
+            const rpc = rpcUrlForChain(effectiveChainId)
 
             // Priority: chain-appropriate RPC_URL if configured
             if (rpc) {
@@ -94,7 +98,7 @@ export function useDeFi() {
             }
         }
         initProvider()
-    }, [isPolygon])
+    }, [isPolygon, effectiveChainId])
 
     const getSigner = useCallback(async () => {
         if (!walletClient || typeof window === "undefined" || !window.ethereum) return null

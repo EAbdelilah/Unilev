@@ -7,10 +7,12 @@ import { ethers } from 'ethers';
 import EswapLeverageAdapterABI from '@/abis/EswapLeverageAdapter.json';
 import EswapLeverageQuoterABI from '@/abis/EswapLeverageQuoter.json';
 import Link from 'next/link';
+import { rpcUrlForChain } from '@/utils/rpc';
 
 const ADAPTER = process.env.NEXT_PUBLIC_V4_ADAPTER_ADDRESS || '';
 const QUOTER = process.env.NEXT_PUBLIC_V4_QUOTER_ADDRESS || '';
-const RPC_URL = process.env.NEXT_PUBLIC_UNICHAIN_RPC_URL || process.env.NEXT_PUBLIC_RPC_URL;
+// Defaults to Base, where the live adapter/quoter are deployed.
+const RPC_URL = rpcUrlForChain();
 
 function getProvider() {
     if (RPC_URL) return new ethers.JsonRpcProvider(RPC_URL);

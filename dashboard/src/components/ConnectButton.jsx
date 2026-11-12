@@ -1,11 +1,13 @@
 'use client';
 
 import { useAccount, useConnect, useDisconnect, useSwitchChain } from 'wagmi';
-import { polygon, unichain, unichainSepolia } from 'wagmi/chains';
+import { base, polygon, unichain, unichainSepolia } from 'wagmi/chains';
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 
-const SUPPORTED_CHAINS = [unichain, polygon, unichainSepolia];
+// Base first: the live V4 protocol is deployed there, so it is the network the
+// switcher offers as the default.
+const SUPPORTED_CHAINS = [base, unichain, polygon, unichainSepolia];
 
 // Custom metadata mapping for recognized wallets
 const WALLET_META = {
@@ -115,6 +117,7 @@ function getConnectorMeta(connector) {
 }
 
 function chainName(chainId) {
+    if (chainId === base.id) return 'Base';
     if (chainId === unichain.id) return 'Unichain';
     if (chainId === polygon.id) return 'Polygon';
     if (chainId === unichainSepolia.id) return 'Unichain Sepolia';
@@ -122,6 +125,7 @@ function chainName(chainId) {
 }
 
 function chainColor(chainId) {
+    if (chainId === base.id) return '#0052FF';
     if (chainId === unichain.id) return '#67e8f9';
     if (chainId === polygon.id) return '#a78bfa';
     if (chainId === unichainSepolia.id) return '#6ee7b7';

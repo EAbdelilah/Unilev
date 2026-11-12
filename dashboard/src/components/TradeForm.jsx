@@ -2,7 +2,7 @@ import { useState, useEffect } from "react"
 import { useDeFi } from "../hooks/useDeFi"
 import clsx from "clsx"
 import { useAccount } from "wagmi"
-import { isUnichainChain, POLYGON_CHAIN_ID } from "../utils/chains"
+import { POLYGON_CHAIN_ID, SUPPORTED_CHAIN_IDS } from "../utils/chains"
 import { ethers } from "ethers"
 import { formatContractError, isUserCancellation } from "../utils/formatContractError"
 import { formatTokenAmount } from "../utils/format"
@@ -32,7 +32,7 @@ export function TradeForm({ onTradingTokenChange }) {
     // (undefined) also resolves to the V4 path so the form stays usable while
     // the wallet connection settles.
     const isV4 = chainId !== POLYGON_CHAIN_ID
-    const isCorrectNetwork = !chainId || chainId === POLYGON_CHAIN_ID || isUnichainChain(chainId)
+    const isCorrectNetwork = !chainId || SUPPORTED_CHAIN_IDS.includes(chainId)
 
     const [marginToken, setMarginToken] = useState("USDC")
     const [tradingToken, setTradingToken] = useState("WETH")

@@ -1,5 +1,5 @@
 import { createConfig, http } from "wagmi"
-import { polygon, unichain, unichainSepolia } from "wagmi/chains"
+import { base, polygon, unichain, unichainSepolia } from "wagmi/chains"
 import { injected, walletConnect, coinbaseWallet, safe } from "wagmi/connectors"
 
 export const WC_PROJECT_ID =
@@ -13,7 +13,9 @@ const metadata = {
 }
 
 export const config = createConfig({
-    chains: [unichain, polygon, unichainSepolia],
+    // Base is first: the live V4 stack (hook, router, settlements, price feed)
+    // is deployed there, so it is the network the app defaults to.
+    chains: [base, unichain, polygon, unichainSepolia],
     multiInjectedProviderDiscovery: true,
     connectors: [
         // 1. MetaMask (direct extension target without @metamask/connect-evm SDK dependency)
@@ -35,6 +37,7 @@ export const config = createConfig({
         safe(),
     ],
     transports: {
+        [base.id]: http(process.env.NEXT_PUBLIC_BASE_RPC_URL || "https://mainnet.base.org"),
         [polygon.id]: http(process.env.NEXT_PUBLIC_RPC_URL || "https://polygon-mainnet.g.alchemy.com/v2/demo"),
         [unichain.id]: http(process.env.NEXT_PUBLIC_UNICHAIN_RPC_URL || "https://unichain-mainnet.g.alchemy.com/v2/demo"),
         [unichainSepolia.id]: http(process.env.NEXT_PUBLIC_UNICHAIN_SEPOLIA_RPC_URL || "https://sepolia.unichain.org"),

@@ -29,7 +29,8 @@ const projectRoot = path.join(__dirname, '..');
 const targetEnvPath = path.join(projectRoot, 'dashboard/.env.local');
 const staleEnvPath = path.join(projectRoot, 'dashboard/.env');
 
-const CHAIN_ID = '130';
+const CHAIN_ID = '8453';
+const BASE_PUBLIC_RPC_FALLBACK = 'https://mainnet.base.org';
 const UNICHAIN_PUBLIC_RPC_FALLBACK = 'https://mainnet.unichain.org';
 const POLYGON_PUBLIC_RPC_FALLBACK = 'https://polygon-rpc.com';
 
@@ -61,8 +62,8 @@ function _assertPublishable(value, name) {
         throw new Error(
             `Refusing to write ${name}: the value looks like a provider credential.\n` +
                 `NEXT_PUBLIC_* values are inlined into the browser bundle, so this would be public.\n` +
-                `Set an explicitly public endpoint (PUBLIC_UNICHAIN_RPC_URL / PUBLIC_RPC_URL / ` +
-                `PUBLIC_UNICHAIN_SEPOLIA_RPC_URL) or remove ${name} from the mapping.`
+                `Set an explicitly public endpoint (PUBLIC_BASE_RPC_URL / PUBLIC_UNICHAIN_RPC_URL / ` +
+                `PUBLIC_RPC_URL / PUBLIC_UNICHAIN_SEPOLIA_RPC_URL) or remove ${name} from the mapping.`
         );
     }
 }
@@ -86,6 +87,7 @@ function _selftest() {
     const mustAllow = [
         'https://mainnet.unichain.org',
         'https://sepolia.unichain.org',
+        'https://mainnet.base.org',
         'https://polygon-rpc.com',
         '0xdF768b7eb6A76594b21177bb0Cd55bA433D290c8',
         '130',
@@ -115,7 +117,7 @@ function _selftest() {
         console.error(`\n❌ credential guard self-test FAILED (${failures} problem(s))`);
         process.exit(1);
     }
-    console.log('✅ credential guard self-test passed (11 cases)');
+    console.log('✅ credential guard self-test passed (12 cases)');
     process.exit(0);
 }
 
@@ -147,7 +149,7 @@ const envVars = [
     { key: 'LIQUIDITYPOOLFACTORY_ADDRESS', target: 'NEXT_PUBLIC_LIQUIDITYPOOLFACTORY_ADDRESS' },
     { key: 'FEEMANAGER_ADDRESS', target: 'NEXT_PUBLIC_FEEMANAGER_ADDRESS' },
 
-    // V4 Unichain deployment (the one the dashboard trades against).
+    // V4 Base deployment (the one the dashboard trades against).
     // `required` here means "the dashboard cannot trade without it" -- these three
     // are the ones the read/write hooks dereference directly. The rest are
     // surfaced with `|| ''` fallbacks in the UI, so they are synced opportunistically.
@@ -160,6 +162,7 @@ const envVars = [
     { key: 'V4_QUOTER_ADDRESS', target: 'NEXT_PUBLIC_V4_QUOTER_ADDRESS' },
     { key: 'V4_SETTLEMENT_ADDRESS', target: 'NEXT_PUBLIC_V4_SETTLEMENT_ADDRESS' },
     { key: 'V4_TIMELOCK_ADDRESS', target: 'NEXT_PUBLIC_V4_TIMELOCK_ADDRESS' },
+    { key: 'V4_ROUTER_TIMELOCK_ADDRESS', target: 'NEXT_PUBLIC_V4_ROUTER_TIMELOCK_ADDRESS' },
     { key: 'V4_SOLVER_ADDRESS', target: 'NEXT_PUBLIC_V4_SOLVER_ADDRESS' },
     // Not yet read by the dashboard; synced so the UI has them when it grows
     // oracle-source and router-extension views.
@@ -188,7 +191,11 @@ const derivedEnv = [
     },
     {
         // Public, unkeyed endpoints only. Deliberately NOT sourced from
-        // UNICHAIN_RPC_URL / POLYGON_RPC_URL, which embed provider API keys.
+        // BASE_RPC_URL / UNICHAIN_RPC_URL / POLYGON_RPC_URL, which embed provider API keys.
+        target: 'NEXT_PUBLIC_BASE_RPC_URL',
+        value: process.env.PUBLIC_BASE_RPC_URL || BASE_PUBLIC_RPC_FALLBACK,
+    },
+    {
         target: 'NEXT_PUBLIC_UNICHAIN_RPC_URL',
         value: process.env.PUBLIC_UNICHAIN_RPC_URL || UNICHAIN_PUBLIC_RPC_FALLBACK,
     },
