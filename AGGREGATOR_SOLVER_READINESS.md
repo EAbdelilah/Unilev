@@ -4,10 +4,14 @@
 CoW / UniswapX / 1inch-Fusion settlement, direct solver intents and external
 solver economics on **Base mainnet (chainId 8453)**.
 
-**Verdict: GO. Both blockers are closed on chain.**
+**Verdict: GO on the code. Both original blockers are closed on chain.**
 Every pillar was re-verified against the code at `HEAD`, against the *deployed*
 bytecode on Base, and against live fills. No allowance leak, no fund-siphoning
 path, no solver-seniority inversion, and no MEV-to-bad-debt path was found.
+
+This is a **code** verdict, not a launch verdict. §9 scores the whole go-live:
+**submission readiness ≈ 80 %**, **revenue readiness ≈ 15 %** — the gap is trust
+(F-9), distribution (no Base frontend) and solver capital, not contract risk.
 
 The 2026-11-11 full-stack redeploy (§4.2, `MAINNET_PROOF.md` §19) replaced every
 production contract, so the deployed stack now *is* `HEAD`:
@@ -644,7 +648,7 @@ registry and the adapter were deployed together in the same run.
 | `ux-fill.cjs` | `IN_AMOUNT=1,000` units | **0.001** | swapper only |
 
 > Live balances at block 56,618,952: owner `0.000094` USDC, solver `0.004` USDC,
-> trader `0` — **0.004094 USDC in total**, about 8 % of what one driver needs.
+> trader `0` — **0.004094 USDC in total**, about 8 % of the whole set.
 > The verifiers themselves are already re-pointed at the new addresses (all
 > `scripts/v4/live/*.cjs` resolve them from `.env` via `common.cjs`); they need
 > fresh tx hashes to consume.
@@ -732,8 +736,9 @@ Artifacts: `scripts/v4/live/proofs/adapter-open-55743572.json`,
 | **F-4** | Low (fail-closed) | Fee-on-transfer **output** tokens leave an unbacked ERC-6909 claim (real PM `settle()` reverts) | Keep off the asset list |
 | **F-5** | Info | 1inch Fusion settler was on the single-cap build (`MAINNET_PROOF.md` §16.3) | **RESOLVED 2026-11-11** — split caps live: `maxMakingAmount 5000e6` (USDC), `maxTakingAmount 5e18` (WETH), `caps = split` |
 | **F-6** | Info (target refuted) | The historical `< 350k gas` target for `swapMultiPoolForAggregator` is not achievable: measured **925,069** (mock) / **1,599,873** (live Base). Quote ~1.6M for opens, 417k for closes | Correct the partner-facing number (§1.5) |
-| **F-7** | **Medium (fixed in tree)** | `rebalancePosition` subtracted the solver's LP yield from the trader's collateral twice (cap + explicit deduction), writing the book down by the fee, under-collateralising the position and stranding tokens as sweepable residue | Fix applied (`Logic2` cap only) — needs the B2 redeploy |
+| **F-7** | **Medium (fixed & deployed)** | `rebalancePosition` subtracted the solver's LP yield from the trader's collateral twice (cap + explicit deduction), writing the book down by the fee, under-collateralising the position and stranding tokens as sweepable residue | **RESOLVED 2026-11-11** — `Logic2` cap-only fix shipped in the redeploy (live `EswapMarginHookLogic2` `0x3813…2a7D`) |
 | **F-8** | Low (test hygiene) | **Eleven** pre-existing suites were **red at `HEAD`**: ten passed the trader as `sender` after the hook began requiring `sender == router` in margin mode (`EswapMarginHook.sol:779`), and `EswapLiquidationKeeperTest` still asserted the pre-`LIQUIDATOR_MIN_INCENTIVE_BPS` "keeper is not paid" behaviour | Test-only fixes applied; all 11 suites green (§7.3) |
+| **F-9** | **High (pre-submission, non-code)** | **No timelock or multisig is deployed.** `EswapTimelock.sol` exists in `src/v4/` but is not in the deployment, so `owner` is the single EOA `0x5186…a566` — the same key that broadcasts — and it holds `withdrawProtocolFee`, `withdrawInsuranceFund`, `sweepResidue`, `setConfig` (treasury + `reserveFactor` up to 100 bps + `defaultMaxLeverage` 2–20), `setAddressProtocolFee`, `setRouterAndMinCollateralUsd`, `repayBadDebt`, plus the router's solver/aggregator/executor/settlement whitelists and `setSolverNotionalCap` | **Open.** Not a code defect — an operational one. No partner routes volume into a protocol whose treasury, insurance fund and fee can be moved by one hot key (§9) |
 
 No finding allows: stealing a live allowance, draining router reserves, jumping
 the solver's repayment queue, forcing a solvent position into bad debt, or
@@ -879,3 +884,55 @@ settler. Residual items are non-blocking: the default (non-deploy) profile still
 needs `FOUNDRY_PROFILE=deploy` to fit the hook (§4.1), and live fill evidence must
 be re-mined against the new stack once **~0.053 USDC** of dust capital is
 available (§5).
+
+---
+
+## 9. Go-live scorecard — how far from revenue?
+
+Two different questions hide behind "are we ready":
+
+* **Can we submit the integration?** Yes, mostly — and, importantly, there is
+  **no permission to ask for**. Consuming 0x / Enso / ParaSwap / Kyber / LI.FI /
+  Socket is a contract call, not a partnership: all 8 venue proxies are already
+  on the router allow-list and the quote keys are already in `.env`. Filling CoW,
+  UniswapX and 1inch-Fusion orders is permissionless by construction; the three
+  settlers are deployed and solver-whitelisted. No CIP, DAO vote or resolver
+  allow-list stands between this code and venue liquidity.
+* **Can we earn?** Not yet. Revenue needs users who can reach the protocol and
+  solver capital to fund the borrow leg. Both are currently ~zero.
+
+| Pillar | Weight | Score | Basis |
+|---|---|---|---|
+| Contract correctness & coverage | 20 % | **95 %** | 187/187 forge, 323/323 live assertions, 40/40 deploy checks, 3 adversarial passes with every finding remediated. Deducted for zero fills on *this* bytecode |
+| Deployment & reproducibility | 15 % | **90 %** | 16/16 live and verified, `.env` synced from artifacts, redeploy script + committed snapshot, 0.00024 ETH to re-run |
+| Trust & governance | 20 % | **35 %** | **F-9**: EOA owner, no timelock/multisig, unilateral access to protocol fees and insurance fund. No external-firm audit attestation in the repo |
+| Distribution | 20 % | **15 %** | `dashboard/src/utils/wagmi.js` supports unichain/polygon/unichainSepolia — **Base is absent**, so no user-facing path to the live protocol |
+| Liquidity / capital | 15 % | **5 %** | V4 has no ERC-4626 vault; every borrow leg is solver escrow. Solver holds `0.004` USDC + `0.000097` WETH ≈ **$0.20**, i.e. ~$0.40 of servable notional at 2× |
+| Revenue capture | 10 % | **70 %** | Switch is armed: `reserveFactor = 10` bps of collateral on open, `treasury` set, `withdrawProtocolFee` works, gas ≈ $0.02/open on Base. Never collected a cent on this stack |
+| **Weighted total** | | **≈ 50 %** | |
+
+Read the two halves separately: **submission readiness ≈ 80 %** (correctness,
+deployment and packaging are done), **revenue readiness ≈ 15 %** (trust,
+distribution, capital).
+
+### 9.1 The four things standing between here and revenue
+
+| # | Action | Effort | Owner |
+|---|---|---|---|
+| 1 | Fund **~0.06 USDC + 0.0003 ETH**, run the four fill drivers and six verifiers against the new stack (§5) | hours | eng |
+| 2 | Deploy `EswapTimelock`, hand `owner` to a multisig, then re-point treasury (F-9) | days | eng + ops |
+| 3 | Add Base to the dashboard (`wagmi.js`, `ConnectButton.jsx`, `supported_tokens.json`) — today there is no way to trade | days | frontend |
+| 4 | External audit attestation and a solver/LP capital commitment — the two long poles | weeks | business |
+
+Only item 4 is on the critical path to *revenue*; items 1–3 are on the critical
+path to *submission*.
+
+### 9.2 Revenue model, stated plainly
+
+The protocol charges **10 bps of the collateral** at open and **no interest**
+ever. At the default 5× cap that is **2 bps of notional**; at 2× it is 5 bps.
+Gas is not the constraint on Base (~$0.02/open), so the unit economics work — but
+the number is thin, and the third adversarial audit's headline still stands: the
+fee is collected once while the tail risk runs for the life of the position.
+Revenue is therefore a **volume** function, which is exactly why distribution and
+solver capital, not code, are the remaining 85 %.
