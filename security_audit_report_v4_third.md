@@ -426,14 +426,14 @@ Suite result: ok. 3 passed; 0 failed; 0 skipped
 
 ## Remediation Status (post-fix)
 
-All eight findings (F-01 … F-08) have been remediated in the src/v4/ contracts. ABI/storage-layout changes were permitted and applied.
+All eight findings (F-01 â€“ F-08) have been remediated in the src/v4/ contracts. ABI/storage-layout changes were permitted and applied.
 
 | Finding | Status | Key change |
 |---|---|---|
 | F-01 JIT spot RFQ drain | Fixed | EswapRouterExt._jitOracleBounds now returns (minOutput, maxOutput) and reverts fail-closed (JitOraclePriceUnavailable, JitFillAboveOracleCeiling); default leniency 200 bps. |
-| F-02 Forced open via whitelisted adapter | Fixed | EswapLeverageAdapter: pprovedExecutor + setExecutorApproval; _open gate ExecutorNotApproved. |
+| F-02 Forced open via whitelisted adapter | Fixed | EswapLeverageAdapter: `approvedExecutor` + setExecutorApproval; _open gate ExecutorNotApproved. |
 | F-03 Unwind below oracle floor | Fixed | _unwindBand(enforceFloor) + USD floor (MAX_UNWIND_SLIPPAGE_BPS=500); closePosition passes false, liquidation/partial pass true. |
-| F-04 Settlement cross-order fungibility | Fixed | EswapSettlement: pro-rata cap principal × balance / totalOwed; escueToken capped at surplus. |
+| F-04 Settlement cross-order fungibility | Fixed | EswapSettlement: pro-rata cap principal â€“ balance / totalOwed; `rescueToken` capped at surplus. |
 | F-05 Oracle outage disables liquidation | Fixed | cachedPriceUsd/cachedPriceAt + _usdOrCache (live ? cache ? OraclePriceUnavailable); circuit breaker widens threshold by CIRCUIT_BREAKER_BPS=500. |
 | F-06 Stale rehypothecation book value | Fixed | Health check values actual holdings (retained + live LP band via LiquidityAmounts.getAmountsForLiquidity), counting debt-currency leg as asset. Duplicated inline in hook and Logic3 (no delegatecall under STATICCALL). |
 | F-07 Keeper liveness (-EV liquidation) | Fixed | _settle/_settlePartial pay max(incentiveBps, LIQUIDATOR_MIN_INCENTIVE_BPS=50) of surplus via _payOrCredit. |
