@@ -632,11 +632,29 @@ registry and the adapter were deployed together in the same run.
 > mined against the **retired** 2026-10-20 stack (hook `0xe33A…50c8`, router
 > `0xD336…1437`). It is retained because it is what the verifier suites were
 > hardened against, but it no longer certifies the contracts listed in §4.2.
-> Re-running the five fills against the new stack is **blocked on USDC capital**,
-> not on gas: the maker wallets hold `0`–`94` USDC-units and a cap-sized Fusion
-> order needs `4,800` USDC. The verifiers themselves are already re-pointed at
-> the new addresses (all `scripts/v4/live/*.cjs` now resolve them from `.env`
-> via `common.cjs`); they need fresh tx hashes to consume.
+> Re-running the four fill drivers against the new stack is **blocked on USDC
+> capital, not on gas**. Every driver is now dust-sized, so the whole set costs
+> **~0.053 USDC and ~0.0003 ETH** to broadcast:
+
+| Driver | What it pulls | USDC needed | ETH needed |
+|---|---|---|---|
+| `agg-fill.cjs setup` | 5 dust traders × `MARGIN=4,000` units, plus solver borrow inventory `4,000 × 5` | **0.040** | 5 × `0.00006` |
+| `cow-intent.cjs` | margin + borrow escrow (`= 2 × margin`, solver-funded) + trader margin | **0.012** | relayer only |
+| `fusion-fill.cjs` | maker leg at `FUSION_MAKING_UNITS=4,000` (was 96 % of the 5,000 USDC cap) | **0.004** | operator only |
+| `ux-fill.cjs` | `IN_AMOUNT=1,000` units | **0.001** | swapper only |
+
+> Live balances at block 56,618,952: owner `0.000094` USDC, solver `0.004` USDC,
+> trader `0` — **0.004094 USDC in total**, about 8 % of what one driver needs.
+> The verifiers themselves are already re-pointed at the new addresses (all
+> `scripts/v4/live/*.cjs` resolve them from `.env` via `common.cjs`); they need
+> fresh tx hashes to consume.
+>
+> `fusion-fill.cjs` used to size the order at 96 % of `maxMakingAmount`, i.e.
+> 4,800 *real* USDC — a cap is a bound, not a target. It now defaults to the same
+> 4,000-unit notional as the other drivers and clamps to the caps
+> (`FUSION_MAKING_UNITS` overrides). That took the Fusion leg from 4,800 USDC to
+> 0.004 USDC without changing what it proves: the settler still enforces both
+> caps, and `verify-deploy.cjs` reads them back from chain.
 
 ### 5.1 New-stack deployment verification (2026-11-11) — **40/40 PASS**
 
@@ -859,4 +877,5 @@ Reproduced with `forge build --sizes` on this tree; full table with the live
 `rebalancePosition` fix, the `maxEthFeedAge` guard and the split-cap Fusion
 settler. Residual items are non-blocking: the default (non-deploy) profile still
 needs `FOUNDRY_PROFILE=deploy` to fit the hook (§4.1), and live fill evidence must
-be re-mined against the new stack once USDC capital is available (§5).
+be re-mined against the new stack once **~0.053 USDC** of dust capital is
+available (§5).

@@ -193,12 +193,18 @@ async function main() {
   const makerUsdc = await usdc.balanceOf(maker.address);
   const solverWeth = await weth.balanceOf(solver.address);
 
+  // The settler caps are *bounds*, not a target. Sizing at 96% of a 5,000 USDC
+  // cap would need 4,800 real USDC to fill, which is not what a proof of the
+  // path requires -- the other three drivers are all dust-sized. Default to the
+  // same 4,000-unit (0.004 USDC) notional and let the caps clamp it.
+  const TARGET = BigInt(process.env.FUSION_MAKING_UNITS || '4000'); // USDC units (6dp)
+
   // Two independent caps: the USDC (making) leg and the WETH (taking) leg. Size
-  // the order at the live Chainlink price and take whichever cap binds first.
+  // the order at the live Chainlink price and take whichever bound binds first.
   // Stay 4% under each cap for rounding slack.
   const makingCap = (caps.making * 96n) / 100n;
   const takingCap = (caps.taking * 96n) / 100n;
-  let makingAmount = makingCap;
+  let makingAmount = TARGET < makingCap ? TARGET : makingCap;
   // Fair value at the live Chainlink ETH/USD price: taking(wei) = making(6dp)*1e20/p8
   let takingAmount = (makingAmount * 10n ** 20n) / p8;
   if (takingAmount > takingCap) {

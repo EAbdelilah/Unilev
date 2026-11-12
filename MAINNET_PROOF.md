@@ -11,6 +11,13 @@ the live **EnsoRouter V2**; the borrow leg was funded by a **registered solver**
 the notional is deliberately tiny (sub-cent-ish) to keep the broadcast cheap,
 since the objective is to prove the *connection*, not size.
 
+> **Reading note — addresses.** Sections 1–17 are the **2026-10-20/22 record** and
+> quote the addresses that were live then. That stack was **superseded on
+> 2026-11-11** by a full redeploy at `HEAD`; the current addresses, and the
+> 40/40 post-deploy verification, are in **§19**. The fills below are still valid
+> evidence for the code paths they exercised — the contracts they called have
+> since been replaced, not repaired.
+
 ---
 
 ## 1. Live artifact summary
@@ -1465,14 +1472,20 @@ settlements/solvers, partner selectors and feed decimals. See
 ### 19.4 What is *not* yet re-proven
 
 No fill has been mined against this stack. All four fill drivers are blocked on
-**USDC capital**, not gas:
+**USDC capital**, not gas — the whole set is dust-sized and costs **~0.053 USDC
+plus ~0.0003 ETH** to broadcast:
 
-| Driver | Blocker |
-|---|---|
-| `agg-fill.cjs setup` | needs 5 traders × 4,000 USDC-units; all keys hold 4,094 units total |
-| `cow-intent.cjs sim` | `insufficient USDC to open even a dust position` |
-| `fusion-fill.cjs plan` | maker (`TINY_TRADER`) holds 0 USDC vs a 4,800-USDC cap-sized order |
-| `ux-fill.cjs` | same dust-balance constraint |
+| Driver | Blocker | USDC needed |
+|---|---|---|
+| `agg-fill.cjs setup` | needs 5 traders × 4,000 units + 5 × 4,000 of solver inventory; all keys hold **4,094 units** (0.004094 USDC) in total | 0.040 |
+| `cow-intent.cjs sim` | `insufficient USDC to open even a dust position` (needs margin + a matching borrow escrow) | 0.012 |
+| `fusion-fill.cjs plan` | `maker USDC 0 < makingAmount 4000` — the order is now sized at 4,000 units, not 96 % of the 5,000-USDC cap | 0.004 |
+| `ux-fill.cjs` | `IN_AMOUNT = 1,000` units | 0.001 |
+
+`fusion-fill.cjs` previously sized at 96 % of `maxMakingAmount`, which is a
+*bound*, not a target — that is why it demanded 4,800 real USDC. It now defaults
+to the same 4,000-unit notional as the other drivers (`FUSION_MAKING_UNITS`
+overrides) and still clamps to both caps.
 
 The verifier suites are already re-pointed at the new addresses through
 `scripts/v4/live/common.cjs` (env-driven); they need fresh hashes to consume.
