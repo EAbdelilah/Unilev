@@ -275,7 +275,123 @@ contract ExternalSolverZeroTreasuryTest is Test, IUnlockCallback {
         settlement.fillOrder(order, CowSigning.Scheme.Eip712, sig, _params());
     }
 
+    /// @dev Direct EIP-712 `swapWithIntent` path. The trader signs a LendingIntent
+    ///      that pins the pool, direction, margin, leverage, solver, and slippage
+    ///      floor. The solver relays it itself.
+    ///
+    ///      Borrow funding here is the router's wallet draw: the solver is
+    ///      governance-registered, so the borrow is drawn by `transferFrom(solver)`
+    ///      with no escrow. An UNREGISTERED solver (or any relayer naming it) must
+    ///      be fully bonded in escrow instead (EswapRouter, CONSENT gate). Both
+    ///      rules are checked here.
+    function test_SwapWithIntent_RegisteredSolverDrawsBorrowFromWallet() public {
+        if (block.chainid != 8453) vm.skip(true);
+
+        // Registered solver, no escrow: the borrow must come from its wallet.
+        router.setSolverWhitelist(solver, true);
+        assertEq(router.erc20BorrowEscrow(solver, BASE_USDC), 0, "no escrow");
+        vm.prank(solver);
+        RealIERC20(BASE_USDC).approve(address(router), type(uint256).max);
+
+        // The trader pays margin through the router (the intent path pulls from the trader).
+        deal(BASE_USDC, trader, MARGIN);
+        vm.prank(trader);
+        RealIERC20(BASE_USDC).approve(address(router), MARGIN);
+
+        uint256 solverBefore = RealIERC20(BASE_USDC).balanceOf(solver);
+        _openWithIntent(traderKey, trader, 1);
+        PoolId poolId = hookKey.toId();
+
+        // Borrow drawn from the solver's wallet via transferFrom(solver).
+        assertEq(solverBefore - RealIERC20(BASE_USDC).balanceOf(solver), BORROW, "borrow pulled from solver wallet");
+        assertEq(hook.positionSolver(poolId, trader), solver, "positionSolver == solver");
+        (, uint256 collateral, uint256 borrowed, uint8 lev, bool isLong,,,,) = hook.positions(poolId, trader);
+        assertGt(collateral, 0, "position opened");
+        assertEq(borrowed, BORROW, "borrow == 4x margin");
+        assertEq(lev, LEVERAGE, "leverage recorded");
+        assertTrue(isLong, "USDC -> WETH is a long");
+
+        // Replay: the same (trader, nonce) can never open twice.
+        deal(BASE_USDC, trader, MARGIN);
+        vm.prank(trader);
+        RealIERC20(BASE_USDC).approve(address(router), MARGIN);
+        EswapRouter.LendingIntent memory replay = _intent(1);
+        bytes memory replaySig = _signIntent(replay, traderKey);
+        vm.expectRevert(EswapRouter.IntentAlreadyFilled.selector);
+        vm.prank(solver);
+        router.swapWithIntent(_swapParams(), trader, replay, replaySig);
+
+        // A second position for fee accrual, then close both: the solver recovers principal.
+        (address intentTrader, uint256 intentTraderKey) = makeAddrAndKey("intent-trader-2");
+        deal(BASE_USDC, intentTrader, MARGIN);
+        vm.prank(intentTrader);
+        RealIERC20(BASE_USDC).approve(address(router), MARGIN);
+        _openWithIntent(intentTraderKey, intentTrader, 2);
+        vm.prank(intentTrader);
+        router.closePosition(address(hook), hookKey, intentTrader, solver, 0);
+
+        uint256 solverUsdcBeforeClose = RealIERC20(BASE_USDC).balanceOf(solver);
+        uint256 solverWethBeforeClose = RealIERC20(BASE_WETH).balanceOf(solver);
+        vm.prank(trader);
+        router.closePosition(address(hook), hookKey, trader, solver, 0);
+
+        // Principal comes back exactly. Yield is realised in WETH.
+        assertEq(
+            RealIERC20(BASE_USDC).balanceOf(solver) - solverUsdcBeforeClose,
+            BORROW,
+            "solver recovers exact principal on close"
+        );
+        uint256 yieldWeth = RealIERC20(BASE_WETH).balanceOf(solver) - solverWethBeforeClose;
+        console2.log("swapWithIntent LP-fee yield (WETH wei):", yieldWeth);
+        assertGt(yieldWeth, 0, "fee yield returned to the solver");
+        assertEq(RealIERC20(BASE_USDC).balanceOf(treasury), 0, "treasury still holds $0 USDC");
+    }
+
     // ─── helpers ──────────────────────────────────────────────────────────
+
+    function _intent(uint256 nonce) internal view returns (EswapRouter.LendingIntent memory it) {
+        it = EswapRouter.LendingIntent({
+            poolId: PoolId.unwrap(hookKey.toId()),
+            standardPoolId: PoolId.unwrap(standardKey.toId()),
+            zeroForOne: false, // sell USDC (currency1) for WETH
+            amountSpecified: -int256(MARGIN),
+            leverage: LEVERAGE,
+            solver: solver,
+            deadline: block.timestamp + 1 hours,
+            minAmountOut: 0.5 ether,
+            nonce: nonce
+        });
+    }
+
+    function _signIntent(EswapRouter.LendingIntent memory it, uint256 pk) internal returns (bytes memory sig) {
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", router.DOMAIN_SEPARATOR(), router.hashIntent(it)));
+        (uint8 v, bytes32 rr, bytes32 s) = vm.sign(pk, digest);
+        sig = abi.encodePacked(rr, s, v);
+    }
+
+    function _swapParams() internal view returns (EswapRouter.SwapParams memory p) {
+        p = EswapRouter.SwapParams({
+            key: hookKey,
+            standardPoolKey: standardKey,
+            zeroForOne: false,
+            amountSpecified: -int256(MARGIN),
+            leverage: LEVERAGE,
+            solver: solver,
+            hookData: abi.encode(true, LEVERAGE, address(0)),
+            deadline: block.timestamp + 1 hours,
+            minAmountOut: 0.5 ether
+        });
+    }
+
+    /// @dev The solver relays a trader-signed intent. `hookData` names the trader.
+    function _openWithIntent(uint256 pk, address who, uint256 nonce) internal {
+        EswapRouter.LendingIntent memory it = _intent(nonce);
+        bytes memory sig = _signIntent(it, pk);
+        EswapRouter.SwapParams memory p = _swapParams();
+        p.hookData = abi.encode(true, LEVERAGE, who);
+        vm.prank(solver);
+        router.swapWithIntent(p, who, it, sig);
+    }
 
     function _fill(uint256 pk) internal {
         CowOrder.Data memory order = _order();

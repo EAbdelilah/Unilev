@@ -28,7 +28,8 @@ import { ethers } from "ethers";
 dotenv.config({ path: path.resolve(process.cwd(), ".env"), override: false });
 
 const RPC = process.env.BASE_RPC_URL ?? "https://mainnet.base.org";
-const ROUTER = ethers.getAddress(process.env.V4_ROUTER_ADDRESS ?? "0x57E75A87A62ab8Ff14C59FA10Ac2AB2c8cBD45D1");
+// Fallback is the live Nov 11 router (MAINNET_PROOF.md §19), not a retired address.
+const ROUTER = ethers.getAddress(process.env.V4_ROUTER_ADDRESS ?? "0x5b226aE5158de86f1E616875dBab886870B9aAd9");
 
 const SWAP_WITH_INTENT_ABI = [
   "function swapWithIntent(((address,address,uint24,int24,address) key,(address,address,uint24,int24,address) standardPoolKey,bool zeroForOne,int256 amountSpecified,uint8 leverage,address solver,bytes hookData,uint256 deadline,uint256 minAmountOut) params, address trader, (bytes32 poolId,bytes32 standardPoolId,bool zeroForOne,int256 amountSpecified,uint8 leverage,address solver,uint256 deadline,uint256 minAmountOut,uint256 nonce) intent, bytes signature) returns (bytes)",

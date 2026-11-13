@@ -192,9 +192,20 @@ withdraw unused escrow with `withdrawBorrowEscrow`.
 ### 4.1 `EswapRouter.swapWithIntent`
 
 A trader-signed `LendingIntent` (EIP-712, domain `EswapRouter`) can be relayed by
-any solver the intent names, drawing on that solver's escrow. This path is used by
-`scripts/executeSolverFill.ts`. **It is not covered by the fork test in this
-repository.** Verify it against the source before relying on it.
+the solver the intent names, with the solver calling the router directly. The
+signed intent pins the pool, direction, margin, leverage, solver, and slippage
+floor. A solver can relay only what the trader signed.
+
+Borrow funding has two rules, both covered by the fork test:
+
+- A **governance-registered** solver calling the router itself has its borrow
+  drawn from its wallet (`transferFrom(solver)`), with no escrow needed.
+- An **unregistered** solver, or any relayer naming it, must be fully bonded in
+  escrow. Otherwise the router reverts with `SolverNotAuthorized`.
+
+So the signed intent does not, on its own, make a solver permissionless. The
+registration gate still governs the wallet draw. The permissionless route is the
+escrow route (§3.4).
 
 ### 4.2 `EswapSettlement` (generic, ERC-7683 origin data)
 
@@ -323,33 +334,59 @@ sending anything. `scripts/solvers/cowSolverBot.ts --dry-run` does exactly that.
 
 The bot in this repository:
 
-- takes intents from `--demo`, `--orders <file>`, or `INTENT_FEED_URL`;
+- polls the intent relay (`INTENT_FEED_URL`, default `http://127.0.0.1:8787/intents?status=open`),
+  or reads `--orders <file>`, or a generated `--demo` intent;
 - verifies each signature on chain, recovers the leverage from the appData, and
   rejects filled or expired orders;
+- rejects any order whose owner has not approved the settlement for `sellAmount`.
+  Without that approval the settlement would pull the margin from the solver, so
+  the bot never fills such an order;
 - reports the escrow shortfall for each intent (the bond the solver must post);
-- simulates `fillOrder` from the solver's address, and sends only in live mode.
+- simulates `fillOrder` from the solver's address. It sends only in live mode, and
+  after a fill it reports the transaction back to the relay.
 
 Dry run on a generated demo intent (no transactions):
 
 ```
-node scripts/node_modules/tsx/dist/cli.mjs scripts/solvers/cowSolverBot.ts --demo --dry-run
+node node_modules/tsx/dist/cli.mjs scripts/solvers/cowSolverBot.ts --demo --dry-run
 ```
 
-Output on the live stack, with no escrow bonded:
+The demo wallet has not approved the settlement, so the bot reports:
 
 ```
-#0   needs-escrow lev=5  owner=0x…  borrow=4000.0 USDC escrow=0.0  (bond 4000.0 USDC first)
+#0   rejected  lev=-  owner=-  (owner has not approved the settlement for sellAmount)
 ```
 
-That line is the zero-treasury model in practice. The signature is valid, the
-leverage is committed, and the fill cannot proceed until the solver bonds its own
-4,000 USDC.
+That is the safety rule working. For the escrow-shortfall view, pass a funded
+trader's signed order with `--orders`. The output then reads
+`needs-escrow … (bond 4000.0 USDC first)`, which is the zero-treasury model in
+practice: the solver must bond its own 4,000 USDC before a fill clears.
+
+### 6.1 The intent relay (`scripts/server/intentRelay.ts`)
+
+The relay is the open board that replaces CoW's restricted auction. It holds no
+funds and submits no transactions.
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /intents` | Submit `{order, scheme, signature}`. Verified on chain before listing (201 new, 200 duplicate, 400 invalid, 502 RPC failure) |
+| `GET /intents?status=open` | Open, unexpired, unfilled intents for solvers |
+| `GET /intents/:id` | One intent. `:id` is the on-chain order-UID hash |
+| `POST /intents/:id/filled` | `{txHash?}`. Accepted only if `filledOrders(id)` is true on chain (409 otherwise) |
+
+Run it with `node node_modules/tsx/dist/cli.mjs scripts/server/intentRelay.ts`
+(port 8787 by default). Its self-check is `scripts/test/intentRelay.check.ts`.
+The check runs 10 rejection paths against any RPC. With
+`RELAY_CHECK_TRADER_KEY` set to a trader who has approved the settlement, it also
+runs the listing path: a funded intent is listed, a duplicate returns 200, the
+feed shows it, and a fill before settlement is rejected with 409. That path
+passed 15/15 on a local Base fork.
 
 **Order discovery.** CoW's auction endpoint (`api.cow.fi/base/api/v1/auction`)
-returned `403` to an unauthenticated client. Solver-competition access is therefore
-restricted. Eswap does **not** depend on it. Intents reach solvers through an
-Eswap-published feed (`INTENT_FEED_URL`), which the protocol has not yet published
-(see §7).
+returned `403` to an unauthenticated client, so solver-competition access is
+restricted. Eswap does not depend on it. Intents reach solvers through the relay.
+Traders must register the canonical `appData` document with the relay's order
+book before they submit.
 
 ---
 
@@ -360,12 +397,15 @@ Eswap-published feed (`INTENT_FEED_URL`), which the protocol has not yet publish
 | Live contracts on Base | ✅ Deployed, checked on chain (§2) |
 | CoW fill path, leverage commitment, escrow, senior claim | ✅ Implemented; fork test passing 2/2 (`ExternalSolverZeroTreasury.t.sol`, 2026-11-13). The test stands up its own hook/router on the real Base PoolManager with test-owned LP, so it proves the mechanism, not the live pool's state |
 | UniswapX / Fusion for external resolvers | ❌ Operator-gated (§4.3). Not open |
-| Public intent feed for solvers | ❌ Not yet published |
+| Intent relay (open feed for solvers) | ✅ Implemented and self-checked (`scripts/server/intentRelay.ts`). It is not hosted yet |
+| `swapWithIntent` path | ✅ Covered by the fork test (3/3). The registered solver's borrow is drawn from its wallet, the replay (trader, nonce) is rejected, and the solver recovers principal plus yield on close |
 | An external solver bonded and filling on mainnet | ❌ None yet |
+| Live fill through the relay → bot → settlement loop | ⚠️ Not completed on the fork. The hook's TWAP circuit breaker (`TwapManipulated`, `EswapMarginLib`) blocked the fill in the fork's pool state. The guard is working as designed |
 | Insurance fund backstop size | ⚠️ Read on chain; not guaranteed beyond the fund balance |
 | Solver APY | ⚠️ No figure promised; depends on realised volume |
-| `swapWithIntent` path | ⚠️ Not covered by the fork test |
 
-Reference tests: `src/v4/test/ExternalSolverZeroTreasury.t.sol` (fork),
-`test/ZeroTreasuryInvariants.t.sol` (invariants, including solver-debt
-externality), and `src/v4/test/EswapCoWSettlementTest.t.sol` (CoW semantics).
+Reference tests: `src/v4/test/ExternalSolverZeroTreasury.t.sol` (fork, 3 tests:
+CoW escrow path, `swapWithIntent` wallet path, and no-escrow-no-fill),
+`scripts/test/intentRelay.check.ts` (relay), `test/ZeroTreasuryInvariants.t.sol`
+(invariants, including solver-debt externality), and
+`src/v4/test/EswapCoWSettlementTest.t.sol` (CoW semantics).

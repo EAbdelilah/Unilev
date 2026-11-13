@@ -30,8 +30,9 @@ const CHAIN_ID = 8453;
 const USDC = ethers.getAddress("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913");
 const WETH = ethers.getAddress("0x4200000000000000000000000000000000000006");
 const HOOK = ethers.getAddress(process.env.V4_HOOK_ADDRESS ?? "0x6f98Ea19e522Ecc706E0Fb1574BDA8D32aC510C8");
-const ROUTER = ethers.getAddress(process.env.V4_ROUTER_ADDRESS ?? "0x57E75A87A62ab8Ff14C59FA10Ac2AB2c8cBD45D1");
-const QUOTER_RAW = process.env.V4_QUOTER_ADDRESS ?? "0x3177f4e53a0EE0318174771b32E68aDe63c20f3b";
+// Fallbacks are the live Nov 11 router and quoter (MAINNET_PROOF.md §19).
+const ROUTER = ethers.getAddress(process.env.V4_ROUTER_ADDRESS ?? "0x5b226aE5158de86f1E616875dBab886870B9aAd9");
+const QUOTER_RAW = process.env.V4_QUOTER_ADDRESS ?? "0xb1228De759119088D9aCEf20b80dD4ED93Dd2ba5";
 const POOL_FEE = 3000;
 const TICK_SPACING = 60;
 
