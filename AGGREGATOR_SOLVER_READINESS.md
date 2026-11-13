@@ -908,15 +908,15 @@ Two different questions hide behind "are we ready":
 | Contract correctness & coverage | 20 % | **95 %** | 187/187 forge, 323/323 live assertions, 40/40 deploy checks, 3 adversarial passes with every finding remediated. Deducted for zero fills on *this* bytecode |
 | Deployment & reproducibility | 15 % | **90 %** | 16/16 live and verified, `.env` synced from artifacts, redeploy script + committed snapshot, 0.00024 ETH to re-run |
 | Trust & governance | 20 % | **60 %** | **F-9 partly closed.** The hook is owned by `EswapTimelock` `0x9aA2…138e` (48 h delay, single-step, verified on chain). The router is `Ownable2Step`: its timelock `0x6793…f541` is `pendingOwner` with the accept queued for `ROUTER_ACCEPT_ETA`. Still open: the timelocks' `admin` is the same EOA, so there is no multisig and no independent canceller. No external-firm audit attestation in the repo |
-| Distribution | 20 % | **55 %** | Base (8453) is wired into `wagmi.js`, `ConnectButton.jsx`, `supported_tokens.json`, `rpc.js` and every RPC/token path, and the dashboard production build compiles. Not yet proven end-to-end in a browser against live funds, and no hosted deploy |
+| Distribution | 20 % | **60 %** | Base (8453) is wired into `wagmi.js`, `ConnectButton.jsx`, `supported_tokens.json`, `rpc.js` and every RPC/token path; the dashboard production build compiles. The intent relay is implemented and self-checked (15/15 on a fork). Not yet proven end-to-end in a browser, and no hosted deploy-end in a browser against live funds, and no hosted deploy |
 | Liquidity / capital | 15 % | **30 %** | **Zero-treasury architecture is implemented and deployed; external solver supply is absent.** The borrow leg is drawn from the solver's own `erc20BorrowEscrow`, the solver is never governance-whitelisted, `positionSolver` is set at open, principal is senior and yield is routed to the solver (`docs/SOLVER_INTEGRATION_GUIDE.md`). Not yet proven: no external solver has bonded, the intent feed is unpublished, and UniswapX/Fusion are operator-gated (§4.3). The insurance backstop is protocol capital, up to its balance. The earlier 5% scored our own test wallet (~$0.20), not protocol capacity |
 | Revenue capture | 10 % | **70 %** | Switch is armed: `reserveFactor = 10` bps of collateral on open, `treasury` set, `withdrawProtocolFee` works, gas ≈ $0.02/open on Base. Never collected a cent on this stack |
-| **Weighted total** | | **≈ 67 %** | |
+| **Weighted total** | | **≈ 69 %** | |
 
-Read the two halves separately: **submission readiness ≈ 85 %** (correctness,
-deployment, packaging and Base distribution are done), **revenue readiness ≈ 30 %**
-(trust is part-way, distribution is unproven live, and external solver supply is
-zero).
+Read the two halves separately: **submission readiness ≈ 88 %** (correctness,
+deployment, packaging, Base distribution and the intent relay are done), **revenue
+readiness ≈ 32 %** (trust is part-way, distribution is unproven live, and
+external solver supply is zero).
 
 ### 9.0 Capital readiness is solver onboarding, not treasury
 
@@ -946,7 +946,7 @@ onboard one external solver.
 |---|---|---|---|
 | 1 | Fund **~0.06 USDC + 0.0003 ETH**, run the four fill drivers and six verifiers against the new stack (§5) | hours | eng |
 | 2 | **Done for the hook; router accept pending.** Execute `executeRouterAccept(ROUTER_ACCEPT_ETA)` after the eta, then move timelock `admin` from the EOA to a multisig (F-9) | hours + 48 h | eng + ops |
-| 3 | **Done in code (Base wired).** Still to do: a browser smoke test on Base and a hosted deploy | hours | frontend |
+| 3 | **Done in code (Base wired + relay).** Still to do: a browser smoke test on Base and a hosted deploy | hours | frontend |
 | 4 | External audit attestation and a solver/LP capital commitment — the two long poles | weeks | business |
 | 5 | Publish the Eswap intent feed and onboard one external solver against `docs/SOLVER_INTEGRATION_GUIDE.md` (§9.0) | days + solver | eng + BD |
 
