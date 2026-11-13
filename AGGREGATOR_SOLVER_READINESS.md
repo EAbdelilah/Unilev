@@ -894,10 +894,12 @@ Two different questions hide behind "are we ready":
 * **Can we submit the integration?** Yes, mostly — and, importantly, there is
   **no permission to ask for**. Consuming 0x / Enso / ParaSwap / Kyber / LI.FI /
   Socket is a contract call, not a partnership: all 8 venue proxies are already
-  on the router allow-list and the quote keys are already in `.env`. Filling CoW,
-  UniswapX and 1inch-Fusion orders is permissionless by construction; the three
-  settlers are deployed and solver-whitelisted. No CIP, DAO vote or resolver
-  allow-list stands between this code and venue liquidity.
+  on the router allow-list and the quote keys are already in `.env`. Filling CoW
+  orders (`EswapCoWSettlement`) and generic ERC-7683 origin orders (`EswapSettlement`)
+  is permissionless: the borrow leg comes from the solver's own escrow. UniswapX
+  and 1inch-Fusion are **not** open: both settlements are gated by an operator EOA
+  (§9.0). No CIP, DAO vote or resolver allow-list stands between the CoW path and
+  venue liquidity.
 * **Can we earn?** Not yet. Revenue needs users who can reach the protocol and
   solver capital to fund the borrow leg. Both are currently ~zero.
 
@@ -907,13 +909,36 @@ Two different questions hide behind "are we ready":
 | Deployment & reproducibility | 15 % | **90 %** | 16/16 live and verified, `.env` synced from artifacts, redeploy script + committed snapshot, 0.00024 ETH to re-run |
 | Trust & governance | 20 % | **60 %** | **F-9 partly closed.** The hook is owned by `EswapTimelock` `0x9aA2…138e` (48 h delay, single-step, verified on chain). The router is `Ownable2Step`: its timelock `0x6793…f541` is `pendingOwner` with the accept queued for `ROUTER_ACCEPT_ETA`. Still open: the timelocks' `admin` is the same EOA, so there is no multisig and no independent canceller. No external-firm audit attestation in the repo |
 | Distribution | 20 % | **55 %** | Base (8453) is wired into `wagmi.js`, `ConnectButton.jsx`, `supported_tokens.json`, `rpc.js` and every RPC/token path, and the dashboard production build compiles. Not yet proven end-to-end in a browser against live funds, and no hosted deploy |
-| Liquidity / capital | 15 % | **5 %** | V4 has no ERC-4626 vault; every borrow leg is solver escrow. Solver holds `0.004` USDC + `0.000097` WETH ≈ **$0.20**, i.e. ~$0.40 of servable notional at 2× |
+| Liquidity / capital | 15 % | **30 %** | **Zero-treasury architecture is implemented and deployed; external solver supply is absent.** The borrow leg is drawn from the solver's own `erc20BorrowEscrow`, the solver is never governance-whitelisted, `positionSolver` is set at open, principal is senior and yield is routed to the solver (`docs/SOLVER_INTEGRATION_GUIDE.md`). Not yet proven: no external solver has bonded, the intent feed is unpublished, and UniswapX/Fusion are operator-gated (§4.3). The insurance backstop is protocol capital, up to its balance. The earlier 5% scored our own test wallet (~$0.20), not protocol capacity |
 | Revenue capture | 10 % | **70 %** | Switch is armed: `reserveFactor = 10` bps of collateral on open, `treasury` set, `withdrawProtocolFee` works, gas ≈ $0.02/open on Base. Never collected a cent on this stack |
-| **Weighted total** | | **≈ 63 %** | |
+| **Weighted total** | | **≈ 67 %** | |
 
 Read the two halves separately: **submission readiness ≈ 85 %** (correctness,
-deployment, packaging and Base distribution are done), **revenue readiness ≈ 25 %**
-(trust is part-way, distribution is unproven live, capital is still ~zero).
+deployment, packaging and Base distribution are done), **revenue readiness ≈ 30 %**
+(trust is part-way, distribution is unproven live, and external solver supply is
+zero).
+
+### 9.0 Capital readiness is solver onboarding, not treasury
+
+The protocol does not need a treasury to lend. The borrow leg belongs to the solver
+and is bonded in escrow before the fill. So the binding constraints are different:
+
+* **Solver supply.** Whether an external market maker bonds escrow and fills. This
+  is the gate. It depends on the intent feed (not yet published), on the solver
+  economics actually matching the realised LP yield, and on the solver's
+  willingness to carry the tail risk above the insurance backstop.
+* **Discovery.** Intents reach solvers through an Eswap feed. CoW's auction
+  endpoint returned `403` to an unauthenticated client, so CoW's solver competition
+  is not a dependency.
+* **Operator-gated venues.** UniswapX and 1inch-Fusion settlements are controlled by
+  an operator EOA (Eswap's own solver). External resolvers cannot fill them until
+  that is changed by a separate governance decision.
+* **Risk disclosure.** The senior claim is not zero credit risk. It is backed by
+  collateral, then by the insurance fund (`insuranceCoverageBps` default 100%), and
+  any remainder is bad debt borne by the solver.
+
+Action 5 in §9.1 is the one that moves this pillar: publish the intent feed and
+onboard one external solver.
 
 ### 9.1 The four things standing between here and revenue
 
@@ -923,6 +948,7 @@ deployment, packaging and Base distribution are done), **revenue readiness ≈ 2
 | 2 | **Done for the hook; router accept pending.** Execute `executeRouterAccept(ROUTER_ACCEPT_ETA)` after the eta, then move timelock `admin` from the EOA to a multisig (F-9) | hours + 48 h | eng + ops |
 | 3 | **Done in code (Base wired).** Still to do: a browser smoke test on Base and a hosted deploy | hours | frontend |
 | 4 | External audit attestation and a solver/LP capital commitment — the two long poles | weeks | business |
+| 5 | Publish the Eswap intent feed and onboard one external solver against `docs/SOLVER_INTEGRATION_GUIDE.md` (§9.0) | days + solver | eng + BD |
 
 Only item 4 is on the critical path to *revenue*; items 1–3 are on the critical
 path to *submission*.

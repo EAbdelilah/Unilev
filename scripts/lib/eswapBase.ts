@@ -19,20 +19,22 @@ export const RPC = process.env.BASE_RPC_URL ?? "https://mainnet.base.org";
 export const USDC = ethers.getAddress("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913");
 export const WETH = ethers.getAddress("0x4200000000000000000000000000000000000006");
 export const POOL_MANAGER = ethers.getAddress("0x498581fF718922c3f8e6A244956aF099B2652b2b");
+// Defaults are the LIVE stack (2026-11-11 full redeploy, MAINNET_PROOF.md §19).
+// They must never fall back to the retired 2026-10-20 addresses.
 export const HOOK = ethers.getAddress(
-  process.env.V4_HOOK_ADDRESS ?? "0xe33A630503c640143126BBF222a82689D49b50c8",
+  process.env.V4_HOOK_ADDRESS ?? "0x7b3F232BB5a0346fADb8B92B31B3e7bC60bD90c8",
 );
 export const ROUTER = ethers.getAddress(
-  process.env.V4_ROUTER_ADDRESS ?? "0xD3360D67E366Cac21a1c18fC9100B93be79e1437",
+  process.env.V4_ROUTER_ADDRESS ?? "0x5b226aE5158de86f1E616875dBab886870B9aAd9",
 );
 export const ADAPTER = ethers.getAddress(
-  process.env.V4_ADAPTER_ADDRESS ?? "0x14FBAF1858d37BF994BDAF9ab4b31A664D4663aD",
+  process.env.V4_ADAPTER_ADDRESS ?? "0xC622558e9145dbe0Bc37Db5311e70f3F9Fa8cc48",
 );
 export const QUOTER = ethers.getAddress(
-  process.env.V4_QUOTER_ADDRESS ?? "0x3177f4e53a0EE0318174771b32E68aDe63c20f3b",
+  process.env.V4_QUOTER_ADDRESS ?? "0xb1228De759119088D9aCEf20b80dD4ED93Dd2ba5",
 );
 export const PRICE_FEED = ethers.getAddress(
-  process.env.V4_PRICEFEED_ADDRESS ?? "0xE6E7229f878fB2d7dAbAcD2873A9ea4A3c04aFf8",
+  process.env.V4_PRICEFEED_ADDRESS ?? "0x91d75C7f750510C04516fC4dcEB5737E5B170c02",
 );
 
 // ─── Pool keys (hook accounting pool + deep standard settlement pool) ────────
