@@ -1,0 +1,281 @@
+{
+  "chainId": 8453,
+  "artifacts": "out-deploy",
+  "optimizerRuns": 1,
+  "solc": "0.8.27",
+  "generatedAt": "2026-11-14T11:08:18.841Z",
+  "preflight": [
+    {
+      "name": "EswapMarginLib",
+      "address": "0x3A6F97E9ec31f83Da800c6617695C62aD89656c7",
+      "status": "MATCH",
+      "onchainBytes": 3016,
+      "artifactBytes": 3016
+    },
+    {
+      "name": "PriceFeed",
+      "address": "0x91d75C7f750510C04516fC4dcEB5737E5B170c02",
+      "status": "MATCH",
+      "onchainBytes": 3622,
+      "artifactBytes": 3622
+    },
+    {
+      "name": "UsdcTwapFeed",
+      "address": "0xFCaBcc24bB71b42F8ACa94d187174bcfc05c5792",
+      "status": "MATCH",
+      "onchainBytes": 3705,
+      "artifactBytes": 3705
+    },
+    {
+      "name": "EswapMarginHookLogic2",
+      "address": "0x3813583344BA7FFa07FBaC53A9232276e5c52a7D",
+      "status": "MATCH",
+      "onchainBytes": 23277,
+      "artifactBytes": 23277
+    },
+    {
+      "name": "EswapMarginHookLogic3",
+      "address": "0x4B400Dc2cC807Df4abF98C021d758c02A43b79a3",
+      "status": "MATCH",
+      "onchainBytes": 16466,
+      "artifactBytes": 16466
+    },
+    {
+      "name": "EswapMarginHookLogic",
+      "address": "0xDc005F5baAd9e1Ea4E9d8FD1dacfeEA20fcbbce4",
+      "status": "MATCH",
+      "onchainBytes": 21634,
+      "artifactBytes": 21634
+    },
+    {
+      "name": "EswapMarginHook",
+      "address": "0x7b3F232BB5a0346fADb8B92B31B3e7bC60bD90c8",
+      "status": "MATCH",
+      "onchainBytes": 24423,
+      "artifactBytes": 24423
+    },
+    {
+      "name": "EswapRouter",
+      "address": "0x5b226aE5158de86f1E616875dBab886870B9aAd9",
+      "status": "MATCH",
+      "onchainBytes": 23017,
+      "artifactBytes": 23017
+    },
+    {
+      "name": "EswapRouterExt",
+      "address": "0x907CdA8c588c9C859A6fB4F105593a64599741CB",
+      "status": "MATCH",
+      "onchainBytes": 17441,
+      "artifactBytes": 17441
+    },
+    {
+      "name": "EswapLiquidationKeeper",
+      "address": "0xe755c37CFC66873f563128DC4aF1D5f27Aa90B2F",
+      "status": "MATCH",
+      "onchainBytes": 8627,
+      "artifactBytes": 8627
+    },
+    {
+      "name": "EswapLeverageAdapter",
+      "address": "0xC622558e9145dbe0Bc37Db5311e70f3F9Fa8cc48",
+      "status": "MATCH",
+      "onchainBytes": 7724,
+      "artifactBytes": 7724
+    },
+    {
+      "name": "EswapLeverageQuoter",
+      "address": "0xb1228De759119088D9aCEf20b80dD4ED93Dd2ba5",
+      "status": "MATCH",
+      "onchainBytes": 2352,
+      "artifactBytes": 2352
+    },
+    {
+      "name": "EswapCoWSettlement",
+      "address": "0x7341859C0D7e039118b3f85F341583EBCDB8c960",
+      "status": "MATCH",
+      "onchainBytes": 9115,
+      "artifactBytes": 9115
+    },
+    {
+      "name": "EswapSettlement",
+      "address": "0x6F347acB3bD901731e192d482b7a40c50f30FCa1",
+      "status": "MATCH",
+      "onchainBytes": 6292,
+      "artifactBytes": 6292
+    },
+    {
+      "name": "EswapUniswapXSettlement",
+      "address": "0x8cB966a5102444BbeD5A222AcE1b88d0421b0cB2",
+      "status": "MATCH",
+      "onchainBytes": 5495,
+      "artifactBytes": 5495
+    },
+    {
+      "name": "EswapOneInchFusionSettlement",
+      "address": "0x587f01dE3c42eB5E6a9DBA7a3026719F6F95FBbb",
+      "status": "MATCH",
+      "onchainBytes": 3723,
+      "artifactBytes": 3723
+    },
+    {
+      "name": "EswapTimelock",
+      "address": "0x9aA2e9e2FB4cfC71a89F03b88Abf6116d8B1138e",
+      "status": "MATCH",
+      "onchainBytes": 1865,
+      "artifactBytes": 1865
+    },
+    {
+      "name": "EswapTimelock",
+      "address": "0x6793667010815D83C0a60D3F6b7E6f7FEdC7f541",
+      "status": "MATCH",
+      "onchainBytes": 1865,
+      "artifactBytes": 1865
+    }
+  ],
+  "results": [
+    {
+      "name": "EswapMarginLib",
+      "address": "0x3A6F97E9ec31f83Da800c6617695C62aD89656c7",
+      "verifier": "sourcify",
+      "ok": true,
+      "already": false,
+      "output": "Start verifying contract `0x3A6F97E9ec31f83Da800c6617695C62aD89656c7` deployed on base\nEVM version: cancun\nCompiler version: 0.8.27\nOptimizations:    1\nAttempting to verify on Sourcify. Pass the --etherscan-api-key <API_KEY> to verify on Etherscan, or use the --verifier flag to verify on another provider.\n\nSubmitting verification for [EswapMarginLib] \"0x3A6F97E9ec31f83Da800c6617695C62aD89656c7\".\nSubmitted contract for verification:\n\tVerification Job ID: `a26009b2-eba7-4022-8bb6-125e05935ee8`\n\tURL: https://sourcify.dev/server/v2/verify/a26009b2-eba7-4022-8bb6-125e05935ee8\nContract successfully verified:\nStatus: `exact_match`\nWarning: Verification is still pending...; waiting 15 seconds before trying again (7 tries remaining)"
+    },
+    {
+      "name": "PriceFeed",
+      "address": "0x91d75C7f750510C04516fC4dcEB5737E5B170c02",
+      "verifier": "sourcify",
+      "ok": true,
+      "already": true,
+      "output": "Start verifying contract `0x91d75C7f750510C04516fC4dcEB5737E5B170c02` deployed on base\nEVM version: cancun\nCompiler version: 0.8.27\nOptimizations:    1\nAttempting to verify on Sourcify. Pass the --etherscan-api-key <API_KEY> to verify on Etherscan, or use the --verifier flag to verify on another provider.\n\nContract [PriceFeed] \"0x91d75C7f750510C04516fC4dcEB5737E5B170c02\" is already verified. Skipping verification."
+    },
+    {
+      "name": "UsdcTwapFeed",
+      "address": "0xFCaBcc24bB71b42F8ACa94d187174bcfc05c5792",
+      "verifier": "sourcify",
+      "ok": true,
+      "already": false,
+      "output": "Start verifying contract `0xFCaBcc24bB71b42F8ACa94d187174bcfc05c5792` deployed on base\nEVM version: cancun\nCompiler version: 0.8.27\nOptimizations:    1\nAttempting to verify on Sourcify. Pass the --etherscan-api-key <API_KEY> to verify on Etherscan, or use the --verifier flag to verify on another provider.\n\nSubmitting verification for [UsdcTwapFeed] \"0xFCaBcc24bB71b42F8ACa94d187174bcfc05c5792\".\nSubmitted contract for verification:\n\tVerification Job ID: `b0f99793-64c0-4d8c-a9d8-c30ba65f5a3e`\n\tURL: https://sourcify.dev/server/v2/verify/b0f99793-64c0-4d8c-a9d8-c30ba65f5a3e\nContract successfully verified:\nStatus: `exact_match`\nWarning: Verification is still pending...; waiting 15 seconds before trying again (7 tries remaining)"
+    },
+    {
+      "name": "EswapMarginHookLogic2",
+      "address": "0x3813583344BA7FFa07FBaC53A9232276e5c52a7D",
+      "verifier": "sourcify",
+      "ok": true,
+      "already": false,
+      "output": "Start verifying contract `0x3813583344BA7FFa07FBaC53A9232276e5c52a7D` deployed on base\nEVM version: cancun\nCompiler version: 0.8.27\nOptimizations:    1\nAttempting to verify on Sourcify. Pass the --etherscan-api-key <API_KEY> to verify on Etherscan, or use the --verifier flag to verify on another provider.\n\nSubmitting verification for [EswapMarginHookLogic2] \"0x3813583344BA7FFa07FBaC53A9232276e5c52a7D\".\nSubmitted contract for verification:\n\tVerification Job ID: `12729536-e33c-4ced-bcdf-673406a6f9fe`\n\tURL: https://sourcify.dev/server/v2/verify/12729536-e33c-4ced-bcdf-673406a6f9fe\nContract successfully verified:\nStatus: `exact_match`\nWarning: Verification is still pending...; waiting 15 seconds before trying again (7 tries remaining)"
+    },
+    {
+      "name": "EswapMarginHookLogic3",
+      "address": "0x4B400Dc2cC807Df4abF98C021d758c02A43b79a3",
+      "verifier": "sourcify",
+      "ok": true,
+      "already": false,
+      "output": "Start verifying contract `0x4B400Dc2cC807Df4abF98C021d758c02A43b79a3` deployed on base\nEVM version: cancun\nCompiler version: 0.8.27\nOptimizations:    1\nAttempting to verify on Sourcify. Pass the --etherscan-api-key <API_KEY> to verify on Etherscan, or use the --verifier flag to verify on another provider.\n\nSubmitting verification for [EswapMarginHookLogic3] \"0x4B400Dc2cC807Df4abF98C021d758c02A43b79a3\".\nSubmitted contract for verification:\n\tVerification Job ID: `606c8ab0-fded-4873-975c-bbb1967ca698`\n\tURL: https://sourcify.dev/server/v2/verify/606c8ab0-fded-4873-975c-bbb1967ca698\nContract successfully verified:\nStatus: `exact_match`\nWarning: Verification is still pending...; waiting 15 seconds before trying again (7 tries remaining)"
+    },
+    {
+      "name": "EswapMarginHookLogic",
+      "address": "0xDc005F5baAd9e1Ea4E9d8FD1dacfeEA20fcbbce4",
+      "verifier": "sourcify",
+      "ok": true,
+      "already": false,
+      "output": "Start verifying contract `0xDc005F5baAd9e1Ea4E9d8FD1dacfeEA20fcbbce4` deployed on base\nEVM version: cancun\nCompiler version: 0.8.27\nOptimizations:    1\nAttempting to verify on Sourcify. Pass the --etherscan-api-key <API_KEY> to verify on Etherscan, or use the --verifier flag to verify on another provider.\n\nSubmitting verification for [EswapMarginHookLogic] \"0xDc005F5baAd9e1Ea4E9d8FD1dacfeEA20fcbbce4\".\nSubmitted contract for verification:\n\tVerification Job ID: `9f29788f-4afb-4b48-aefd-da3254b2153d`\n\tURL: https://sourcify.dev/server/v2/verify/9f29788f-4afb-4b48-aefd-da3254b2153d\nContract successfully verified:\nStatus: `exact_match`\nWarning: Verification is still pending...; waiting 15 seconds before trying again (7 tries remaining)"
+    },
+    {
+      "name": "EswapMarginHook",
+      "address": "0x7b3F232BB5a0346fADb8B92B31B3e7bC60bD90c8",
+      "verifier": "sourcify",
+      "ok": true,
+      "already": false,
+      "output": "Start verifying contract `0x7b3F232BB5a0346fADb8B92B31B3e7bC60bD90c8` deployed on base\nEVM version: cancun\nCompiler version: 0.8.27\nOptimizations:    1\nAttempting to verify on Sourcify. Pass the --etherscan-api-key <API_KEY> to verify on Etherscan, or use the --verifier flag to verify on another provider.\n\nSubmitting verification for [EswapMarginHook] \"0x7b3F232BB5a0346fADb8B92B31B3e7bC60bD90c8\".\nSubmitted contract for verification:\n\tVerification Job ID: `8e8af0ef-a793-4524-a7ce-7f9847c45e78`\n\tURL: https://sourcify.dev/server/v2/verify/8e8af0ef-a793-4524-a7ce-7f9847c45e78\nContract successfully verified:\nStatus: `exact_match`\nWarning: Verification is still pending...; waiting 15 seconds before trying again (7 tries remaining)"
+    },
+    {
+      "name": "EswapRouter",
+      "address": "0x5b226aE5158de86f1E616875dBab886870B9aAd9",
+      "verifier": "sourcify",
+      "ok": true,
+      "already": false,
+      "output": "Start verifying contract `0x5b226aE5158de86f1E616875dBab886870B9aAd9` deployed on base\nEVM version: cancun\nCompiler version: 0.8.27\nOptimizations:    1\nAttempting to verify on Sourcify. Pass the --etherscan-api-key <API_KEY> to verify on Etherscan, or use the --verifier flag to verify on another provider.\n\nSubmitting verification for [EswapRouter] \"0x5b226aE5158de86f1E616875dBab886870B9aAd9\".\nSubmitted contract for verification:\n\tVerification Job ID: `30f836f9-9637-4870-92fc-d579d4c1dfd7`\n\tURL: https://sourcify.dev/server/v2/verify/30f836f9-9637-4870-92fc-d579d4c1dfd7\nContract successfully verified:\nStatus: `exact_match`\nWarning: Verification is still pending...; waiting 15 seconds before trying again (7 tries remaining)"
+    },
+    {
+      "name": "EswapRouterExt",
+      "address": "0x907CdA8c588c9C859A6fB4F105593a64599741CB",
+      "verifier": "sourcify",
+      "ok": true,
+      "already": false,
+      "output": "Start verifying contract `0x907CdA8c588c9C859A6fB4F105593a64599741CB` deployed on base\nEVM version: cancun\nCompiler version: 0.8.27\nOptimizations:    1\nAttempting to verify on Sourcify. Pass the --etherscan-api-key <API_KEY> to verify on Etherscan, or use the --verifier flag to verify on another provider.\n\nSubmitting verification for [EswapRouterExt] \"0x907CdA8c588c9C859A6fB4F105593a64599741CB\".\nSubmitted contract for verification:\n\tVerification Job ID: `abdfb23a-2d90-4129-ba69-69cca7af6c41`\n\tURL: https://sourcify.dev/server/v2/verify/abdfb23a-2d90-4129-ba69-69cca7af6c41\nContract successfully verified:\nStatus: `exact_match`\nWarning: Verification is still pending...; waiting 15 seconds before trying again (7 tries remaining)"
+    },
+    {
+      "name": "EswapLiquidationKeeper",
+      "address": "0xe755c37CFC66873f563128DC4aF1D5f27Aa90B2F",
+      "verifier": "sourcify",
+      "ok": true,
+      "already": false,
+      "output": "Start verifying contract `0xe755c37CFC66873f563128DC4aF1D5f27Aa90B2F` deployed on base\nEVM version: cancun\nCompiler version: 0.8.27\nOptimizations:    1\nAttempting to verify on Sourcify. Pass the --etherscan-api-key <API_KEY> to verify on Etherscan, or use the --verifier flag to verify on another provider.\n\nSubmitting verification for [EswapLiquidationKeeper] \"0xe755c37CFC66873f563128DC4aF1D5f27Aa90B2F\".\nSubmitted contract for verification:\n\tVerification Job ID: `088c9caf-e147-49f9-8193-f18f93fd2b11`\n\tURL: https://sourcify.dev/server/v2/verify/088c9caf-e147-49f9-8193-f18f93fd2b11\nContract successfully verified:\nStatus: `exact_match`\nWarning: Verification is still pending...; waiting 15 seconds before trying again (7 tries remaining)"
+    },
+    {
+      "name": "EswapLeverageAdapter",
+      "address": "0xC622558e9145dbe0Bc37Db5311e70f3F9Fa8cc48",
+      "verifier": "sourcify",
+      "ok": true,
+      "already": false,
+      "output": "Start verifying contract `0xC622558e9145dbe0Bc37Db5311e70f3F9Fa8cc48` deployed on base\nEVM version: cancun\nCompiler version: 0.8.27\nOptimizations:    1\nAttempting to verify on Sourcify. Pass the --etherscan-api-key <API_KEY> to verify on Etherscan, or use the --verifier flag to verify on another provider.\n\nSubmitting verification for [EswapLeverageAdapter] \"0xC622558e9145dbe0Bc37Db5311e70f3F9Fa8cc48\".\nSubmitted contract for verification:\n\tVerification Job ID: `3a312492-eebe-4987-badb-b8f32a3b3b78`\n\tURL: https://sourcify.dev/server/v2/verify/3a312492-eebe-4987-badb-b8f32a3b3b78\nContract successfully verified:\nStatus: `exact_match`\nWarning: Verification is still pending...; waiting 15 seconds before trying again (7 tries remaining)"
+    },
+    {
+      "name": "EswapLeverageQuoter",
+      "address": "0xb1228De759119088D9aCEf20b80dD4ED93Dd2ba5",
+      "verifier": "sourcify",
+      "ok": true,
+      "already": false,
+      "output": "Start verifying contract `0xb1228De759119088D9aCEf20b80dD4ED93Dd2ba5` deployed on base\nEVM version: cancun\nCompiler version: 0.8.27\nOptimizations:    1\nAttempting to verify on Sourcify. Pass the --etherscan-api-key <API_KEY> to verify on Etherscan, or use the --verifier flag to verify on another provider.\n\nSubmitting verification for [EswapLeverageQuoter] \"0xb1228De759119088D9aCEf20b80dD4ED93Dd2ba5\".\nSubmitted contract for verification:\n\tVerification Job ID: `1e29b334-1207-4328-9785-d730788343b9`\n\tURL: https://sourcify.dev/server/v2/verify/1e29b334-1207-4328-9785-d730788343b9\nContract successfully verified:\nStatus: `exact_match`\nWarning: Verification is still pending...; waiting 15 seconds before trying again (7 tries remaining)"
+    },
+    {
+      "name": "EswapCoWSettlement",
+      "address": "0x7341859C0D7e039118b3f85F341583EBCDB8c960",
+      "verifier": "sourcify",
+      "ok": true,
+      "already": false,
+      "output": "Start verifying contract `0x7341859C0D7e039118b3f85F341583EBCDB8c960` deployed on base\nEVM version: cancun\nCompiler version: 0.8.27\nOptimizations:    1\nAttempting to verify on Sourcify. Pass the --etherscan-api-key <API_KEY> to verify on Etherscan, or use the --verifier flag to verify on another provider.\n\nSubmitting verification for [EswapCoWSettlement] \"0x7341859C0D7e039118b3f85F341583EBCDB8c960\".\nSubmitted contract for verification:\n\tVerification Job ID: `45c44cad-9051-4682-a982-6783c15e35fc`\n\tURL: https://sourcify.dev/server/v2/verify/45c44cad-9051-4682-a982-6783c15e35fc\nContract successfully verified:\nStatus: `exact_match`\nWarning: Verification is still pending...; waiting 15 seconds before trying again (7 tries remaining)"
+    },
+    {
+      "name": "EswapSettlement",
+      "address": "0x6F347acB3bD901731e192d482b7a40c50f30FCa1",
+      "verifier": "sourcify",
+      "ok": true,
+      "already": false,
+      "output": "Start verifying contract `0x6F347acB3bD901731e192d482b7a40c50f30FCa1` deployed on base\nEVM version: cancun\nCompiler version: 0.8.27\nOptimizations:    1\nAttempting to verify on Sourcify. Pass the --etherscan-api-key <API_KEY> to verify on Etherscan, or use the --verifier flag to verify on another provider.\n\nSubmitting verification for [EswapSettlement] \"0x6F347acB3bD901731e192d482b7a40c50f30FCa1\".\nSubmitted contract for verification:\n\tVerification Job ID: `0decfd88-bbe7-4a90-870b-816230242ebb`\n\tURL: https://sourcify.dev/server/v2/verify/0decfd88-bbe7-4a90-870b-816230242ebb\nContract successfully verified:\nStatus: `exact_match`\nWarning: Verification is still pending...; waiting 15 seconds before trying again (7 tries remaining)"
+    },
+    {
+      "name": "EswapUniswapXSettlement",
+      "address": "0x8cB966a5102444BbeD5A222AcE1b88d0421b0cB2",
+      "verifier": "sourcify",
+      "ok": true,
+      "already": false,
+      "output": "Start verifying contract `0x8cB966a5102444BbeD5A222AcE1b88d0421b0cB2` deployed on base\nEVM version: cancun\nCompiler version: 0.8.27\nOptimizations:    1\nAttempting to verify on Sourcify. Pass the --etherscan-api-key <API_KEY> to verify on Etherscan, or use the --verifier flag to verify on another provider.\n\nSubmitting verification for [EswapUniswapXSettlement] \"0x8cB966a5102444BbeD5A222AcE1b88d0421b0cB2\".\nSubmitted contract for verification:\n\tVerification Job ID: `198b0514-2f74-4140-a7aa-728f251ecba4`\n\tURL: https://sourcify.dev/server/v2/verify/198b0514-2f74-4140-a7aa-728f251ecba4\nContract successfully verified:\nStatus: `exact_match`\nWarning: Verification is still pending...; waiting 15 seconds before trying again (7 tries remaining)"
+    },
+    {
+      "name": "EswapOneInchFusionSettlement",
+      "address": "0x587f01dE3c42eB5E6a9DBA7a3026719F6F95FBbb",
+      "verifier": "sourcify",
+      "ok": true,
+      "already": false,
+      "output": "Start verifying contract `0x587f01dE3c42eB5E6a9DBA7a3026719F6F95FBbb` deployed on base\nEVM version: cancun\nCompiler version: 0.8.27\nOptimizations:    1\nAttempting to verify on Sourcify. Pass the --etherscan-api-key <API_KEY> to verify on Etherscan, or use the --verifier flag to verify on another provider.\n\nSubmitting verification for [EswapOneInchFusionSettlement] \"0x587f01dE3c42eB5E6a9DBA7a3026719F6F95FBbb\".\nSubmitted contract for verification:\n\tVerification Job ID: `568ab856-2f10-4b24-a94a-2b0d196ecbc4`\n\tURL: https://sourcify.dev/server/v2/verify/568ab856-2f10-4b24-a94a-2b0d196ecbc4\nContract successfully verified:\nStatus: `exact_match`\nWarning: Verification is still pending...; waiting 15 seconds before trying again (7 tries remaining)"
+    },
+    {
+      "name": "EswapTimelock",
+      "address": "0x9aA2e9e2FB4cfC71a89F03b88Abf6116d8B1138e",
+      "verifier": "sourcify",
+      "ok": true,
+      "already": false,
+      "output": "Start verifying contract `0x9aA2e9e2FB4cfC71a89F03b88Abf6116d8B1138e` deployed on base\nEVM version: cancun\nCompiler version: 0.8.27\nOptimizations:    1\nAttempting to verify on Sourcify. Pass the --etherscan-api-key <API_KEY> to verify on Etherscan, or use the --verifier flag to verify on another provider.\n\nSubmitting verification for [EswapTimelock] \"0x9aA2e9e2FB4cfC71a89F03b88Abf6116d8B1138e\".\nSubmitted contract for verification:\n\tVerification Job ID: `b841e751-f7b4-492c-904e-282181a6f362`\n\tURL: https://sourcify.dev/server/v2/verify/b841e751-f7b4-492c-904e-282181a6f362\nContract successfully verified:\nStatus: `exact_match`\nWarning: Verification is still pending...; waiting 15 seconds before trying again (7 tries remaining)"
+    },
+    {
+      "name": "EswapTimelock",
+      "address": "0x6793667010815D83C0a60D3F6b7E6f7FEdC7f541",
+      "verifier": "sourcify",
+      "ok": true,
+      "already": false,
+      "output": "Start verifying contract `0x6793667010815D83C0a60D3F6b7E6f7FEdC7f541` deployed on base\nEVM version: cancun\nCompiler version: 0.8.27\nOptimizations:    1\nAttempting to verify on Sourcify. Pass the --etherscan-api-key <API_KEY> to verify on Etherscan, or use the --verifier flag to verify on another provider.\n\nSubmitting verification for [EswapTimelock] \"0x6793667010815D83C0a60D3F6b7E6f7FEdC7f541\".\nSubmitted contract for verification:\n\tVerification Job ID: `77edd676-d4b8-4a5b-92de-6921de575253`\n\tURL: https://sourcify.dev/server/v2/verify/77edd676-d4b8-4a5b-92de-6921de575253\nContract successfully verified:\nStatus: `exact_match`\nWarning: Verification is still pending...; waiting 15 seconds before trying again (7 tries remaining)"
+    }
+  ]
+}

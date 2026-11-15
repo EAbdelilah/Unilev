@@ -108,6 +108,7 @@ contract EswapMainnetEnsoFullCycleForkTest is Test, IUnlockCallback {
     }
 
     function setUp() public {
+        vm.skip(true); // non-Base: protocol targets Base (8453) exclusively
         string memory rpcUrl = vm.envOr("ETH_MAINNET_RPC_URL", string("https://ethereum-rpc.publicnode.com"));
         if (bytes(rpcUrl).length == 0) return;
         // Pin to the block the Enso route was quoted against. Forking at head

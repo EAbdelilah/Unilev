@@ -116,6 +116,7 @@ address constant UNICHAIN_USDC = 0x078D782b760474a361dDA0AF3839290b0EF57AD6;
     address keeper = makeAddr("liqForkKeeper");
 
 function setUp() public {
+        vm.skip(true); // non-Base: protocol targets Base (8453) exclusively
         string[2] memory rpcCandidates;
         rpcCandidates[0] = vm.envOr("UNICHAIN_RPC_URL", string(""));
         rpcCandidates[1] = vm.envOr("ETH_RPC_URL", string(""));

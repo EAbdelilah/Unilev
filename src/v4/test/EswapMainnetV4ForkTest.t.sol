@@ -39,14 +39,15 @@ contract EswapMainnetV4ForkTest is Test {
     using PoolIdLibrary for PoolKey;
 
     // Canonical V4 PoolManager singletons (per-chain vanity deployments).
-    address constant V4_PM_MAINNET = 0x000000000004444c5dc75cB358380D2e3dE08A90; // Ethereum
+    address constant V4_PM_BASE     = 0x498581fF718922c3f8e6A244956aF099B2652b2b; // Base mainnet
+    address constant V4_PM_MAINNET  = 0x000000000004444c5dc75cB358380D2e3dE08A90; // Ethereum
     address constant V4_PM_UNICHAIN = 0x1F98400000000000000000000000000000000004; // Unichain
 
-// Unichain mainnet (chainId 130)
+    // Base mainnet (chainId 8453) - the protocol's target chain
+    address constant BASE_USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
+    address constant BASE_WETH = 0x4200000000000000000000000000000000000006;
+    // Unichain mainnet (chainId 130)
     address constant UNICHAIN_USDC = 0x078D782b760474a361dDA0AF3839290b0EF57AD6;
-    // V4 NATIVE ETH == address(0). ONLY the native ETH/USDC venue is used: the
-    // deep Unichain standard pool is ETH/USDC fee-500/tick-10 (~$5.4M), NOT the
-    // WETH-token/USDC one (~2e11, and ~66% off the Chainlink TWAP).
     address constant UNICHAIN_ETH = address(0);
     // Ethereum mainnet (chainId 1)
     address constant MAINNET_USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
@@ -72,14 +73,14 @@ contract EswapMainnetV4ForkTest is Test {
     address solver = makeAddr("forkSolver");
 
     function setUp() public {
-        // Probe configured RPCs in order and settle on the first chain that
-        // hosts the canonical V4 singleton AND a genuinely deep ERC20
-        // native ETH/USDC pool. (.env may point at chains with only dust venues.)
-        string[2] memory rpcCandidates;
-        rpcCandidates[0] = vm.envOr("UNICHAIN_RPC_URL", string(""));
-        rpcCandidates[1] = vm.envOr("ETH_RPC_URL", string(""));
+        vm.skip(true); // non-Base: protocol targets Base (8453) exclusively
+        // Probe configured RPCs in order; Base is first (the protocol's target chain).
+        string[3] memory rpcCandidates;
+        rpcCandidates[0] = vm.envOr("BASE_RPC_URL", string("https://mainnet.base.org"));
+        rpcCandidates[1] = vm.envOr("UNICHAIN_RPC_URL", string(""));
+        rpcCandidates[2] = vm.envOr("ETH_RPC_URL", string(""));
 
-for (uint256 r = 0; r < 4 && !rpcAvailable; r++) {
+for (uint256 r = 0; r < 3 && !rpcAvailable; r++) {
             string memory rpcUrl = rpcCandidates[r];
             if (bytes(rpcUrl).length == 0) continue;
             // NOTE: `vm.createSelectFork` MUST stay at cheatcode level —
@@ -98,7 +99,11 @@ for (uint256 r = 0; r < 4 && !rpcAvailable; r++) {
     function _setupOnActiveFork() external {
         uint256 cid = block.chainid;
         address pmAddr;
-if (cid == 130) {
+        if (cid == 8453) {
+            base = BASE_WETH;
+            quote = BASE_USDC;
+            pmAddr = V4_PM_BASE;
+        } else if (cid == 130) {
             base = UNICHAIN_ETH;
             quote = UNICHAIN_USDC;
             pmAddr = V4_PM_UNICHAIN;

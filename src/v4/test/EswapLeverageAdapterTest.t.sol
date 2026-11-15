@@ -90,6 +90,13 @@ contract EswapLeverageAdapterTest is BaseV4Test {
         token0.approve(address(router), type(uint256).max);
         vm.stopPrank();
 
+        // [AUDIT F-02] The adapter only lets the recipient (or an executor the
+        // recipient explicitly approved) select the recipient. These tests drive
+        // the adapter as a third-party executor on `user`'s behalf, so `user`
+        // must delegate to the test contract first.
+        vm.prank(user);
+        adapter.setExecutorApproval(address(this), true);
+
         token1.mint(address(hook), 100 ether);
 
         adapter.registerPool(address(token0), address(token1), 3000, key, standardPoolKey);

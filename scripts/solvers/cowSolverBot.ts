@@ -33,6 +33,7 @@
  *   SOLVER_ADDRESS         solver to simulate as in --dry-run (defaults to the key's address)
  *   BASE_RPC_URL           default https://mainnet.base.org
  *   INTENT_FEED_URL        default http://127.0.0.1:8787/intents?status=open
+ *                          hosted relay: https://<dashboard-domain>/api/intents?status=open
  *   POLL_INTERVAL_MS       default 15000 (live loop)
  *   SOLVER_MAX_LEVERAGE    default 5 (the hook's default cap)
  */
@@ -150,9 +151,23 @@ function fmt(v: Verdict): string {
     ].join("  ");
 }
 
+/**
+ * The relay root, derived from the feed URL so one env var configures both
+ * directions. Works for the standalone relay and for the hosted Next.js routes:
+ *   http://127.0.0.1:8787/intents?status=open  ->  http://127.0.0.1:8787
+ *   https://eswap.xyz/api/intents?status=open  ->  https://eswap.xyz/api
+ */
+function relayBase(feedUrl: string): string {
+    const u = new URL(feedUrl);
+    u.pathname = u.pathname.replace(/\/intents\/?$/, "");
+    u.search = "";
+    u.hash = "";
+    return u.toString().replace(/\/$/, "");
+}
+
 /** Reports a settled fill to the relay that issued the intent. Best effort. */
 async function reportFilled(intentId: string, feedUrl: string, txHash: string): Promise<void> {
-    const url = `${new URL(feedUrl).origin}/intents/${intentId}/filled`;
+    const url = `${relayBase(feedUrl)}/intents/${intentId}/filled`;
     const res = await fetch(url, {
         method: "POST",
         headers: { "content-type": "application/json" },

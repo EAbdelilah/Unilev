@@ -1,5 +1,8 @@
 cache/
 out/
+# Deploy-profile artifacts (optimizer_runs = 1). Kept separate so a deploy build
+# never clobbers the test artifacts in out/.
+out-deploy/
 .gas-snapshot
 .vscode/
 .env

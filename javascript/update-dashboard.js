@@ -184,6 +184,18 @@ const envVars = [
     { key: 'SENTRY_DSN', target: 'NEXT_PUBLIC_SENTRY_DSN' },
 ];
 
+// Server-only variables. These are NOT prefixed `NEXT_PUBLIC_`, so Next.js never
+// inlines them into the browser bundle; they are only readable by Route Handlers
+// and other server code. That is what makes it safe to sync a keyed RPC URL here:
+// the intent relay (`dashboard/src/lib/intents.js`) needs a Base endpoint to call
+// `EswapCoWSettlement.verify` / `filledOrders`, and it is server-side by design.
+const serverEnv = [
+    // Read by dashboard/src/lib/intents.js to pick the settlement it verifies against.
+    { key: 'V4_COW_SETTLEMENT_ADDRESS', target: 'V4_COW_SETTLEMENT_ADDRESS' },
+    // Read by getProvider(). Falls back to NEXT_PUBLIC_BASE_RPC_URL when absent.
+    { key: 'BASE_RPC_URL', target: 'BASE_RPC_URL' },
+];
+
 const derivedEnv = [
     {
         target: 'NEXT_PUBLIC_CHAIN_ID',
@@ -226,6 +238,17 @@ envVars.forEach(({ key, target, required }) => {
         return;
     }
     _assertPublishable(value, target);
+    lines.push(`${target}=${value}`);
+});
+
+serverEnv.forEach(({ key, target }) => {
+    const value = process.env[key];
+    if (!value) {
+        console.warn(`  ⚠️  ${key} not set, skipping server-only ${target}`);
+        return;
+    }
+    // No `_assertPublishable` here: these values never reach the browser. The
+    // guard exists to stop credentials landing in NEXT_PUBLIC_* only.
     lines.push(`${target}=${value}`);
 });
 

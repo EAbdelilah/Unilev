@@ -1,0 +1,92 @@
+{
+  "chainId": 8453,
+  "rpc": "https://base-mainnet.g.alchemy.com/v2/***",
+  "block": 57749122,
+  "router": "0x5b226aE5158de86f1E616875dBab886870B9aAd9",
+  "hook": "0x7b3F232BB5a0346fADb8B92B31B3e7bC60bD90c8",
+  "poolId": "0x48ccea22cd56a363882769b3f3b8f056a91df05c17cd96c4429b62767ff8ade3",
+  "standardPoolId": "0x90333bb05c258fe0dddb2840ef66f1a05165aa7dac6815d24e807cc6ebd943a0",
+  "leverage": 2,
+  "margin": "94",
+  "marginUsdc": "0.000094",
+  "borrow": "94",
+  "borrowUsdc": "0.000094",
+  "notionalUsdc": "0.000188",
+  "wallets": {
+    "trader": "0x518634753C61342298c3E04326056b3Ce596a566",
+    "solver": "0x3fc88b834aC96Fa4c65913a6D3d5523418f7F037",
+    "relayer": "0x518634753C61342298c3E04326056b3Ce596a566"
+  },
+  "balances": {
+    "traderUsdc": "0.000094",
+    "solverUsdc": "0.004",
+    "solverEscrowUsdc": "0.0",
+    "traderEth": "0.000087447122577401",
+    "solverEth": "0.000013271554065142",
+    "relayerEth": "0.000087447122577401"
+  },
+  "shortfall": [],
+  "fillId": "0x9670bb938677efcac1f7a9441c4c7a86600bd9e58f0eeb6374b899bf431a404c",
+  "deadline": 1794742000,
+  "approvals": {
+    "trader": false,
+    "solver": true
+  },
+  "simulation": {
+    "ok": true,
+    "raw": "0x000000000000000000000017ccf2bad7ffffffffffffffffffffffffffffff44",
+    "afterApprovals": true
+  },
+  "steps": [
+    {
+      "step": "approve-solver",
+      "tx": "0x0dd01d5fabcb0197426438221012c65a8d8fd6e08014a670ba9913fdac393c09",
+      "status": 1,
+      "block": 57749127,
+      "gasUsed": "55785"
+    },
+    {
+      "step": "escrow-deposit",
+      "tx": "0xb487fb4f6a2c54e0ad51d3f360f6a6e495da39494a2fadcd36154c165ebd257c",
+      "status": 1,
+      "block": 57749150,
+      "gasUsed": "96003",
+      "amount": "94"
+    },
+    {
+      "step": "open",
+      "tx": "0x6b64a069f5e8f726112cd9b3da071c51d49a8c6a125414c5ca316d8fdc41e38a",
+      "url": "https://basescan.org/tx/0x6b64a069f5e8f726112cd9b3da071c51d49a8c6a125414c5ca316d8fdc41e38a",
+      "status": 1,
+      "block": 57749173,
+      "gasUsed": "1328915",
+      "fillId": "0x9670bb938677efcac1f7a9441c4c7a86600bd9e58f0eeb6374b899bf431a404c",
+      "position": {
+        "trader": "0x518634753C61342298c3E04326056b3Ce596a566",
+        "collateral": "102120484708",
+        "borrowed": "94",
+        "leverage": 2,
+        "isLong": true
+      }
+    },
+    {
+      "step": "close",
+      "tx": "0x0abfa784c76bf239ee4d8ef7d681a2ffdde34487ac4e089a60d1e2bcccf89372",
+      "url": "https://basescan.org/tx/0x0abfa784c76bf239ee4d8ef7d681a2ffdde34487ac4e089a60d1e2bcccf89372",
+      "status": 1,
+      "block": 57749196,
+      "gasUsed": "437286",
+      "positionAfter": {
+        "collateral": "0",
+        "borrowed": "0"
+      },
+      "traderUsdc": {
+        "before": "0.0",
+        "after": "0.000092"
+      }
+    }
+  ],
+  "finishedAt": "2026-11-15T10:56:58.815Z",
+  "result": "filled-and-closed",
+  "proofFile": "scripts\\v4\\live\\proofs\\first-live-fill-8453-1794740218817.json"
+}

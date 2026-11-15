@@ -1442,6 +1442,9 @@ three phases by `scripts/v4/RedeployBaseFull.s.sol`.
 | `EswapCoWSettlement` | `0x7341859C0D7e039118b3f85F341583EBCDB8c960` | 9,115 B |
 | `EswapTimelock` (hook) | `0x9aA2e9e2FB4cfC71a89F03b88Abf6116d8B1138e` | 1,865 B — deploy tx `0xa95659aa…66b54` |
 | `EswapTimelock` (router) | `0x6793667010815D83C0a60D3F6b7E6f7FEdC7f541` | 1,865 B — deploy tx `0x33261b03…ebd9cd` |
+| `EswapSettlement` | `0x6F347acB3bD901731e192d482b7a40c50f30FCa1` | 6,292 B |
+| `EswapUniswapXSettlement` | `0x8cB966a5102444BbeD5A222AcE1b88d0421b0cB2` | 5,495 B |
+| `EswapOneInchFusionSettlement` | `0x587f01dE3c42eB5E6a9DBA7a3026719F6F95FBbb` | 3,723 B |
 
 Governance (added 2026-11-12, `scripts/v4/DeployTimelock.s.sol`): both timelocks
 have `admin` = the deployer EOA, `delay` = 48 h, `GRACE_PERIOD` = 14 d. The hook
@@ -1450,9 +1453,18 @@ The router is `Ownable2Step`, so its accept is queued and executes at
 `ROUTER_ACCEPT_ETA = 1794697115`. Until it runs, `router.owner()` is still the EOA
 and `router.pendingOwner()` is the router timelock. Check with
 `node scripts/v4/live/verify-timelock.cjs`.
-| `EswapSettlement` | `0x6F347acB3bD901731e192d482b7a40c50f30FCa1` | 6,292 B |
-| `EswapUniswapXSettlement` | `0x8cB966a5102444BbeD5A222AcE1b88d0421b0cB2` | 5,495 B |
-| `EswapOneInchFusionSettlement` | `0x587f01dE3c42eB5E6a9DBA7a3026719F6F95FBbb` | 3,723 B |
+
+Live state read back on 2026-11-14 (`cast call` against `mainnet.base.org`):
+
+| Read | Value |
+|---|---|
+| `hook.owner()` | `0x9aA2e9e2FB4cfC71a89F03b88Abf6116d8B1138e` (hook timelock) ✅ |
+| `hook.router()` | `0x5b226aE5158de86f1E616875dBab886870B9aAd9` ✅ |
+| `hook.isAuthorizedPool(0x48ccea22…)` | `true` ✅ |
+| `router.owner()` | `0x518634753C61342298c3E04326056b3Ce596a566` (EOA — accept not yet executed) |
+| `router.pendingOwner()` | `0x6793667010815D83C0a60D3F6b7E6f7FEdC7f541` (router timelock) |
+| router timelock `queued(acceptOwnership, eta 1794697115)` | `true` |
+| router timelock `delay()` | `172800` (48 h) |
 
 Hook pool id `0x48ccea22cd56a363882769b3f3b8f056a91df05c17cd96c4429b62767ff8ade3`
 (WETH/USDC, fee 3000, tickSpacing 60, hooks = the new hook). CREATE2 salt
@@ -1499,3 +1511,74 @@ overrides) and still clamps to both caps.
 
 The verifier suites are already re-pointed at the new addresses through
 `scripts/v4/live/common.cjs` (env-driven); they need fresh hashes to consume.
+
+### 19.5 Router timelock accept — EXECUTED
+
+The router handover is a three-step `Ownable2Step` flow and all three steps are done:
+
+1. `transferOwnership(routerTimelock)` — executed, so `pendingOwner` was the timelock.
+2. `EswapTimelock.queue(router, acceptOwnership(), eta)` — executed; `isQueued(getTxHash(router, 0x79ba5097, 1794697115))` → `true`
+   (txHash `0x8709db0d2be976966af78ce57c4e0e2a7af13259f742068094c0db1cac77e013`).
+3. `execute(router, acceptOwnership(), eta)` — **executed 2026-11-15** at
+   `block.timestamp` 1794739453 (eta 1794697115, ~11.8 h after the delay elapsed):
+   tx [`0x9354eed00a952fdb9c648fec29b6cba6fcd28c47e0602afaed589094d63f5961`](https://basescan.org/tx/0x9354eed00a952fdb9c648fec29b6cba6fcd28c47e0602afaed589094d63f5961)
+   (block 57745391, gas 36,119). The `OwnershipTransferred` log moves the router
+   from the deployer EOA to the router timelock.
+
+Read back after the tx:
+
+```
+router.owner()        = 0x6793667010815D83C0a60D3F6b7E6f7FEdC7f541  (router timelock)
+router.pendingOwner() = 0x0000000000000000000000000000000000000000
+hook.owner()          = 0x9aA2e9e2FB4cfC71a89F03b88Abf6116d8B1138e  (hook timelock)
+```
+
+Both the hook and the router are now owned by 48-hour timelocks whose only
+privileged account is the `admin` EOA. `forge script` could not be used for this
+step: the deploy profile build is 45–60 min under `--via-ir`, and the script body
+is a single `EswapTimelock.execute` call, so the equivalent `cast send` was used
+(`execute(address,bytes,uint256)` with `0x79ba5097`).
+
+### 19.6 Live fill — EXECUTED (see the block below)
+
+The 2026-11-14 blocker was funding: the deployer EOA held 0.000100 ETH and
+0.000094 USDC, and the original drivers wanted ≈0.0003 ETH and ≈0.053 USDC.
+
+That estimate assumed a 5 USDC margin. It is not the minimum: the hook's
+`minCollateralUsd` is `1e12` (1e-6 USD at 18 dp), so a 94-base-unit (0.000094
+USDC) margin clears the floor by ~94x. The fill was therefore run with the funds
+already on hand:
+
+- the deployer acted as both trader and relayer (it pays the open/close gas);
+- 0.000012 ETH was moved from the deployer to the solver so the solver could
+  `approve` + `depositBorrowEscrow` for the borrow leg;
+- the solver's 0.004 USDC covered the 0.000094 USDC borrow bond.
+
+Total cost of the proof: ~0.000023 ETH of gas plus 0.000002 USDC of pool fee.
+No new external funding was required. A larger, revenue-meaningful fill is now a
+single command (`--margin 5` with ~5 USDC in the trader wallet); the driver
+prints the exact shortfall if the wallet cannot cover it.
+
+<!-- LIVE_FILL_PROOF:START -->
+### First live fill — Base mainnet
+
+Recorded 2026-11-15T10:56:58.815Z. Opened and closed one 2x long on the live
+WETH/USDC hook pool, relayed through the permissionless `EswapRouter.swapWithIntent`.
+
+| Field | Value |
+| --- | --- |
+| Router | `0x5b226aE5158de86f1E616875dBab886870B9aAd9` |
+| Hook | `0x7b3F232BB5a0346fADb8B92B31B3e7bC60bD90c8` |
+| Pool id | `0x48ccea22cd56a363882769b3f3b8f056a91df05c17cd96c4429b62767ff8ade3` |
+| Trader | `0x518634753C61342298c3E04326056b3Ce596a566` |
+| Solver (relayer) | `0x3fc88b834aC96Fa4c65913a6D3d5523418f7F037` |
+| Margin | 0.000094 USDC |
+| Borrow | 0.000094 USDC |
+| Notional | 0.000188 USDC @ 2x |
+| Intent fill id | `0x9670bb938677efcac1f7a9441c4c7a86600bd9e58f0eeb6374b899bf431a404c` |
+| Open tx | [`0x6b64a069f5e8f726112cd9b3da071c51d49a8c6a125414c5ca316d8fdc41e38a`](https://basescan.org/tx/0x6b64a069f5e8f726112cd9b3da071c51d49a8c6a125414c5ca316d8fdc41e38a) (block 57749173, gas 1328915) |
+| Close tx | [`0x0abfa784c76bf239ee4d8ef7d681a2ffdde34487ac4e089a60d1e2bcccf89372`](https://basescan.org/tx/0x0abfa784c76bf239ee4d8ef7d681a2ffdde34487ac4e089a60d1e2bcccf89372) (block 57749196, gas 437286) |
+| Position after close | collateral 0, borrowed 0 |
+
+Proof JSON: `scripts/v4/live/proofs/first-live-fill-8453-1794740218817.json`
+<!-- LIVE_FILL_PROOF:END -->

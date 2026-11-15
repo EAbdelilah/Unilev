@@ -23,6 +23,12 @@ fs_permissions = [
 # headroom under EIP-170, at the cost of slightly higher runtime gas.
 [profile.deploy]
 optimizer_runs = 1
+# Separate artifact directory: the live Base stack was deployed from this
+# profile, and source verification must submit THESE artifacts, not the
+# runs=200 ones the test suite uses. Keeping them apart means `forge test`
+# and `forge verify-contract --compilation-profile deploy` never clobber
+# each other.
+out = 'out-deploy'
 skip = ["test/**", "src/v4/test/**"]
 
 # Named endpoints so deployment scripts can be run as
@@ -32,4 +38,5 @@ skip = ["test/**", "src/v4/test/**"]
 # NOTE: this table must stay LAST; a TOML table header swallows every key that
 # follows it, so placing it earlier silently reparents `fs_permissions`.
 [rpc_endpoints]
+base     = "${BASE_RPC_URL}"
 unichain = "${UNICHAIN_RPC_URL}"

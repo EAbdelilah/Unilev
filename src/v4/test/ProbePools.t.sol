@@ -20,6 +20,7 @@ contract ProbePools is Test {
     address constant HOOK = 0x4bd2C1e73d150b65EF88DBa247Ed60A1538310c8;
 
     function setUp() public {
+        vm.skip(true); // non-Base: protocol targets Base (8453) exclusively
         vm.createSelectFork(vm.envOr("UNICHAIN_RPC_URL", string("https://unichain-rpc.publicnode.com")));
     }
 

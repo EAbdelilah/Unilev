@@ -11,6 +11,7 @@ contract ProbeIds is Test {
     IPoolManager constant PM = IPoolManager(0x1F98400000000000000000000000000000000004);
 
     function test_ProbeIds() public {
+        vm.skip(true); // non-Base: protocol targets Base (8453) exclusively
         vm.createSelectFork(vm.envOr("UNICHAIN_RPC_URL", string("https://unichain-rpc.publicnode.com")));
         bytes32[3] memory ids = [
             bytes32(0x9bdd72519ad7e2b5f0d5441d7af389771cc04a8406cd577fac0c68a8b6b396bd),

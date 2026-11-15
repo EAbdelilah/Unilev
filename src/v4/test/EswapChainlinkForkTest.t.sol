@@ -111,6 +111,7 @@ contract EswapChainlinkForkTest is Test {
     // ─── helpers ─────────────────────────────────────────────────────────────
 
     function setUp() public {
+        vm.skip(true); // non-Base: protocol targets Base (8453) exclusively
         string[2] memory rpcCandidates;
         rpcCandidates[0] = vm.envOr("UNICHAIN_RPC_URL", string(""));
         rpcCandidates[1] = vm.envOr("ETH_RPC_URL", string(""));

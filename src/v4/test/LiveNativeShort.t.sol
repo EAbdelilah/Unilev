@@ -31,6 +31,7 @@ contract LiveNativeShort is Test {
     address trader;
 
     function setUp() public {
+        vm.skip(true); // non-Base: protocol targets Base (8453) exclusively
         vm.createSelectFork(vm.envOr("UNICHAIN_RPC_URL", string("https://unichain-rpc.publicnode.com")));
         trader = makeAddr("trader");
         nativeHookKey = PoolKey(Currency.wrap(ETH), Currency.wrap(USDC), 3000, 60, LIVE_HOOK);

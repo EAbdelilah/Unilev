@@ -43,6 +43,7 @@ contract LiveShortSimTest is Test {
     PoolId nativePoolId = nativeHookKey.toId();
 
     function setUp() public {
+        vm.skip(true); // non-Base: protocol targets Base (8453) exclusively
         vm.createSelectFork(vm.envOr("UNICHAIN_RPC_URL", string("https://unichain-rpc.publicnode.com")));
 
         // Sanity: the live 0x4bd2 hook is wired to the real live ETH/USDC oracle

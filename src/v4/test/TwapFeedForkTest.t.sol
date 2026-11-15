@@ -34,6 +34,7 @@ contract TwapFeedForkTest is Test {
     UsdcTwapFeed usdcFeed;
 
     function setUp() public {
+        vm.skip(true); // non-Base: protocol targets Base (8453) exclusively
         string memory rpcUrl = vm.envOr("UNICHAIN_RPC_URL", string(""));
         if (bytes(rpcUrl).length == 0) {
             rpcAvailable = false;

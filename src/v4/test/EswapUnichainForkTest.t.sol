@@ -40,6 +40,7 @@ contract EswapUnichainForkTest is Test {
     bool rpcAvailable;
 
     function setUp() public {
+        vm.skip(true); // non-Base: protocol targets Base (8453) exclusively
         // Create Unichain Fork only if an explicit UNICHAIN_RPC_URL is specified (to bypass rate limit errors on mock endpoints)
         string memory rpcUrl = vm.envOr("UNICHAIN_RPC_URL", string(""));
         if (bytes(rpcUrl).length == 0) {

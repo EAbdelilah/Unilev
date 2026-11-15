@@ -72,8 +72,10 @@ contract EswapV4CoreProofTest is BaseV4Test {
         deployCodeTo("EswapMarginHook.sol:EswapMarginHook", abi.encode(address(realManager), address(priceFeed), _hookLogic, _hookLogic2, address(this)), realHookAddr);
         realHook = EswapMarginHook(payable(realHookAddr));
         realHook.setRouterAndMinCollateralUsd(address(this), 0);
-        // Note: RealPoolId must be cast to the local mock PoolId type to call the hook's setAuthorizedPool
-        EswapMarginHookLogic(payable(address(hook))).setAuthorizedPool(_localIdFor(realHookAddr), true);
+        // Note: RealPoolId must be cast to the local mock PoolId type to call the hook's setAuthorizedPool.
+        // This must target `realHook` — authorizing the mock `hook` leaves the real-PM pool
+        // unauthorized and every real-PM test reverts NotAuthorizedPool().
+        EswapMarginHookLogic(payable(address(realHook))).setAuthorizedPool(_localIdFor(realHookAddr), true);
 
         realKey = RealPoolKey({
             currency0: RealCurrency.wrap(address(token0)),

@@ -14,19 +14,19 @@ import {PriceFeedMock} from "./BaseV4Test.t.sol";
 import {PoolManagerMock} from "./mocks/PoolManagerMock.sol";
 import {EswapHookDeployLib} from "./EswapHookDeployLib.sol";
 
-/// @title Probes the $0.01 margin boundary on a real Unichain MAINNET fork.
+/// @title Probes the $0.01 margin boundary on a real Base MAINNET fork.
 /// @notice Answers one question empirically: with a $0.01 USD floor configured,
 ///         does a $0.01 margin clear the gate, and does $0.0001 revert?
 ///
-/// @dev FORK TEST. Nothing is broadcast, no funds move. Real Unichain USDC/WETH
+/// @dev FORK TEST. Nothing is broadcast, no funds move. Real Base USDC/WETH
 ///      (6 and 18 decimals, read on-chain) back the arithmetic; the pool manager
 ///      and oracle are mocks because no v4 stack is deployed on mainnet.
 contract EswapMainnetOneCentMarginForkTest is Test {
     using PoolIdLibrary for PoolKey;
 
-    // Unichain mainnet, verified live.
-    address constant UNICHAIN_WETH = 0x4200000000000000000000000000000000000006;
-    address constant UNICHAIN_USDC = 0x078D782b760474a361dDA0AF3839290b0EF57AD6;
+    // Base mainnet (chain 8453) — the protocol's target chain.
+    address constant BASE_WETH = 0x4200000000000000000000000000000000000006;
+    address constant BASE_USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
 
     // $0.01 margin in raw 6-decimal USDC units.
     uint256 constant ONE_CENT = 10_000;
@@ -38,33 +38,33 @@ contract EswapMainnetOneCentMarginForkTest is Test {
     PriceFeedMock priceFeed;
     PoolKey key;
 
-    IERC20 usdc = IERC20(UNICHAIN_USDC);
+    IERC20 usdc = IERC20(BASE_USDC);
     address trader = address(0xC0FFEE);
     address router = address(0x5678);
 
     bool rpcAvailable;
 
     function setUp() public {
-        string memory rpcUrl = vm.envOr("UNICHAIN_RPC_URL", string(""));
-        if (bytes(rpcUrl).length == 0) {
+        string memory rpcUrl = vm.envOr("BASE_RPC_URL", string("https://mainnet.base.org"));
+        vm.createSelectFork(rpcUrl);
+        if (block.chainid != 8453) {
             rpcAvailable = false;
+            vm.skip(true);
             return;
         }
         rpcAvailable = true;
-        vm.createSelectFork(rpcUrl);
-        require(block.chainid == 130, "not Unichain mainnet");
-        require(UNICHAIN_USDC.code.length > 0, "no real USDC");
-        require(UNICHAIN_WETH.code.length > 0, "no real WETH");
+        require(BASE_USDC.code.length > 0, "no real USDC");
+        require(BASE_WETH.code.length > 0, "no real WETH");
 
         manager = new PoolManagerMock();
         priceFeed = new PriceFeedMock();
-        priceFeed.setPrice(UNICHAIN_WETH, 3000e18);
+        priceFeed.setPrice(BASE_WETH, 3000e18);
         // PriceFeedMock.getAmountInUsd is (amount * price) / 1e18, i.e. it treats
         // `amount` as 18-decimal and performs NO decimals normalization. The real
         // Chainlink path does normalize. To make the mock value a 6-decimal USDC
         // amount the way the real oracle would, the price must be quoted per raw
         // unit: $1 == 1e18 scaled by 10^(18-6) == 1e30.
-        priceFeed.setPrice(UNICHAIN_USDC, 1e30);
+        priceFeed.setPrice(BASE_USDC, 1e30);
 
         address hookAddress = address(uint160((1 << 159) | (1 << 158) | (1 << 153) | (1 << 152) | (1 << 148)));
         (address _hookLogic, address _hookLogic2) = EswapHookDeployLib.deployLogic(address(manager), address(priceFeed));
@@ -77,7 +77,7 @@ contract EswapMainnetOneCentMarginForkTest is Test {
         hook.setRouterAndMinCollateralUsd(router, 0.01 ether);
 
         (address token0, address token1) =
-            UNICHAIN_WETH < UNICHAIN_USDC ? (UNICHAIN_WETH, UNICHAIN_USDC) : (UNICHAIN_USDC, UNICHAIN_WETH);
+            BASE_WETH < BASE_USDC ? (BASE_WETH, BASE_USDC) : (BASE_USDC, BASE_WETH);
 
         key = PoolKey({
             currency0: Currency.wrap(token0),
@@ -88,14 +88,20 @@ contract EswapMainnetOneCentMarginForkTest is Test {
         });
 
         EswapMarginHookLogic(payable(address(hook))).setAuthorizedPool(key.toId(), true);
-        EswapMarginHookLogic(payable(address(hook))).setBaseCurrency(key.toId(), Currency.wrap(UNICHAIN_WETH));
-        EswapMarginHookLogic(payable(address(hook))).setTokenDecimals(UNICHAIN_WETH, 18);
-        EswapMarginHookLogic(payable(address(hook))).setTokenDecimals(UNICHAIN_USDC, 6);
+        EswapMarginHookLogic(payable(address(hook))).setBaseCurrency(key.toId(), Currency.wrap(BASE_WETH));
+        EswapMarginHookLogic(payable(address(hook))).setTokenDecimals(BASE_WETH, 18);
+        EswapMarginHookLogic(payable(address(hook))).setTokenDecimals(BASE_USDC, 6);
 
-        manager.setSlot0(key.toId(), 1446501726624926496477173928747177, 0); // 3000 USDC/WETH, USDC=currency0
+        // 3000 USDC/WETH. sqrtPriceX96 is orientation-dependent: on Base WETH
+        // (0x4200…0006) sorts BELOW USDC (0x8335…2913), so WETH is currency0 and
+        // the price is the reciprocal of the USDC-as-currency0 encoding.
+        uint160 sqrtPriceX96 = Currency.unwrap(key.currency0) == BASE_USDC
+            ? uint160(1446501726624926496477173928747177)
+            : uint160(4339505179874779489431521);
+        manager.setSlot0(key.toId(), sqrtPriceX96, 0);
 
-        deal(UNICHAIN_USDC, trader, 1_000_000); // 1e6 raw = $1, plenty
-        deal(UNICHAIN_WETH, trader, 1 ether);
+        deal(BASE_USDC, trader, 1_000_000); // 1e6 raw = $1, plenty
+        deal(BASE_WETH, trader, 1 ether);
         vm.prank(trader);
         usdc.approve(address(hook), type(uint256).max);
 
@@ -106,7 +112,7 @@ contract EswapMainnetOneCentMarginForkTest is Test {
     ///      afterSwap leg the position read back is all zeros, which looks
     ///      identical to "no position" and silently invalidates assertions.
     function _openPosition(uint256 marginRaw) internal {
-        bool zeroForOne = Currency.unwrap(key.currency0) == UNICHAIN_USDC;
+        bool zeroForOne = Currency.unwrap(key.currency0) == BASE_USDC;
         bytes memory hookData = abi.encode(true, uint8(1), trader);
 
         // 3000 USDC/WETH, decimals-aware: $margin buys margin/3000 WETH.
@@ -141,7 +147,7 @@ contract EswapMainnetOneCentMarginForkTest is Test {
         // wei, less the pool fee. Value it back to 18-decimal USD and require
         // ~one cent (0.01e18), NOT the 6-decimal raw amount.
         (Currency collateralCcy,) = hook.positionCurrencies(key, trader);
-        assertEq(Currency.unwrap(collateralCcy), UNICHAIN_WETH, "collateral must be WETH");
+        assertEq(Currency.unwrap(collateralCcy), BASE_WETH, "collateral must be WETH");
         assertGt(collateral, 0, "position has no collateral");
         uint256 collateralUsd = (collateral * 3000e18) / 1e18;
         assertApproxEqRel(collateralUsd, 0.01 ether, 0.01e18, "collateral must be worth ~$0.01");
@@ -151,7 +157,7 @@ contract EswapMainnetOneCentMarginForkTest is Test {
     function test_OneThousandthCent_Reverts() public {
         if (!rpcAvailable) { vm.skip(true); return; }
 
-        bool zeroForOne = Currency.unwrap(key.currency0) == UNICHAIN_USDC;
+        bool zeroForOne = Currency.unwrap(key.currency0) == BASE_USDC;
         bytes memory hookData = abi.encode(true, uint8(1), trader);
 
         vm.prank(address(manager));
@@ -183,7 +189,7 @@ contract EswapMainnetOneCentMarginForkTest is Test {
         if (!rpcAvailable) { vm.skip(true); return; }
 
         hook.setRouterAndMinCollateralUsd(router, 0);
-        bool zeroForOne = Currency.unwrap(key.currency0) == UNICHAIN_USDC;
+        bool zeroForOne = Currency.unwrap(key.currency0) == BASE_USDC;
         bytes memory hookData = abi.encode(true, uint8(1), trader);
 
         // 9_999 raw is $0.009999: one wei-unit below the 10_000 boundary.

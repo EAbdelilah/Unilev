@@ -117,15 +117,16 @@ contract FeedStub is IPriceFeed {
 }
 
 /// @notice Fork verification of I3 (PoolManager delta accounting) and I6/JIT
-///         behavior against the REAL Unichain PoolManager. Requires
-///         UNICHAIN_RPC_URL; skipped otherwise. Uses real USDC/WETH (no mock
+///         behavior against the REAL Base PoolManager. Requires
+///         BASE_RPC_URL; skipped otherwise. Uses real USDC/WETH (no mock
 ///         ERC-20s, per AGENTS.md).
 contract EswapForkVerificationTest is Test {
     using PoolIdLibrary for LocalKey;
 
-    address constant UNICHAIN_PM = 0x1F98400000000000000000000000000000000004;
-    address constant USDC = 0x078D782b760474a361dDA0AF3839290b0EF57AD6;
-    address constant WETH = 0x4200000000000000000000000000000000000006;
+    // Base mainnet (chain 8453) — the protocol's target chain.
+    address constant BASE_PM   = 0x498581fF718922c3f8e6A244956aF099B2652b2b;
+    address constant USDC      = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
+    address constant WETH      = 0x4200000000000000000000000000000000000006;
     uint160 constant SQRT_PRICE_1_1 = 79228162514264337593543950336;
 
     RealPM pm;
@@ -137,34 +138,41 @@ contract EswapForkVerificationTest is Test {
     RealKey key;
     PoolId poolId;
 
+    // Live Nov-11 Base deployment (chain 8453).
+    address constant LIVE_HOOK = 0x7b3F232BB5a0346fADb8B92B31B3e7bC60bD90c8;
+    address constant LIVE_ROUTER = 0x5b226aE5158de86f1E616875dBab886870B9aAd9;
+    address constant HOOK_TIMELOCK = 0x9aA2e9e2FB4cfC71a89F03b88Abf6116d8B1138e;
+    // keccak256(abi.encodePacked(WETH, USDC, uint24(3000), int24(60), liveHook))
+    bytes32 constant LIVE_POOL_ID = 0x48ccea22cd56a363882769b3f3b8f056a91df05c17cd96c4429b62767ff8ade3;
+
     address swapper = address(0xAAAA);
     address solver = address(0xBBBB);
 
     function setUp() public {
-        string memory rpc = vm.envOr("UNICHAIN_RPC_URL", string(""));
-        if (bytes(rpc).length == 0) vm.skip(true);
+        string memory rpc = vm.envOr("BASE_RPC_URL", string("https://mainnet.base.org"));
         vm.createSelectFork(rpc);
+        if (block.chainid != 8453) vm.skip(true);
 
-        pm = RealPM(UNICHAIN_PM);
+        pm = RealPM(BASE_PM);
         FeedStub feed = new FeedStub();
         // High bits: repo HookFlags (checked by the hook constructor). Low 14 bits:
         // the real v4 PoolManager permission mask, matching scripts/v4/DeployBase._flags.
         address hookAddr = address(uint160((1 << 159) | (1 << 158) | (1 << 153) | (1 << 152) | (1 << 148) | 0x10C8));
-        (hook,,) = EswapHookDeployLib.deployHookAt(vm, UNICHAIN_PM, address(feed), address(this), hookAddr);
+        (hook,,) = EswapHookDeployLib.deployHookAt(vm, BASE_PM, address(feed), address(this), hookAddr);
 
         EswapMarginHookLogic(payable(address(hook))).setTokenDecimals(USDC, 6);
         EswapMarginHookLogic(payable(address(hook))).setTokenDecimals(WETH, 18);
 
-        router = new EswapRouter(LocalPM(UNICHAIN_PM));
-        ext = new EswapRouterExt(LocalPM(UNICHAIN_PM), address(router));
+        router = new EswapRouter(LocalPM(BASE_PM));
+        ext = new EswapRouterExt(LocalPM(BASE_PM), address(router));
         router.setRouterExt(address(ext));
         hook.setRouterAndMinCollateralUsd(address(router), 0);
         router.setSolverWhitelist(solver, true);
         ext.setJitApprovedSwapper(swapper, true);
 
         lkey = LocalKey({
-            currency0: LocalCurrency.wrap(USDC),
-            currency1: LocalCurrency.wrap(WETH),
+            currency0: LocalCurrency.wrap(WETH),
+            currency1: LocalCurrency.wrap(USDC),
             fee: 3000,
             tickSpacing: 60,
             hooks: address(hook)
@@ -172,9 +180,10 @@ contract EswapForkVerificationTest is Test {
         poolId = lkey.toId();
         EswapMarginHookLogic(payable(address(hook))).setAuthorizedPool(poolId, true);
 
+        // On Base: WETH (0x4200…06) < USDC (0x8335…13) by address → WETH=currency0.
         key = RealKey({
-            currency0: RealCurrency.wrap(USDC),
-            currency1: RealCurrency.wrap(WETH),
+            currency0: RealCurrency.wrap(WETH),
+            currency1: RealCurrency.wrap(USDC),
             fee: 3000,
             tickSpacing: 60,
             hooks: IHooks(address(hook))
@@ -205,6 +214,17 @@ contract EswapForkVerificationTest is Test {
 
     function _marginData(uint8 lev) internal view returns (bytes memory) {
         return abi.encode(true, lev, address(locker));
+    }
+
+    /// @notice The live Nov-11 Base deployment must still be governed by the
+    ///         hook timelock, bound to the live router, and authorized for the
+    ///         WETH/USDC pool this suite exercises. Read-only: proves the stack
+    ///         under test is the stack that is live.
+    function test_LiveStack_GovernanceAndPoolWiring() public {
+        EswapMarginHook live = EswapMarginHook(payable(LIVE_HOOK));
+        assertEq(live.owner(), HOOK_TIMELOCK, "live hook owner must be the timelock");
+        assertEq(live.router(), LIVE_ROUTER, "live hook router must be the live router");
+        assertTrue(live.isAuthorizedPool(PoolId.wrap(LIVE_POOL_ID)), "live hook must authorize WETH/USDC");
     }
 
     /// @notice I3 negative: a margin open whose hook-side borrow delta is never

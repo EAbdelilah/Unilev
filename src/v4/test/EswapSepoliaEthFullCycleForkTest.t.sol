@@ -112,6 +112,7 @@ contract EswapSepoliaEthFullCycleForkTest is Test, IUnlockCallback {
     }
 
     function setUp() public {
+        vm.skip(true); // non-Base: protocol targets Base (8453) exclusively
         string memory rpcUrl = vm.envOr("ETH_SEPOLIA_RPC_URL", string(""));
         if (bytes(rpcUrl).length == 0) return;
         vm.createSelectFork(rpcUrl);
