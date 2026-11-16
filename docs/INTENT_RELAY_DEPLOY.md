@@ -106,7 +106,33 @@ node node_modules/tsx/dist/cli.mjs scripts/solvers/cowSolverBot.ts --dry-run
 The bot verifies each signature on chain, rejects unfunded/unapproved orders,
 prints the escrow bond it must post, and only sends in live mode.
 
-## 7. What is still missing
+## 7. GitHub Actions deploy (dashboard)
+
+The repository includes `.github/workflows/deploy-dashboard.yml`, which runs on
+pushes to `main` (and manual dispatch):
+
+1. Installs deps in `dashboard/` (`npm ci`)
+2. Runs the pre-deploy check: `npm test -- --no-coverage` (Jest)
+3. Builds the dashboard (`npm run build`)
+4. Deploys to Vercel (production) via the Vercel CLI action
+
+### Required GitHub Secrets (set in repo Settings → Secrets and variables → Actions)
+
+| Secret | Required | Notes |
+|---|---|---|
+| `VERCEL_TOKEN` | yes | Vercel personal/access token with permission to deploy the project |
+| `VERCEL_ORG_ID` | yes | Vercel org/team ID (from Vercel project settings) |
+| `VERCEL_PROJECT_ID` | yes | Vercel project ID for the `dashboard/` app |
+
+Optional repository variables (Settings → Variables): `NEXT_PUBLIC_CHAIN_ID`
+(defaults to `8453` in the workflow). All other `NEXT_PUBLIC_*` values should be
+baked consistently via your normal config sync (`node javascript/update-dashboard.js`)
+and/or set in Vercel project env vars for production.
+
+Netlify is also supported by manual/host setup (`dashboard/netlify.toml`); the
+GitHub Actions workflow above targets Vercel using the three secrets listed.
+
+## 8. What is still missing
 
 * No public host is deployed from this repository yet; the steps above are the
   deployment path, not a completed deployment.
