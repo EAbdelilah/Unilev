@@ -11,6 +11,7 @@ contract LiquidityPoolTest is TestSetup {
     IERC20 public asset;
 
     function setUp() public override {
+        vm.skip(true, "retired V3 (Polygon) harness; V4 coverage lives in src/v4/test");
         super.setUp();
         pool = LiquidityPool(liquidityPoolFactory.getTokenToLiquidityPools(conf.supportedTokens[0].token));
         asset = IERC20(conf.supportedTokens[0].token);

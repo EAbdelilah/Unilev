@@ -53,8 +53,11 @@ contract EswapInsuranceStressTest is BaseV4Test {
     function _openShort(address t, uint256 margin, uint8 L) internal returns (uint256 collateral, uint256 borrow) {
         uint256 bought = (margin * L * 96) / 100;
         bytes memory data = abi.encode(true, L, t);
+        address r = hook.router();
         vm.prank(address(manager));
-        hook.beforeSwap(t, key, IPoolManager.SwapParams(true, -int256(margin), 0), data);
+        // `sender` must be the hook's router (PoolManager's caller); the trader
+        // under test travels in hookData.
+        hook.beforeSwap(r, key, IPoolManager.SwapParams(true, -int256(margin), 0), data);
         vm.prank(address(manager));
         hook.afterSwap(
             t,

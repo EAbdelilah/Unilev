@@ -55,7 +55,7 @@ contract EswapRouterAccessTest is BaseV4Test {
         // Open a 3x SHORT (zeroForOne=true): margin 10 ether, borrow 20 ether, collateral ~27.86 ether.
         bytes memory data = abi.encode(true, uint8(3), address(this));
         vm.prank(address(manager));
-        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -10 ether, 0), data);
+        hook.beforeSwap(address(router), key, IPoolManager.SwapParams(true, -10 ether, 0), data);
         vm.prank(address(manager));
         hook.afterSwap(
             address(this),
@@ -85,10 +85,11 @@ contract EswapRouterAccessTest is BaseV4Test {
         (address trader, uint256 collateral,,,,,,,) = hook.positions(key.toId(), address(this));
         assertEq(trader, address(0), "position should be liquidated");
         assertEq(collateral, 0);
-        // [FIX H-5b] The liquidation reward carves to the insurance fund regardless
-        // of who triggers the liquidation — the permissionless liquidator is
-        // NOT paid (liveness is provided by the team keeper and the solver).
-        assertEq(token0.balanceOf(keeper), 0, "liquidator is not paid; reward goes to insurance");
+        // [FIX H-5b / F-07] The 3% liquidation reward always lands in the
+        // insurance fund. On top of that the permissionless liquidator earns the
+        // LIQUIDATOR_MIN_INCENTIVE_BPS (50 bps) bounty carved out of the
+        // trader's share, so the keeper must be paid something.
+        assertGt(token0.balanceOf(keeper), 0, "liquidator earns the 50 bps incentive floor");
         assertGt(hook.insuranceFund(key.currency0), 0, "3% liquidation reward lands in the insurance fund");
     }
 
@@ -107,7 +108,7 @@ contract EswapRouterAccessTest is BaseV4Test {
         manager.setSlot0(key.toId(), 1 << 96, 0); // Price 1.0, Tick 0
 
         vm.prank(address(manager));
-        hook.beforeSwap(address(0), key, IPoolManager.SwapParams(true, -1 ether, 0), data);
+        hook.beforeSwap(address(router), key, IPoolManager.SwapParams(true, -1 ether, 0), data);
         vm.prank(address(manager));
         hook.afterSwap(
             address(0),

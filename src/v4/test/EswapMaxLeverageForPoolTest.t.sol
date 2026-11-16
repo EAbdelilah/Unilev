@@ -56,14 +56,14 @@ contract EswapMaxLeverageForPoolTest is BaseV4Test {
         bytes memory data = abi.encode(true, leverage, address(this));
         vm.prank(address(manager));
         vm.expectRevert(EswapMarginHook.MaxLeverageExceeded.selector);
-        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -10 ether, 0), data);
+        hook.beforeSwap(address(router), key, IPoolManager.SwapParams(true, -10 ether, 0), data);
     }
 
     function _openShort(uint8 leverage) internal {
         bytes memory data = abi.encode(true, leverage, address(this));
         uint256 notional = uint256(leverage) * 10 ether;
         vm.prank(address(manager));
-        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -10 ether, 0), data);
+        hook.beforeSwap(address(router), key, IPoolManager.SwapParams(true, -10 ether, 0), data);
         vm.prank(address(manager));
         hook.afterSwap(
             address(this),
@@ -147,7 +147,7 @@ contract EswapMaxLeverageForPoolTest is BaseV4Test {
         bytes memory data = abi.encode(true, uint8(6), address(this));
         vm.prank(address(manager));
         vm.expectRevert(EswapMarginHook.MaxLeverageExceeded.selector);
-        hook.beforeSwap(address(this), otherKey, IPoolManager.SwapParams(true, -10 ether, 0), data);
+        hook.beforeSwap(address(router), otherKey, IPoolManager.SwapParams(true, -10 ether, 0), data);
     }
 
     function test_PerPoolOverride_AccessControlAndBounds() public {

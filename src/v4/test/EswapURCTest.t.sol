@@ -67,13 +67,18 @@ contract EswapURCTest is BaseV4Test {
             data
         );
         Vm.Log[] memory logs = vm.getRecordedLogs();
-        assertEq(logs.length, 1, "expected exactly one HookSwap log");
-        assertEq(
-            logs[0].topics[0],
-            keccak256("HookSwap(bytes32,address,int128,int128,uint128)"),
-            "topic0 must be the HookSwap signature"
-        );
-        assertEq(logs[0].topics[1], PoolId.unwrap(key.toId()), "poolId topic");
-        assertEq(logs[0].topics[2], bytes32(uint256(uint160(address(this)))), "trader topic");
+        // afterSwap is no longer single-event: the open also emits the fee /
+        // position records. Assert on the HookSwap log itself and on its
+        // uniqueness rather than on the total log count, which would fail every
+        // time an unrelated event is added.
+        bytes32 hookSwapTopic = keccak256("HookSwap(bytes32,address,int128,int128,uint128)");
+        uint256 hookSwapLogs;
+        for (uint256 i = 0; i < logs.length; i++) {
+            if (logs[i].topics.length == 0 || logs[i].topics[0] != hookSwapTopic) continue;
+            hookSwapLogs++;
+            assertEq(logs[i].topics[1], PoolId.unwrap(key.toId()), "poolId topic");
+            assertEq(logs[i].topics[2], bytes32(uint256(uint160(address(this)))), "trader topic");
+        }
+        assertEq(hookSwapLogs, 1, "expected exactly one HookSwap log");
     }
 }

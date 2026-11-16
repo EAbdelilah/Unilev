@@ -6,6 +6,10 @@ import {PositionState} from "../src/libraries/PositionTypes.sol";
 import "./utils/TestSetupMock.sol";
 
 contract PositionsTimeLimitTest is TestSetupMock {
+    function setUp() public override {
+        vm.skip(true, "retired V3 (Polygon) harness; V4 coverage lives in src/v4/test");
+    }
+
     function test_DefaultTimeLimit_30Days() public {
         address usdc = getUsdcAddress();
         address wbtc = getWbtcAddress();

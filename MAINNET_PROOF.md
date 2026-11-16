@@ -1582,3 +1582,36 @@ WETH/USDC hook pool, relayed through the permissionless `EswapRouter.swapWithInt
 
 Proof JSON: `scripts/v4/live/proofs/first-live-fill-8453-1794740218817.json`
 <!-- LIVE_FILL_PROOF:END -->
+
+### 19.7 Known limitation F-10 — live router settlement guard
+
+The router deployed at `0x5b226aE5158de86f1E616875dBab886870B9aAd9` contains the
+original guard in `swapMultiPoolForSolverFunded`:
+
+```solidity
+if (msg.sender != marginFunder && !settlementWhitelist[msg.sender]) revert ExecutorUnauthorized();
+```
+
+`EswapSettlement.fill` self-funds the margin (`marginFunder = address(this)`), so
+the condition is satisfied by **any** settlement contract without a whitelist
+entry. A third party can therefore open a position for an arbitrary `trader` using
+its own margin. It cannot pull the trader's allowance (the funder pays), but it can
+occupy the trader's single position slot and pollute open-interest accounting.
+
+The working tree contains the corrected guard (`trader != marginFunder`), and two
+tests assert it:
+
+* `AuditMarginFunderPoC.test_SettlementWhitelist_GatesThirdPartyTrader`
+* `EswapSettlementTest.test_Fill_UnwhitelistedSettlement_Reverts`
+
+Both are `vm.skip(true, "F-10 ...")` because shipping the fix requires a router
+redeploy that would invalidate the 18/18 Sourcify-verified live stack. Remediation:
+
+1. deploy `EswapRouter` v2 from the `deploy` profile;
+2. deploy a router-bound `EswapTimelock` (or transfer the new router to one) and
+   execute the `Ownable2Step` accept through it;
+3. hook timelock queues and executes
+   `setRouterAndMinCollateralUsd(router2, minCollateralUsd)` (48 h);
+4. re-run `node scripts/v4/live/verifyContracts.cjs` and re-enable the two tests.
+
+Until then the exposure is bounded to griefing, not theft.

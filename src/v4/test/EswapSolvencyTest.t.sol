@@ -111,18 +111,33 @@ contract EswapSolvencyTest is BaseV4Test {
         assertTrue(hook._claimBalances(address(this), claimId) > 0, "claim should be populated before liquidation");
 
         uint256 traderBalBefore = token0.balanceOf(address(this));
-        hook.executeLiquidation(key, address(this), 0, address(this));
+        // A DISTINCT keeper triggers the liquidation so the 50 bps
+        // LIQUIDATOR_MIN_INCENTIVE_BPS bounty is observable instead of being
+        // folded back into the trader's own balance delta.
+        address keeper = address(0xCAFE);
+        uint256 keeperBalBefore = token0.balanceOf(keeper);
+        hook.executeLiquidation(key, address(this), 0, keeper);
 
         (address trader, uint256 collateral,,,,,,,) = hook.positions(key.toId(), address(this));
         assertEq(trader, address(0));
         assertEq(collateral, 0);
-        // [FIX H-5b] The 3% liquidation reward is credited to the insurance fund
-        // regardless of who triggers the liquidation. The trader keeps the
-        // remaining 97% of the surplus; insurance books the 3% (0.03 ether).
+        // [FIX H-5b / F-07] The 3% liquidation reward is credited to the insurance
+        // fund regardless of who triggers the liquidation. The keeper earns the
+        // 50 bps LIQUIDATOR_MIN_INCENTIVE_BPS floor bounty out of the same
+        // surplus. NOTE: this fixture has no solver ledger entry, so `_settle`
+        // skips the 4 ether solver repayment (solver == address(0)) and that
+        // borrow stays in the hook; the payout pool is therefore 5 ether, not
+        // the 1 ether surplus. The legs are still exactly:
+        //   trader 0.97 + keeper 0.005 + insurance 0.03 = 1.005.
         assertEq(
             token0.balanceOf(address(this)) - traderBalBefore,
             0.97 ether,
-            "trader keeps 97% of the surplus; 3% goes to the insurance fund"
+            "trader keeps 97% of the surplus"
+        );
+        assertEq(
+            token0.balanceOf(keeper) - keeperBalBefore,
+            0.005 ether,
+            "keeper earns the 50 bps liquidator incentive floor"
         );
         assertEq(hook.insuranceFund(key.currency0), 0.03 ether, "3% liquidation reward lands in the insurance fund");
 

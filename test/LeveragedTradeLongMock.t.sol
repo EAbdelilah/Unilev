@@ -17,6 +17,10 @@ import "./utils/TestSetupMock.sol";
  * Tests verify exact expected PnL and final balance as per requirements table.
  */
 contract LeveragedTradeLongMock is TestSetupMock {
+    function setUp() public override {
+        vm.skip(true, "retired V3 (Polygon) harness; V4 coverage lives in src/v4/test");
+    }
+
     uint256 constant DELTA_USDC = 4e6;
     uint256 constant DELTA_WETH = 0.4e18;
 

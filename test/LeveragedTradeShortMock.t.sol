@@ -17,6 +17,10 @@ import "./utils/TestSetupMock.sol";
  * Tests verify exact expected PnL and final balance as per requirements table.
  */
 contract LeveragedTradeShortMock is TestSetupMock {
+    function setUp() public override {
+        vm.skip(true, "retired V3 (Polygon) harness; V4 coverage lives in src/v4/test");
+    }
+
     // ===================================================================
     // COLLATERAL AND LEVERAGE CONFIGURATION
     // ===================================================================

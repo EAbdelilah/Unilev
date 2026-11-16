@@ -65,8 +65,13 @@ contract EswapCapStressTest is BaseV4Test {
 
     function _open(address t, uint256 margin, uint8 leverage) internal {
         bytes memory data = abi.encode(true, leverage, t);
+        // Read the router BEFORE pranking: a getter call would consume the prank.
+        address r = hook.router();
         vm.prank(address(manager));
-        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -int256(margin), 0), data);
+        // `sender` is the PoolManager's caller, i.e. the router the hook is
+        // bound to (`beforeSwap` rejects margin mode from anyone else). The
+        // trader is carried in hookData, not in `sender`.
+        hook.beforeSwap(r, key, IPoolManager.SwapParams(true, -int256(margin), 0), data);
         vm.prank(address(manager));
         hook.afterSwap(
             address(this),
@@ -112,10 +117,11 @@ contract EswapCapStressTest is BaseV4Test {
                     EswapMarginHook.OpenInterestExceedsCapacity.selector, oi + tradeOI, oi + remaining
                 );
             }
+            address r = hook.router();
             vm.prank(address(manager));
             vm.expectRevert(expected);
             hook.beforeSwap(
-                address(this), key, IPoolManager.SwapParams(true, -int256(margin), 0), abi.encode(true, leverage, t)
+                r, key, IPoolManager.SwapParams(true, -int256(margin), 0), abi.encode(true, leverage, t)
             );
         }
     }
@@ -290,8 +296,9 @@ contract EswapCapStressTest is BaseV4Test {
         assertFalse(fitsFail, "over-cap borrow must not fit");
         assertTrue(bytes(reasonFail).length > 0);
 
+        address r = hook.router();
         vm.prank(address(manager));
         vm.expectRevert(abi.encodeWithSelector(EswapMarginHook.PositionExceedsSingleCap.selector, over, maxSingle2));
-        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -int256(over), 0), abi.encode(true, 2, tFail));
+        hook.beforeSwap(r, key, IPoolManager.SwapParams(true, -int256(over), 0), abi.encode(true, 2, tFail));
     }
 }

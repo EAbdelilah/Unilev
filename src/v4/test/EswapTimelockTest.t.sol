@@ -90,11 +90,13 @@ contract EswapTimelockTest is Test {
         assertTrue(timelock.isQueued(txHash));
 
         // Cannot execute before delay
+        vm.prank(admin);
         vm.expectRevert(EswapTimelock.NotReady.selector);
         timelock.execute(address(hook), data, eta);
 
         // Warp past delay
         vm.warp(block.timestamp + DELAY);
+        vm.prank(admin);
         timelock.execute(address(hook), data, eta);
         assertTrue(hook.emergencyPaused());
 
@@ -150,6 +152,7 @@ contract EswapTimelockTest is Test {
 
         // Cannot execute cancelled tx
         vm.warp(block.timestamp + DELAY);
+        vm.prank(admin);
         vm.expectRevert(EswapTimelock.TransactionNotQueued.selector);
         timelock.execute(address(hook), data, eta);
     }
@@ -175,6 +178,7 @@ contract EswapTimelockTest is Test {
 
         // Just after eta, well before the grace deadline: executes normally.
         vm.warp(eta + 1 days);
+        vm.prank(admin);
         timelock.execute(address(hook), data, eta);
         assertTrue(hook.emergencyPaused());
     }
@@ -189,6 +193,7 @@ contract EswapTimelockTest is Test {
         timelock.queue(address(hook), data, eta);
 
         vm.warp(eta + timelock.GRACE_PERIOD() + 1);
+        vm.prank(admin);
         vm.expectRevert(EswapTimelock.TransactionExpired.selector);
         timelock.execute(address(hook), data, eta);
 
@@ -218,6 +223,7 @@ contract EswapTimelockTest is Test {
 
         // Execute after delay
         vm.warp(block.timestamp + DELAY);
+        vm.prank(admin);
         timelock.execute(address(hook), data, eta);
 
         assertTrue(hook.isAuthorizedPool(newKey.toId()));

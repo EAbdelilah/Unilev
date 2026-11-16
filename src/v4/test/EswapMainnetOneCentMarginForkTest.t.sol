@@ -116,11 +116,20 @@ contract EswapMainnetOneCentMarginForkTest is Test {
         bytes memory hookData = abi.encode(true, uint8(1), trader);
 
         // 3000 USDC/WETH, decimals-aware: $margin buys margin/3000 WETH.
-        int128 amount0 = -int128(int256(marginRaw));
-        int128 amount1 = int128(int256((uint256(marginRaw) * 1e18) / (3000 * 1e6)));
+        int128 paidLeg = -int128(int256(marginRaw));
+        int128 boughtLeg = int128(int256((uint256(marginRaw) * 1e18) / (3000 * 1e6)));
+
+        // Swapper perspective: the bought leg is POSITIVE, the paid leg NEGATIVE.
+        // The hook reads `delta.amount0()` when zeroForOne, `amount1()` otherwise.
+        // On Base WETH (0x4200..06) sorts below USDC, so currency0 == WETH and
+        // zeroForOne == false: pay USDC (currency1), receive WETH (currency0).
+        int128 amount0 = zeroForOne ? paidLeg : boughtLeg;
+        int128 amount1 = zeroForOne ? boughtLeg : paidLeg;
 
         vm.startPrank(address(manager));
-        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(zeroForOne, -int256(marginRaw), 0), hookData);
+        // The PoolManager reports its caller (the router) as `sender`; the
+        // trader is carried in hookData.
+        hook.beforeSwap(router, key, IPoolManager.SwapParams(zeroForOne, -int256(marginRaw), 0), hookData);
         hook.afterSwap(
             address(this),
             key,
@@ -162,7 +171,7 @@ contract EswapMainnetOneCentMarginForkTest is Test {
 
         vm.prank(address(manager));
         vm.expectRevert(EswapMarginHook.CollateralTooLow.selector);
-        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(zeroForOne, -int256(ONE_THOUSANDTH_CENT), 0), hookData);
+        hook.beforeSwap(router, key, IPoolManager.SwapParams(zeroForOne, -int256(ONE_THOUSANDTH_CENT), 0), hookData);
     }
 
     /// @dev The legacy raw floor DOES normalize token decimals, so MIN_COLLATERAL
@@ -195,10 +204,10 @@ contract EswapMainnetOneCentMarginForkTest is Test {
         // 9_999 raw is $0.009999: one wei-unit below the 10_000 boundary.
         vm.prank(address(manager));
         vm.expectRevert(EswapMarginHook.CollateralTooLow.selector);
-        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(zeroForOne, -int256(ONE_CENT - 1), 0), hookData);
+        hook.beforeSwap(router, key, IPoolManager.SwapParams(zeroForOne, -int256(ONE_CENT - 1), 0), hookData);
 
         // Exactly 10_000 raw is $0.01 and must clear it.
         vm.prank(address(manager));
-        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(zeroForOne, -int256(ONE_CENT), 0), hookData);
+        hook.beforeSwap(router, key, IPoolManager.SwapParams(zeroForOne, -int256(ONE_CENT), 0), hookData);
     }
 }

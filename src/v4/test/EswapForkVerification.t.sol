@@ -191,6 +191,9 @@ contract EswapForkVerificationTest is Test {
         pm.initialize(key, SQRT_PRICE_1_1);
 
         locker = new ForkLocker(pm);
+        // The real PoolManager reports the caller of `swap` (the locker) as the
+        // hook's `sender`, so the locker must play the router's role here.
+        hook.setRouterAndMinCollateralUsd(address(locker), 0);
         deal(USDC, address(locker), 1e20);
         deal(WETH, address(locker), 1000 ether);
         locker.run(_plan(1e21, false, 0, "", false, 0));

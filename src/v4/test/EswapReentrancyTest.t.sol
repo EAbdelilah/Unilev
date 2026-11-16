@@ -74,7 +74,7 @@ contract EswapReentrancyTest is BaseV4Test {
 
         bytes memory data = abi.encode(true, uint8(3), address(attacker));
         vm.prank(address(manager));
-        hook.beforeSwap(address(attacker), key, IPoolManager.SwapParams(true, -100 ether, 0), data);
+        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -100 ether, 0), data);
 
         assertFalse(attacker.attackAttempted());
     }

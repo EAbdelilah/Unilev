@@ -35,6 +35,7 @@ contract LiveNewHookDeployRepro is Test {
     EswapMarginHook hook;
 
     function setUp() public {
+        vm.skip(true, "retired Unichain harness; the live stack is Base (chain 8453) - see AGENTS.md");
         string memory rpc = vm.envOr("UNICHAIN_RPC_URL", string(""));
         require(bytes(rpc).length > 0, "UNICHAIN_RPC_URL required");
         vm.createSelectFork(rpc);

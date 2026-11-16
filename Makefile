@@ -1,6 +1,6 @@
 -include .env
 
-.PHONY: all test test-v4 clean patch-v4-core deploy-anvil deploy-polygon deploy-unichain deploy-unichain-sepolia deploy-unichain-sepolia-full add-pair
+.PHONY: all test test-v4 clean patch-v4-core build build-deploy deploy-anvil deploy-polygon deploy-unichain deploy-unichain-sepolia deploy-unichain-sepolia-full add-pair
 
 all: clean install update build
 
@@ -20,6 +20,12 @@ install :; forge install smartcontractkit/chainlink-brownie-contracts && forge i
 update:; forge update
 
 build: patch-v4-core ; forge build --via-ir
+
+# Deploy-profile build (optimizer_runs = 1, artifacts in out-deploy/). This is the
+# configuration the live Base stack was deployed from, so it is what bytecode-size
+# and source-verification checks must read. Kept out of `out/` so it never
+# clobbers the runs=200 artifacts the test suite compiles against.
+build-deploy: patch-v4-core ; FOUNDRY_PROFILE=deploy forge build --via-ir
 
 sizer: patch-v4-core ; forge build --sizes --via-ir
 

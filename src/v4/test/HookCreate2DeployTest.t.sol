@@ -236,9 +236,11 @@ contract HookCreate2DeployTest is Test {
             type(EswapMarginHook).creationCode,
             abi.encode(address(manager), address(priceFeed), logic, logic2, address(this))
         );
-        // The constructor's own check is `address(this) & getHookFlags() ==
-        // getHookFlags()`, and the low bits are irrelevant for gas purposes, so
-        // mine the high flags only: a 1-in-32 search instead of 1-in-2^19.
+        // The constructor checks `address(this) & getHookFlags() ==
+        // getHookFlags()`, and this hook's `HookFlags` library uses the high
+        // custom bits (159, 158, 153, 152, 148) only, so mining those is enough
+        // here: a 1-in-32 search instead of 1-in-2^19. The low v4 permission bits
+        // matter for PoolManager's `isValidHookAddress`, not for this deploy.
         bytes32 salt = _mineSalt(CREATE2_DEPLOYER, keccak256(initCode), false);
 
         uint256 before = gasleft();
@@ -312,14 +314,67 @@ contract HookCreate2DeployTest is Test {
 
     /// @dev EIP-170 headroom is a deployment blocker, so assert the real margin
     ///      rather than leaving it to be rediscovered on-chain.
+    ///
+    ///      The hook cannot be placed with a plain `new EswapMarginHook(...)`:
+    ///      its constructor rejects any address that does not carry the hook's
+    ///      permission bits (159, 158, 153, 152, 148), and a nonce-derived CREATE
+    ///      address almost never does. The real CREATE2 + mined-salt deploy path
+    ///      is covered by `test_DeployerPath_DeploysFullyWiredHook`; here we
+    ///      measure the runtime length of the artifact that path ships.
+    ///
+    ///      The measurement MUST use the `deploy` profile artifact (`out-deploy`,
+    ///      `optimizer_runs = 1`): that is the profile the live Base stack was
+    ///      deployed from and the one whose runtime must fit EIP-170. The default
+    ///      test profile (`out`, `optimizer_runs = 200`) is ~600 bytes larger and
+    ///      would report a false blocker.
+    ///
+    ///      The length is read straight out of the artifact JSON because the
+    ///      deploy-profile bytecode still carries `EswapMarginLib` link
+    ///      placeholders (`__$...$__`), which `vm.parseJsonBytes` cannot decode.
     function test_HookRuntimeUnderEIP170() public {
-        (address logic, address logic2) =
-            EswapHookDeployLib.deployLogic(address(manager), address(priceFeed));
-        EswapMarginHook h = new EswapMarginHook(manager, priceFeed, logic, logic2, address(this));
-        uint256 size = address(h).code.length;
-        assertLt(size, MAX_CODE_SIZE, "hook exceeds EIP-170");
-        emit log_named_uint("hook runtime size", size);
+        string memory artifact = "out-deploy/EswapMarginHook.sol/EswapMarginHook.json";
+        if (!vm.exists(artifact)) {
+            vm.skip(true, "run `make build-deploy` to assert EIP-170 against the deploy profile");
+            return;
+        }
+
+        uint256 size = _deployedBytecodeLength(vm.readFile(artifact));
+        assertLt(size, MAX_CODE_SIZE, "deploy-profile hook exceeds EIP-170");
+        emit log_named_uint("hook runtime size (deploy profile)", size);
         emit log_named_uint("EIP-170 headroom", MAX_CODE_SIZE - size);
+    }
+
+    /// @dev Pulls `deployedBytecode.object` length out of the artifact JSON
+    ///      without a JSON parser: find the key, skip `": "0x`, then count hex
+    ///      nibbles until the closing quote. Works with link placeholders.
+    function _deployedBytecodeLength(string memory json) internal pure returns (uint256) {
+        bytes memory b = bytes(json);
+        bytes memory key = '"deployedBytecode":{"object":"0x';
+        uint256 k = _indexOf(b, key);
+        require(k > 0, "deployedBytecode not found in artifact");
+        uint256 start = k + key.length;
+        uint256 n = 0;
+        while (start + n < b.length) {
+            uint8 c = uint8(b[start + n]);
+            if (c == 0x22) break; // closing double quote
+            n++;
+        }
+        return n / 2;
+    }
+
+    function _indexOf(bytes memory haystack, bytes memory needle) internal pure returns (uint256) {
+        require(needle.length > 0 && haystack.length >= needle.length, "bad _indexOf");
+        for (uint256 i = 0; i + needle.length <= haystack.length; i++) {
+            bool eq = true;
+            for (uint256 j = 0; j < needle.length; j++) {
+                if (haystack[i + j] != needle[j]) {
+                    eq = false;
+                    break;
+                }
+            }
+            if (eq) return i;
+        }
+        return 0;
     }
 }
 

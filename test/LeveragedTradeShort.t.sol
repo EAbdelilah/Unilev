@@ -5,6 +5,10 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./utils/TestSetup.sol";
 
 contract LeveragedTradeShort is TestSetup {
+    function setUp() public override {
+        vm.skip(true, "retired V3 (Polygon) harness; V4 coverage lives in src/v4/test");
+    }
+
     function test__leveragedTradeToCloseShort1() public {
         address wbtc = getWbtcAddress();
         address usdc = getUsdcAddress();

@@ -95,6 +95,13 @@ contract EswapAtomicMarginTest is BaseV4Test {
         hook.setRouterAndMinCollateralUsd(address(router), 0);
         EswapMarginHookLogic(payable(address(hook))).setAuthorizedPool(key.toId(), true);
 
+        // `atomicMarginTrade` is open to the owner and to governance-whitelisted
+        // executors (it lets a caller name the profit recipient). The three
+        // traders below are the whitelisted executors for this suite.
+        router.setExecutorWhitelist(address(0xABC), true);
+        router.setExecutorWhitelist(address(0xDEF), true);
+        router.setExecutorWhitelist(address(0x999), true);
+
         atomicManager.setSlot0(key.toId(), 1 << 96, 0);
         atomicManager.setSlot0(standardPoolKey.toId(), 1 << 96, 0);
 

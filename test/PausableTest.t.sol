@@ -5,6 +5,7 @@ import "./utils/TestSetup.sol";
 
 contract PausableTest is TestSetup {
     function setUp() public override {
+        vm.skip(true, "retired V3 (Polygon) harness; V4 coverage lives in src/v4/test");
         vm.selectFork(vm.createFork(vm.envString("POLYGON_RPC_URL")));
         super.setUp();
     }

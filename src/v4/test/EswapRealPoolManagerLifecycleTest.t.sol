@@ -33,6 +33,9 @@ contract EswapRealPoolManagerLifecycleTest is EswapV4CoreProofTest {
         lq.modifyLiquidity(realKey, lp, "");
 
         PoolSwapTest swapper = new PoolSwapTest(realManager);
+        // The real PoolManager reports the caller of `swap` (the swapper) as the
+        // hook's `sender`, so the swapper must play the router's role here.
+        realHook.setRouterAndMinCollateralUsd(address(swapper), 0);
         token0.approve(address(swapper), type(uint256).max);
         token1.approve(address(swapper), type(uint256).max);
 

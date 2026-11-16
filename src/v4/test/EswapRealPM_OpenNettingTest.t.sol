@@ -216,6 +216,9 @@ minAmountOut: 0
     ///      router never nets its standard-pool input leg nor takes the hook-pool
     ///      accounting output.
     function test_RealPM_MultiPool_Deltas_DoNotNet() public {
+        // The unlock caller (this test) must be the hook's router, because the
+        // real PoolManager reports it as `sender` and margin mode is router-only.
+        realHook.setRouterAndMinCollateralUsd(address(this), 0);
         vm.expectRevert(abi.encodeWithSignature("CurrencyNotSettled()"));
         realManager.unlock(abi.encode(1));
     }
@@ -225,6 +228,10 @@ minAmountOut: 0
     ///      minted to the hook as the 6909 claim. Proves single-pool mode is the
     ///      viable fallback once the sqrtPriceLimit bug is fixed.
     function test_RealPM_SinglePool_Inline_NetsDeltas() public {
+        // Bind the hook's router to the unlock caller so the real PoolManager's
+        // `sender` (this test) is authorized and the swap deltas are attributed
+        // to it for settlement.
+        realHook.setRouterAndMinCollateralUsd(address(this), 0);
         realManager.unlock(abi.encode(2));
         // Reaching here means the unlock did NOT revert CurrencyNotSettled.
     }
@@ -239,6 +246,8 @@ minAmountOut: 0
         if (mode == 1) {
             // ---- MULTI-POOL (mirrors EswapRouter._swapCallback) ----
             // (1) accounting swap on the hook pool (flash-expanded to margin+borrow)
+            // The unlock caller is the hook's router for these direct-unlock
+            // tests, so no impersonation is needed.
             realManager.swap(
                 hookRealKey,
                 RealIPoolManager.SwapParams(true, -int256(MARGIN), MIN_SQRT + 1),

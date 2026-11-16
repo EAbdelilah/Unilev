@@ -18,6 +18,7 @@ contract PositionLogicPnLTest is TestSetupMock {
     int256 constant WBTC_BASE_PRICE = 100_000e8; // $100,000
 
     function setUp() public override {
+        vm.skip(true, "retired V3 (Polygon) harness; V4 coverage lives in src/v4/test");
         super.setUp();
 
         // Set initial prices for the mocks

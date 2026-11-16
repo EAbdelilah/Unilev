@@ -108,6 +108,7 @@ contract ZeroTreasuryInvariants is Test {
     // ─── Setup ─────────────────────────────────────────────────────────────
 
     function setUp() public {
+        vm.skip(true, "retired Unichain harness; the live stack is Base (chain 8453) - see AGENTS.md");
         treasury = address(uint160(0xE5A11CE));
         string memory rpcUrl = vm.envOr("UNICHAIN_RPC_URL", string(""));
         if (bytes(rpcUrl).length == 0) return;

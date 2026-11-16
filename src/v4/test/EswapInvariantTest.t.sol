@@ -37,6 +37,19 @@ contract EswapInvariantTest is BaseV4Test {
     }
 }
 
+/// @notice A no-op state-changing target so Foundry's invariant runner has
+///         something to fuzz. The live invariants are read-only views of
+///         on-chain state, so the "fuzzing" is really repeated re-evaluation
+///         after an irrelevant call; without a target the runner aborts with
+///         "No contracts to fuzz".
+contract LiveStateProbe {
+    uint256 public touches;
+
+    function poke() external {
+        touches++;
+    }
+}
+
 /// @notice The same solvency / backing invariants, evaluated against the LIVE
 ///         Base mainnet stack (chain 8453) rather than mocks. Read-only: it
 ///         binds to the deployed hook and the real v4 PoolManager and asserts
@@ -45,6 +58,9 @@ contract EswapInvariantTest is BaseV4Test {
 ///         While the protocol has no open positions every term is zero and the
 ///         invariants hold vacuously; they start doing real work the moment the
 ///         first position opens, which is exactly when they must not regress.
+///
+/// forge-config: default.invariant.runs = 8
+/// forge-config: default.invariant.depth = 8
 contract EswapLiveInvariantTest is Test {
     // Live Base mainnet (chain 8453) deployment.
     address constant BASE_PM = 0x498581fF718922c3f8e6A244956aF099B2652b2b;
@@ -63,6 +79,7 @@ contract EswapLiveInvariantTest is Test {
         if (block.chainid != 8453) vm.skip(true);
         hook = EswapMarginHook(payable(HOOK));
         pm = RealPM(BASE_PM);
+        targetContract(address(new LiveStateProbe()));
     }
 
     /// @notice Solvency: aggregate collateral must always cover open interest.

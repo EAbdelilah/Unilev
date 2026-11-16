@@ -155,6 +155,9 @@ contract EswapV4CoreProofTest is BaseV4Test {
         bytes memory hookData = abi.encode(true, uint8(1), address(this));
 
         PoolSwapTest swapper = new PoolSwapTest(realManager);
+        // The real PoolManager reports the caller of `swap` (the swapper) as the
+        // hook's `sender`, so the swapper must play the router's role here.
+        realHook.setRouterAndMinCollateralUsd(address(swapper), 0);
         token0.approve(address(swapper), type(uint256).max);
         token1.approve(address(swapper), type(uint256).max);
 
@@ -230,7 +233,9 @@ contract EswapV4CoreProofTest is BaseV4Test {
         callData = abi.encodeCall(
             RealIHooks.beforeSwap,
             (
-                address(0xBEeF),
+                // `sender` is the PoolManager's caller (the router), not the
+                // trader; the trader travels in hookData.
+                hook.router(),
                 mockRealKey,
                 RealIPoolManager.SwapParams({zeroForOne: false, amountSpecified: -50 ether, sqrtPriceLimitX96: 0}),
                 hookDataShort
@@ -295,8 +300,10 @@ contract EswapV4CoreProofTest is BaseV4Test {
         // SHORT: zeroForOne=false. Swapper perspective: paid -100 (token1),
         // received +480 (token0). The positive leg is amount0.
         bytes memory shortData = abi.encode(true, uint8(5), address(1));
+        // Read the router BEFORE pranking: a getter call consumes the prank.
+        address r = hook.router();
         vm.prank(address(manager));
-        hook.beforeSwap(address(1), key, IPoolManager.SwapParams(false, -100 ether, 0), shortData);
+        hook.beforeSwap(r, key, IPoolManager.SwapParams(false, -100 ether, 0), shortData);
         vm.prank(address(manager));
         hook.afterSwap(
             address(1),
@@ -315,7 +322,7 @@ contract EswapV4CoreProofTest is BaseV4Test {
         // Zero received output on the bought leg must revert (SwapOutputZero).
         bytes memory data2 = abi.encode(true, uint8(5), address(2));
         vm.prank(address(manager));
-        hook.beforeSwap(address(2), key, IPoolManager.SwapParams(true, -100 ether, 0), data2);
+        hook.beforeSwap(r, key, IPoolManager.SwapParams(true, -100 ether, 0), data2);
         vm.expectRevert(EswapMarginHook.SwapOutputZero.selector);
         vm.prank(address(manager));
         hook.afterSwap(

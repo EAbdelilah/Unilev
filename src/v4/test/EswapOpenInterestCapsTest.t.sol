@@ -55,8 +55,11 @@ contract EswapOpenInterestCapsTest is BaseV4Test {
     ///      fill at margin*leverage so collateral accounting is deterministic.
     function _open(address trader, uint256 margin, uint8 leverage) internal {
         bytes memory data = abi.encode(true, leverage, trader);
+        address r = hook.router();
         vm.prank(address(manager));
-        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -int256(margin), 0), data);
+        // `sender` is the PoolManager's caller, i.e. the hook's router; the
+        // trader under test is carried in hookData.
+        hook.beforeSwap(r, key, IPoolManager.SwapParams(true, -int256(margin), 0), data);
         vm.prank(address(manager));
         hook.afterSwap(
             address(this),
@@ -69,9 +72,10 @@ contract EswapOpenInterestCapsTest is BaseV4Test {
 
     function _expectOpenRevert(address trader, uint256 margin, uint8 leverage, bytes4 selector) internal {
         bytes memory data = abi.encode(true, leverage, trader);
+        address r = hook.router();
         vm.prank(address(manager));
         vm.expectRevert(selector);
-        hook.beforeSwap(address(this), key, IPoolManager.SwapParams(true, -int256(margin), 0), data);
+        hook.beforeSwap(r, key, IPoolManager.SwapParams(true, -int256(margin), 0), data);
     }
 
     function test_Caps_InactiveBelowTvlFloor() public view {
@@ -99,15 +103,14 @@ contract EswapOpenInterestCapsTest is BaseV4Test {
         assertEq(remaining, 0, "aggregate headroom already consumed by A");
 
         // Single-cap check fires first for an oversized trade...
+        address r = hook.router();
         vm.prank(address(manager));
         vm.expectRevert(
             abi.encodeWithSelector(
                 EswapMarginHook.PositionExceedsSingleCap.selector, 4_000 ether, (tvlExpected * 200) / 10000
             )
         );
-        hook.beforeSwap(
-            address(this), key, IPoolManager.SwapParams(true, -int256(4_000 ether), 0), abi.encode(true, 2, traderC)
-        );
+        hook.beforeSwap(r, key, IPoolManager.SwapParams(true, -int256(4_000 ether), 0), abi.encode(true, 2, traderC));
         // ...and even a small one is blocked by the saturated aggregate cap.
         uint256 maxTotalExpected = (tvlExpected * 1500) / 10000;
         vm.prank(address(manager));
@@ -118,9 +121,7 @@ contract EswapOpenInterestCapsTest is BaseV4Test {
                 maxTotalExpected < 102_000 ether ? 102_000 ether : maxTotalExpected
             )
         );
-        hook.beforeSwap(
-            address(this), key, IPoolManager.SwapParams(true, -int256(1 ether), 0), abi.encode(true, 2, traderB)
-        );
+        hook.beforeSwap(r, key, IPoolManager.SwapParams(true, -int256(1 ether), 0), abi.encode(true, 2, traderB));
     }
 
     function test_Setter_AuthAndBounds() public {
@@ -163,13 +164,12 @@ contract EswapOpenInterestCapsTest is BaseV4Test {
         assertEq(remaining, (43_956 ether * 6000) / 10000 - 22_000 ether);
 
         // Over single cap -> SINGLE_TRADE_CAP; over headroom -> OPEN_INTEREST_CAP.
+        address r = hook.router();
         vm.prank(address(manager));
         vm.expectRevert(
             abi.encodeWithSelector(EswapMarginHook.PositionExceedsSingleCap.selector, 5_000 ether, 4_395.6 ether)
         );
-        hook.beforeSwap(
-            address(this), key, IPoolManager.SwapParams(true, -int256(5_000 ether), 0), abi.encode(true, 2, traderC)
-        );
+        hook.beforeSwap(r, key, IPoolManager.SwapParams(true, -int256(5_000 ether), 0), abi.encode(true, 2, traderC));
 
         uint256 remAfterB = (43_956 ether * 6000) / 10000 - 22_000 ether; // 4373.6
         vm.prank(address(manager));
@@ -180,9 +180,7 @@ contract EswapOpenInterestCapsTest is BaseV4Test {
                 22_000 ether + remAfterB
             )
         );
-        hook.beforeSwap(
-            address(this), key, IPoolManager.SwapParams(true, -int256(4_380 ether), 0), abi.encode(true, 2, traderC)
-        );
+        hook.beforeSwap(r, key, IPoolManager.SwapParams(true, -int256(4_380 ether), 0), abi.encode(true, 2, traderC));
     }
 
     function test_MaxOpenBorrowRaw_Boundary() public {
