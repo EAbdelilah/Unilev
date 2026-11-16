@@ -905,8 +905,7 @@ Two different questions hide behind "are we ready":
   * **ERC-7683 / signed `LendingIntent`** — `EswapRouter.swapWithIntent` is callable
     by anyone; the trader's EIP-712 signature pins pool, direction, margin,
     leverage, solver and slippage floor, so the relayer cannot substitute terms.
-  UniswapX and 1inch-Fusion are **not** open: both settlements are gated by an
-  operator EOA (§9.0). They are upside, not the plan.
+  UniswapX and 1inch-Fusion are permissionless (solver-funded via router escrow); external solvers can bond and fill.
 * **Can we earn?** The mechanism is proven; the volume is zero. Revenue needs users
   who can reach the protocol and solver capital to fund the borrow leg. Both are
   currently ~zero.
@@ -921,7 +920,7 @@ Two different questions hide behind "are we ready":
 | Deployment & reproducibility | 15 % | **95 %** | 18/18 live contracts are **Sourcify `exact_match`** (`scripts/v4/live/verifyContracts.cjs`, report `proofs/verify-8453-2026-11-14.json`), 13/18 also reproduce the creation input byte-for-byte from the deploy-profile artifacts; `.env` synced from broadcast records; redeploy script + committed snapshot. Deducted for the missing Basescan key (Sourcify is the only working verifier) |
 | Trust & governance | 20 % | **72 %** | **F-9 partly closed.** The hook is owned by `EswapTimelock` `0x9aA2…138e` and the router by `EswapTimelock` `0x6793…f541`; the router accept **executed 2026-11-15** (`0x9354eed0…3f5961`), so both are behind a 48 h delay with `pendingOwner == 0`. Still open: the timelocks' `admin` is the same EOA, so there is no multisig and no independent canceller; no external-firm audit attestation in the repo |
 | Distribution | 20 % | **70 %** | Base (8453) is wired into `wagmi.js`, `ConnectButton.jsx`, `supported_tokens.json`, `rpc.js` and every RPC/token path; the dashboard production build compiles. The intent relay now ships as **Next.js App Router handlers** (`GET/POST /api/intents`, `POST /api/intents/[id]/filled`, `GET /api/health`) and was smoke-tested against Base mainnet: signature recovery, `filledOrders`, owner funding checks and the "filled" gate all ran on chain. Deducted because it is not deployed to a public host yet and there is no browser end-to-end run |
-| Liquidity / capital | 15 % | **33 %** | **Zero-treasury architecture is implemented, deployed and now proven once end to end.** The borrow leg was bonded in `erc20BorrowEscrow` by the solver, drawn by the fill, and repaid on close (escrow back to 0). The solver is never governance-whitelisted, `positionSolver` is set at open, principal is senior and yield is routed to the solver (`docs/SOLVER_INTEGRATION_GUIDE.md`). Not yet proven: no **external** solver has bonded, the intent feed is unpublished, and UniswapX/Fusion remain operator-gated (§4.3). The insurance backstop is protocol capital, up to its balance |
+| Liquidity / capital | 15 % | **33 %** | **Zero-treasury architecture is implemented, deployed and now proven once end to end.** The borrow leg was bonded in `erc20BorrowEscrow` by the solver, drawn by the fill, and repaid on close (escrow back to 0). The solver is never governance-whitelisted, `positionSolver` is set at open, principal is senior and yield is routed to the solver (`docs/SOLVER_INTEGRATION_GUIDE.md`). Not yet proven: no **external** solver has bonded, the intent feed is unpublished, and UniswapX/Fusion are permissionless (escrow-funded)|
 | Revenue capture | 10 % | **78 %** | Switch is armed and now **observed**: `reserveFactor = 10` bps of collateral on open, `treasury` set, `withdrawProtocolFee` works, gas ≈ $0.02/open on Base. The live fill paid 2 base units of USDC (0.000002 USDC) of fee — real, but not revenue |
 | **Weighted total** | | **≈ 75 %** | |
 

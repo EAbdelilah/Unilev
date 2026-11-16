@@ -3,7 +3,7 @@
 ## 1) Title & Summary
 **Title:** Eswap Margin Protocol on Base (Chain ID 8453) — 0% borrower interest, permissionless solver settlement via canonical GPv2 orders.
 
-**Summary:** Eswap is a Uniswap v4 margin layer on **Base (8453)** that enables leveraged long/short positions with **0% borrower interest**. Solvers provide the borrow leg from their own capital (escrowed on-chain) and are repaid from position settlement flows. Settlement integrates with **CoW Protocol (GPv2 Settlement)** through `EswapCoWSettlement`, which validates canonical GPv2 orders, enforces a trader-signed leverage commitment in `appData`, and routes fills into Eswap’s margin/open flow. This design gives external solvers a clear, verifiable path to monetize flow while keeping protocol balance-sheet borrow exposure at **zero** (solvers fund borrowing).
+**Summary:** Eswap is a Uniswap v4 margin layer on **Base (8453)** that enables leveraged long/short positions with **0% borrower interest**. Solvers provide the borrow leg from their own capital (escrowed on-chain via `EswapRouter`) and are repaid from position settlement flows. **All three major solver rails are permissionless and solver-capitalized:** CoW Protocol (`EswapCoWSettlement`), 1inch Fusion (`EswapOneInchFusionSettlement`), and UniswapX (`EswapUniswapXSettlement`) allow external solvers/fillers to bond borrow in escrow and open leveraged positions credited to traders (with the filler recorded as `positionSolver`). This keeps protocol balance-sheet borrow exposure at **zero**.
 
 - Chain: **Base Mainnet, chainId 8453**
 - Core idea: **solver-funded leverage + CoW-compatible order settlement + permissionless intent feed**

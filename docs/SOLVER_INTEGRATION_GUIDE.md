@@ -78,8 +78,8 @@ Each one was checked on chain for bytecode and for its wiring.
 | `EswapMarginHook` | `0x7b3F232BB5a0346fADb8B92B31B3e7bC60bD90c8` | Positions, `positionSolver`, `solverDebts` |
 | `EswapCoWSettlement` | `0x7341859C0D7e039118b3f85F341583EBCDB8c960` | `router()` = live router ✓, `gpv2Settlement()` = `0x9008D19f58AAbD9eD0D60971565AA8510560ab41` ✓ |
 | `EswapSettlement` (generic, ERC-7683) | `0x6F347acB3bD901731e192d482b7a40c50f30FCa1` | `fill` has no operator gate |
-| `EswapUniswapXSettlement` | `0x8cB966a5102444BbeD5A222AcE1b88d0421b0cB2` | **Operator-gated** (see §4.3) |
-| `EswapOneInchFusionSettlement` | `0x587f01dE3c42eB5E6a9DBA7a3026719F6F95FBbb` | **Operator-gated** (see §4.3) |
+| `EswapUniswapXSettlement` | `0x8cB966a5102444BbeD5A222AcE1b88d0421b0cB2` | Permissionless (solver-funded via router escrow; see section 4.3) |
+| `EswapOneInchFusionSettlement` | `0x587f01dE3c42eB5E6a9DBA7a3026719F6F95FBbb` | Permissionless (solver-funded via router escrow; see section 4.3) |
 | `EswapLeverageAdapter` | `0xC622558e9145dbe0Bc37Db5311e70f3F9Fa8cc48` | |
 | `EswapLeverageQuoter` | `0xb1228De759119088D9aCEf20b80dD4ED93Dd2ba5` | |
 | `PriceFeed` | `0x91d75C7f750510C04516fC4dcEB5737E5B170c02` | |
@@ -214,18 +214,16 @@ filler fronts `notional` and is recorded as the position's `positionSolver`. The
 filler recovers its principal and yield through `claimRepayment` after the
 position closes. Verify `originData` against the origin contract before filling.
 
-### 4.3 UniswapX and 1inch Fusion are **not** open to external solvers
+### 4.3 UniswapX and 1inch Fusion (permissionless, solver-funded)
 
-Both settlements check `msg.sender == operator` before filling:
+`EswapUniswapXSettlement` and `EswapOneInchFusionSettlement` are now permissionless and follow the same escrow-bonded model as CoW:
 
-- `EswapUniswapXSettlement.fill` reverts `NotAuthorizedFiller` unless the caller is
-  the operator.
-- `EswapOneInchFusionSettlement.fill` reverts `NotOperator`.
+- Any external filler/resolver calls `fill(...)` as `msg.sender` (the recorded `positionSolver`).
+- The solver must pre-fund borrow capacity via `EswapRouter.depositBorrowEscrow(marginToken, borrowAmount)` (or be governance-registered where applicable). The settlement checks escrow before opening the position.
+- The trader approves the settlement to pull margin; the settlement routes the leveraged open via `EswapRouter.swapMultiPoolForSolverFunded(...)`.
+- On unwind/close, the solver receives senior principal repayment and 100% of rehypothecated Uniswap v4 LP yield per hook rules (subject to proceeds/liquidation mechanics).
 
-On the live stack, both `operator()` values are `0x3fc88b834aC96Fa4c65913a6D3d5523418f7F037`,
-which is **Eswap's own solver EOA**. An external resolver cannot fill these
-orders today. Opening them to external resolvers would need a governance change
-to the operator, which is a separate decision and is not in this release.
+These rails are now open to external solvers/searchers without an operator whitelist gate.
 
 ---
 
@@ -406,7 +404,7 @@ book before they submit.
 |---|---|
 | Live contracts on Base | ✅ Deployed, checked on chain (§2) |
 | CoW fill path, leverage commitment, escrow, senior claim | ✅ Implemented; fork test passing 2/2 (`ExternalSolverZeroTreasury.t.sol`, 2026-11-13). The test stands up its own hook/router on the real Base PoolManager with test-owned LP, so it proves the mechanism, not the live pool's state |
-| UniswapX / Fusion for external resolvers | ❌ Operator-gated (§4.3). Not open |
+| UniswapX / Fusion for external resolvers | Permissionless (escrow-funded) |
 | Intent relay (open feed for solvers) | ✅ Implemented twice: the standalone Node relay (`scripts/server/intentRelay.ts`, self-checked) and the Next.js App Router handlers in `dashboard/` (production build passes). ❌ Not hosted yet — deployment steps are in `docs/INTENT_RELAY_DEPLOY.md` |
 | `swapWithIntent` path | ✅ Covered by the fork test (3/3). The registered solver's borrow is drawn from its wallet, the replay (trader, nonce) is rejected, and the solver recovers principal plus yield on close |
 | An external solver bonded and filling on mainnet | ❌ None yet |
