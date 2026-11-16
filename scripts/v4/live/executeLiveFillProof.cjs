@@ -181,7 +181,27 @@ async function main() {
   const selfRelay = relayer.address.toLowerCase() === solver.address.toLowerCase();
   const borrowCapacity = escrow + solverUsdc;
   const capacity = [traderUsdc, borrowCapacity / BigInt(LEVERAGE - 1)].reduce((a, b) => (a < b ? a : b));
-  let margin = REQUESTED_MARGIN ? BigInt(ethers.parseUnits(REQUESTED_MARGIN, 6)) : capacity;
+  // An explicit --margin is a request, not a ceiling: report the funding gap
+  // instead of silently shrinking a revenue-sized fill to dust. The probe below
+  // still runs at the fundable size so preflight stays informative.
+  const requestedMargin = REQUESTED_MARGIN ? BigInt(ethers.parseUnits(REQUESTED_MARGIN, 6)) : 0n;
+  const requestedBorrow = requestedMargin * BigInt(LEVERAGE - 1);
+  let margin = requestedMargin > 0n ? requestedMargin : capacity;
+  const requestedShortfall = [];
+  if (requestedMargin > traderUsdc) {
+    requestedShortfall.push({
+      who: 'trader',
+      need: `${usdc6(requestedMargin - traderUsdc)} USDC`,
+      to: trader.address,
+    });
+  }
+  if (requestedBorrow > borrowCapacity) {
+    requestedShortfall.push({
+      who: 'solver',
+      need: `${usdc6(requestedBorrow - borrowCapacity)} USDC (borrow leg)`,
+      to: solver.address,
+    });
+  }
   if (margin > capacity) margin = capacity;
   const borrow = margin * BigInt(LEVERAGE - 1);
 
@@ -193,13 +213,7 @@ async function main() {
   const SOLVER_GAS = ethers.parseEther(escrowMode ? '0.0000011' : '0.0000006');
   const RELAYER_GAS = ethers.parseEther('0.000012');
 
-  const shortfall = [];
-  if (margin > traderUsdc) {
-    shortfall.push({ who: 'trader', need: `${usdc6(margin - traderUsdc)} USDC`, to: trader.address });
-  }
-  if (borrow > borrowCapacity) {
-    shortfall.push({ who: 'solver', need: `${usdc6(borrow - borrowCapacity)} USDC (borrow leg)`, to: solver.address });
-  }
+  const shortfall = [...requestedShortfall];
   if (traderEth < TRADER_GAS) shortfall.push({ who: 'trader', need: `${eth(TRADER_GAS - traderEth)} ETH (gas)`, to: trader.address });
   if (solverEth < SOLVER_GAS && !shortfall.some((s) => s.to === solver.address)) {
     shortfall.push({ who: 'solver', need: `${eth(SOLVER_GAS - solverEth)} ETH (gas)`, to: solver.address });
@@ -219,6 +233,7 @@ async function main() {
     leverage: LEVERAGE,
     margin: margin.toString(),
     marginUsdc: usdc6(margin),
+    requestedMarginUsdc: requestedMargin > 0n ? usdc6(requestedMargin) : null,
     borrow: borrow.toString(),
     borrowUsdc: usdc6(borrow),
     notionalUsdc: usdc6(margin + borrow),
@@ -247,6 +262,11 @@ async function main() {
   console.log(`solver     ${solver.address}  ${plan.balances.solverUsdc} USDC  ${plan.balances.solverEth} ETH  escrow ${plan.balances.solverEscrowUsdc}`);
   console.log(`relayer    ${relayer.address} (${RELAYER_MODE})  ${plan.balances.relayerEth} ETH`);
   console.log(`fill       margin ${plan.marginUsdc} USDC @ ${LEVERAGE}x -> borrow ${plan.borrowUsdc}, notional ${plan.notionalUsdc} USDC`);
+  if (requestedMargin > margin) {
+    console.log(
+      `requested  ${usdc6(requestedMargin)} USDC @ ${LEVERAGE}x -> borrow ${usdc6(requestedBorrow)} USDC (gap reported below)`,
+    );
+  }
 
   if (margin === 0n) {
     console.error('\nNo fundable margin: the trader holds no USDC and/or the solver cannot cover the borrow leg.');

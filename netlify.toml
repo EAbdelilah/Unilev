@@ -1,0 +1,12 @@
+# Netlify config for the Eswap dashboard + intent relay.
+#
+# The Next.js app lives in `dashboard/`, so the site must build from there.
+# Netlify reads this file from the repository root and uses `base` as the
+# working directory for the build.
+[build]
+  base = "dashboard"
+  command = "next build"
+  publish = ".next"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"

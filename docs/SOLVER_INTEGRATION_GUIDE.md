@@ -362,19 +362,29 @@ trader's signed order with `--orders`. The output then reads
 `needs-escrow … (bond 4000.0 USDC first)`, which is the zero-treasury model in
 practice: the solver must bond its own 4,000 USDC before a fill clears.
 
-### 6.1 The intent relay (`scripts/server/intentRelay.ts`)
+### 6.1 The intent relay (`scripts/server/intentRelay.ts` and `dashboard/src/app/api/intents`)
 
 The relay is the open board that replaces CoW's restricted auction. It holds no
-funds and submits no transactions.
+funds and submits no transactions. There are two implementations of the same
+contract, and either can be the `INTENT_FEED_URL`:
 
-| Endpoint | Purpose |
+* `scripts/server/intentRelay.ts` — standalone Node server, port 8787, for local
+  work and the self-check;
+* `dashboard/src/app/api/intents` — Next.js App Router handlers. Deploying the
+  dashboard (Vercel / Netlify / a single Node host) makes this a free 24/7 HTTPS
+  feed at `https://<domain>/api/intents`. Deployment steps, required environment
+  variables and the in-memory storage caveat are in
+  [`docs/INTENT_RELAY_DEPLOY.md`](./INTENT_RELAY_DEPLOY.md).
+
+| Endpoint (standalone / Next.js) | Purpose |
 |---|---|
-| `POST /intents` | Submit `{order, scheme, signature}`. Verified on chain before listing (201 new, 200 duplicate, 400 invalid, 502 RPC failure) |
-| `GET /intents?status=open` | Open, unexpired, unfilled intents for solvers |
-| `GET /intents/:id` | One intent. `:id` is the on-chain order-UID hash |
-| `POST /intents/:id/filled` | `{txHash?}`. Accepted only if `filledOrders(id)` is true on chain (409 otherwise) |
+| `POST /intents` / `POST /api/intents` | Submit `{order, scheme, signature}`. Verified on chain before listing (201 new, 200 duplicate, 400 invalid, 502 RPC failure) |
+| `GET /intents?status=open` / `GET /api/intents?status=open` | Open, unexpired, unfilled intents for solvers |
+| `GET /intents/:id` / `GET /api/intents/:id` | One intent. `:id` is the on-chain order-UID hash |
+| `POST /intents/:id/filled` / `POST /api/intents/:id/filled` | `{txHash?}`. Accepted only if `filledOrders(id)` is true on chain (409 otherwise) |
 
-Run it with `node node_modules/tsx/dist/cli.mjs scripts/server/intentRelay.ts`
+Run the standalone one with
+`node node_modules/tsx/dist/cli.mjs scripts/server/intentRelay.ts`
 (port 8787 by default). Its self-check is `scripts/test/intentRelay.check.ts`.
 The check runs 10 rejection paths against any RPC. With
 `RELAY_CHECK_TRADER_KEY` set to a trader who has approved the settlement, it also
@@ -397,7 +407,7 @@ book before they submit.
 | Live contracts on Base | ✅ Deployed, checked on chain (§2) |
 | CoW fill path, leverage commitment, escrow, senior claim | ✅ Implemented; fork test passing 2/2 (`ExternalSolverZeroTreasury.t.sol`, 2026-11-13). The test stands up its own hook/router on the real Base PoolManager with test-owned LP, so it proves the mechanism, not the live pool's state |
 | UniswapX / Fusion for external resolvers | ❌ Operator-gated (§4.3). Not open |
-| Intent relay (open feed for solvers) | ✅ Implemented and self-checked (`scripts/server/intentRelay.ts`). It is not hosted yet |
+| Intent relay (open feed for solvers) | ✅ Implemented twice: the standalone Node relay (`scripts/server/intentRelay.ts`, self-checked) and the Next.js App Router handlers in `dashboard/` (production build passes). ❌ Not hosted yet — deployment steps are in `docs/INTENT_RELAY_DEPLOY.md` |
 | `swapWithIntent` path | ✅ Covered by the fork test (3/3). The registered solver's borrow is drawn from its wallet, the replay (trader, nonce) is rejected, and the solver recovers principal plus yield on close |
 | An external solver bonded and filling on mainnet | ❌ None yet |
 | Live fill through the relay → bot → settlement loop | ⚠️ Not completed on the fork. The hook's TWAP circuit breaker (`TwapManipulated`, `EswapMarginLib`) blocked the fill in the fork's pool state. The guard is working as designed |

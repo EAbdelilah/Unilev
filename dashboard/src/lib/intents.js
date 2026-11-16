@@ -20,8 +20,10 @@
  * Storage caveat: the default store is in-memory and therefore per-instance
  * (a serverless deploy may run several). It is a *convenience feed*: the
  * authoritative record is the on-chain settlement, and solvers can rebuild the
- * book from `OrderFilled` events. Set `INTENT_STORE=redis` with
- * `INTENT_REDIS_URL` to make it durable once traffic justifies it.
+ * book from `OrderFilled` events. Redis is a documented future option but is
+ * NOT implemented in this tree; prefer a single long-running process
+ * (`next start`) until a durable store exists. See
+ * `docs/INTENT_RELAY_DEPLOY.md`.
  */
 import { ethers } from "ethers"
 

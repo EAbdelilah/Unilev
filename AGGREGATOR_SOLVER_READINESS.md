@@ -961,7 +961,7 @@ onboard one external solver.
 | 1 | **Router timelock accept** (`executeRouterAccept(1794697115)`) | **DONE** 2026-11-15, `0x9354eed0…3f5961`; `router.owner()` is the timelock | ops |
 | 2 | **First live fill** (open + close on Base) | **DONE** 2026-11-15, `0x6b64a069…41e38a` / `0x0abfa784…cf89372`; escrow bonded and repaid | eng |
 | 3 | **Batch verification** of all 18 live contracts | **DONE** 18/18 Sourcify `exact_match`; re-run any time with `node scripts/v4/live/verifyContracts.cjs --check` | eng |
-| 4 | **Publish the intent feed** and onboard one external solver against `docs/SOLVER_INTEGRATION_GUIDE.md` (§9.0) | Deploy `dashboard/` to Vercel/Netlify, set `INTENT_FEED_URL=https://<domain>/api/intents?status=open`, then have a solver run `scripts/solvers/cowSolverBot.ts` | eng + BD |
+| 4 | **Publish the intent feed** and onboard one external solver against `docs/SOLVER_INTEGRATION_GUIDE.md` (§9.0) | Deployment steps are written in `docs/INTENT_RELAY_DEPLOY.md` (`dashboard/vercel.json`, root `netlify.toml`, single-instance `next start`); still needs a host account. Then set `INTENT_FEED_URL=https://<domain>/api/intents?status=open` and have a solver run `scripts/solvers/cowSolverBot.ts` | eng + BD |
 | 5 | **Move timelock `admin` to a multisig** (F-9): deploy timelock2 with `admin = Safe`, then timelock1 queues `transferOwnership(timelock2)` | Open; 48 h + 48 h | ops |
 | 6 | **Browser smoke test on Base** + a revenue-sized fill (`--margin 5` with ~5 USDC in the trader wallet) | Open; hours | frontend + eng |
 | 7 | **Router redeploy for F-10** (corrected `trader != marginFunder` guard), then the 48 h hook-timelock `setRouterAndMinCollateralUsd` round trip and re-verification | Open; only at the next planned redeploy | eng + ops |
