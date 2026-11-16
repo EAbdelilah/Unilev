@@ -164,37 +164,21 @@ contract PermissionlessFusionUniswapXTest is Test, IUnlockCallback {
         });
     }
 
-    function _seedLiquidity(RealPoolKey memory hookReal, RealPoolKey memory stdReal, uint160) internal {
-        int24 tickLower = _floorToSpacing(INIT_TICK - LP_HALF_WIDTH, 60);
-        int24 tickUpper = _floorToSpacing(INIT_TICK + LP_HALF_WIDTH, 60);
-        uint256 wethForOneSide = 5_000 ether;
-        (uint160 sqrtL,,,) = StateLibrary.getSlot0(pm, hookReal.toId());
-        uint256 usdcForOneSide = _usdcForWeth(wethForOneSide, sqrtL);
-        uint256 wethLp = wethForOneSide * 100;
-        uint256 usdcLp = usdcForOneSide * 100;
-        deal(BASE_WETH, address(this), wethLp + wethLp);
-        deal(BASE_USDC, address(this), usdcLp + usdcLp);
-        RealIERC20(BASE_WETH).approve(address(pm), type(uint256).max);
+    function _seedLiquidity(RealPoolKey memory hookReal, RealPoolKey memory stdReal, uint160 initSqrt) internal {
+        deal(BASE_USDC, address(this), 2_000_000e6);
+        deal(BASE_WETH, address(this), 4000 ether);
         RealIERC20(BASE_USDC).approve(address(pm), type(uint256).max);
-        pm.unlock(abi.encode(hookReal, tickLower, tickUpper, int128(int256(wethLp > usdcLp ? usdcLp : wethLp) / 2)));
-        pm.unlock(abi.encode(stdReal, tickLower, tickUpper, int128(int256(wethLp > usdcLp ? usdcLp : wethLp) / 2)));
+        RealIERC20(BASE_WETH).approve(address(pm), type(uint256).max);
+
+        int24 base = (TickMath.getTickAtSqrtPrice(initSqrt) / 60) * 60;
+        int128 liq = int128(int256(1e15));
+        pm.unlock(abi.encode(stdReal, base - LP_HALF_WIDTH, base + LP_HALF_WIDTH, liq));
+        pm.unlock(abi.encode(hookReal, base - LP_HALF_WIDTH, base + LP_HALF_WIDTH, liq));
     }
 
-    function _floorToSpacing(int24 tick, int24 spacing) internal pure returns (int24) {
-        int24 c = tick / spacing;
-        if (tick < 0 && tick % spacing != 0) c -= 1;
-        return c * spacing;
-    }
-
-    function _usdcForWeth(uint256 wethAmount, uint160 sqrtPriceX96) internal pure returns (uint256) {
-        uint256 priceX192 = uint256(sqrtPriceX96) * uint256(sqrtPriceX96);
-        return FullMath.mulDiv(wethAmount, priceX192, 2 ** 192) / 1e12;
-    }
-
-    function _wethUsd18FromSqrt(uint160 sqrtPriceX96) internal pure returns (uint256) {
-        uint256 priceX192 = uint256(sqrtPriceX96) * uint256(sqrtPriceX96);
-        uint256 usdcPerWadWeth = FullMath.mulDiv(priceX192, 1e6, 2 ** 192);
-        return usdcPerWadWeth * 1e12;
+    /// @dev currency0=WETH(18), currency1=USDC(6): USD-per-WETH (18dp) from sqrtPrice.
+    function _wethUsd18FromSqrt(uint160 sqrtP) internal pure returns (uint256) {
+        return FullMath.mulDiv(uint256(sqrtP) * uint256(sqrtP), 1e30, uint256(1) << 192);
     }
 
     function _bondEscrow(uint256 amount) internal {
