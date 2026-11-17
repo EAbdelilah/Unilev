@@ -1,0 +1,36 @@
+{
+  "name": "@eswap/game-plugin",
+  "version": "1.0.0",
+  "description": "Virtuals G.A.M.E. SDK plugin for Eswap 0% interest 5x spot margin on Base",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    ".env.example"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && vitest run"
+  },
+  "dependencies": {
+    "@eswap/core": "file:../core",
+    "@virtuals-protocol/game": "^0.1.14",
+    "viem": "^2.37.8",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.30",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

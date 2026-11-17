@@ -1,12 +1,21 @@
 # Eswap Agent Integration Package
 
 Agent integrations for **Eswap** — a 5x spot margin primitive on Base mainnet
-built on Uniswap v4 hooks (EIP-1153 transient storage). Two drop-in packages:
+built on Uniswap v4 hooks (EIP-1153 transient storage). Drop-in packages:
 
 | Package | Framework | Entry point |
 | --- | --- | --- |
+| `@eswap/core` | Framework-agnostic viem v2 | `createEswapClient()`, `getEswapQuote()`, `executeEswapMargin()` |
+| `@eswap/mcp-server` | Model Context Protocol (Claude/Cursor/Shinkai/OKX) | `npx @eswap/mcp-server` (stdio or HTTP) |
+| `@eswap/game-plugin` | Virtuals Protocol G.A.M.E. | `new EswapGamePlugin().getWorker()` |
 | `@eswap/agentkit-action-provider` | Coinbase AgentKit (`@coinbase/agentkit`) | `eswapActionProvider()` |
 | `@eswap/plugin-margin` | ElizaOS (`@elizaos/core`) | `eswapPlugin` |
+
+The three new packages target the **current** deployment (2026-11-11): hook
+`0x7b3F232BB5a0346fADb8B92B31B3e7bC60bD90c8`, router
+`0x5b226aE5158de86f1E616875dBab886870B9aAd9`, with `WETH/USDC` and `cbBTC/USDC`. They are a pure
+JIT solver architecture: 0% interest, 0 TVL, 0 CAC — no ERC-4626 vault model. See each package
+README for configuration snippets.
 
 **Protocol facts (verified on-chain 2026-11-03)**
 
