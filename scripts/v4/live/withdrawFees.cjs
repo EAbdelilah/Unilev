@@ -41,7 +41,8 @@ async function main() {
   const net = await provider.getNetwork();
   if (Number(net.chainId) !== CHAIN_ID) throw new Error(`RPC chain ${net.chainId} != ${CHAIN_ID}`);
 
-  const hookAbi = JSON.parse(fs.readFileSync(path.resolve(process.cwd(), "dashboard/src/abis/EswapMarginHook.json"), "utf8"));
+  const hookArtifact = JSON.parse(fs.readFileSync(path.resolve(process.cwd(), "dashboard/src/abis/EswapMarginHook.json"), "utf8"));
+  const hookAbi = Array.isArray(hookArtifact) ? hookArtifact : hookArtifact.abi;
   const hookRead = new ethers.Contract(HOOK, hookAbi, provider);
 
   const treasury = await hookRead.treasury();
