@@ -109,7 +109,7 @@ export function TradeForm({ onTradingTokenChange }) {
     useEffect(() => {
         // Setup initial default selected tokens if not set properly (e.g if 'USDC/WBTC' don't exist in config)
         if (SUPPORTED_TOKENS_LIST.length > 0) {
-            // On V4 the trading asset must be a pool base token (WETH/WBTC), never USDC.
+            // On V4 the trading asset must be a pool base token (WETH/cbBTC/ETH), never USDC.
             const validTrading = isV4
                 ? SUPPORTED_TOKENS_LIST.filter((t) => t.key !== "USDC")
                 : SUPPORTED_TOKENS_LIST
@@ -139,9 +139,9 @@ export function TradeForm({ onTradingTokenChange }) {
         SUPPORTED_TOKENS_LIST,
     ])
 
-    // V4 trades the authorized hook pools (WETH → USDC/WETH, WBTC → WBTC/USDC).
+    // V4 trades the authorized hook pools (WETH/cbBTC → USDC/WETH or USDC/cbBTC).
     // The margin (input) currency is fully determined by direction + pair:
-    // LONG sells the USDC quote, SHORT sells the base token (WETH or WBTC).
+    // LONG sells the USDC quote, SHORT sells the base token (WETH or cbBTC).
     useEffect(() => {
         if (!isV4) return
         setMarginToken(isShort ? tradingToken : "USDC")

@@ -78,4 +78,6 @@ const open = await openEswapMarginFunction.execute(
 - The worker environment reports `chainId: 8453`, `leverage: 5`, `tvl: 0`, `borrowCarryAprPercent: 0`.
 - cbBTC has 8 decimals and USDC 6; the shared core handles scaling. USDC sorts before cbBTC in the
   PoolKey (`0x8335… < 0xcbB7…`), so `zeroForOne` is `true` for that pair when depositing USDC.
+- cbBTC/USDC phase 1 is live, but the hook registration executes at ETA `1795195136`
+  (2026-11-20 17:18:56 UTC). Until then quotes return `QUOTE_FAILED`; do not open that pair.
 - Real fills require `PRIVATE_KEY`; `dryRun` or `readOnly` never broadcast.

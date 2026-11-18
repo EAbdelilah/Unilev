@@ -148,6 +148,27 @@ export interface PoolInfo {
     }>;
 }
 
+/** EIP-712 conditional close armed on EswapRouterExt. */
+export interface TriggerOrder {
+    poolId: Hex;
+    /** 18-decimal USD price of token0 divided by token1. */
+    triggerPrice18: bigint;
+    /** true => execute when market >= trigger; false => market < trigger. */
+    aboveOrBelow: boolean;
+    minAmountOut: bigint;
+    closeDeadline: bigint;
+    nonce: bigint;
+    /** Capped by the contract at 1000 (10%). */
+    executorTipBps: number;
+}
+
+/** Minimal viem transaction call used by aggregator/keeper payloads. */
+export interface TransactionCall {
+    to: Address;
+    data: Hex;
+    value: bigint;
+}
+
 export interface ProtocolSpecs {
     protocol: string;
     network: { chain: string; chainId: number };

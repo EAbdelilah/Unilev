@@ -1,6 +1,6 @@
 -include .env
 
-.PHONY: all test test-v4 clean patch-v4-core build build-deploy deploy-anvil deploy-polygon deploy-unichain deploy-unichain-sepolia deploy-unichain-sepolia-full add-pair
+.PHONY: all test test-v4 clean patch-v4-core build build-deploy deploy-anvil deploy-polygon deploy-unichain deploy-unichain-sepolia deploy-unichain-sepolia-full add-pair add-base-cbbtc-usdc-dry-run add-base-cbbtc-usdc execute-base-cbbtc-usdc-register seed-base-cbbtc-usdc-liquidity
 
 all: clean install update build
 
@@ -73,6 +73,16 @@ deploy-unichain-sepolia-full : patch-v4-core ; @forge script scripts/v4/DeployUn
 
 # Add a NEW trading pair to the LIVE V4 protocol (no redeploy; env-driven, see script header)
 add-pair : patch-v4-core ; @forge script scripts/v4/AddPair.s.sol:AddPair --via-ir --rpc-url ${UNICHAIN_RPC_URL} --private-key ${PRIVATE_KEY} --broadcast --slow
+
+# --- Base cbBTC/USDC pair bootstrap (requires explicit approval to broadcast) ---
+# Phase 0: simulate only — never sends transactions.
+add-base-cbbtc-usdc-dry-run : patch-v4-core ; @forge script scripts/v4/AddBaseCbBtcUsdc.s.sol:AddBaseCbBtcUsdc --via-ir --rpc-url ${BASE_RPC_URL}
+# Phase 1: initialize pools + wire oracle/adapter/quoter + QUEUE the hook registration.
+add-base-cbbtc-usdc : patch-v4-core ; @forge script scripts/v4/AddBaseCbBtcUsdc.s.sol:AddBaseCbBtcUsdc --via-ir --rpc-url ${BASE_RPC_URL} --private-key ${PRIVATE_KEY} --broadcast --slow
+# Phase 2: execute the queued hook registration after CBBTC_REGISTER_ETA.
+execute-base-cbbtc-usdc-register : patch-v4-core ; @forge script scripts/v4/AddBaseCbBtcUsdc.s.sol:AddBaseCbBtcUsdc --sig "executeRegister(uint256)" ${CBBTC_REGISTER_ETA} --via-ir --rpc-url ${BASE_RPC_URL} --private-key ${PRIVATE_KEY} --broadcast --slow
+# Optional: seed the new v4 pools with real USDC + cbBTC.
+seed-base-cbbtc-usdc-liquidity : patch-v4-core ; @forge script scripts/v4/AddBaseCbBtcUsdc.s.sol:AddBaseCbBtcUsdc --sig "seedLiquidity()" --via-ir --rpc-url ${BASE_RPC_URL} --private-key ${PRIVATE_KEY} --broadcast --slow
 
 # --- V4 live trading scripts (Unichain mainnet, requires deployed contracts) ---
 v4-setup         :; node javascript/v4/setup.js

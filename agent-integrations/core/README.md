@@ -51,7 +51,10 @@ forces every non-dry-run call to be rejected.
 | Chain | Base mainnet, `8453` |
 | Hook | `0x7b3F232BB5a0346fADb8B92B31B3e7bC60bD90c8` |
 | Router | `0x5b226aE5158de86f1E616875dBab886870B9aAd9` |
+| RouterExt (trigger orders / ERC-7683) | `0x907CdA8c588c9C859A6fB4F105593a64599741CB` |
 | PoolManager | `0x498581fF718922c3f8e6A244956aF099B2652b2b` |
+| PriceFeed | `0x91d75C7f750510C04516fC4dcEB5737E5B170c02` |
+| ERC-7683 settlement | `0x6F347acB3bD901731e192d482b7a40c50f30FCa1` |
 | Quoter (fallback) | `0xb1228De759119088D9aCEf20b80dD4ED93Dd2ba5` |
 | USDC | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`, 6 decimals |
 | WETH | `0x4200000000000000000000000000000000000006`, 18 decimals |
@@ -87,7 +90,44 @@ core derives `zeroForOne` from this ordering instead of hard-coding it: `false` 
 
 `dryRun: true` performs the reads and a `simulateContract` call but never signs or broadcasts.
 
-**Live status note (2026-11-18):** WETH/USDC quotes resolve on Base. The cbBTC/USDC hook and
-standard pools are not yet initialized on-chain, so quoting that pair currently returns
-`QUOTE_FAILED` / `Pool not initialized` until governance registers the pool. The pair is fully
-configured in code for when it goes live.
+**Live status note (2026-11-18):** WETH/USDC quotes resolve on Base. cbBTC/USDC phase 1 is live:
+both pools are initialized and the Chainlink feed, adapter, quoter and timelock queue are wired
+(`src/v4/test/EswapBaseCbBtcUsdcForkTest.t.sol` covers the end state). The queued hook
+registration executes at ETA `1795195136` (2026-11-20 17:18:56 UTC). Until then the hook still
+rejects the pair and quoting returns `QUOTE_FAILED`; no trades should be attempted before phase 2.
+
+## Universal aggregator & automation suite
+
+The core also ships pure, injection-friendly builders for partner routing, keepers and leveraged
+tokens. They never hardcode a partner APR or imply a live listing; quotes and rates are supplied by
+the caller.
+
+```ts
+import { buildEnsoShortcut, buildContangoQuote, buildUniDexRoute } from "@eswap/core/adapters";
+import {
+  createGelatoWeb3Function,
+  buildTriggerOrderTypedData,
+  generateDcaSchedule,
+} from "@eswap/core/automation";
+import {
+  calculateLeverageTokenMath,
+  buildLifiMarginZap,
+  buildErc7683MarginIntent,
+} from "@eswap/core/rebalancer";
+```
+
+| Subpath | Exports | Purpose |
+| --- | --- | --- |
+| `@eswap/core/adapters` | `buildEnsoShortcut`, `buildContangoQuote`, `buildUniDexRoute` | Selector-based shortcut payloads, normalized cPerp quotes, 15-minute aggregator routes |
+| `@eswap/core/automation` | `createGelatoWeb3Function`, `buildTriggerOrderTypedData`, `generateDcaSchedule` | `canExec` keeper evaluation, EIP-712 trigger arming, recurring 5x DCA orders |
+| `@eswap/core/rebalancer` | `calculateLeverageTokenMath`, `buildLeverageTokenRebalance`, `buildLifiMarginZap`, `buildErc7683MarginIntent` | 2x/3x/5x collateral allocation, close/reopen bundles, LI.FI + ERC-7683 zaps |
+
+Automation safety rules are encoded in the helpers: `EswapRouter.closePosition` is trader-only;
+keepers use permissionless `EswapRouterExt.executeTriggerOrder` after a trader-signed arm and price
+cross, or `EswapRouter.liquidate` for underwater positions. RouterExt's market price is
+`USD(token0)/USD(token1)`, so WETH/USDC stop-losses cross **below** while cbBTC/USDC stop-losses
+cross **above** (USDC is `token0`).
+
+Governance-ready dossiers live in
+[`docs/integrations/`](../../docs/integrations): Contango, Enso, Index Coop and Gelato. All four
+include explicit “What is NOT claimed” sections; no partner listing or Gelato task is asserted.

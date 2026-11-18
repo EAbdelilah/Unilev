@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 
+const BASE_ID = 8453;
 const UNICHAIN_ID = 130;
 const UNICHAIN_SEPOLIA_ID = 1301;
 const POLYGON_ID = 137;
@@ -12,9 +13,19 @@ const PAIR_CONFIG = {
         symbol: "ETH",
         emoji: "⟠",
         color: "#a5b4fc",
+        // Deepest live Base WETH/USDC Uniswap v3 pool (~$86M liquidity).
+        [BASE_ID]: "0x6c561B446416E1A00E8E93E221854d6eA4171372",
         [UNICHAIN_ID]: "0x8927058918e3CFf6F55EfE45A58db1be1F069E49",
         [UNICHAIN_SEPOLIA_ID]: "0x8927058918e3CFf6F55EfE45A58db1be1F069E49",
         [POLYGON_ID]: "0x853Ee4b2A13f8a742d64C8F088bE7bA2131f670d",
+    },
+    cbBTC: {
+        label: "cbBTC/USDC",
+        symbol: "cbBTC",
+        emoji: "₿",
+        color: "#fde68a",
+        // Live Base Uniswap v3 cbBTC/USDC pool (~$6.2M liquidity).
+        [BASE_ID]: "0xfBB6Eed8e7aa03B138556eeDaF5D271A5E1e43ef",
     },
     WBTC: {
         label: "BTC/USDC",
@@ -28,18 +39,38 @@ const PAIR_CONFIG = {
 };
 
 function networkFor(chainId) {
-    return chainId === POLYGON_ID ? "polygon" : "unichain";
+    if (chainId === POLYGON_ID) return "polygon";
+    if (chainId === BASE_ID) return "base";
+    // Preserve the existing WETH fallback for disconnected / other V4 chains.
+    return "unichain";
+}
+
+function fallbackChainFor(network) {
+    if (network === "base") return BASE_ID;
+    if (network === "polygon") return POLYGON_ID;
+    return UNICHAIN_ID;
 }
 
 function pairFor(tokenKey, chainId) {
-    const cfg = PAIR_CONFIG[tokenKey] || PAIR_CONFIG["WETH"];
-    const pairAddress = cfg[chainId] || cfg[UNICHAIN_ID];
-    return { label: cfg.label, symbol: cfg.symbol, emoji: cfg.emoji, color: cfg.color, pairAddress };
+    const network = networkFor(chainId);
+    const fallbackChainId = fallbackChainFor(network);
+    let cfg = PAIR_CONFIG[tokenKey] || PAIR_CONFIG.WETH;
+    let pairAddress = cfg[chainId] ?? cfg[fallbackChainId];
+
+    // cbBTC is Base-only. On other networks fall back to the WETH chart rather
+    // than emitting an embed URL with an undefined pair id.
+    if (!pairAddress) {
+        cfg = PAIR_CONFIG.WETH;
+        pairAddress = cfg[fallbackChainId] ?? cfg[UNICHAIN_ID];
+    }
+    return { label: cfg.label, symbol: cfg.symbol, emoji: cfg.emoji, color: cfg.color, network, pairAddress };
 }
 
 export function LiveChart({ tokenKey = "WETH", chainId, onTokenChange }) {
-    const network = networkFor(chainId);
-    const { label, symbol, emoji, color, pairAddress } = pairFor(tokenKey, chainId);
+    const { label, symbol, emoji, color, network, pairAddress } = pairFor(tokenKey, chainId);
+    const availablePairs = Object.keys(PAIR_CONFIG).filter(
+        (key) => key !== "cbBTC" || network === "base",
+    );
     const [loaded, setLoaded] = useState(false);
 
     const params = new URLSearchParams({
@@ -137,7 +168,7 @@ export function LiveChart({ tokenKey = "WETH", chainId, onTokenChange }) {
                     borderBottom: '1px solid rgba(255,255,255,0.05)',
                     background: 'rgba(0,0,0,0.12)',
                 }}>
-                    {Object.keys(PAIR_CONFIG).map((key) => {
+                    {availablePairs.map((key) => {
                         const cfg = PAIR_CONFIG[key];
                         const isActive = tokenKey === key;
                         return (

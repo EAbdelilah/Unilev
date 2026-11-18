@@ -7,9 +7,25 @@ export const BASE_CHAIN_ID = 8453;
 export const ESWAP_CONTRACTS = {
     hook: "0x7b3F232BB5a0346fADb8B92B31B3e7bC60bD90c8" as Address,
     router: "0x5b226aE5158de86f1E616875dBab886870B9aAd9" as Address,
+    /** Companion carrying signed trigger orders and ERC-7683 initiation. */
+    routerExt: "0x907CdA8c588c9C859A6fB4F105593a64599741CB" as Address,
     poolManager: "0x498581fF718922c3f8e6A244956aF099B2652b2b" as Address,
     /** Optional dedicated leverage quoter; the router quote is tried first. */
     quoter: "0xb1228De759119088D9aCEf20b80dD4ED93Dd2ba5" as Address,
+    /** Chainlink-anchored oracle used by the hook and trigger orders. */
+    priceFeed: "0x91d75C7f750510C04516fC4dcEB5737E5B170c02" as Address,
+    /** ERC-7683 destination settler. */
+    settlement: "0x6F347acB3bD901731e192d482b7a40c50f30FCa1" as Address,
+    /** CoW Protocol settlement rail. */
+    cowSettlement: "0x7341859C0D7e039118b3f85F341583EBCDB8c960" as Address,
+} as const;
+
+/** EIP-712 domain pinned by EswapRouterExt's DOMAIN_SEPARATOR. */
+export const TRIGGER_ORDER_DOMAIN = {
+    name: "EswapRouter",
+    version: "1",
+    chainId: BASE_CHAIN_ID,
+    verifyingContract: ESWAP_CONTRACTS.router,
 } as const;
 
 export type TokenSymbol = "USDC" | "WETH" | "cbBTC";
@@ -58,7 +74,7 @@ export interface PairConfig {
     readonly standardPoolKey: PoolKey;
 }
 
-/** Uniswap v4 requires tokens in ascending address order (WETH/cbBTC < USDC). */
+/** Uniswap v4 sorts by ascending address: WETH < USDC, but USDC < cbBTC. */
 function makePair(pair: SupportedPair, base: TokenInfo): PairConfig {
     const [currency0, currency1] =
         base.address.toLowerCase() < USDC.address.toLowerCase()

@@ -55,10 +55,10 @@ export function useDeFi() {
         const all = supportedTokensByChain[chainKey] || supportedTokensByChain[String(BASE_CHAIN_ID)] || {}
         // Unichain V4 trades native ETH against USDC only, so the wrapped WETH
         // and WBTC entries are redundant with the native base (address 0x0).
-        // Base V4 trades WETH (an ERC-20) against USDC, so WETH must stay —
-        // dropping it would leave USDC alone and no pool to trade.
+        // Base V4 trades ERC-20 WETH and cbBTC against USDC, so both must stay —
+        // dropping them would leave USDC alone and no pool to trade.
         if (isBaseChain(effectiveChainId)) return all
-        const { WETH, WBTC, ...rest } = all
+        const { WETH, WBTC, cbBTC, ...rest } = all
         return rest
     }, [isPolygon, effectiveChainId, chainKey])
     const ADDRESSES = useMemo(() => ({ ...chainTokens, ...ENV_ADDRESSES }), [chainTokens])

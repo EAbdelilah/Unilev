@@ -97,8 +97,9 @@ All diagnostics go to stderr so the stdio channel stays JSON-RPC clean.
 
 ## Safety notes
 
-- WETH/USDC quotes resolve live on Base. cbBTC/USDC pools are not initialized on-chain yet, so
-  that pair returns `QUOTE_FAILED` until governance registers it (the code is ready).
+- WETH/USDC quotes resolve live on Base. cbBTC/USDC phase 1 is live (pools, oracle, adapter,
+  quoter and timelock queue), but the hook registration executes only at ETA `1795195136`
+  (2026-11-20 17:18:56 UTC). Until then this pair returns `QUOTE_FAILED`; do not trade it.
 - `dryRun: true` is supported on `eswap_open_spot_margin` and never broadcasts.
 - `--read-only` forces `dryRun: true` even if the agent asks for a live fill.
 - Quote output is a spot approximation from the execution pool's `slot0`, not a guaranteed fill.

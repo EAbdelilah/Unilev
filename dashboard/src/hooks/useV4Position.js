@@ -20,7 +20,7 @@ function sortCurrencies(c0, c1) {
     return c0.toLowerCase() < c1.toLowerCase() ? [c0, c1] : [c1, c0]
 }
 
-const TOKEN_DECIMALS = { ETH: 18, WBTC: 8, WETH: 18, USDC: 6 }
+const TOKEN_DECIMALS = { ETH: 18, WBTC: 8, WETH: 18, cbBTC: 8, USDC: 6 }
 
 function poolIdFor(base, quote, hookAddress) {
     const [c0, c1] = sortCurrencies(base, quote)
@@ -45,6 +45,7 @@ export function useV4Position() {
         [chainKey]
     )
     const WETH_ADDR = tokens.WETH || "0x4200000000000000000000000000000000000006"
+    const CBBTC_ADDR = tokens.cbBTC || "0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf"
     const USDC_ADDR = tokens.USDC || "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
     const ETH_ADDR = tokens.ETH || "0x0000000000000000000000000000000000000000"
     const WBTC_ADDR = tokens.WBTC || "0x927B51f251480a681271180DA4de28D44EC4AfB8"
@@ -59,9 +60,10 @@ export function useV4Position() {
             "",
     }
 
-    // Authorized hook pool (base token quoted in USDC). The base currency is
+    // Authorized hook pools (base token quoted in USDC). The base currency is
     // chain-specific:
-    //   * Base (8453)    — WETH/USDC, base = WETH (0x4200..0006), an ERC-20.
+    //   * Base (8453)    — WETH/USDC and cbBTC/USDC, both ERC-20 bases. cbBTC
+    //                      sorts ABOVE USDC, so its long is zeroForOne=true.
     //   * Unichain (130) — native ETH/USDC, base = native ether (address 0x0),
     //                      the deepest pair there ($5.4M TVL via the 500/10
     //                      no-hook standard pool).
@@ -70,11 +72,12 @@ export function useV4Position() {
         const pools = []
         if (isBase) {
             if (WETH_ADDR) pools.push({ key: "WETH", base: WETH_ADDR, quote: USDC_ADDR })
+            if (CBBTC_ADDR) pools.push({ key: "cbBTC", base: CBBTC_ADDR, quote: USDC_ADDR })
         } else if (ETH_ADDR) {
             pools.push({ key: "ETH", base: ETH_ADDR, quote: USDC_ADDR })
         }
         return pools
-    }, [isBase, ETH_ADDR, WETH_ADDR, USDC_ADDR])
+    }, [isBase, ETH_ADDR, WETH_ADDR, CBBTC_ADDR, USDC_ADDR])
 
     const SUPPORTED_TOKENS_LIST = useMemo(
         () => V4_POOLS.map((p) => ({ key: p.key, name: p.key, address: p.base })),
@@ -101,9 +104,9 @@ export function useV4Position() {
     }
 
     // Only a pool whose base is native ether (address 0x0) is funded through
-    // msg.value. On Base the base is WETH — an ERC-20 the router pulls via
-    // allowance — so sending value there would be both wrong and a stuck-funds
-    // path, hence the explicit native check.
+    // msg.value. On Base the bases are WETH and cbBTC — ERC-20s the router pulls
+    // via allowance — so sending value there would be both wrong and a
+    // stuck-funds path, hence the explicit native check.
     function nativeValueOverride(isShort, pool, amount, leverage) {
         if (!isShort || !pool) return {}
         const isNativeBase = pool.base === ethers.ZeroAddress
@@ -115,8 +118,8 @@ export function useV4Position() {
         return await new ethers.BrowserProvider(window.ethereum).getSigner()
     }, [walletClient])
 
-    // Builds router.swap() params for `tradingKey` (WETH). Each pool's
-    // base currency is the "trading asset" (set via hook.setBaseCurrency), so:
+    // Builds router.swap() params for `tradingKey` (WETH / cbBTC / ETH). Each
+    // pool's base currency is the "trading asset" (set via registerTradingPair), so:
     //   LONG  → sell quote (USDC), buy base   → zeroForOne = baseIsCurrency0 ? false : true
     //   SHORT → sell base, buy quote          → zeroForOne = baseIsCurrency0 ? true  : false
     // The solver settles the borrowed leg (required for leverage > 1).
@@ -234,7 +237,7 @@ export function useV4Position() {
                     if (pos.collateralAmount === 0n) return null
 
                     // isLong is anchored to the pool's base currency, so a LONG
-                    // holds base collateral (WETH/WBTC) and a SHORT holds quote (USDC).
+                    // holds base collateral (WETH/cbBTC) and a SHORT holds quote (USDC).
                     const collateralKey = pos.isLong ? pool.key : "USDC"
                     const collateralDecimals = TOKEN_DECIMALS[collateralKey] ?? 18
                     const currentPrice = await computeUsdPerBase(hook, pool)
@@ -320,6 +323,7 @@ export function useV4Position() {
         ADDRESSES,
         tokens,
         WETH_ADDR,
+        CBBTC_ADDR,
         USDC_ADDR,
         V4_POOLS,
         SUPPORTED_TOKENS_LIST,
