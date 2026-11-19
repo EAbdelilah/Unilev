@@ -3,6 +3,8 @@ out/
 # Deploy-profile artifacts (optimizer_runs = 1). Kept separate so a deploy build
 # never clobbers the test artifacts in out/.
 out-deploy/
+# Public MIT integration suite artifacts (isolated Foundry profile).
+out-public-integrations/
 .gas-snapshot
 .vscode/
 .env

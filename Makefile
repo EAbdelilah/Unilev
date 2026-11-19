@@ -1,6 +1,6 @@
 -include .env
 
-.PHONY: all test test-v4 clean patch-v4-core build build-deploy deploy-anvil deploy-polygon deploy-unichain deploy-unichain-sepolia deploy-unichain-sepolia-full add-pair add-base-cbbtc-usdc-dry-run add-base-cbbtc-usdc execute-base-cbbtc-usdc-register seed-base-cbbtc-usdc-liquidity
+.PHONY: all test test-v4 test-public-integrations clean patch-v4-core build build-deploy deploy-anvil deploy-polygon deploy-unichain deploy-unichain-sepolia deploy-unichain-sepolia-full add-pair add-base-cbbtc-usdc-dry-run add-base-cbbtc-usdc execute-base-cbbtc-usdc-register seed-base-cbbtc-usdc-liquidity
 
 all: clean install update build
 
@@ -40,7 +40,12 @@ test-gas : patch-v4-core ; forge test --fork-url ${POLYGON_RPC_URL} -vv --gas-re
 # which these per-test forks don't pass; -j 1 alone keeps RPC pressure low.
 test-v4 : patch-v4-core ; forge test --match-path "src/v4/test/**/*.t.sol" -vv --via-ir -j 1
 
-slither :; slither ./src 
+# Public MIT integration suite (isolated profile; no default-suite changes).
+# Fork tests read BASE_RPC_URL (fallback: https://mainnet.base.org) and skip if
+# the fork is unavailable. -j 1 avoids free-tier RPC rate limits.
+test-public-integrations : patch-v4-core ; FOUNDRY_PROFILE=public-integrations forge test --match-path "eswap-public-integrations/test/**/*.t.sol" -vv --via-ir -j 1
+
+slither :; slither ./src
 
 format :; prettier --write src/**/*.sol && prettier --write src/*.sol
 

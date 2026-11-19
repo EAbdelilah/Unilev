@@ -31,6 +31,29 @@ optimizer_runs = 1
 out = 'out-deploy'
 skip = ["test/**", "src/v4/test/**"]
 
+# Non-breaking external integration suite. Kept in its own source/test/out
+# trees so `make test` and the committed deployment profiles are untouched.
+# The Solidity files import the live `src/v4` contracts via relative paths for
+# byte-exact ABI/type compatibility with the Base deployment.
+[profile.public-integrations]
+src = 'eswap-public-integrations/src'
+test = 'eswap-public-integrations/test'
+out = 'out-public-integrations'
+libs = ['lib']
+gas_reports = ["*"]
+optimizer = true
+optimizer_runs = 200
+solc = "0.8.27"
+evm_version = "cancun"
+via_ir = true
+remappings = [
+    '@uniswap/v4-core/=lib/v4-core/',
+]
+fs_permissions = [
+    { access = "read-write", path = "." },
+    { access = "read-write", path = "C:/Users/faar_/AppData/Local/Temp/opencode" },
+]
+
 # Named endpoints so deployment scripts can be run as
 #   forge script <script>:<C> --rpc-url unichain --broadcast
 # without ever putting a URL (which carries an API key) on the command line.
