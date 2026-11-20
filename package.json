@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "UniswapMAX",
   "author": "Los Byzantinos",
-  "license": "MIT",
+  "license": "BUSL-1.1",
   "files": [
     "src/**/*.sol"
   ],
@@ -27,6 +27,8 @@
     "snapshot": "make snapshot",
     "format": "make format",
     "lint": "make lint",
+    "typecheck": "tsc --noEmit -p eswap-public-integrations/tsconfig.json",
+    "verify:public-export": "tsx eswap-public-integrations/scripts/verifyPublicExport.ts",
     "all": "make all"
   },
   "dependencies": {

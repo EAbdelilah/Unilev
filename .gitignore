@@ -24,3 +24,6 @@ shariah_compliance.html
 
 # Unichain V4 deployment-specific addresses (contains no secrets, but is per-deployment)
 .env.local.v4
+
+# Public integration suite is an independent repository with its own fresh history.
+/eswap-public-integrations/
