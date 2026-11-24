@@ -34,8 +34,28 @@ jobs:
         run: npm run build
         timeout-minutes: 10
         env:
-          # Public env vars are baked at build time; set required NEXT_PUBLIC_* secrets/vars in repo settings if needed.
+          # Public V4 addresses are baked into the browser bundle at build time.
+          # Pin them here so production matches the current repo dashboard even
+          # when repo-level Vercel variables are absent.
           NEXT_PUBLIC_CHAIN_ID: ${{ vars.NEXT_PUBLIC_CHAIN_ID || '8453' }}
+          NEXT_PUBLIC_V4_HOOK_ADDRESS: ${{ vars.NEXT_PUBLIC_V4_HOOK_ADDRESS || '0x7b3F232BB5a0346fADb8B92B31B3e7bC60bD90c8' }}
+          NEXT_PUBLIC_V4_ROUTER_ADDRESS: ${{ vars.NEXT_PUBLIC_V4_ROUTER_ADDRESS || '0x5b226aE5158de86f1E616875dBab886870B9aAd9' }}
+          NEXT_PUBLIC_V4_PRICEFEED_ADDRESS: ${{ vars.NEXT_PUBLIC_V4_PRICEFEED_ADDRESS || '0x91d75C7f750510C04516fC4dcEB5737E5B170c02' }}
+          NEXT_PUBLIC_V4_ROUTER_EXT_ADDRESS: ${{ vars.NEXT_PUBLIC_V4_ROUTER_EXT_ADDRESS || '0x907CdA8c588c9C859A6fB4F105593a64599741CB' }}
+          NEXT_PUBLIC_V4_KEEPER_ADDRESS: ${{ vars.NEXT_PUBLIC_V4_KEEPER_ADDRESS || '0xe755c37CFC66873f563128DC4aF1D5f27Aa90B2F' }}
+          NEXT_PUBLIC_V4_ADAPTER_ADDRESS: ${{ vars.NEXT_PUBLIC_V4_ADAPTER_ADDRESS || '0xC622558e9145dbe0Bc37Db5311e70f3F9Fa8cc48' }}
+          NEXT_PUBLIC_V4_QUOTER_ADDRESS: ${{ vars.NEXT_PUBLIC_V4_QUOTER_ADDRESS || '0xb1228De759119088D9aCEf20b80dD4ED93Dd2ba5' }}
+          NEXT_PUBLIC_V4_SETTLEMENT_ADDRESS: ${{ vars.NEXT_PUBLIC_V4_SETTLEMENT_ADDRESS || '0x6F347acB3bD901731e192d482b7a40c50f30FCa1' }}
+          NEXT_PUBLIC_V4_TIMELOCK_ADDRESS: ${{ vars.NEXT_PUBLIC_V4_TIMELOCK_ADDRESS || '0x9aA2e9e2FB4cfC71a89F03b88Abf6116d8B1138e' }}
+          NEXT_PUBLIC_V4_ROUTER_TIMELOCK_ADDRESS: ${{ vars.NEXT_PUBLIC_V4_ROUTER_TIMELOCK_ADDRESS || '0x6793667010815D83C0a60D3F6b7E6f7FEdC7f541' }}
+          NEXT_PUBLIC_V4_SOLVER_ADDRESS: ${{ vars.NEXT_PUBLIC_V4_SOLVER_ADDRESS || '0x3fc88b834aC96Fa4c65913a6D3d5523418f7F037' }}
+          NEXT_PUBLIC_USDC_TWAP_FEED: ${{ vars.NEXT_PUBLIC_USDC_TWAP_FEED || '0xFCaBcc24bB71b42F8ACa94d187174bcfc05c5792' }}
+          NEXT_PUBLIC_ETH_TWAP_FEED: ${{ vars.NEXT_PUBLIC_ETH_TWAP_FEED || '0x60c335829820eB341fACFF91A521933168e78eF2' }}
+          NEXT_PUBLIC_REQUIRE_TWAP_ORACLE: ${{ vars.NEXT_PUBLIC_REQUIRE_TWAP_ORACLE || 'true' }}
+          NEXT_PUBLIC_MIN_COLLATERAL_USD: ${{ vars.NEXT_PUBLIC_MIN_COLLATERAL_USD || '1000000000000' }}
+          NEXT_PUBLIC_BASE_RPC_URL: ${{ vars.NEXT_PUBLIC_BASE_RPC_URL || 'https://mainnet.base.org' }}
+          NEXT_PUBLIC_UNICHAIN_RPC_URL: ${{ vars.NEXT_PUBLIC_UNICHAIN_RPC_URL || 'https://mainnet.unichain.org' }}
+          NEXT_PUBLIC_RPC_URL: ${{ vars.NEXT_PUBLIC_RPC_URL || 'https://polygon-rpc.com' }}
 
       - name: Deploy to Vercel (Production)
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
