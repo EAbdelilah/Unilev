@@ -9,6 +9,7 @@ import { AdminToggle } from '@/components/AdminToggle';
 import { LiveChart } from '@/components/LiveChart';
 import { useAdmin } from '@/contexts/AdminContext';
 import { useAccount } from 'wagmi';
+import { chainName } from '@/utils/chains';
 import Link from 'next/link';
 import { useState } from 'react';
 
@@ -127,7 +128,7 @@ export default function Home() {
                 {[
                     { label: 'Interest Rate', value: '0%', color: 'var(--green-light)', glow: 'rgba(16,185,129,0.3)' },
                     { label: 'Protocol', value: 'Uniswap V4', color: 'var(--purple-light)', glow: '' },
-                    { label: 'Network', value: 'Unichain', color: 'var(--cyan-light)', glow: '' },
+                    { label: 'Network', value: chainName(chainId), color: 'var(--cyan-light)', glow: '' },
                     { label: 'Max Leverage', value: '5×', color: 'var(--amber-light)', glow: '' },
                     { label: 'Oracle', value: 'Chainlink', color: '#94a3b8', glow: '' },
                 ].map((s, i) => (

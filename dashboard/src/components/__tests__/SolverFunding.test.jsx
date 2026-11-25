@@ -20,7 +20,7 @@ jest.mock("../../utils/format", () => ({
 }))
 
 jest.mock("../../utils/chains", () => ({
-    isUnichainChain: jest.fn(() => true),
+    isBaseChain: jest.fn(() => true),
 }))
 
 jest.mock("ethers", () => ({
@@ -41,7 +41,7 @@ describe("SolverFunding", () => {
         useAccount.mockReturnValue({
             isConnected: true,
             address: "0xUser",
-            chainId: 130,
+            chainId: 8453,
         })
         useDeFi.mockReturnValue({
             ADDRESSES: {

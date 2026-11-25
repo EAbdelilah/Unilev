@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useDeFi } from '../hooks/useDeFi';
 import { useAccount } from 'wagmi';
-import { isUnichainChain } from '../utils/chains';
+import { isBaseChain } from '../utils/chains';
 import clsx from 'clsx';
 import { ethers } from 'ethers';
 import { formatContractError, isUserCancellation } from '../utils/formatContractError';
@@ -14,7 +14,7 @@ export function SolverFunding() {
     const { ADDRESSES, getTokenBalance, sendTokens, isMetaMaskInstalled } = useDeFi();
 
     const solver = ADDRESSES.V4_SOLVER;
-    const isCorrectNetwork = isUnichainChain(chainId);
+    const isCorrectNetwork = isBaseChain(chainId);
 
     const [token, setToken] = useState('USDC');
     const [amount, setAmount] = useState('0');
@@ -84,7 +84,7 @@ export function SolverFunding() {
                     Fund the Solver
                 </h2>
                 <span className="text-[10px] font-bold text-purple-400 bg-purple-500/10 border border-purple-500/20 rounded px-2 py-1 uppercase tracking-wider">
-                    Unichain V4
+                    Base V4
                 </span>
             </div>
 
@@ -95,7 +95,7 @@ export function SolverFunding() {
                 </div>
                 {solver ? (
                     <a
-                        href={`https://unichain.blockscout.com/address/${solver}`}
+                        href={`https://basescan.org/address/${solver}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-xs text-cyan-400 font-mono break-all hover:underline underline-offset-2"
@@ -197,7 +197,7 @@ export function SolverFunding() {
                         : !isMetaMaskInstalled
                         ? 'Install MetaMask'
                         : !isCorrectNetwork
-                        ? 'Connect to Unichain'
+                        ? 'Connect to Base'
                         : !isConnected
                         ? 'Connect Wallet'
                         : processing

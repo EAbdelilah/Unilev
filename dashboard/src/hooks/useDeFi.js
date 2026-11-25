@@ -164,7 +164,7 @@ export function useDeFi() {
             try {
                 const balance = await readProvider.getBalance(userAddress)
 
-                // On Unichain the native asset is ETH, priced via the native ETH/USD feed (token 0x0).
+                // On chains whose base asset is native ETH, price it via the native ETH/USD feed (token 0x0).
                 if (!isPolygon) {
                     let usdValue = "N/A"
                     try {

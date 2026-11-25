@@ -40,15 +40,15 @@ const PAIR_CONFIG = {
 
 function networkFor(chainId) {
     if (chainId === POLYGON_ID) return "polygon";
-    if (chainId === BASE_ID) return "base";
-    // Preserve the existing WETH fallback for disconnected / other V4 chains.
-    return "unichain";
+    if (chainId === UNICHAIN_ID || chainId === UNICHAIN_SEPOLIA_ID) return "unichain";
+    // The live V4 stack is on Base; disconnected and unknown chains use it too.
+    return "base";
 }
 
 function fallbackChainFor(network) {
-    if (network === "base") return BASE_ID;
+    if (network === "unichain") return UNICHAIN_ID;
     if (network === "polygon") return POLYGON_ID;
-    return UNICHAIN_ID;
+    return BASE_ID;
 }
 
 function pairFor(tokenKey, chainId) {
@@ -61,7 +61,7 @@ function pairFor(tokenKey, chainId) {
     // than emitting an embed URL with an undefined pair id.
     if (!pairAddress) {
         cfg = PAIR_CONFIG.WETH;
-        pairAddress = cfg[fallbackChainId] ?? cfg[UNICHAIN_ID];
+        pairAddress = cfg[fallbackChainId] ?? cfg[BASE_ID];
     }
     return { label: cfg.label, symbol: cfg.symbol, emoji: cfg.emoji, color: cfg.color, network, pairAddress };
 }

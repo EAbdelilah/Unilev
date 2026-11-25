@@ -23,3 +23,12 @@ export function isUnichainChain(chainId) {
 export function isBaseChain(chainId) {
     return chainId === BASE_CHAIN_ID
 }
+
+// Base is the live V4 deployment, so it is also the label shown before a
+// wallet reports its chain.
+export function chainName(chainId) {
+    if (isPolygonChain(chainId)) return "Polygon"
+    if (chainId === UNICHAIN_CHAIN_ID) return "Unichain"
+    if (chainId === UNICHAIN_SEPOLIA_CHAIN_ID) return "Unichain Sepolia"
+    return "Base"
+}

@@ -27,10 +27,10 @@ export function TradeForm({ onTradingTokenChange }) {
         openHalalShortOption,
     } = useDeFi()
 
-    // V4 (Unichain) trading path. Any chain other than Polygon uses the V4 hook
-    // (Unichain mainnet 130 / Unichain Sepolia 1301). An unresolved chainId
-    // (undefined) also resolves to the V4 path so the form stays usable while
-    // the wallet connection settles.
+    // V4 trading path. The live stack is on Base (8453); Unichain and its
+    // Sepolia testnet are also supported V4 chains. Polygon uses the V3 path.
+    // An unresolved chainId (undefined) also resolves to V4 so the form stays
+    // usable while the wallet connection settles.
     const isV4 = chainId !== POLYGON_CHAIN_ID
     const isCorrectNetwork = !chainId || SUPPORTED_CHAIN_IDS.includes(chainId)
 
@@ -82,8 +82,8 @@ export function TradeForm({ onTradingTokenChange }) {
             const marginAddr = ADDRESSES[marginToken]
             if (!marginAddr) return
 
-            // Native margin (ETH on Unichain) has no ERC20 contract — read the
-            // wallet's native balance instead of balanceOf(address(0)).
+            // Native margin (where the base asset is ETH) has no ERC20
+            // contract — read the wallet balance instead of balanceOf(address(0)).
             const data = marginAddr === ethers.ZeroAddress
                 ? await getNativeBalance(address)
                 : await getTokenBalance(marginAddr, address)

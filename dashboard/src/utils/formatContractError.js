@@ -56,7 +56,7 @@ export function formatContractError(error) {
         "ERC20: transfer amount exceeds balance": "Insufficient token balance.",
         "ERC20: transfer amount exceeds allowance": "Insufficient token allowance.", // Generic ERC20
 
-        // --- Uniswap V4 (Unichain) hook/router errors ---
+        // --- Uniswap V4 hook/router errors ---
         "PositionAlreadyOpen":
             "You already have a position open on this pool. Close it before opening a new one.",
         "SwapOutputZero":
